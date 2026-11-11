@@ -60,8 +60,10 @@ test('search for a hotel in Porto', async ({ page }) => {
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByRole('heading', { name: 'Facilities' })).toBeVisible({ timeout: 60_000 });
   await expect(sheet.locator('img').first()).toBeVisible();
-  // The photo strip keeps its height (it once collapsed to a few pixels in a tall sheet).
-  expect((await sheet.locator('img').first().boundingBox())!.height).toBeGreaterThan(150);
+  // The photo strip keeps its height. It once collapsed to a few pixels in a
+  // tall sheet: the images kept their size and the strip clipped them, so the
+  // strip itself is what is measured.
+  expect((await sheet.locator('img').first().locator('..').boundingBox())!.height).toBeGreaterThan(150);
   await expect(sheet.getByRole('button', { name: /Book/ })).toBeDisabled();
   await page.screenshot({ path: 'test-results/02-detail.png' });
   await page.keyboard.press('Escape');
