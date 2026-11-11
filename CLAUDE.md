@@ -9,9 +9,8 @@
 
 ## Status
 
-**Where the build stands: `docs/build-log.md`.** Done so far: schema and
-repos, the LiteAPI adapter, the stay finder. Lines under "Planned layout"
-that do not exist yet are marked *(planned)*.
+**It runs locally: `scripts/dev.sh`.** What works, what is not built and what
+has never been verified: **`docs/build-log.md`**. Read that first.
 
 ## Scope — hold the line
 
@@ -45,42 +44,50 @@ first on every message) · **LiteAPI** (the only supplier) · Google Maps/Places
 ## Commands
 
 ```bash
-npm run test         # vitest: unit + pg (in-process PGlite, no network)
-npm run typecheck    # tsc --noEmit
-npm run db:generate  # drizzle-kit generate
-node scripts/capture-liteapi-fixtures.mjs   # re-record sandbox fixtures
+scripts/dev.sh           # run locally; embedded Postgres in .data/, no setup
+npm run test             # vitest: unit + pg (in-process PGlite, no network)
+npm run typecheck        # tsc --noEmit
+npx playwright test      # real browser, own dev server, live LiteAPI sandbox
+npm run db:generate      # after editing schema.ts; a test fails if you forget
+scripts/jev-live.sh      # ask the real Jev twelve messages (never yet run)
 ```
-
-`npm install` needs `legacy-peer-deps` (set in `.npmrc`): `docs/schema.md`.
 
 ## Layout
 
 ```
 src/
+  app/            page.tsx + api/ (each route: one Zod payload)
+  components/     App, ChatPanel, FormControl, ResultsPanel, DetailSheet, api.ts
   lib/            PURE logic, unit-tested
-    bookingStates.ts   booking transition map (incl. the `booking` claim)
-    money.ts           supplier decimals → integer minor units
-    amenities.ts       the must-haves the app can actually check
-    pricing.ts         margins by audience, offer TTL
-    finder/            rank, geo, candidates, personas — docs/finder.md
-    pgErrors.ts        unique-violation reader
-    store/ agent/ router/              (planned)
+    store/        actions (closed Zod union), reducers, fingerprint
+    router/       catalogue (Jev's questions), slots (code extracts values), route
+    finder/       rank, geo, candidates, personas — docs/finder.md
+    replies.ts    fixed lines for changes made without a model
+    reasonText.ts words for a ranking reason
+    errors.ts     every error code and its copy
+    amenities.ts pricing.ts money.ts bookingStates.ts pgErrors.ts
   server/
-    db/           schema.ts (all tables), client.ts (lazy, DATABASE_URL)
-    finder.ts     fetch → rank → shortlist; the only writer of finder rows
+    db/           schema.ts, client.ts (Postgres, or embedded PGlite in dev)
     repos/        the ONLY way to touch the DB
+    finder.ts     fetch → rank → shortlist; the only writer of finder rows
+    dispatch.ts   the one path every change takes
+    onboarding.ts the form-in-chat; turn.ts one chat turn; view.ts; http.ts
     supplier/     BOUNDED — index.ts + types.ts are the only public surface
-      liteapi/    http, schemas, normalize, adapter, __fixtures__ (recorded)
-    jev/ payments/ auth/               (planned, each BOUNDED)
-  test/pg/        PGlite harness, fixtures, repo round trips
-  app/ components/                     (planned)
-e2e/                                   (planned)
+    jev/          BOUNDED — index.ts is the only public surface
+    auth/anon.ts  the signed anonymous cookie
+  test/pg/        PGlite harness, recorded supplier, repo and turn tests
+e2e/              Playwright
+drizzle/          generated migrations
 docs/             every "why"
 ```
 
 ### API routes
 
-None yet.
+```
+api/places  api/session  api/session/[id]  api/session/[id]/form
+api/session/[id]/property/[propertyId]  api/session/[id]/turn
+api/session/[id]/turns
+```
 
 ### Schema (18 tables in `src/server/db/schema.ts`)
 
@@ -94,27 +101,26 @@ userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas
 ### Repos (`src/server/repos/`)
 
 sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
-ONLY), usage, preferences, bookings, appMeta
+ONLY), usage, preferences, bookings, appMeta, rateLimit
 
 ### Guard tests
 
-`schemaGuard` (timestamps through `ts()`, stay dates are `date`, money is
-integer) · `supplierBoundaryGuard` (nothing outside `supplier/` imports past
-its index and types; the adapter never books with the account card) ·
-`fixturesGuard` (fixtures match their captured hash and hold no key or
-secret) · `shortlistSourceGuard` (only the finder writes finder rows). Mutation logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
+`schemaGuard` · `supplierBoundaryGuard` · `fixturesGuard` ·
+`shortlistSourceGuard` · `errorCopyGuard` (every error code has copy; no
+empty catch) · `devDatabase` (migrations build exactly the schema). Mutation
+logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 
 ### Agent tools
 
-None yet.
+None yet: the agent is not built.
 
 ### Scripts (`scripts/`)
 
-capture-liteapi-fixtures.mjs — what it records and why: `docs/supplier.md`.
+capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh
 
-### E2E specs
+### E2E specs (`e2e/`)
 
-None yet.
+search
 
 ## Lockdown invariants (load-bearing)
 

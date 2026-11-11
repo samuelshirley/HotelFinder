@@ -1,5 +1,5 @@
 import 'server-only';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
 import { properties } from '@/server/db/schema';
@@ -18,4 +18,9 @@ export async function upsertProperty(input: PropertyInput): Promise<Property> {
     })
     .returning();
   return row;
+}
+
+export async function getProperty(id: string): Promise<Property | null> {
+  const [row] = await db.select().from(properties).where(eq(properties.id, id));
+  return row ?? null;
 }

@@ -211,7 +211,12 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       // The agent is the next stop. Until it is built, say so plainly. Jev being
       // unreachable gets its own line: nothing was changed, and a retry may work.
       return {
-        text: decision.reason === 'no_reading' ? FIXED_LINES.router_unavailable : FIXED_LINES.cannot_yet,
+        text:
+          decision.reason !== 'no_reading'
+            ? FIXED_LINES.cannot_yet
+            : jev.failure === 'not_configured'
+              ? FIXED_LINES.router_not_configured
+              : FIXED_LINES.router_unavailable,
         meta: { ...trace, deferred: decision.reason, model_calls: 0 },
       };
   }

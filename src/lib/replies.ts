@@ -145,5 +145,6 @@ export const FIXED_LINES = {
   adjacent: 'I only search hotels, so I cannot help with that.',
   cannot_yet: 'I could not work that one out. Try one change at a time, such as "under 120 a night", "needs parking" or "not the second one".',
   router_unavailable: 'The router that handles simple changes did not answer, so nothing was changed. Send that again.',
+  router_not_configured: 'Messages are handled by Jev, and JEV_API_KEY is not set on this server, so nothing was changed.',
   use_the_form: 'Pick one of the options above to continue.',
 } as const;

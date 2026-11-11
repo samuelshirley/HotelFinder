@@ -2,11 +2,13 @@
   "name": "hotel-finder",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.4",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
