@@ -138,6 +138,8 @@ export const stays = pgTable(
     /** Per night, in the session currency's minor units. */
     priceCapMinor: integer('price_cap_minor'),
     mustHaves: jsonb('must_haves').$type<string[]>().notNull().default([]),
+    /** Hotels the user said no to for this stay. The finder never brings them back. */
+    excludedPropertyIds: jsonb('excluded_property_ids').$type<string[]>().notNull().default([]),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => ({

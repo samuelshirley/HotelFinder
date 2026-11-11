@@ -22,7 +22,9 @@ const importsOf = (file: string) =>
  * file can depend on which supplier is behind the interface.
  */
 describe('supplier boundary', () => {
-  const outside = walk(SRC).filter((f) => !f.startsWith(SUPPLIER + path.sep));
+  // Tests may read the recorded supplier responses (the personas are judged on
+  // them). Application code may not.
+  const outside = walk(SRC).filter((f) => !f.startsWith(SUPPLIER + path.sep) && !f.endsWith('.test.ts'));
 
   it('nothing outside supplier/ reaches into it past index.ts and types.ts', () => {
     const offenders: string[] = [];

@@ -1,3 +1,4 @@
+import type { Amenity } from '@/lib/amenities';
 import type { Money } from '@/lib/money';
 
 /**
@@ -66,6 +67,9 @@ export type PropertyDetails = SupplierProperty & {
   description: string | null;
   imageUrls: string[];
 };
+
+/** The amenities a hotel is known to have. A hotel missing from the answer is unknown, not amenity-free. */
+export type StaticFacts = { supplierHotelId: string; amenities: Amenity[] };
 
 export type Fee = { description: string; amount: Money; included: boolean };
 
@@ -174,6 +178,8 @@ export interface SupplierAdapter {
   searchPlaces(query: string): Promise<SupplierResult<Place[]>>;
   /** No availability is `ok` with empty lists; the caller decides whether that is retryable. */
   searchAvailability(request: SearchRequest): Promise<SupplierResult<SearchResult>>;
+  /** Compact amenity facts for many hotels in one call. Cacheable for days. */
+  getStaticFacts(supplierHotelIds: string[]): Promise<SupplierResult<StaticFacts[]>>;
   getStaticContent(supplierHotelId: string): Promise<SupplierResult<PropertyDetails>>;
   /** The supplier's prebook: confirms the rate still exists and at what price. */
   recheckRate(supplierOfferId: string): Promise<SupplierResult<RateCheck>>;

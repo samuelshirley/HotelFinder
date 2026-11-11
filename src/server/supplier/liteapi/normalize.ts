@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 
 import { sumMoney, toMoney, type Money } from '@/lib/money';
+import { amenitiesFromFacilityIds } from './amenities';
 import type {
   CancellationPolicy,
   CancelResult,
@@ -9,6 +10,7 @@ import type {
   PropertyDetails,
   RateCheck,
   SearchResult,
+  StaticFacts,
   SupplierBooking,
   SupplierBookingStatus,
   SupplierOffer,
@@ -18,6 +20,7 @@ import type {
   bookingResponse,
   cancelResponse,
   hotelDetailsResponse,
+  hotelListResponse,
   placesResponse,
   prebookResponse,
   RatesResponse,
@@ -147,6 +150,10 @@ export function normalizePlaces(body: z.infer<typeof placesResponse>): Place[] {
     address: p.formattedAddress ?? null,
     types: p.types ?? [],
   }));
+}
+
+export function normalizeStaticFacts(body: z.infer<typeof hotelListResponse>): StaticFacts[] {
+  return body.data.map((h) => ({ supplierHotelId: h.id, amenities: amenitiesFromFacilityIds(h.facilityIds ?? []) }));
 }
 
 export function normalizeDetails(body: z.infer<typeof hotelDetailsResponse>): PropertyDetails {

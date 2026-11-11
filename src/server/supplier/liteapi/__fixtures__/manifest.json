@@ -305,6 +305,61 @@
       "bytes": 86,
       "redactedFields": [],
       "sha256": "86cb20c27629472c4d83ca6a1549fd8cbd1a1ab5a2300b979720c87e20b0437b"
+    },
+    "hotels-static-porto.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotels?hotelIds=lp76a2a,lp55362,lp1f67a6,lp37469a,lp6554c343,lp1b51f,lp6556bad0,lp6557699a,lp34e59,lp6557454d,lp5ead4,lpb0c3b,lp6556ee72,lp6554f833,lp2563c,lpa0fef,lp90400,lpadfd9,lp20ecc8,lp655855eb",
+      "request": null,
+      "status": 200,
+      "latencyMs": 449,
+      "bytes": 41445,
+      "redactedFields": [],
+      "sha256": "293cfdf0c2a2f25e7121b0385bdf0c6a7057b42ec6e03160d4e537aa3fface08"
+    },
+    "rates-city-porto-margin-15.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "margin": 15,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true
+      },
+      "status": 200,
+      "latencyMs": 3632,
+      "bytes": 68551,
+      "redactedFields": [],
+      "sha256": "fd7139f1714b2b7a812efe48ded365e518c9c112302f4137f152ace153662afb"
     }
   }
 }

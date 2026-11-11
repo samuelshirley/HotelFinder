@@ -108,6 +108,12 @@ export const placesResponse = z
   })
   .passthrough();
 
+export const hotelListResponse = z
+  .object({
+    data: z.array(z.object({ id: z.string().min(1), facilityIds: z.array(z.number().int()).nullish() }).passthrough()),
+  })
+  .passthrough();
+
 export const hotelDetailsResponse = z
   .object({
     data: z

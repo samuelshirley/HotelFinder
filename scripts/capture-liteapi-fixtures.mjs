@@ -39,7 +39,18 @@ const DATA = 'https://api.liteapi.travel/v3.0';
 const BOOK = 'https://book.liteapi.travel/v3.0';
 const SECRET_MARKER = 'REDACTED_AT_CAPTURE';
 
-const manifest = { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
+/**
+ * `--add-static-facts` records ONE more fixture next to the existing set
+ * (compact static facts for the hotels already in rates-city-porto.json) and
+ * leaves every other file and hash as it was. Rates move from minute to
+ * minute, so re-recording everything would change the values the tests pin.
+ */
+const addStaticFacts = process.argv.includes('--add-static-facts');
+const addPublicRates = process.argv.includes('--add-public-rates');
+const manifestPath = path.join(outDir, 'manifest.json');
+const manifest = addStaticFacts || addPublicRates
+  ? JSON.parse(readFileSync(manifestPath, 'utf8'))
+  : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
 function redact(value) {
   if (Array.isArray(value)) return value.map(redact);
@@ -81,6 +92,27 @@ async function capture(name, method, url, body) {
   console.log(`${String(res.status).padEnd(4)} ${name}  ${text.length} B  ${Date.now() - started} ms`);
   await new Promise((r) => setTimeout(r, 300)); // sandbox allows 5 requests per second
   return { status: res.status, json };
+}
+
+if (addStaticFacts) {
+  const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
+  const ids = recorded.data.map((h) => h.hotelId).join(',');
+  await capture('hotels-static-porto', 'GET', `${DATA}/data/hotels?hotelIds=${ids}`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added hotels-static-porto.json');
+  process.exit(0);
+}
+
+if (addPublicRates) {
+  // The same 20 hotels at a 15% margin: what an anonymous visitor would be quoted.
+  const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
+  await capture('rates-city-porto-margin-15', 'POST', `${DATA}/hotels/rates`, {
+    occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13',
+    hotelIds: recorded.data.map((h) => h.hotelId), margin: 15, maxRatesPerHotel: 1, includeHotelData: true,
+  });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added rates-city-porto-margin-15.json');
+  process.exit(0);
 }
 
 const stay = { occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13' };

@@ -9,8 +9,8 @@
 
 ## Status
 
-**2026-11-11: build steps 2 and 3 of 11 done** (schema, repos, PGlite tests;
-LiteAPI adapter on recorded fixtures). No routes, no UI, no finder, no agent yet. Lines under "Planned layout"
+**Where the build stands: `docs/build-log.md`.** Done so far: schema and
+repos, the LiteAPI adapter, the stay finder. Lines under "Planned layout"
 that do not exist yet are marked *(planned)*.
 
 ## Scope — hold the line
@@ -60,10 +60,14 @@ src/
   lib/            PURE logic, unit-tested
     bookingStates.ts   booking transition map (incl. the `booking` claim)
     money.ts           supplier decimals → integer minor units
+    amenities.ts       the must-haves the app can actually check
+    pricing.ts         margins by audience, offer TTL
+    finder/            rank, geo, candidates, personas — docs/finder.md
     pgErrors.ts        unique-violation reader
-    store/ finder/ agent/ router/      (planned)
+    store/ agent/ router/              (planned)
   server/
     db/           schema.ts (all tables), client.ts (lazy, DATABASE_URL)
+    finder.ts     fetch → rank → shortlist; the only writer of finder rows
     repos/        the ONLY way to touch the DB
     supplier/     BOUNDED — index.ts + types.ts are the only public surface
       liteapi/    http, schemas, normalize, adapter, __fixtures__ (recorded)
@@ -98,7 +102,7 @@ ONLY), usage, preferences, bookings, appMeta
 integer) · `supplierBoundaryGuard` (nothing outside `supplier/` imports past
 its index and types; the adapter never books with the account card) ·
 `fixturesGuard` (fixtures match their captured hash and hold no key or
-secret). Mutation logs: `docs/schema.md`, `docs/supplier.md`.
+secret) · `shortlistSourceGuard` (only the finder writes finder rows). Mutation logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 
 ### Agent tools
 

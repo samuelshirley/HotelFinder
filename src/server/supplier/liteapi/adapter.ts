@@ -8,6 +8,7 @@ import type {
   RateCheck,
   SearchRequest,
   SearchResult,
+  StaticFacts,
   SupplierAdapter,
   SupplierBooking,
   SupplierError,
@@ -22,6 +23,7 @@ import {
   normalizePlaces,
   normalizePrebook,
   normalizeRates,
+  normalizeStaticFacts,
   SUPPLIER,
 } from './normalize';
 import {
@@ -29,6 +31,7 @@ import {
   cancelResponse,
   errorBody,
   hotelDetailsResponse,
+  hotelListResponse,
   placesResponse,
   prebookResponse,
   ratesResponse,
@@ -188,6 +191,19 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
         normalize: (body) => normalizeRates(body, request.marginPct, fetchedAt),
         onSupplierError: (code) => (code === NO_AVAILABILITY ? { properties: [], offers: [] } : undefined),
         meta: (v) => ({ hotels: v.properties.length, offers: v.offers.length }),
+      });
+    },
+
+    async getStaticFacts(supplierHotelIds: string[]): Promise<SupplierResult<StaticFacts[]>> {
+      if (supplierHotelIds.length === 0) return { ok: true, value: [] };
+      return run({
+        op: 'facts',
+        method: 'GET',
+        url: `${DATA}/data/hotels?hotelIds=${supplierHotelIds.map(encodeURIComponent).join(',')}`,
+        timeoutMs: TIMEOUTS.content,
+        schema: hotelListResponse,
+        normalize: normalizeStaticFacts,
+        meta: (v) => ({ count: v.length }),
       });
     },
 

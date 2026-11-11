@@ -2,7 +2,7 @@ import 'server-only';
 import { and, eq, gt, type SQL } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
-import { offers, type Audience } from '@/server/db/schema';
+import { offers, properties, type Audience } from '@/server/db/schema';
 
 export type Offer = typeof offers.$inferSelect;
 export type OfferInput = Omit<typeof offers.$inferInsert, 'id'>;
@@ -42,5 +42,25 @@ export async function listLiveOffers(
     .from(offers)
     .where(
       and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), gt(offers.expiresAt, now), visibleTo(audience)),
+    );
+}
+
+/**
+ * Live offers quoted for exactly this audience, each with its property. A
+ * member is ranked on member prices only: public offers recorded before they
+ * signed in are still visible to them but are not what the finder ranks.
+ */
+export async function listLiveOffersForRanking(sessionId: string, stayId: string, audience: Audience, now: Date) {
+  return db
+    .select({ offer: offers, property: properties })
+    .from(offers)
+    .innerJoin(properties, eq(properties.id, offers.propertyId))
+    .where(
+      and(
+        eq(offers.sessionId, sessionId),
+        eq(offers.stayId, stayId),
+        eq(offers.audience, audience),
+        gt(offers.expiresAt, now),
+      ),
     );
 }

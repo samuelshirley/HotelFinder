@@ -71,7 +71,18 @@ export async function updateSession(
 
 export type StayInput = Pick<Stay, 'destinationText' | 'checkIn' | 'checkOut'> &
   Partial<
-    Pick<Stay, 'placeId' | 'latitude' | 'longitude' | 'adults' | 'childrenAges' | 'rooms' | 'priceCapMinor' | 'mustHaves'>
+    Pick<
+      Stay,
+      | 'placeId'
+      | 'latitude'
+      | 'longitude'
+      | 'adults'
+      | 'childrenAges'
+      | 'rooms'
+      | 'priceCapMinor'
+      | 'mustHaves'
+      | 'excludedPropertyIds'
+    >
   >;
 
 /** Appends a stay at the next position. */
@@ -102,4 +113,12 @@ export async function updateStay(
 
 export async function listStays(sessionId: string): Promise<Stay[]> {
   return db.select().from(stays).where(eq(stays.sessionId, sessionId)).orderBy(asc(stays.position));
+}
+
+export async function getStay(stayId: string, sessionId: string): Promise<Stay | null> {
+  const [row] = await db
+    .select()
+    .from(stays)
+    .where(and(eq(stays.id, stayId), eq(stays.sessionId, sessionId)));
+  return row ?? null;
 }
