@@ -319,6 +319,9 @@ From LiteAPI's docs, not yet exercised **[U]**: prebook and book each take
 allows 5 requests per second; a production key needs a credit card on the
 account; LiteAPI ships its own embeddable chat booking widget.
 
+Step 3 findings (book is not idempotent; no-availability arrives on HTTP
+200; fee descriptions are free text): `docs/supplier.md`.
+
 **Consequence for the finder:** fetch and rank are separate. A refinement that
 does not change destination, dates or guests re-ranks the cached result set
 and makes no supplier call.

@@ -116,6 +116,8 @@ describe('bookings', () => {
     expect(await transitionBooking(booking.id, 'paid')).toBeNull();
     expect((await transitionBooking(booking.id, 'payment_pending'))?.status).toBe('payment_pending');
     expect((await transitionBooking(booking.id, 'paid'))?.status).toBe('paid');
+    expect(await transitionBooking(booking.id, 'confirmed')).toBeNull();
+    expect((await transitionBooking(booking.id, 'booking'))?.status).toBe('booking');
     const confirmed = await transitionBooking(booking.id, 'confirmed', {
       supplierBookingId: 'bk_1',
       hotelConfirmationCode: 'H123',
@@ -125,10 +127,19 @@ describe('bookings', () => {
     expect((await transitionBooking(booking.id, 'cancelled'))?.status).toBe('cancelled');
   });
 
+  it('only one caller wins the claim to call the supplier', async () => {
+    const { booking } = await prebooked();
+    await transitionBooking(booking.id, 'payment_pending');
+    await transitionBooking(booking.id, 'paid');
+    const claims = await Promise.all([1, 2, 3, 4].map(() => transitionBooking(booking.id, 'booking')));
+    expect(claims.filter(Boolean)).toHaveLength(1);
+  });
+
   it('a payment that cleared can still fail at book', async () => {
     const { booking } = await prebooked();
     await transitionBooking(booking.id, 'payment_pending');
     await transitionBooking(booking.id, 'paid');
+    await transitionBooking(booking.id, 'booking');
     expect((await transitionBooking(booking.id, 'failed'))?.status).toBe('failed');
     expect(await transitionBooking(booking.id, 'confirmed')).toBeNull();
   });

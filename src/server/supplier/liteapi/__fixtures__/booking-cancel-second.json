@@ -1,0 +1,10 @@
+{
+  "data": {
+    "bookingId": "CzNKYjCRS",
+    "cancellation_fee": 0,
+    "currency": "EUR",
+    "refund_amount": 158.04,
+    "status": "CANCELLED"
+  },
+  "sandbox": true
+}

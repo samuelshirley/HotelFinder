@@ -12,13 +12,14 @@ describe('booking states', () => {
     expect(BOOKING_TRANSITIONS.cancelled).toEqual([]);
   });
 
-  it('confirmed is reachable only from paid, and paid only from payment_pending', () => {
-    expect(sourcesFor('confirmed')).toEqual(['paid']);
+  it('confirmed is reachable only through the booking claim, and the claim only from paid', () => {
+    expect(sourcesFor('confirmed')).toEqual(['booking']);
+    expect(sourcesFor('booking')).toEqual(['paid']);
     expect(sourcesFor('paid')).toEqual(['payment_pending']);
   });
 
   it('failure is possible until the booking is confirmed, not after', () => {
-    expect(sourcesFor('failed').sort()).toEqual(['paid', 'payment_pending', 'prebooked']);
+    expect(sourcesFor('failed').sort()).toEqual(['booking', 'paid', 'payment_pending', 'prebooked']);
     expect(canTransition('confirmed', 'failed')).toBe(false);
   });
 

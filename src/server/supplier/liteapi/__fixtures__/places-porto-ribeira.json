@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJicetJOdkJA0R8GJ9Dy_dcgo",
+      "displayName": "Ribeira",
+      "formattedAddress": "Porto, Portugal",
+      "types": [
+        "geocode",
+        "neighborhood",
+        "political"
+      ]
+    },
+    {
+      "placeId": "Eh9SaWJlaXJhIFNxdWFyZSwgUG9ydG8sIFBvcnR1Z2FsIi4qLAoUChIJiZbo8eBkJA0RXGEAgQ-KsIISFAoSCcFT4cSrZSQNEbwUsUBW2Uim",
+      "displayName": "Ribeira Square",
+      "formattedAddress": "Porto, Portugal",
+      "types": [
+        "route",
+        "geocode"
+      ]
+    },
+    {
+      "placeId": "ChIJzVpvv-FkJA0RadMbsLTmZwQ",
+      "displayName": "Ribeira Vintage",
+      "formattedAddress": "Rua de Sousa Viterbo, Porto, Portugal",
+      "types": [
+        "point_of_interest",
+        "establishment",
+        "lodging",
+        "service"
+      ]
+    },
+    {
+      "placeId": "ChIJPV3ce6Z9JA0RZ13gpj1k2Eo",
+      "displayName": "Ribeira, 4515-102",
+      "formattedAddress": "Foz do Sousa, Porto, Portugal",
+      "types": [
+        "geocode",
+        "political",
+        "sublocality",
+        "sublocality_level_1"
+      ]
+    }
+  ],
+  "fromCache": true
+}

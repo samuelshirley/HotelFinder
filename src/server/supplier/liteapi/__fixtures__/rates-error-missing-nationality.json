@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 4002,
+    "description": "guestNationality field invalid or missing",
+    "message": "required request field is missing or wrong input"
+  }
+}

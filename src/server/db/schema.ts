@@ -318,7 +318,21 @@ export const userPreferences = pgTable('user_preferences', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
-export const BOOKING_STATUSES = ['prebooked', 'payment_pending', 'paid', 'confirmed', 'failed', 'cancelled'] as const;
+/**
+ * `booking` is the claim taken BEFORE the supplier's book call. The supplier
+ * answers a repeated book for one prebook with a second confirmed booking
+ * (recorded: __fixtures__/book-same-prebook-again.json), so the call is made
+ * only by whoever moved the row paid → booking, and never retried from there.
+ */
+export const BOOKING_STATUSES = [
+  'prebooked',
+  'payment_pending',
+  'paid',
+  'booking',
+  'confirmed',
+  'failed',
+  'cancelled',
+] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const bookingStatus = pgEnum('booking_status', BOOKING_STATUSES);
 

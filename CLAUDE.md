@@ -9,8 +9,8 @@
 
 ## Status
 
-**2026-11-11: build step 2 of 11 done** (schema, repos, PGlite tests). No
-routes, no UI, no supplier adapter, no agent yet. Lines under "Planned layout"
+**2026-11-11: build steps 2 and 3 of 11 done** (schema, repos, PGlite tests;
+LiteAPI adapter on recorded fixtures). No routes, no UI, no finder, no agent yet. Lines under "Planned layout"
 that do not exist yet are marked *(planned)*.
 
 ## Scope — hold the line
@@ -48,6 +48,7 @@ first on every message) · **LiteAPI** (the only supplier) · Google Maps/Places
 npm run test         # vitest: unit + pg (in-process PGlite, no network)
 npm run typecheck    # tsc --noEmit
 npm run db:generate  # drizzle-kit generate
+node scripts/capture-liteapi-fixtures.mjs   # re-record sandbox fixtures
 ```
 
 `npm install` needs `legacy-peer-deps` (set in `.npmrc`): `docs/schema.md`.
@@ -57,13 +58,16 @@ npm run db:generate  # drizzle-kit generate
 ```
 src/
   lib/            PURE logic, unit-tested
-    bookingStates.ts   booking transition map
+    bookingStates.ts   booking transition map (incl. the `booking` claim)
+    money.ts           supplier decimals → integer minor units
     pgErrors.ts        unique-violation reader
     store/ finder/ agent/ router/      (planned)
   server/
     db/           schema.ts (all tables), client.ts (lazy, DATABASE_URL)
     repos/        the ONLY way to touch the DB
-    supplier/ jev/ payments/ auth/     (planned, each BOUNDED)
+    supplier/     BOUNDED — index.ts + types.ts are the only public surface
+      liteapi/    http, schemas, normalize, adapter, __fixtures__ (recorded)
+    jev/ payments/ auth/               (planned, each BOUNDED)
   test/pg/        PGlite harness, fixtures, repo round trips
   app/ components/                     (planned)
 e2e/                                   (planned)
@@ -90,16 +94,19 @@ ONLY), usage, preferences, bookings, appMeta
 
 ### Guard tests
 
-`schemaGuard.test.ts` (timestamps through `ts()`, stay dates are `date`, money
-is integer). Mutation-check log: `docs/schema.md`.
+`schemaGuard` (timestamps through `ts()`, stay dates are `date`, money is
+integer) · `supplierBoundaryGuard` (nothing outside `supplier/` imports past
+its index and types; the adapter never books with the account card) ·
+`fixturesGuard` (fixtures match their captured hash and hold no key or
+secret). Mutation logs: `docs/schema.md`, `docs/supplier.md`.
 
 ### Agent tools
 
 None yet.
 
-### Scripts
+### Scripts (`scripts/`)
 
-None yet.
+capture-liteapi-fixtures.mjs — what it records and why: `docs/supplier.md`.
 
 ### E2E specs
 
@@ -118,6 +125,8 @@ The ones most easily broken:
 - Shortlist rows come only from the finder. Supplier ids are opaque.
 - A member-priced offer never reaches an anonymous session.
 - A rate is re-checked before any payment form; a changed rate is shown.
+- **The supplier's book call is not idempotent.** Call it only after winning
+  the `paid → booking` claim, and never retry it: `docs/supplier.md`.
 - Card data never reaches our server.
 - `JEV_BASE_URL` is server-only and a privacy boundary.
 

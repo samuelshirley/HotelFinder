@@ -38,7 +38,9 @@ Inventory: `properties`, `offers`, `shortlist_entries`. Accounts:
 - **Booking states.** `lib/bookingStates.ts` is the pure transition map; the
   repo applies it as the WHERE of the update, so an illegal move changes zero
   rows. `failed` is reachable until `confirmed`, because book can fail after
-  the card cleared.
+  the card cleared. `paid → booking` is a claim taken before the
+  supplier's book call, because that call is not idempotent
+  (`docs/supplier.md`); four concurrent claims yield one winner.
 - **Model-visible chat.** Only `user` and `ai` rows are returned by
   `listModelVisibleTail`. Form rows, the payment row and receipts never enter
   model context.

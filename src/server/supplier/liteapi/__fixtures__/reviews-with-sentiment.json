@@ -1,0 +1,104 @@
+{
+  "data": [
+    {
+      "reviewId": 5360302028,
+      "averageScore": 10,
+      "country": "pt",
+      "type": "couple",
+      "name": "Ana Azevedo",
+      "date": "2026-11-06T00:00:00Z",
+      "headline": "",
+      "language": "pt-pt",
+      "pros": "",
+      "cons": "",
+      "source": "Nuitee"
+    },
+    {
+      "reviewId": 5360350189,
+      "averageScore": 8,
+      "country": "gb",
+      "type": "couple",
+      "name": "Peter",
+      "date": "2026-11-06T00:00:00Z",
+      "headline": "",
+      "language": "en-gb",
+      "pros": "",
+      "cons": "",
+      "source": "Nuitee"
+    },
+    {
+      "reviewId": 5360189522,
+      "averageScore": 10,
+      "country": "pt",
+      "type": "couple",
+      "name": "Minazali",
+      "date": "2026-11-05T00:00:00Z",
+      "headline": "",
+      "language": "pt-pt",
+      "pros": "O design  do hotel",
+      "cons": "Pequeno fraco preco qualidade e diversidade",
+      "source": "Nuitee"
+    }
+  ],
+  "total": 6127,
+  "sentimentAnalysis": {
+    "categories": [
+      {
+        "name": "Cleanliness",
+        "rating": 8.8,
+        "description": "Rooms frequently described as clean, well scented and well maintained; a few mentions of facade needing painting (external) but no major room-cleanliness complaints."
+      },
+      {
+        "name": "Service",
+        "rating": 9.3,
+        "description": "Repeated praise for very friendly, warm and attentive staff and excellent service; several reviews explicitly recommend the staff and service."
+      },
+      {
+        "name": "Location",
+        "rating": 9.2,
+        "description": "Many comments highlight a great central riverside location, close to transport and attractions and convenient for walking; praised repeatedly."
+      },
+      {
+        "name": "Room Quality",
+        "rating": 7.6,
+        "description": "Rooms described as spacious and comfortable with tasteful design, but there are recurring negatives: dark colour schemes, street noise for some rooms and poor window sound insulation."
+      },
+      {
+        "name": "Amenities",
+        "rating": 9,
+        "description": "Strong positives for rooftop bar, stylish lobby, attractive decor and good facilities; rooftop and atmosphere called out several times."
+      },
+      {
+        "name": "Value for Money",
+        "rating": 7.6,
+        "description": "Mixed signals: many enjoy the hotel but guests note paid parking and an expensive breakfast and one reviewer felt the stay was not particularly special for the price."
+      },
+      {
+        "name": "Food and Beverage",
+        "rating": 9.5,
+        "description": "Breakfast repeatedly described as excellent, fabulous and varied; rooftop bar praised for sunsets and atmosphere—strong B&amp;B scores overall."
+      },
+      {
+        "name": "Overall Experience",
+        "rating": 9.4,
+        "description": "Majority of reviews are very positive — recommended stays, comfortable experience and memorable decor/service — tempered by occasional noise/parking issues."
+      }
+    ],
+    "pros": [
+      "Friendly, attentive staff",
+      "Excellent location by the river / central",
+      "Rooftop bar / great rooftop views",
+      "Spacious, well-designed rooms",
+      "Excellent breakfast / food",
+      "Clean, well-scented and nicely decorated hotel"
+    ],
+    "cons": [
+      "Noise issues (hot water pipes, street, rooftop)",
+      "Poor window sound insulation",
+      "Parking limited and charged",
+      "Some rooms have dark/sombre colours",
+      "Facade could use maintenance/painting",
+      "Access / exterior reception arrangement noted by a few"
+    ]
+  }
+}

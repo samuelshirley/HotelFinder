@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 4004,
+    "description": "booking not found",
+    "message": "entity not found"
+  }
+}
