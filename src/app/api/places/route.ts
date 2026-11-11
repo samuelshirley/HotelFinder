@@ -14,7 +14,7 @@ const query = z.object({ q: z.string().trim().min(2).max(80) }).strict();
 export const GET = handled(async (req: Request) => {
   const parsed = query.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!parsed.success) return errorResponse('invalid_request', 400);
-  ensureOwner();
+  await ensureOwner();
   const limited = await rateLimit('places', 60);
   if (limited) return limited;
 

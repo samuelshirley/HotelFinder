@@ -218,7 +218,10 @@ export function normalizePrebook(body: z.infer<typeof prebookResponse>, checkedA
 export function bookingStatus(raw: string): SupplierBookingStatus {
   const s = raw.trim().toUpperCase();
   if (s === 'CONFIRMED') return 'confirmed';
-  if (s === 'CANCELLED' || s === 'CANCELED') return 'cancelled';
+  // The sandbox answers a non-refundable cancel with CANCELLED_WITH_CHARGES (seen
+  // live 2026-11-11, booking 9OMqobucP): cancelled, with the fee kept. Any
+  // CANCELLED* is cancelled; the money is in the fee and refund fields.
+  if (/^CANCEL+ED(_|$)/.test(s)) return 'cancelled';
   return 'other';
 }
 

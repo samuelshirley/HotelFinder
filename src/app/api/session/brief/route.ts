@@ -29,7 +29,7 @@ export const POST = handled(async (req: Request) => {
   const bad = checkBrief(parsed.data.brief, today);
   if (bad) return errorResponse(bad, 400);
 
-  const session = await startSession(ensureOwner(), headers());
+  const session = await startSession(await ensureOwner(), headers());
   const result = await startFromBrief({
     session,
     brief: parsed.data.brief,

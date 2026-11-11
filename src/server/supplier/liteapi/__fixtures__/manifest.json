@@ -556,6 +556,59 @@
       "bytes": 1189,
       "redactedFields": [],
       "sha256": "2aea3f14408a7e6ba60de1693a57366d299b3b2538617c76a1e90376fea25f52"
+    },
+    "prebook-nonrefundable.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/prebook",
+      "request": {
+        "offerId": "AwJ2MQAAAABq9hZ2vjd7mfBd168DO9dBKntDFnVs8O396TMHn6Wc6ScdTdleb6U106DEWYlzzxDuTE_Of8ia6NvTBbV_BXv7ob_iR0kMKcMT3FOlFrbfF9wMzPh0UPIqregSaJt5NEguNuImaRN7qs_F0JZ27948qI9zIGP5FbKPQKuMF4X5jIpVkSA17812rOso5A1k-qU89thh5EEM77OrXWPd3-cBo_v29YoLr7gHO__7DSD67QeIVQf7IvlCGKZdvd8SdrjRqNdjVgsgIpU2RvfI6muPyA0CT7jFlPAnopFGl-DvxVxzU0eWZq_uBkNjhs9jbuZgiki9WBHfRrMszjW5aOfVlRrrvgpYRsyHNChtl2vJl8NsksA8joHczKO0QIAFhgZ2qHbSLzodGWX2_6I89nsqgTDmOmxz1HYzwE0wNB3lwRDUqQ7kbcywK3b1IZKlLyJd6mquEmwatdfju3n0hsUqBaUfDMXgIvg2wDnY8ByzeT2TE8IkUn5D5wHzRIV1DpE2x2X-cbSpDeF_k5zzPnVQm8-4NKylKs6GZT3J-cNxWj3nnys8p3uGQBWkdOy4A4Vs0InWRbrMFyamK3FhcDLuzoCGrXkxfNZG9AqoP1ump6jX9ncYniE9PJ3rqL-uJDeTjlBnTFSBMnvfrNxxAIS7nPdzNAyv_f8XPGruL8QwJ-3Pm5Jz5utflu8CcLvLyJh8-_iMh-Dx_UufsWi3j4pW6CTvBXo4--gWaZwVQWHYRurrNb5nW9HX-JS4YAHplJqnNF3oBasCjjwntvrK8bNQRR34NnF77FXAaCJa2De31Ln6aUFhNi8w0oNxsbY5Na_hUNkhYIEC1TniG2ZJ8kjsXsb78sqYgkWTh6DCXXOligXEFh1QscQGXVr4t3O0Vpzk5wBuKegL977Q965yoc8wHSSD4p2dLcLo1m7N7FE5fNerIla2h1q8XxRWqyM6h-sktYH0nBBOmdTAIDSh3ahQha5gP_SB2MQ7yd6tnDrKGkfNEf7dHXu5zNMgk4kKeQ-ZObwF9Upjy_JniLYYi9EQaqWGVcM-GQf7q3NApl_hTZ9_KxrPn57TXSnWGwBJMyO03vf801N6pAkTiLtxS8AvDa7Eo6xxIuZv6VxkjvE6ex8=",
+        "usePaymentSdk": true
+      },
+      "status": 200,
+      "latencyMs": 3590,
+      "bytes": 3350,
+      "redactedFields": [
+        "secretKey"
+      ],
+      "sha256": "8848b1fb58bc6f8b7ef4d544c5a5f3189da8cf52da6d016643965be98897279a"
+    },
+    "book-nonrefundable.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/book",
+      "request": {
+        "prebookId": "hKl4p6JtG",
+        "holder": {
+          "firstName": "Fixture",
+          "lastName": "Guest",
+          "email": "guest@fixture.hotelfinder.invalid"
+        },
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Fixture",
+            "lastName": "Guest",
+            "email": "guest@fixture.hotelfinder.invalid"
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3710,
+      "bytes": 4339,
+      "redactedFields": [],
+      "sha256": "8f1ac5622a96230912d8478178823e3e22c7019040ca49f1b23aadcd962351be"
+    },
+    "booking-cancel-with-charges.json": {
+      "method": "PUT",
+      "url": "https://book.liteapi.travel/v3.0/bookings/2U0GzrbQp",
+      "request": null,
+      "status": 200,
+      "latencyMs": 301,
+      "bytes": 144,
+      "redactedFields": [],
+      "sha256": "421886107242c238152dde9bf597d8fe296153d9aac817a7f1a3f31bc8269ebb"
     }
   }
 }

@@ -248,7 +248,7 @@ describe('recheckRate, book, getBooking, cancel', () => {
     const { supplier, events } = adapter(fetchImpl);
     const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
     const second = { firstName: 'Second', lastName: 'Guest', email: 'second@fixture.hotelfinder.invalid' };
-    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder, second] });
+    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder, second], payment: 'transaction_id' });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       method: 'POST',
@@ -267,6 +267,22 @@ describe('recheckRate, book, getBooking, cancel', () => {
     expect(events[0]).toMatchObject({ provider: 'liteapi:book', success: true, meta: { status: 'CONFIRMED' } });
   });
 
+  it('a test payment books with the sandbox card method, and only with a sandbox key', async () => {
+    const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+    const sandbox = replay('book-confirmed');
+    const sb = createLiteApiAdapter({ apiKey: 'sand_fixture', fetchImpl: sandbox.fetchImpl });
+    expect(await sb.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder], payment: 'sandbox_test' })).toMatchObject({ ok: true });
+    expect(sandbox.calls[0].body).toMatchObject({ payment: { method: 'ACC_CREDIT_CARD' } });
+
+    const liveCalls = replay('book-confirmed');
+    const live = createLiteApiAdapter({ apiKey: 'prod_fixture', fetchImpl: liveCalls.fetchImpl });
+    expect(await live.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder], payment: 'sandbox_test' })).toMatchObject({
+      ok: false,
+      error: { kind: 'supplier', message: 'a test payment needs a sandbox key', retryable: false },
+    });
+    expect(liveCalls.calls).toHaveLength(0);
+  });
+
   it('never retries book on its own: a timeout is one call and one failure', async () => {
     vi.useFakeTimers();
     try {
@@ -277,7 +293,7 @@ describe('recheckRate, book, getBooking, cancel', () => {
       };
       const { supplier } = adapter(hanging);
       const holder = { firstName: 'A', lastName: 'B', email: 'a@fixture.hotelfinder.invalid' };
-      const pending = supplier.book({ prebookId: 'p', transactionId: 't', holder, guests: [holder] });
+      const pending = supplier.book({ prebookId: 'p', transactionId: 't', holder, guests: [holder], payment: 'transaction_id' });
       await vi.advanceTimersByTimeAsync(60_000);
       expect(await pending).toMatchObject({ ok: false, error: { kind: 'timeout' } });
       expect(calls).toBe(1);

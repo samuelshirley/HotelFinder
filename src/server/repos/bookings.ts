@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { sourcesFor } from '@/lib/bookingStates';
 import { db } from '@/server/db/client';
@@ -12,19 +12,26 @@ export type Booking = typeof bookings.$inferSelect;
  * return the prebookId / transactionId pair a second time, so losing it after
  * the card is charged strands the payment.
  */
-export async function createPrebooked(input: {
-  userId: string;
-  sessionId: string;
-  offerId: string;
-  supplier: string;
-  prebookId: string;
-  transactionId: string;
-  currency: string;
-  totalMinor: number;
-  quotedTotalMinor: number;
-}): Promise<Booking> {
+export async function createPrebooked(input: Omit<typeof bookings.$inferInsert, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<Booking> {
   const [row] = await db.insert(bookings).values(input).returning();
   return row;
+}
+
+export async function getBooking(id: string): Promise<Booking | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const [row] = await db.select().from(bookings).where(eq(bookings.id, id));
+  return row ?? null;
+}
+
+/** The latest names this account booked under: the checkout opens with them filled in. */
+export async function lastHolderFor(userId: string): Promise<{ firstName: string; lastName: string } | null> {
+  const [row] = await db
+    .select({ firstName: bookings.holderFirstName, lastName: bookings.holderLastName })
+    .from(bookings)
+    .where(and(eq(bookings.userId, userId), isNotNull(bookings.holderFirstName)))
+    .orderBy(desc(bookings.updatedAt))
+    .limit(1);
+  return row?.firstName && row.lastName ? { firstName: row.firstName, lastName: row.lastName } : null;
 }
 
 /**
@@ -34,7 +41,7 @@ export async function createPrebooked(input: {
 export async function transitionBooking(
   id: string,
   to: BookingStatus,
-  details: { supplierBookingId?: string; hotelConfirmationCode?: string } = {},
+  details: Partial<Pick<Booking, 'userId' | 'supplierBookingId' | 'hotelConfirmationCode' | 'holderFirstName' | 'holderLastName' | 'holderEmail' | 'paidWith' | 'testPayment' | 'failureCode' | 'refundMinor' | 'cancelFeeMinor'>> = {},
 ): Promise<Booking | null> {
   const from = sourcesFor(to);
   if (from.length === 0) return null;

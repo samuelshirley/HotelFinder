@@ -408,6 +408,33 @@ export const bookings = pgTable(
     totalMinor: integer('total_minor').notNull(),
     /** The price on the offer the user picked. Differs when the rate changed. */
     quotedTotalMinor: integer('quoted_total_minor').notNull(),
+    /**
+     * What was booked, copied at the price check: the search it came from can
+     * change afterwards (new dates, a new place), the booking does not.
+     */
+    propertyId: uuid('property_id').references(() => properties.id, { onDelete: 'set null' }),
+    hotelName: text('hotel_name'),
+    roomName: text('room_name'),
+    boardName: text('board_name'),
+    checkIn: date('check_in', { mode: 'string' }),
+    checkOut: date('check_out', { mode: 'string' }),
+    adults: integer('adults'),
+    childrenAges: jsonb('children_ages').$type<number[]>(),
+    rooms: integer('rooms'),
+    payAtPropertyMinor: integer('pay_at_property_minor'),
+    /** The cancellation terms the supplier confirmed at prebook (normalized CancellationPolicy). */
+    cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
+    /** Who the room is booked for, as typed at checkout. */
+    holderFirstName: text('holder_first_name'),
+    holderLastName: text('holder_last_name'),
+    holderEmail: text('holder_email'),
+    /** The wallet the guest paid with. `test` payments move no money (sandbox only). */
+    paidWith: text('paid_with'),
+    testPayment: boolean('test_payment').notNull().default(false),
+    /** Why a booking ended in `failed`: an ErrorCode, never supplier text. */
+    failureCode: text('failure_code'),
+    refundMinor: integer('refund_minor'),
+    cancelFeeMinor: integer('cancel_fee_minor'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

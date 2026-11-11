@@ -1,0 +1,10 @@
+{
+  "data": {
+    "bookingId": "2U0GzrbQp",
+    "cancellation_fee": 184.65,
+    "currency": "EUR",
+    "refund_amount": 0,
+    "status": "CANCELLED_WITH_CHARGES"
+  },
+  "sandbox": true
+}

@@ -50,8 +50,9 @@ const addPublicRates = process.argv.includes('--add-public-rates');
 const addPlaces = process.argv.includes('--add-places');
 const addCountries = process.argv.includes('--add-countries');
 const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
+const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -95,6 +96,30 @@ async function capture(name, method, url, body) {
   console.log(`${String(res.status).padEnd(4)} ${name}  ${text.length} B  ${Date.now() - started} ms`);
   await new Promise((r) => setTimeout(r, 300)); // sandbox allows 5 requests per second
   return { status: res.status, json };
+}
+
+if (addNonrefundableCancel) {
+  // A NON-refundable rate booked and cancelled: the supplier keeps the price and
+  // answers CANCELLED_WITH_CHARGES (seen live 2026-11-11). Makes one sandbox booking.
+  const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const search = await fetch(`${DATA}/hotels/rates`, {
+    method: 'POST',
+    headers: { 'X-API-Key': key, accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify({ occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: day(30), checkout: day(32), cityName: 'Porto', countryCode: 'PT', maxRatesPerHotel: 5, limit: 30 }),
+  }).then((r) => r.json());
+  const nonRefundable = search.data
+    ?.flatMap((h) => h.roomTypes ?? [])
+    .find((rt) => rt.rates?.some((r) => r.cancellationPolicies?.refundableTag === 'NRFN'));
+  if (!nonRefundable) throw new Error('no non-refundable rate in this search; try again later');
+  const pre = await capture('prebook-nonrefundable', 'POST', `${BOOK}/rates/prebook`, { offerId: nonRefundable.offerId, usePaymentSdk: true });
+  const guest = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+  const booked = await capture('book-nonrefundable', 'POST', `${BOOK}/rates/book`, {
+    prebookId: pre.json.data.prebookId, holder: guest, payment: { method: 'ACC_CREDIT_CARD' }, guests: [{ occupancyNumber: 1, ...guest }],
+  });
+  await capture('booking-cancel-with-charges', 'PUT', `${BOOK}/bookings/${booked.json.data.bookingId}`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added prebook-nonrefundable.json, book-nonrefundable.json, booking-cancel-with-charges.json');
+  process.exit(0);
 }
 
 if (addStaticFacts) {

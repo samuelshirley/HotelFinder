@@ -162,6 +162,12 @@ export type BookRequest = {
   holder: GuestName;
   /** One guest per room, in occupancy order. */
   guests: GuestName[];
+  /**
+   * How the guest paid. `transaction_id`: the supplier's own payment form took
+   * the money, and `transactionId` says so. `sandbox_test`: no money moved (the
+   * mock wallet); the adapter refuses it for any key that is not a sandbox key.
+   */
+  payment: 'transaction_id' | 'sandbox_test';
 };
 
 export type SupplierBookingStatus = 'confirmed' | 'cancelled' | 'other';

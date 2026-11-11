@@ -260,6 +260,16 @@ describe('the rest of the recorded responses', () => {
     });
   });
 
+  it('a non-refundable cancel is still a cancel: the supplier keeps the price as the fee', () => {
+    expect(normalizeCancel(cancelResponse.parse(fixture('booking-cancel-with-charges')))).toEqual({
+      supplierBookingId: '2U0GzrbQp',
+      status: 'cancelled',
+      statusRaw: 'CANCELLED_WITH_CHARGES',
+      fee: { amountMinor: 18465, currency: 'EUR' },
+      refund: { amountMinor: 0, currency: 'EUR' },
+    });
+  });
+
   it('an unknown booking status is "other", never guessed', () => {
     expect(bookingStatus('CONFIRMED')).toBe('confirmed');
     expect(bookingStatus('cancelled')).toBe('cancelled');

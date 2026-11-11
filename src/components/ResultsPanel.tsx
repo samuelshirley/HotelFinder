@@ -19,7 +19,7 @@ type Row = SessionView['shortlist'][number];
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, onOpen, onEdit, busy }: { view: SessionView; onOpen: (propertyId: string) => void; onEdit: OnEdit; busy: boolean }) {
+export function ResultsPanel({ view, onOpen, onBook, booking, onEdit, busy }: { view: SessionView; onOpen: (propertyId: string) => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean }) {
   const { stay, session, shortlist } = view;
   if (!stay) {
     const p = view.pending;
@@ -69,7 +69,7 @@ export function ResultsPanel({ view, onOpen, onEdit, busy }: { view: SessionView
       ) : (
         <ol className={styles.cards}>
           {shortlist.map((row) => (
-            <Card key={row.entryId} row={row} nights={nights} hasMustHaves={musts.length > 0} onOpen={onOpen} />
+            <Card key={row.entryId} row={row} nights={nights} hasMustHaves={musts.length > 0} onOpen={onOpen} onBook={onBook} booking={booking} />
           ))}
         </ol>
       )}
@@ -252,7 +252,7 @@ function cancellationLine(offer: NonNullable<Row['offer']>): string {
   return `Free cancellation until ${when} UTC`;
 }
 
-function Card({ row, nights, hasMustHaves, onOpen }: { row: Row; nights: number; hasMustHaves: boolean; onOpen: (id: string) => void }) {
+function Card({ row, nights, hasMustHaves, onOpen, onBook, booking }: { row: Row; nights: number; hasMustHaves: boolean; onOpen: (id: string) => void; onBook: (offerId: string) => void; booking: string | null }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
   const why = offer ? reasonText(reason, { currency: offer.currency, hasMustHaves }) : 'You asked about this one; it has no price for these dates yet';
@@ -290,9 +290,14 @@ function Card({ row, nights, hasMustHaves, onOpen }: { row: Row; nights: number;
                 {offer.boardName ? ` · ${offer.boardName}` : ''}
               </p>
             </div>
-            <button className={styles.primary} onClick={() => onOpen(property.id)}>
-              Details
-            </button>
+            <div className={styles.cardActions}>
+              <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
+                {booking === offer.id ? 'Checking the price…' : 'Book'}
+              </button>
+              <button className={styles.secondary} onClick={() => onOpen(property.id)}>
+                Details
+              </button>
+            </div>
           </div>
         )}
       </div>

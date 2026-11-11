@@ -8,7 +8,7 @@ import type { SessionView } from '@/server/view';
 import { ApiError, loadProperty, type PropertyDetails } from './api';
 import styles from './App.module.css';
 
-export function DetailSheet({ view, propertyId, onClose }: { view: SessionView; propertyId: string; onClose: () => void }) {
+export function DetailSheet({ view, propertyId, onClose, onBook, booking }: { view: SessionView; propertyId: string; onClose: () => void; onBook: (offerId: string) => void; booking: string | null }) {
   const [details, setDetails] = useState<PropertyDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const row = view.shortlist.find((r) => r.property.id === propertyId);
@@ -60,6 +60,11 @@ export function DetailSheet({ view, propertyId, onClose }: { view: SessionView; 
                 {formatMoney(row.offer.totalMinor, row.offer.currency)} total{row.offer.roomName ? ` · ${row.offer.roomName}` : ''}
                 {row.offer.boardName ? ` · ${row.offer.boardName}` : ''}
               </p>
+            )}
+            {row?.offer && (
+              <button className={styles.book} disabled={booking !== null} onClick={() => onBook(row.offer!.id)}>
+                {booking === row.offer.id ? 'Checking the price…' : `Book · ${formatMoney(row.offer.totalMinor, row.offer.currency)}`}
+              </button>
             )}
             {details.importantInformation && (
               <section>

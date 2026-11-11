@@ -98,3 +98,23 @@ export async function sendTurn(id: string, message: string, idempotencyKey: stri
     }
   }
 }
+
+// ── Sign-in and booking ─────────────────────────────────────────────────────
+export type BookingView = import('@/server/checkout').BookingView;
+export type Wallet = import('@/server/payments').Wallet;
+export type Me = { user: { email: string } | null; lastHolder: { firstName: string; lastName: string } | null };
+export type BookingPage = Me & { booking: BookingView; me: { email: string } | null; payment: 'test' | 'none' };
+
+export const loadMe = () => request<Me>('/api/me');
+export const sendSignInCode = (email: string) => request<{ sent: true; devCode?: string }>('/api/auth/code', { method: 'POST', body: JSON.stringify({ email }) });
+export const signOut = () => request<{ signedIn: false }>('/api/auth/sign-out', { method: 'POST', body: '{}' });
+export const startCheckout = (sessionId: string, offerId: string) =>
+  request<{ bookingId: string }>(`/api/session/${sessionId}/checkout`, { method: 'POST', body: JSON.stringify({ offerId }) });
+export const loadBooking = (id: string) => request<BookingPage>(`/api/booking/${id}`);
+export const confirmBooking = (
+  id: string,
+  body: { email: string; code: string; firstName: string; lastName: string; wallet: Wallet; acceptedTotalMinor: number },
+) => request<{ booking: BookingView }>(`/api/booking/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) });
+export const cancelBookingApi = (id: string) => request<{ booking: BookingView }>(`/api/booking/${id}/cancel`, { method: 'POST', body: '{}' });
+export type BookingSummary = { id: string; status: string; hotelName: string | null; checkIn: string | null; checkOut: string | null };
+export const loadBookings = () => request<{ bookings: BookingSummary[] }>('/api/bookings');

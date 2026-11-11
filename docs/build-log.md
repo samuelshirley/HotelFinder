@@ -15,7 +15,8 @@ pick up from the first unfinished step.
 | 7 | Turn route: durable turns, SSE, drain, reconcile, agent | done; agent verified live on Haiku 5.5 (14 cases) |
 | 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done; no map |
-| 10 | Guards, e2e | guards done; one Playwright flow, no OTP (no sign-in yet) |
+| 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
+| 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
@@ -29,9 +30,17 @@ the search → new search. `e2e/search.spec.ts`.
 
 ## What is not built
 
-- **Sign-in (OTP), member prices, booking and the payment row.** The Book
-  button is disabled and says so. Every visitor is anonymous and sees public
-  prices.
+- **Real payments.** The Apple Pay and Google Pay sheets are test stand-ins:
+  no money moves, and the sandbox books with its test card method
+  (`ACC_CREDIT_CARD`, allowed only with a `sand_` key; guarded). The real path
+  is LiteAPI's payment SDK (`transaction_id`), which `bookPaid` already takes.
+- **Sign-in emails.** No `RESEND_API_KEY`: outside production the code is shown
+  on the checkout page ("dev mailbox"); production with no key sends nothing.
+- **A booking left "waiting for the hotel"** (book timed out) is never booked
+  again, but nothing yet reads it back from the supplier; the guest is told to
+  reload. Needs a client reference on book and a lookup by it (unverified).
+- **Member prices after sign-in** apply to new searches; a booking keeps the
+  price of the card that was pressed.
 - **Staged yes, the 280 s turn budget, breakers.** Per-IP request limits and
   the two spend caps exist.
 - **Map.** Needs a decision on Google Maps (paid) versus MapLibre.

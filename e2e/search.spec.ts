@@ -147,8 +147,8 @@ test('search for a hotel in Porto', async ({ page }) => {
   // tall sheet: the images kept their size and the strip clipped them, so the
   // strip itself is what is measured.
   expect((await sheet.locator('img').first().locator('..').boundingBox())!.height).toBeGreaterThan(150);
-  // No dead buttons: Book is hidden until checkout exists.
-  await expect(sheet.getByRole('button', { name: /Book/ })).toHaveCount(0);
+  // Book is in the sheet too, with the price it will re-check (the booking itself is e2e/book.spec.ts).
+  await expect(sheet.getByRole('button', { name: /^Book · €[\d,.]+$/ })).toBeVisible();
   await page.screenshot({ path: 'test-results/02-detail.png' });
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();

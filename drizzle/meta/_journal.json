@@ -15,6 +15,13 @@
       "when": 1794419623444,
       "tag": "0001_white_big_bertha",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794425440961,
+      "tag": "0002_checkout",
+      "breakpoints": true
     }
   ]
 }

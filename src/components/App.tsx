@@ -6,7 +6,7 @@ import { errorCopy } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates } from '@/lib/replies';
-import { answerForm, ApiError, editSearch, loadSession, loadTrips, sendTurn, startBrief, type Trip } from './api';
+import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
 import styles from './App.module.css';
 import { ChatPanel } from './ChatPanel';
 import { DetailSheet } from './DetailSheet';
@@ -45,6 +45,10 @@ export function App() {
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openProperty, setOpenProperty] = useState<string | null>(null);
+  /** The offer whose price is being re-checked for checkout. */
+  const [booking, setBooking] = useState<string | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [sidebar, setSidebar] = useState(true);
   /** On a narrow window the sidebar is a drawer, closed until asked for. */
@@ -60,6 +64,19 @@ export function App() {
     if (Number.isFinite(w) && w >= PANEL_MIN) setPanelWidth(w);
     if (stored(SIDEBAR_KEY) === 'closed') setSidebar(false);
   }, []);
+
+  const refreshAccount = useCallback(async () => {
+    try {
+      const [who, list] = await Promise.all([loadMe(), loadBookings()]);
+      setMe(who);
+      setBookings(list.bookings);
+    } catch {
+      // The account line is a convenience; nothing else waits on it.
+    }
+  }, []);
+  useEffect(() => {
+    void refreshAccount();
+  }, [refreshAccount]);
 
   const refreshTrips = useCallback(async () => {
     try {
@@ -171,6 +188,22 @@ export function App() {
   useEffect(() => {
     if (tripKey) void refreshTrips();
   }, [tripKey, refreshTrips]);
+
+  /** "Book": the hotel re-checks the price, then the checkout page opens on that check. */
+  const onBook = async (offerId: string) => {
+    if (!view || booking) return;
+    setBooking(offerId);
+    setError(null);
+    try {
+      const { bookingId } = await startCheckout(view.session.id, offerId);
+      store(STORAGE_KEY, view.session.id);
+      window.location.assign(`/book/${bookingId}`);
+    } catch (err) {
+      fail(err);
+      setBooking(null);
+      setOpenProperty(null);
+    }
+  };
 
   const onBrief = async (brief: Brief) => {
     setBusy('form');
@@ -285,6 +318,40 @@ export function App() {
             ))}
           </ul>
         )}
+        {bookings.length > 0 && (
+          <>
+            <h2 className={styles.sideHeading}>Your bookings</h2>
+            <ul className={styles.trips}>
+              {bookings.map((b) => (
+                <li key={b.id}>
+                  <a className={styles.bookingLink} href={`/book/${b.id}`}>
+                    <span className={styles.tripName}>{b.hotelName}</span>
+                    <span className={styles.tripDates}>
+                      {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut) : ''}
+                      {b.status === 'cancelled' ? ' · cancelled' : b.status === 'booking' ? ' · waiting for the hotel' : ''}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {me?.user && (
+          <div className={styles.account}>
+            <span>Signed in as {me.user.email}</span>
+            <button
+              onClick={() =>
+                void signOut().then(() => {
+                  // Signed-in searches belong to the account: the page starts over as a visitor.
+                  store(STORAGE_KEY, '');
+                  window.location.assign('/');
+                })
+              }
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </nav>
       {drawer && <button className={styles.scrim} aria-label="Close the trips list" onClick={() => setDrawer(false)} />}
 
@@ -337,11 +404,11 @@ export function App() {
             onDoubleClick={() => { setPanelWidth(PANEL_DEFAULT); store(PANEL_KEY, String(PANEL_DEFAULT)); }}
           />
           <section className={styles.results} aria-label="Hotels">
-            <ResultsPanel view={view} onOpen={setOpenProperty} onEdit={onEdit} busy={busy !== null} />
+            <ResultsPanel view={view} onOpen={setOpenProperty} onBook={(id) => void onBook(id)} booking={booking} onEdit={onEdit} busy={busy !== null} />
           </section>
         </>
       )}
-      {view && openProperty && <DetailSheet view={view} propertyId={openProperty} onClose={() => setOpenProperty(null)} />}
+      {view && openProperty && <DetailSheet view={view} propertyId={openProperty} onClose={() => setOpenProperty(null)} onBook={(id) => void onBook(id)} booking={booking} />}
     </div>
   );
 }
