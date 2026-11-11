@@ -323,3 +323,83 @@ describe('the guests question', () => {
     expect((await names(session.id)).length).toBeGreaterThan(0);
   });
 });
+
+describe('"what matters most?" answered in words', () => {
+  /** Destination, dates and guests answered: the priorities card is open. */
+  async function atPriorities(placesFor?: (q: string) => string) {
+    const supplier = recordedSupplier({}, placesFor);
+    const session = await createSession({ anonId: 'w' });
+    await askQuestion(session.id, 'destination');
+    let guestsAnswered = false;
+    for (const answer of ANSWERS.slice(0, 3)) {
+      expect(await answerForm({ sessionId: session.id, answer, guestsAnswered, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY })).toMatchObject({ ok: true });
+      if (answer.field === 'guests') guestsAnswered = true;
+    }
+    expect((await listMessages(session.id)).at(-1)).toMatchObject({ meta: { field: 'priorities' } });
+    return { session: (await getSession(session.id))!, supplier };
+  }
+  const jevReads = (wants: [number, number, number, number]): JevOutcome => ({
+    ...JEV_DOWN,
+    failure: null,
+    readings: {
+      tier: { choice: 'T1', top: 1, margin: 1 }, intent: { choice: 'priority', top: 0.9, margin: 0.8 }, multiIntent: 0.05, amenity: { choice: 'none', top: 1, margin: 1 }, removing: 0.05,
+      wantsPrice: wants[0], wantsQuality: wants[1], wantsLocation: wants[2], namesPlace: wants[3], fact: null, superlative: null, searchField: null,
+    },
+  });
+
+  it('Jev settles the set: no model call, the search runs, and the chat says how it was read', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted();
+    await say(session, 'nice but not crazy expensive', { ...deps(supplier.supplier, m.callModel), askJev: async () => jevReads([0.9, 0.92, 0.1, 0.02]) });
+    expect(m.calls).toHaveLength(0);
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: ['cheapest', 'nicest'] });
+    const rows = (await listMessages(session.id)).map((r) => [r.kind, r.content]);
+    expect(rows).toContainEqual(['line', 'Ranked for low price and great reviews.']);
+    // The typed words are the user's bubble; no second, form-style echo.
+    expect(rows.filter(([k]) => k === 'form_answer')).toHaveLength(3);
+    expect(supplier.searches).toHaveLength(1);
+  });
+
+  it('Jev unsure: one forced Haiku call; a named place is looked up in this town, and the search is around it', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: ['cheapest'], near_place: 'Ribeira', near_place_local: 'Ribeira', no_preference: false } }]);
+    await say(session, 'cheap, near the river by Ribeira', { ...deps(supplier.supplier, m.callModel), askJev: async () => jevReads([0.9, 0.3, 0.95, 0.95]) });
+    expect(m.calls).toHaveLength(1);
+    expect(m.calls[0].forceTool).toBe('record_priorities');
+    expect(supplier.placeQueries.at(-1)).toBe('Ribeira, Porto'); // local name first; the same here
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: ['cheapest', 'closest'] });
+    const [stay] = await listStays(session.id);
+    expect(stay).toMatchObject({ nearPlaceId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', nearLabel: 'Ribeira' });
+    expect(supplier.searches[0].where).toMatchObject({ radiusM: 5000 });
+    expect((await listMessages(session.id)).map((r) => r.content)).toContain('Ranked for low price and being close to Ribeira.');
+    expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'priorities' } }]);
+  });
+
+  it('a place search that finds only hotels is not a place to be near: the search runs, and says so', async () => {
+    // Recorded: "old town, Annecy" returns one hotel and nothing else.
+    const { session, supplier } = await atPriorities(() => 'places-old-town-annecy');
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: ['closest'], near_place: 'old town', near_place_local: null, no_preference: false } }]);
+    await say(session, 'close to the old town', deps(supplier.supplier, m.callModel));
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: ['closest'] });
+    expect((await listStays(session.id))[0]).toMatchObject({ nearPlaceId: null });
+    expect(supplier.placeLookups).not.toContain(expect.stringMatching(/old/i));
+    expect((await listMessages(session.id)).map((r) => r.content)).toContain('Ranked for being close to central Porto. "old town" was not found in Porto, so close means central Porto.');
+  });
+
+  it('words that say nothing about it keep the question open', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: [], near_place: null, near_place_local: null, no_preference: false } }]);
+    const turn = await say(session, 'hmm', deps(supplier.supplier, m.callModel));
+    expect(turn.finalText).toMatch(/did not say what matters/);
+    expect(await getSession(session.id)).toMatchObject({ status: 'onboarding', priorities: null });
+    expect(supplier.searches).toHaveLength(0);
+  });
+
+  it('"anything is fine" is an answer: a balanced search', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: [], near_place: null, near_place_local: null, no_preference: true } }]);
+    await say(session, 'anything is fine honestly', deps(supplier.supplier, m.callModel));
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: [] });
+    expect((await listMessages(session.id)).map((r) => r.content)).toContain('No preference: a balanced search.');
+  });
+});

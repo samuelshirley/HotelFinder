@@ -3,11 +3,14 @@ import { z } from 'zod';
 
 import { canonicalPriorities, PRIORITY_KEYS } from '@/lib/finder/rank';
 import { nightsBetween } from '@/lib/finder/geo';
+import { placeName } from '@/lib/finder/searchPlan';
 import { inferNationality } from '@/lib/nationality';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, nearLabel, outcomeLine, prioritiesLabel } from '@/lib/replies';
+import type { PriorityReading } from '@/lib/priorityReading';
+import { reduce } from '@/lib/store/reduce';
+import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, nearLabel, outcomeLine, prioritiesLabel, prioritiesLine } from '@/lib/replies';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import { MAX_NIGHTS } from '@/lib/store/reduce';
-import { dispatchActions, resolveDestination } from '@/server/dispatch';
+import { dispatchActions, resolveDestination, toSearchState } from '@/server/dispatch';
 import type { FinderOutcome } from '@/server/finder';
 import { appendMessage, type ChatMessage } from '@/server/repos/chat';
 import { addStay, getSession, listStays, updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -140,6 +143,11 @@ export async function answerForm(args: {
   supplier: SupplierAdapter;
   now: Date;
   today: string;
+  /**
+   * The answer was typed, so the user's own words are already in the chat.
+   * Say how they were read instead of echoing a form answer.
+   */
+  readBack?: string;
 }): Promise<FormResult> {
   const { sessionId, answer, supplier, now, today } = args;
   const session = await getSession(sessionId);
@@ -206,7 +214,8 @@ export async function answerForm(args: {
       break;
   }
 
-  await appendMessage({ sessionId, role: 'user', kind: 'form_answer', content: answerText(answer), meta: { field: answer.field } });
+  if (args.readBack) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: args.readBack, meta: { field: answer.field, readBack: true } });
+  else await appendMessage({ sessionId, role: 'user', kind: 'form_answer', content: answerText(answer), meta: { field: answer.field } });
   if (understood) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: understood, meta: { scanned: true } });
 
   const next = nextField(current, stay, guestsAnswered);
@@ -251,3 +260,81 @@ export function firstSearchLine(outcome: FinderOutcome | null): string {
   }
   return outcomeLine(outcome);
 }
+
+/**
+ * A typed answer to "what matters most?", already read (by Jev or Haiku) into
+ * keys and, maybe, the words for a place to be near. The place is looked up
+ * at the supplier: the destination's name is added so "old town" means this
+ * town's, the local-language name is tried first, and lodging is never a
+ * place to be near. A place that cannot be found or is another trip is said
+ * plainly and the search runs without it.
+ */
+export async function answerPrioritiesInWords(args: {
+  sessionId: string;
+  reading: PriorityReading;
+  guestsAnswered: boolean;
+  supplier: SupplierAdapter;
+  now: Date;
+  today: string;
+}): Promise<FormResult & { near: 'set' | 'not_found' | 'too_far' | 'lookup_failed' | null }> {
+  const { sessionId, reading, supplier } = args;
+  const session = await getSession(sessionId);
+  const stay = session ? ((await listStays(sessionId))[0] ?? null) : null;
+  if (!session || session.status !== 'onboarding' || !stay) return { ok: false, error: 'not_onboarding', near: null };
+  if (nextField(session, stay, args.guestsAnswered) !== 'priorities') return { ok: false, error: 'wrong_step', expected: nextField(session, stay, args.guestsAnswered), near: null };
+
+  let near: 'set' | 'not_found' | 'too_far' | 'lookup_failed' | null = null;
+  let nearName: string | null = null;
+  if (reading.nearQuery) {
+    near = 'not_found';
+    const town = placeName(stay.destinationText);
+    // The local name first. Measured on the sandbox: "Old Town, Annecy" finds only a
+    // hotel and "Annecy railway station" the bus station; "Vieille Ville" and
+    // "Gare d'Annecy" find the right places.
+    for (const words of [reading.nearQueryLocal, reading.nearQuery].filter((w): w is string => !!w)) {
+      const found = await supplier.searchPlaces(`${words}, ${town}`);
+      if (!found.ok) {
+        near = 'lookup_failed';
+        break;
+      }
+      const candidate = found.value.find((p) => !p.types.some((t) => LODGING.includes(t)));
+      if (!candidate) continue;
+      const point = await supplier.getPlace(candidate.placeId);
+      if (!point.ok) {
+        near = 'lookup_failed';
+        break;
+      }
+      const next = reduce(toSearchState(session, stay), { type: 'set_near', near: { placeId: candidate.placeId, label: point.value.name, latitude: point.value.latitude, longitude: point.value.longitude } }, args.today);
+      if (!next.ok) {
+        near = next.rejection === 'near_too_far' ? 'too_far' : near;
+        break;
+      }
+      const n = next.state.stay.near!;
+      await updateStay(stay.id, sessionId, { latitude: n.latitude, longitude: n.longitude, nearPlaceId: n.placeId, nearLabel: n.label });
+      near = 'set';
+      nearName = n.label;
+      break;
+    }
+  }
+
+  const label = nearName ?? nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null });
+  const words = reading.priorities.length === 0 ? 'No preference: a balanced search.' : prioritiesLine(reading.priorities, label);
+  const missed =
+    near === 'not_found' ? ` "${reading.nearQuery}" was not found in ${placeName(stay.destinationText)}, so close means ${label}.`
+    : near === 'too_far' ? ` "${reading.nearQuery}" is too far from ${placeName(stay.destinationText)}, so close means ${label}.`
+    : near === 'lookup_failed' ? ` The place lookup did not answer, so close means ${label} for now.`
+    : '';
+  const result = await answerForm({
+    sessionId,
+    answer: { field: 'priorities', priorities: reading.priorities },
+    guestsAnswered: args.guestsAnswered,
+    supplier,
+    now: args.now,
+    today: args.today,
+    readBack: `${words}${missed}`,
+  });
+  return { ...result, near };
+}
+
+/** Place types that are somewhere to stay, never somewhere to be near. */
+const LODGING = ['lodging', 'hotel', 'hostel', 'campground', 'rv_park'];

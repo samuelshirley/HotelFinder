@@ -17,7 +17,7 @@ export const PLACE_IDS = {
   bcn: 'ChIJpY58hGSepBIR15tv-0LpK_M',
 } as const;
 
-export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place', 'fail' | 'empty'>> = {}) {
+export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place', 'fail' | 'empty'>> = {}, placesFor: (query: string) => string = () => 'places-porto-ribeira') {
   const searches: SearchRequest[] = [];
   const placeQueries: string[] = [];
   const placeLookups: string[] = [];
@@ -38,7 +38,7 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       placeQueries.push(query);
       if (over.places === 'fail') return { ok: false, error: DOWN };
       if (over.places === 'empty') return { ok: true, value: [] };
-      return { ok: true, value: normalizePlaces(placesResponse.parse(fixture('places-porto-ribeira'))) };
+      return { ok: true, value: normalizePlaces(placesResponse.parse(fixture(placesFor(query)))) };
     },
     async getPlace(placeId) {
       placeLookups.push(placeId);

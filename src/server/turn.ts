@@ -10,10 +10,11 @@ import { reasonText, type ReasonLike } from '@/lib/reasonText';
 import { answerLine, describeChange, FIXED_LINES, nearLabel, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
-import { runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
+import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
 import { dispatchActions, toSearchState } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
-import { askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
+import { answerPrioritiesInWords, askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
+import { readingFromJev } from '@/lib/priorityReading';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -118,7 +119,7 @@ async function processOne(turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) 
 type TurnResult = { text: string; meta: Record<string, unknown> & { ui?: unknown }; kind?: ChatKind };
 
 /** One ledger row per model call, failures included. Returns what the turn trace keeps. */
-async function logModelCalls(session: SearchSession, purpose: 'agent' | 'scan', replies: ModelReply[]) {
+async function logModelCalls(session: SearchSession, purpose: 'agent' | 'scan' | 'priorities', replies: ModelReply[]) {
   let costMicrocents = 0;
   for (const r of replies) {
     if (!r.ok && r.failure === 'not_configured') continue;
@@ -149,6 +150,7 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   const stay = (await listStays(session.id))[0] ?? null;
   const field = nextField(session, stay, guestsAnsweredIn(session, await listMessages(session.id)));
 
+  if (field === 'priorities' && stay) return prioritiesInWords(session, stay, turn, deps);
   if (field !== 'destination') return { text: FIXED_LINES.use_the_form, meta: { by: 'form', field } };
 
   // The first message may say more than the place ("Porto, 12 to 15 March, two of
@@ -172,6 +174,63 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
     suggestions: places.value.slice(0, 5).map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name })),
   });
   return { text: '', meta: { ...meta, places: places.value.length } };
+}
+
+/**
+ * "What matters most?" answered in words. Jev first (no model call when its
+ * yes/no answers settle the set); Haiku when they do not or a place is named.
+ */
+async function prioritiesInWords(session: SearchSession, stay: Stay, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const jev = await deps.askJev({
+    message: turn.userMessage,
+    state: { question: 'What matters most for this hotel search?', search: { destination: stay.destinationText } },
+  });
+  const fromJev = readingFromJev(jev.readings);
+  if (jev.failure !== 'not_configured') {
+    await logUsage({
+      sessionId: session.id,
+      userId: session.userId,
+      provider: 'jev',
+      model: jev.model,
+      inputTokens: jev.inputTokens,
+      outputTokens: jev.outputTokens,
+      costMicrocents: deps.jevCost(jev.inputTokens),
+      latencyMs: jev.latencyMs,
+      success: jev.failure === null,
+      errorMessage: jev.errorMessage,
+      // Probabilities only: never the user's words.
+      meta: {
+        purpose: 'priorities',
+        wants: jev.readings ? [jev.readings.wantsPrice, jev.readings.wantsQuality, jev.readings.wantsLocation, jev.readings.namesPlace] : null,
+        decision: fromJev ? 'settled' : 'defer',
+      },
+    });
+  }
+
+  let reading = fromJev;
+  let spent = { model_calls: 0, cost_microcents: 0 };
+  if (!reading) {
+    const budget = await aiBudget(session.id, deps.now());
+    if (!budget.ok) return { text: 'Pick one or more of the options above.', meta: { by: 'form', field: 'priorities', skipped: 'budget' } };
+    const read = await readPriorities({ message: turn.userMessage, destination: stay.destinationText, callModel: deps.callModel, model: deps.model });
+    spent = await logModelCalls(session, 'priorities', [read.reply]);
+    reading = read.reading;
+  }
+  if (!reading) return { text: 'That did not say what matters. Pick one or more of the options above, or say it another way.', meta: { by: fromJev ? 'router' : 'agent', field: 'priorities', read: null, ...spent } };
+
+  const messages = await listMessages(session.id);
+  const result = await answerPrioritiesInWords({
+    sessionId: session.id,
+    reading,
+    guestsAnswered: guestsAnsweredIn(session, messages),
+    supplier: deps.supplier,
+    now: deps.now(),
+    today: deps.today,
+  });
+  return {
+    text: '',
+    meta: { by: fromJev ? 'router' : 'agent', field: 'priorities', read: { priorities: reading.priorities, near: result.near }, ok: result.ok, ...spent },
+  };
 }
 
 /** A message about a search that is already running. */

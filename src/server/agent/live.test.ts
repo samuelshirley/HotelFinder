@@ -7,6 +7,7 @@ import type { SearchState } from '@/lib/store/reduce';
 import { callAnthropic } from './anthropic';
 import { runAgent, type AgentResult } from './loop';
 import type { HotelOnScreen } from './prompt';
+import { readPriorities } from './priorities';
 import { scanIntent } from './scan';
 
 /**
@@ -152,4 +153,26 @@ describe.skipIf(!live)(`the intent scan, live (${model})`, () => {
     console.log(`[live] ${model}: ${calls} model calls, ${(microcents / 1_000_000).toFixed(3)} cents`);
     expect(calls).toBeGreaterThan(0);
   });
+});
+
+describe.runIf(live)('reading "what matters most" in words, live', () => {
+  const read = (message: string, destination = 'Annecy, France') => readPriorities({ message, destination, callModel: callAnthropic, model });
+  it.each<[string, string[], RegExp | null]>([
+    ['nice but not crazy expensive', ['cheapest', 'nicest'], null],
+    ['close to the old town please', ['closest'], /old town|vieille ville/i],
+    ['cheap, near the station', ['cheapest', 'closest'], /station|gare/i],
+    ['central and well rated', ['nicest', 'closest'], null],
+    ['somewhere quiet, I sleep badly', [], null],
+  ])('%s', async (message, priorities, place) => {
+    const { reading, reply } = await read(message);
+    console.log(JSON.stringify({ message, reading, ok: reply.ok }));
+    expect(reply.ok).toBe(true);
+    if (priorities.length === 0) {
+      expect(reading === null || reading.priorities.length === 0).toBe(true);
+      return;
+    }
+    expect(reading?.priorities).toEqual(priorities);
+    if (place) expect(`${reading?.nearQuery} ${reading?.nearQueryLocal}`).toMatch(place);
+    else expect(reading?.nearQuery).toBeNull();
+  }, 30_000);
 });

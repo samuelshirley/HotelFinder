@@ -41,7 +41,9 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
     view.session.status === 'onboarding'
       ? field === 'destination'
         ? 'Type a city or neighbourhood'
-        : 'Answer above to continue'
+        : field === 'priorities'
+          ? 'Or say it: near the old town, not too pricey'
+          : 'Answer above to continue'
       : 'Change the dates, the place, the budget, or ask about a hotel';
 
   return (
@@ -84,7 +86,7 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
           placeholder={placeholder}
           aria-label="Message"
           maxLength={1000}
-          disabled={busy === 'boot' || (view.session.status === 'onboarding' && field !== 'destination')}
+          disabled={busy === 'boot' || (view.session.status === 'onboarding' && field !== 'destination' && field !== 'priorities')}
         />
         <button type="submit" className={styles.primary} disabled={!draft.trim() || busy !== null}>
           Send
