@@ -10,4 +10,7 @@ if ! node -e "require('@next/swc-$(node -p "process.platform + '-' + process.arc
   rm -rf node_modules
   npm install --no-audit --no-fund
 fi
+# A build directory left by another machine or an interrupted run serves a
+# blank "missing required error components" page. Start from a clean one.
+rm -rf .next
 exec npm run dev

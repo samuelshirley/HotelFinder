@@ -93,7 +93,7 @@ test('search for a hotel in Porto', async ({ page }) => {
   await page.getByLabel('Message').fill('under 120 a night');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText('under 120 a night')).toBeVisible();
-  await expect(page.getByText(/Capped at €120 a night|The assistant did not answer|The assistant is set up wrongly|ANTHROPIC_API_KEY is not set/)).toBeVisible();
+  await expect(page.getByText(/Capped at €120 a night\. \d+ of \d+ hotels fit\.|The assistant did not answer|The assistant is set up wrongly|ANTHROPIC_API_KEY is not set/)).toBeVisible();
 
   // The detail sheet.
   await cards.first().getByRole('button', { name: 'Details' }).click();
