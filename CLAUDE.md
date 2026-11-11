@@ -9,9 +9,9 @@
 
 ## Status
 
-**2026-11-11: no code yet.** The repo holds this map, `docs/architecture.md`,
-`.env.example` and `.gitignore`. Everything under "Planned" is a plan, not a
-fact; move a line out of "Planned" only when the thing exists.
+**2026-11-11: build step 2 of 11 done** (schema, repos, PGlite tests). No
+routes, no UI, no supplier adapter, no agent yet. Lines under "Planned layout"
+that do not exist yet are marked *(planned)*.
 
 ## Scope — hold the line
 
@@ -42,26 +42,31 @@ first on every message) · **LiteAPI** (the only supplier) · Google Maps/Places
 - **Store**: session state in Postgres, a closed union of typed actions, pure
   reducers, one dispatch path used by both producers.
 
-## Planned layout
+## Commands
+
+```bash
+npm run test         # vitest: unit + pg (in-process PGlite, no network)
+npm run typecheck    # tsc --noEmit
+npm run db:generate  # drizzle-kit generate
+```
+
+`npm install` needs `legacy-peer-deps` (set in `.npmrc`): `docs/schema.md`.
+
+## Layout
 
 ```
 src/
-  app/            pages + api/ routes (one Zod payload each)
-  components/     ChatPanel, ResultsPanel, OfferCard, OfferDetail, StayMap,
-                  form rows (chips, OTP, payment)
   lib/            PURE logic, unit-tested
-    store/        actions, reducers, staged action
-    finder/       normalize, filter, rank, reasons
-    agent/        context, tools/, reply guards
-    router/       intent catalogue, slot extraction, settle test
+    bookingStates.ts   booking transition map
+    pgErrors.ts        unique-violation reader
+    store/ finder/ agent/ router/      (planned)
   server/
-    db/           schema.ts, client.ts
+    db/           schema.ts (all tables), client.ts (lazy, DATABASE_URL)
     repos/        the ONLY way to touch the DB
-    supplier/     adapter interface + liteapi/ (BOUNDED)
-    jev/          BOUNDED — index.ts is the only public surface
-    payments/     BOUNDED — canBook(userId) is the only public question
-    auth/         guards, OTP, session store
-e2e/              Playwright specs
+    supplier/ jev/ payments/ auth/     (planned, each BOUNDED)
+  test/pg/        PGlite harness, fixtures, repo round trips
+  app/ components/                     (planned)
+e2e/                                   (planned)
 docs/             every "why"
 ```
 
@@ -69,9 +74,24 @@ docs/             every "why"
 
 None yet.
 
-### Schema
+### Schema (18 tables in `src/server/db/schema.ts`)
 
-None yet.
+Rules each table carries, and what broke while building them:
+**`docs/schema.md`**.
+
+users, accounts, sessions, verificationTokens, emailOtpCodes, searchSessions,
+stays, agentTurns, chatHistory, properties, offers, shortlistEntries,
+userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas
+
+### Repos (`src/server/repos/`)
+
+sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
+ONLY), usage, preferences, bookings, appMeta
+
+### Guard tests
+
+`schemaGuard.test.ts` (timestamps through `ts()`, stay dates are `date`, money
+is integer). Mutation-check log: `docs/schema.md`.
 
 ### Agent tools
 

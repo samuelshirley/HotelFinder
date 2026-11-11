@@ -1,0 +1,407 @@
+import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  check,
+  date,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
+
+/**
+ * The whole schema. Reasoning and traps: docs/schema.md.
+ *
+ * Every timestamp goes through `ts()` so it cannot be declared without a time
+ * zone (schemaGuard.test.ts allows exactly one `timestamp(` call: this one).
+ * Money is integer minor units plus a currency code, never a float.
+ */
+const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
+
+// ── Auth (Auth.js drizzle adapter shape) ────────────────────────────────────
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  emailVerified: ts('email_verified'),
+  image: text('image'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('provider_account_id').notNull(),
+    refresh_token: text('refresh_token'),
+    access_token: text('access_token'),
+    expires_at: integer('expires_at'),
+    token_type: text('token_type'),
+    scope: text('scope'),
+    id_token: text('id_token'),
+    session_state: text('session_state'),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.provider, t.providerAccountId] }) }),
+);
+
+export const sessions = pgTable('sessions', {
+  sessionToken: text('session_token').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expires: ts('expires').notNull(),
+});
+
+export const verificationTokens = pgTable(
+  'verification_tokens',
+  {
+    identifier: text('identifier').notNull(),
+    token: text('token').notNull(),
+    expires: ts('expires').notNull(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.identifier, t.token] }) }),
+);
+
+export const emailOtpCodes = pgTable(
+  'email_otp_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    codeHash: text('code_hash').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: ts('expires_at').notNull(),
+    consumedAt: ts('consumed_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({ byEmail: index('email_otp_codes_email_idx').on(t.email) }),
+);
+
+// ── Search state (the store) ────────────────────────────────────────────────
+
+export const sessionStatus = pgEnum('session_status', ['onboarding', 'active', 'closed']);
+
+/** What "best" means to this user (architecture decision 8). */
+export const PRIORITIES = ['cheapest', 'closest', 'nicest', 'basic'] as const;
+export const priority = pgEnum('priority', PRIORITIES);
+
+export const searchSessions = pgTable(
+  'search_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Null while anonymous; set when the session is adopted at sign-in. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    /** The signed anonymous cookie id. Kept after adoption for the audit trail. */
+    anonId: text('anon_id'),
+    status: sessionStatus('status').notNull().default('onboarding'),
+    priority: priority('priority'),
+    currency: text('currency').notNull().default('EUR'),
+    /** ISO 3166-1 alpha-2. The supplier refuses a rate search without it. */
+    guestNationality: text('guest_nationality'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    byUser: index('search_sessions_user_idx').on(t.userId),
+    byAnon: index('search_sessions_anon_idx').on(t.anonId),
+    hasOwner: check('search_sessions_has_owner', sql`${t.userId} is not null or ${t.anonId} is not null`),
+  }),
+);
+
+export const stays = pgTable(
+  'stays',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull().references(() => searchSessions.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    destinationText: text('destination_text').notNull(),
+    /** Opaque, from the place resolver. Never authored by a model. */
+    placeId: text('place_id'),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    /** Machine dates, never free text. */
+    checkIn: date('check_in', { mode: 'string' }).notNull(),
+    checkOut: date('check_out', { mode: 'string' }).notNull(),
+    adults: integer('adults').notNull().default(2),
+    /** One age per child: the supplier prices children by age. */
+    childrenAges: jsonb('children_ages').$type<number[]>().notNull().default([]),
+    rooms: integer('rooms').notNull().default(1),
+    /** Per night, in the session currency's minor units. */
+    priceCapMinor: integer('price_cap_minor'),
+    mustHaves: jsonb('must_haves').$type<string[]>().notNull().default([]),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    onePerPosition: uniqueIndex('stays_session_position_idx').on(t.sessionId, t.position),
+    datesOrdered: check('stays_dates_ordered', sql`${t.checkOut} > ${t.checkIn}`),
+    someoneStays: check('stays_adults_positive', sql`${t.adults} >= 1 and ${t.rooms} >= 1`),
+  }),
+);
+
+// ── Chat and turns ──────────────────────────────────────────────────────────
+
+export const turnStatus = pgEnum('turn_status', ['queued', 'running', 'done', 'error']);
+
+export const agentTurns = pgTable(
+  'agent_turns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull().references(() => searchSessions.id, { onDelete: 'cascade' }),
+    /** Generated by the client per send; a retried send finds the same turn. */
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    status: turnStatus('status').notNull().default('queued'),
+    userMessage: text('user_message').notNull(),
+    finalText: text('final_text'),
+    errorCode: text('error_code'),
+    /** Router decision, toolTrace, turnTrace, guard counts, staged action. */
+    resultMeta: jsonb('result_meta').$type<Record<string, unknown>>(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    startedAt: ts('started_at'),
+    finishedAt: ts('finished_at'),
+  },
+  (t) => ({
+    /** One running turn per session is a database fact, not a check-then-insert. */
+    oneRunning: uniqueIndex('agent_turns_one_running_idx').on(t.sessionId).where(sql`status = 'running'`),
+    bySession: index('agent_turns_session_idx').on(t.sessionId, t.createdAt),
+  }),
+);
+
+export const chatRole = pgEnum('chat_role', ['user', 'assistant']);
+
+/**
+ * `ai` and `user` are the only kinds the model ever sees. Form rows and the
+ * payment row are rendered by the client and never enter model context.
+ */
+export const CHAT_KINDS = [
+  'user',
+  'ai',
+  'line',
+  'form_question',
+  'form_answer',
+  'otp_form',
+  'guest_form',
+  'payment_form',
+  'receipt',
+  'error',
+] as const;
+export const chatKind = pgEnum('chat_kind', CHAT_KINDS);
+
+export const chatHistory = pgTable(
+  'chat_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull().references(() => searchSessions.id, { onDelete: 'cascade' }),
+    turnId: uuid('turn_id').references(() => agentTurns.id, { onDelete: 'set null' }),
+    role: chatRole('role').notNull(),
+    kind: chatKind('kind').notNull(),
+    content: text('content').notNull(),
+    meta: jsonb('meta').$type<Record<string, unknown>>(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({ bySession: index('chat_history_session_idx').on(t.sessionId, t.createdAt) }),
+);
+
+// ── Inventory ───────────────────────────────────────────────────────────────
+
+export const properties = pgTable(
+  'properties',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    supplier: text('supplier').notNull(),
+    /** Opaque. Forwarded untouched. */
+    supplierHotelId: text('supplier_hotel_id').notNull(),
+    name: text('name').notNull(),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    stars: doublePrecision('stars'),
+    rating: doublePrecision('rating'),
+    reviewCount: integer('review_count'),
+    petsAllowed: boolean('pets_allowed'),
+    parking: text('parking'),
+    mainPhoto: text('main_photo'),
+    address: text('address'),
+    /** The rest of the supplier's static content, as received. */
+    content: jsonb('content').$type<Record<string, unknown>>(),
+    fetchedAt: ts('fetched_at').notNull().defaultNow(),
+  },
+  (t) => ({ bySupplierId: uniqueIndex('properties_supplier_id_idx').on(t.supplier, t.supplierHotelId) }),
+);
+
+/** Who an offer may be shown to. A `member` offer never reaches an anonymous session. */
+export const AUDIENCES = ['public', 'member'] as const;
+export type Audience = (typeof AUDIENCES)[number];
+export const audience = pgEnum('audience', AUDIENCES);
+
+export const offers = pgTable(
+  'offers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull().references(() => searchSessions.id, { onDelete: 'cascade' }),
+    stayId: uuid('stay_id').notNull().references(() => stays.id, { onDelete: 'cascade' }),
+    propertyId: uuid('property_id').notNull().references(() => properties.id),
+    supplier: text('supplier').notNull(),
+    /** Opaque. Forwarded untouched. */
+    supplierOfferId: text('supplier_offer_id').notNull(),
+    audience: audience('audience').notNull(),
+    marginPct: numeric('margin_pct', { precision: 5, scale: 2 }).notNull(),
+    currency: text('currency').notNull(),
+    /** Whole stay, taxes and fees included. The primary number on a card. */
+    totalMinor: integer('total_minor').notNull(),
+    /** The hotel's suggested public price, when the supplier sends one. */
+    suggestedSellingMinor: integer('suggested_selling_minor'),
+    /** Charges the supplier marks `included: false` (city tax at the desk). */
+    payAtPropertyMinor: integer('pay_at_property_minor').notNull().default(0),
+    taxesAndFees: jsonb('taxes_and_fees').$type<unknown[]>(),
+    roomName: text('room_name'),
+    boardName: text('board_name'),
+    refundableTag: text('refundable_tag'),
+    cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
+    fetchedAt: ts('fetched_at').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => ({
+    byStay: index('offers_stay_idx').on(t.sessionId, t.stayId),
+    nonNegative: check('offers_total_non_negative', sql`${t.totalMinor} >= 0 and ${t.payAtPropertyMinor} >= 0`),
+    expiresAfterFetch: check('offers_expiry_after_fetch', sql`${t.expiresAt} > ${t.fetchedAt}`),
+  }),
+);
+
+/** Declaration order is display order: Postgres sorts an enum by it, and listShortlist relies on that. */
+export const SHORTLIST_SOURCES = ['finder', 'user_named'] as const;
+export const shortlistSource = pgEnum('shortlist_source', SHORTLIST_SOURCES);
+
+export const shortlistEntries = pgTable(
+  'shortlist_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull().references(() => searchSessions.id, { onDelete: 'cascade' }),
+    stayId: uuid('stay_id').notNull().references(() => stays.id, { onDelete: 'cascade' }),
+    propertyId: uuid('property_id').notNull().references(() => properties.id),
+    offerId: uuid('offer_id').references(() => offers.id, { onDelete: 'cascade' }),
+    rank: integer('rank').notNull(),
+    source: shortlistSource('source').notNull(),
+    /** Machine-readable why-this-hotel, e.g. {kind:'cheapest_meeting_all_musts'}. */
+    reason: jsonb('reason').$type<{ kind: string } & Record<string, unknown>>(),
+    excluded: boolean('excluded').notNull().default(false),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    byStay: index('shortlist_entries_stay_idx').on(t.sessionId, t.stayId, t.rank),
+    /** A finder row without a priced offer and a reason cannot exist. */
+    finderRowsAreSourced: check(
+      'shortlist_finder_rows_sourced',
+      sql`${t.source} = 'user_named' or (${t.offerId} is not null and ${t.reason} is not null)`,
+    ),
+  }),
+);
+
+// ── Accounts ────────────────────────────────────────────────────────────────
+
+export const userPreferences = pgTable('user_preferences', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  priority: priority('priority'),
+  adults: integer('adults'),
+  childrenAges: jsonb('children_ages').$type<number[]>(),
+  mustHaves: jsonb('must_haves').$type<string[]>(),
+  guestNationality: text('guest_nationality'),
+  /** Only confirmed values are stored; this is when the user last said yes. */
+  confirmedAt: ts('confirmed_at').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const BOOKING_STATUSES = ['prebooked', 'payment_pending', 'paid', 'confirmed', 'failed', 'cancelled'] as const;
+export type BookingStatus = (typeof BOOKING_STATUSES)[number];
+export const bookingStatus = pgEnum('booking_status', BOOKING_STATUSES);
+
+export const bookings = pgTable(
+  'bookings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Set null on account deletion: the booking record outlives the account. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    sessionId: uuid('session_id').references(() => searchSessions.id, { onDelete: 'set null' }),
+    offerId: uuid('offer_id').references(() => offers.id, { onDelete: 'set null' }),
+    supplier: text('supplier').notNull(),
+    /** The pair cannot be fetched again from the supplier: persist both before any payment form. */
+    prebookId: text('prebook_id').notNull(),
+    transactionId: text('transaction_id').notNull(),
+    supplierBookingId: text('supplier_booking_id'),
+    hotelConfirmationCode: text('hotel_confirmation_code'),
+    status: bookingStatus('status').notNull().default('prebooked'),
+    currency: text('currency').notNull(),
+    /** The price the supplier confirmed at prebook. */
+    totalMinor: integer('total_minor').notNull(),
+    /** The price on the offer the user picked. Differs when the rate changed. */
+    quotedTotalMinor: integer('quoted_total_minor').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    onePerPrebook: uniqueIndex('bookings_supplier_prebook_idx').on(t.supplier, t.prebookId),
+    byUser: index('bookings_user_idx').on(t.userId),
+  }),
+);
+
+// ── Ledger and switches ─────────────────────────────────────────────────────
+
+export const usageEvents = pgTable(
+  'usage_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Set null on account deletion: spend history survives anonymously. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    sessionId: uuid('session_id').references(() => searchSessions.id, { onDelete: 'set null' }),
+    /** 'anthropic', 'jev', 'liteapi:search', 'liteapi:prebook', 'google:places', … */
+    provider: text('provider').notNull(),
+    model: text('model'),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    /** 1 cent = 1,000,000 microcents. bigint: $25 already overflows int4. */
+    costMicrocents: bigint('cost_microcents', { mode: 'number' }).notNull().default(0),
+    latencyMs: integer('latency_ms'),
+    success: boolean('success').notNull(),
+    errorMessage: text('error_message'),
+    meta: jsonb('meta').$type<Record<string, unknown>>(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    byUser: index('usage_events_user_idx').on(t.userId, t.createdAt),
+    bySession: index('usage_events_session_idx').on(t.sessionId, t.createdAt),
+    byProvider: index('usage_events_provider_idx').on(t.provider, t.createdAt),
+  }),
+);
+
+export const appMeta = pgTable('app_meta', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const ipRequestCounters = pgTable(
+  'ip_request_counters',
+  {
+    ip: text('ip').notNull(),
+    windowStart: ts('window_start').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.ip, t.windowStart] }) }),
+);
+
+export const ideas = pgTable('ideas', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  sessionId: uuid('session_id').references(() => searchSessions.id, { onDelete: 'set null' }),
+  text: text('text').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});

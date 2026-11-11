@@ -382,7 +382,14 @@ accent `#9184d9`, Inter, Phosphor icons) **[V]**.
 | 15 | English only for v1 (code-side slot extraction is per language) | Sam |
 | 16 | Retention for anonymous sessions and chat text | Sam |
 | 17 | Payment without leaving the chat: iframe around the SDK redirect, or LiteAPI's Stripe publishable keys | sandbox + LiteAPI support |
-| 18 | Who writes the golden briefs that define "best" for the ranking tests | Sam |
+| 18 | **Decided 2026-11-11:** "best" is relative, so ranking is judged by 20 simulated personas with different backgrounds and aims, not one golden list. Users are simulated the same way before any release | D |
+
+Working defaults, taken so the build can proceed and not yet confirmed by Sam:
+margin never influences rank (14); confirmation, bookings view and cancel are
+in v1 (12); English only (15); anonymous sessions purged after 30 days (16);
+a global anonymous AI-spend breaker at $5 a day. Distribution (10), the
+travel-agency question (13) and guest support (12) are parked: this is a test
+build.
 
 ## 16. Build order
 
