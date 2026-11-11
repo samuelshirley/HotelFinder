@@ -93,12 +93,17 @@ Sam's framing is a Redux store, and it fits.
 
 ### What Jev is **[V]**
 
-A typed-decision server: `POST {base}/v1/systemone` with a `state` string and a
-record of `questions`. It answers choice, yes/no and score questions over
-labels we supply, with a probability per label. It cannot extract a number, a
-date or a name. Feral reads only its own two numbers from the response: the
-chosen label's probability (`top`) and top minus runner-up (`margin`); the
-backend's own `confidence` field is uncalibrated and ignored.
+TypeSafe AI's hosted decision model. `POST https://api.typesafe.ai/v1/systemone`
+with a `state` and a record of `questions`, `Authorization: Bearer` key, model
+`jev-latest` (endpoint and shape from docs.typesafe.ai, 2026-11-11). It
+answers choice, yes/no (noul) and score questions over labels we supply, with a
+probability per label. It cannot extract a number, a date or a name. Listed
+price is $0.042 per million input tokens, output free: a 500-token routing
+call is about $0.00002. Feral reads only its own two numbers from the
+response: the chosen label's probability (`top`) and top minus runner-up
+(`margin`); the backend's own `confidence` field is not used there.
+
+**[U]** not yet called with this project's key.
 
 ### What it does here
 
@@ -174,9 +179,11 @@ measured number from day one rather than a belief.
 ### Bounded module
 
 `src/server/jev/index.ts` is the only public surface. Only the turn route's
-router and the admin routes may import it (guard test). `JEV_BASE_URL` is
-server-only, never `NEXT_PUBLIC_*`, https plus a key in production, local hosts
-only on a laptop: it receives users' messages, so it is a privacy boundary
+router and the admin routes may import it (guard test). The endpoint defaults
+to TypeSafe's public API, so `JEV_API_KEY` is the only required setting.
+`JEV_BASE_URL` is an optional override (a compatible local server), server-only,
+never `NEXT_PUBLIC_*`, local hosts only on a laptop: wherever it points
+receives users' messages, so it is a privacy boundary
 **[V, ported from Feral I21/I22]**.
 
 ## 7. Where Haiku is still required
@@ -330,7 +337,7 @@ accent `#9184d9`, Inter, Phosphor icons) **[V]**.
 |---|---|---|
 | 1 | Margin for member and public prices, after the step-9 numbers | Sam |
 | 2 | LiteAPI's contract terms for a closed user group: does an OTP email account qualify? | Sam, at signup |
-| 3 | `JEV_BASE_URL` reachable from Vercel over https with a key | Sam |
+| 3 | TypeSafe's data-handling terms for user messages, for the privacy page | Sam |
 | 4 | Names: the product, the agent, the finder | Sam |
 | 5 | New Neon project, Vercel project, Resend sender, Google Maps key (or reuse Feral's) | Sam |
 | 6 | Are `docs/` in git here? (Feral keeps them local.) Currently in git | Sam |
