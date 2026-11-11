@@ -293,6 +293,36 @@ Five Porto hotels, 2 adults, 11–13 Dec 2026, EUR, `POST /v3.0/hotels/rates`.
 Sandbox data may be synthetic, so the gap figures are a shape, not a market
 measurement.
 
+Second probe, same day **[V]**:
+
+- **Must-haves the supplier can answer structurally:** hotel details carry
+  `petsAllowed` (bool), `parking` (enum), `childAllowed`, coordinates, rating,
+  review count, and a facility list from an 820-entry catalogue that includes
+  "RV, bus, truck parking", "Free self parking" and "Soundproof rooms".
+- **Must-haves it cannot:** nothing structured for "quiet", "safe" or
+  "walkable". `hotelImportantInformation` is free text (the sample said the
+  hotel is on a pedestrian street, which matters for a pickup).
+- `/data/reviews?getSentiment=true` returns category ratings with pros and
+  cons. These are supplier-generated summaries of guest reviews: quotable as
+  "guest reviews say", never as our own claim.
+- `/data/places?textQuery=` returns place ids, and `/hotels/rates` accepts
+  `placeId`, `cityName` + `countryCode`, or `aiSearch`. Whether a place id
+  comes with coordinates for our own distance maths is **[U]**.
+- **A bounded search is cheap enough:** `limit: 20, maxRatesPerHotel: 1`
+  returned 69 KB in 3.6–4.0 s, with a `hotels[]` array (name, photo, address,
+  coordinates, rating, stars) sufficient to build cards from one call.
+- `guestNationality` is required (400 without it). Children are priced by age.
+- `min-rates` needs hotel ids; it is not a city search.
+
+From LiteAPI's docs, not yet exercised **[U]**: prebook and book each take
+5–10 s; the payment SDK redirects to a `returnUrl` after payment; the sandbox
+allows 5 requests per second; a production key needs a credit card on the
+account; LiteAPI ships its own embeddable chat booking widget.
+
+**Consequence for the finder:** fetch and rank are separate. A refinement that
+does not change destination, dates or guests re-ranks the cached result set
+and makes no supplier call.
+
 ## 13. UI
 
 Desktop, two panes. Left: the chat, composer always reachable, form rows
@@ -343,6 +373,16 @@ accent `#9184d9`, Inter, Phosphor icons) **[V]**.
 | 6 | Are `docs/` in git here? (Feral keeps them local.) Currently in git | Sam |
 | 7 | Jev settle threshold for intents: 0.85 is Feral's tier value, not measured for hotel intents | measured in step 9 |
 | 8 | SDK receipt fields and saved cards (section 10) | sandbox |
+| 9 | Is LiteAPI's price for the same room competitive with Booking.com and Vio? Needs a production key; 20 hotels, same dates | measured before step 5 |
+| 10 | Where the first users come from at a margin that cannot pay for ads | Sam |
+| 11 | What this does that LiteAPI's own chat widget does not | Sam |
+| 12 | Who answers the guest when a hotel booking goes wrong; minimum servicing in v1 (confirmation, my bookings, cancel) | Sam + LiteAPI |
+| 13 | Travel-agency registration in Catalonia for mediating accommodation; who is the seller of record in the terms | Sam + gestor |
+| 14 | Proposed invariant 20: margin and commission never influence rank; a "how we rank" page states the parameters | Sam |
+| 15 | English only for v1 (code-side slot extraction is per language) | Sam |
+| 16 | Retention for anonymous sessions and chat text | Sam |
+| 17 | Payment without leaving the chat: iframe around the SDK redirect, or LiteAPI's Stripe publishable keys | sandbox + LiteAPI support |
+| 18 | Who writes the golden briefs that define "best" for the ranking tests | Sam |
 
 ## 16. Build order
 
