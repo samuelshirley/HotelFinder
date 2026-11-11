@@ -257,3 +257,38 @@ describe('questions about what is on screen become answer plans, never actions',
     expect(q({ searchField: sure('none') })).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
   });
 });
+
+describe('an intent under the bar settles when its own detail question agrees (live run, 2026-11-11)', () => {
+  const at = <L extends string>(choice: L, top: number, margin: number) => ({ choice, top, margin });
+
+  it('the four messages the first live run deferred now settle', () => {
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.61, 0.22), priority: at('cheapest', 1, 0.99) }))).toEqual({
+      kind: 'actions', intent: 'priority', actions: [{ type: 'set_priority', priority: 'cheapest' }],
+    });
+    expect(route('does the yotel take dogs?', readings('ask_hotels', { intent: at('ask_hotels', 0.75, 0.15), fact: at('facility', 1, 0.99), amenity: at('pets_allowed', 1, 0.99) }))).toMatchObject({
+      kind: 'answer', plan: { about: 'hotel', propertyId: P(1), fact: 'facility', amenity: 'pets_allowed' },
+    });
+    expect(route('which is the cheapest?', readings('ask_hotels', { intent: at('ask_hotels', 0.84, 0.68), superlative: at('cheapest', 0.99, 0.98) }))).toMatchObject({ kind: 'answer', plan: { about: 'ranking', superlative: 'cheapest' } });
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.3), superlative: at('closest', 0.95, 0.9) }))).toMatchObject({ kind: 'answer', plan: { about: 'ranking', superlative: 'closest' } });
+  });
+
+  it('without agreement, the same intent readings still defer', () => {
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.61, 0.22) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.3) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    // The detail question itself is unsure: that is not agreement.
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.3), superlative: at('closest', 0.7, 0.4) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('what dates?', readings('ask_search', { intent: at('ask_search', 0.7, 0.3), searchField: at('dates', 0.99, 0.9) }))).toMatchObject({ kind: 'answer', plan: { about: 'search', field: 'dates' } });
+  });
+
+  it('there is a floor: a weak or contested intent is not rescued', () => {
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.55, 0.3), priority: at('cheapest', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    // A change to the search keeps the full margin; an answer may use the smaller one.
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.7, 0.15), priority: at('cheapest', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.05), superlative: at('closest', 0.95, 0.9) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+  });
+
+  it('a requirement is never rescued: "takes dogs" read as must-have would change the search', () => {
+    expect(route('does the yotel take dogs?', readings('must_have', { intent: at('must_have', 0.75, 0.3), amenity: at('pets_allowed', 1, 0.99), fact: at('facility', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('not the yotel', readings('exclude', { intent: at('exclude', 0.8, 0.5) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+  });
+});

@@ -38,10 +38,53 @@ export type Readings = {
   searchField: ChoiceReading<string> | null;
 };
 
-export const SETTLE = { top: 0.85, margin: 0.2, multiIntentMax: 0.3, noulYes: 0.8, noulNo: 0.2 };
+export const SETTLE = {
+  top: 0.85,
+  margin: 0.2,
+  multiIntentMax: 0.3,
+  noulYes: 0.8,
+  noulNo: 0.2,
+  /** The intent's floor when its own detail question independently agrees. */
+  corroboratedTop: 0.6,
+  /** The margin floor for an intent that only answers a question and changes nothing. */
+  answerMargin: 0.1,
+};
 
 export function settles(r: { top: number; margin: number } | null, min = SETTLE.top): boolean {
   return r !== null && r.top >= min && r.margin >= SETTLE.margin;
+}
+
+/**
+ * Two questions agreeing is stronger evidence than one question alone.
+ *
+ * The first live run (2026-11-11) deferred four messages Jev had right. Each
+ * time the intent was the top label but under 0.85 (0.61 to 0.84), while the
+ * detail question only that intent uses was at 0.95 or more: "just show me the
+ * cheapest" had priority=cheapest at 1.0. So an intent below the usual bar
+ * still settles when (a) it is the top label by a clear margin and (b) its own
+ * detail question settles at the FULL bar on a real label, not `none`.
+ *
+ * Only for intents where a wrong settle is cheap:
+ *  - `ask_hotels`, `ask_search` change nothing, so they need the smaller margin;
+ *  - `priority` is one visible, undoable re-rank, so it keeps the full margin.
+ * `must_have` is deliberately absent: its detail question (the amenity) is the
+ * same one a question about a hotel uses, so it corroborates neither, and
+ * reading "does it take dogs?" as a requirement would change the search.
+ */
+function corroborated(readings: Readings, min: number): boolean {
+  const intent = readings.intent;
+  if (!intent || intent.top < SETTLE.corroboratedTop) return false;
+  const real = (r: ChoiceReading<string> | null) => settles(r, min) && r!.choice !== 'none';
+  switch (intent.choice) {
+    case 'priority':
+      return intent.margin >= SETTLE.margin && real(readings.priority);
+    case 'ask_hotels':
+      return intent.margin >= SETTLE.answerMargin && (real(readings.fact) || real(readings.superlative));
+    case 'ask_search':
+      return intent.margin >= SETTLE.answerMargin && real(readings.searchField);
+    default:
+      return false;
+  }
 }
 
 export type DeferReason =
@@ -112,7 +155,7 @@ export function routeMessage(input: {
   // Jev may wave a message through. Saying no is the agent's job.
   if (readings.tier.choice !== 'T1') return defer('not_about_search');
   if (readings.multiIntent === null || readings.multiIntent > SETTLE.multiIntentMax) return defer('multi_intent');
-  if (!settles(readings.intent, min)) return defer('intent_unsettled');
+  if (!settles(readings.intent, min) && !corroborated(readings, min)) return defer('intent_unsettled');
 
   const intent = readings.intent.choice;
   const names = shortlist.map((r) => r.name);

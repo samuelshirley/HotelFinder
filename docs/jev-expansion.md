@@ -407,3 +407,26 @@ distance always "from the place you named"; a search answer from stale state.
 Turn: an answer also handed to the agent; no answer not handed to the agent;
 `decision` and `deferred` missing from the ledger. Jev module: `fact` read
 against the wrong labels; `search_field` read from the wrong key.
+
+## First live run (Sam, 2026-11-11): 32 of 36, and what the 4 showed
+
+All four failures had Jev right and the router deferring on `intent_unsettled`:
+the intent was the top label at 0.61 to 0.84, under the 0.85 bar, while its
+own detail question was at 0.95 or more.
+
+| Message | intent (top, margin) | detail question |
+|---|---|---|
+| just show me the cheapest | priority 0.61, 0.22 | priority=cheapest 1.0 |
+| does the yotel take dogs? | ask_hotels 0.75, 0.15 | fact=facility 1.0, amenity=pets_allowed 1.0 |
+| which is the cheapest? | ask_hotels 0.84, 0.68 | superlative=cheapest 0.99 |
+| which is closest? | ask_hotels 0.65, 0.30 | superlative=closest 0.95 |
+
+Fix (`corroborated` in `lib/router/route.ts`): an intent at 0.6 or more
+settles when its own detail question settles at the full bar on a real label.
+Answers (`ask_hotels`, `ask_search`) need an intent margin of 0.1; `priority`
+keeps 0.2. `must_have` and everything else are not rescued.
+
+The 0.6 and 0.1 floors are fitted to these four readings. They are not
+measured on traffic: re-run `scripts/jev-live.sh` after any catalogue change,
+and treat the floors as the first thing to revisit once wrong settles are
+counted. 7 of 7 mutations killed.
