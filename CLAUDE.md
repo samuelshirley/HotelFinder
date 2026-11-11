@@ -130,7 +130,8 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 ### Scripts (`scripts/`)
 
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
-agent-live.sh (14 real cases against Anthropic; prints the cost)
+agent-live.sh (14 real cases against Anthropic; prints the cost),
+share.sh (the app on this Mac behind one public ngrok URL)
 
 ### E2E specs (`e2e/`)
 
