@@ -21,6 +21,7 @@ import { audienceFor, getSession, listStays, updateSession, type SearchSession, 
 import { listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
+import { logModelCalls } from '@/server/modelLedger';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
@@ -118,31 +119,6 @@ async function processOne(turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) 
 /** `kind: 'ai'` marks words the model wrote; everything else is a template over typed values. */
 type TurnResult = { text: string; meta: Record<string, unknown> & { ui?: unknown }; kind?: ChatKind };
 
-/** One ledger row per model call, failures included. Returns what the turn trace keeps. */
-async function logModelCalls(session: SearchSession, purpose: 'agent' | 'scan' | 'priorities', replies: ModelReply[]) {
-  let costMicrocents = 0;
-  for (const r of replies) {
-    if (!r.ok && r.failure === 'not_configured') continue;
-    const cost = r.ok ? modelCostMicrocents(r.model, r.usage) : 0;
-    costMicrocents += cost;
-    await logUsage({
-      sessionId: session.id,
-      userId: session.userId,
-      provider: 'anthropic',
-      model: r.model,
-      inputTokens: r.ok ? r.usage.input : 0,
-      outputTokens: r.ok ? r.usage.output : 0,
-      cacheWriteTokens: r.ok ? r.usage.cacheWrite : 0,
-      cacheReadTokens: r.ok ? r.usage.cacheRead : 0,
-      costMicrocents: cost,
-      latencyMs: r.latencyMs,
-      success: r.ok,
-      errorMessage: r.ok ? null : r.errorMessage,
-      meta: { purpose },
-    });
-  }
-  return { model_calls: replies.length, cost_microcents: costMicrocents };
-}
 
 /** A typed message while the form is still being filled in. */
 async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void): Promise<TurnResult> {

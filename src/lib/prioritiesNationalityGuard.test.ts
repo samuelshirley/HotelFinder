@@ -31,7 +31,7 @@ describe('guard: the nationality for rates is set in exactly three places', () =
   // Inferred at session creation and when the destination is answered (no
   // price in scope in either), or changed by the user through the one
   // dispatch path. Nowhere else may write it, so nothing can pick it to chase a rate.
-  const ALLOWED = [path.join('app', 'api', 'session', 'route.ts'), path.join('server', 'onboarding.ts'), path.join('server', 'dispatch.ts')];
+  const ALLOWED = [path.join('server', 'startSession.ts'), path.join('server', 'onboarding.ts'), path.join('server', 'dispatch.ts')];
 
   it('only those files write guestNationality to a session', () => {
     // The repo function itself is the write; these are its callers.

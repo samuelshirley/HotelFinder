@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { ensureOwner, errorResponse, handled, rateLimit } from '@/server/http';
+import { placeKindWord } from '@/lib/placePick';
 import { getSupplier } from '@/server/supplier';
 
 export const runtime = 'nodejs';
@@ -19,7 +20,13 @@ export const GET = handled(async (req: Request) => {
 
   const places = await getSupplier().searchPlaces(parsed.data.q);
   if (!places.ok) return errorResponse('supplier_unavailable', 503);
+  // Hotels are never a destination; every row says where and what it is (docs/entry-ux.md §2.2).
   return NextResponse.json({
-    places: places.value.slice(0, 6).map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name })),
+    places: places.value
+      .flatMap((p) => {
+        const kind = placeKindWord(p.types);
+        return kind ? [{ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name, name: p.name, where: p.address, kind }] : [];
+      })
+      .slice(0, 6),
   });
 });

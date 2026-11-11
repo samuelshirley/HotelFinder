@@ -148,6 +148,11 @@ export async function answerForm(args: {
    * Say how they were read instead of echoing a form answer.
    */
   readBack?: string;
+  /**
+   * The answer came from the first screen's pills, which the user's own bubble
+   * already shows: no echo, and no "From your message" line for it.
+   */
+  quiet?: boolean;
 }): Promise<FormResult> {
   const { sessionId, answer, supplier, now, today } = args;
   const session = await getSession(sessionId);
@@ -214,7 +219,8 @@ export async function answerForm(args: {
       break;
   }
 
-  if (args.readBack) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: args.readBack, meta: { field: answer.field, readBack: true } });
+  if (args.quiet) understood = '';
+  else if (args.readBack) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: args.readBack, meta: { field: answer.field, readBack: true } });
   else await appendMessage({ sessionId, role: 'user', kind: 'form_answer', content: answerText(answer), meta: { field: answer.field } });
   if (understood) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: understood, meta: { scanned: true } });
 

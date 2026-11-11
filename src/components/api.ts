@@ -1,4 +1,5 @@
 import type { Action } from '@/lib/store/actions';
+import type { Brief } from '@/server/brief';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 
@@ -36,7 +37,9 @@ export const answerForm = (id: string, answer: FormAnswer) =>
 /** The results header's chips: nationality, what "best" means, where "close" is from. */
 export const editSearch = (id: string, action: Extract<Action, { type: 'set_nationality' | 'set_priorities' | 'set_near' | 'clear_near' }>) =>
   request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ action, today: todayLocal() }) });
-export const searchPlaces = (q: string) => request<{ places: Array<{ placeId: string; label: string }> }>(`/api/places?q=${encodeURIComponent(q)}`);
+export type PlaceSuggestion = { placeId: string; label: string; name: string; where: string | null; kind: string };
+export const searchPlaces = (q: string) => request<{ places: PlaceSuggestion[] }>(`/api/places?q=${encodeURIComponent(q)}`);
+export const startBrief = (brief: Brief) => request<{ sessionId: string }>('/api/session/brief', { method: 'POST', body: JSON.stringify({ brief, today: todayLocal() }) });
 
 export type PropertyDetails = {
   id: string;

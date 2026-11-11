@@ -16,6 +16,7 @@ export const ERROR_COPY = {
   unknown_country: 'That country is not in the list. Pick it from the menu.',
   place_unavailable: 'The place lookup did not answer. Try again in a moment.',
   near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
+  empty_brief: 'Type where you are going, or pick a place, then search.',
   not_active: 'Finish the questions in the chat first.',
   bad_date: 'The date on this device looks wrong. Check the clock and reload.',
   supplier_unavailable: 'The hotel service did not answer. Try again in a moment.',

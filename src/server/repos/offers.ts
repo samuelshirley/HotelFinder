@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, eq, gt, max, sql, type SQL } from 'drizzle-orm';
+import { and, eq, gt, max, type SQL } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
 import { offers, properties, type Audience } from '@/server/db/schema';
@@ -58,10 +58,14 @@ export async function listLiveOffers(
  */
 export async function listLiveOffersForRanking(sessionId: string, stayId: string, audience: Audience, now: Date) {
   const mine = and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), eq(offers.audience, audience));
-  const latest = db.select({ at: max(offers.fetchedAt) }).from(offers).where(mine);
+  // Two plain queries, not a subquery inside sql``: that form overflowed the
+  // stack under Next's bundler (reproduced in the e2e run, 2026-11-11) though
+  // it passed under vitest.
+  const [{ at }] = await db.select({ at: max(offers.fetchedAt) }).from(offers).where(mine);
+  if (!at) return [];
   return db
     .select({ offer: offers, property: properties })
     .from(offers)
     .innerJoin(properties, eq(properties.id, offers.propertyId))
-    .where(and(mine, gt(offers.expiresAt, now), eq(offers.fetchedAt, sql`(${latest})`)));
+    .where(and(mine, gt(offers.expiresAt, now), eq(offers.fetchedAt, at)));
 }

@@ -6,11 +6,13 @@ import { errorCopy } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates } from '@/lib/replies';
-import { answerForm, ApiError, createSession, editSearch, loadSession, loadTrips, sendTurn, type Trip } from './api';
+import { answerForm, ApiError, editSearch, loadSession, loadTrips, sendTurn, startBrief, type Trip } from './api';
 import styles from './App.module.css';
 import { ChatPanel } from './ChatPanel';
 import { DetailSheet } from './DetailSheet';
 import { ResultsPanel } from './ResultsPanel';
+import { TripBox } from './TripBox';
+import type { Brief } from '@/server/brief';
 
 const STORAGE_KEY = 'hf_session';
 const PANEL_KEY = 'hf_panel_width';
@@ -121,6 +123,7 @@ export function App() {
     setError(null);
     setOpenProperty(null);
     try {
+      if (fresh) store(STORAGE_KEY, '');
       let id = fresh ? null : stored(STORAGE_KEY);
       if (id) {
         try {
@@ -132,9 +135,8 @@ export function App() {
           id = null;
         }
       }
-      const created = await createSession();
-      store(STORAGE_KEY, created.sessionId);
-      setView(await loadSession(created.sessionId));
+      // No search yet: the first screen. A search starts when the trip box is sent.
+      setView(null);
     } catch (err) {
       fail(err);
     } finally {
@@ -169,6 +171,22 @@ export function App() {
   useEffect(() => {
     if (tripKey) void refreshTrips();
   }, [tripKey, refreshTrips]);
+
+  const onBrief = async (brief: Brief) => {
+    setBusy('form');
+    setError(null);
+    try {
+      const { sessionId } = await startBrief(brief);
+      store(STORAGE_KEY, sessionId);
+      const next = await loadSession(sessionId);
+      setView(next);
+      if (next.session.status === 'active' && next.shortlist.length > 0) setTab('hotels');
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const onAnswer = async (answer: FormAnswer) => {
     if (!view) return;
@@ -297,8 +315,10 @@ export function App() {
         )}
         {view ? (
           <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} />
+        ) : busy === 'boot' ? (
+          <p className={styles.muted}>Starting…</p>
         ) : (
-          <p className={styles.muted}>{busy === 'boot' ? 'Starting…' : ''}</p>
+          <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
         )}
       </section>
 
