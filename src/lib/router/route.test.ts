@@ -91,8 +91,19 @@ describe('settled messages become typed actions', () => {
     expect(r('a nice hotel, total under budget', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['nicest'] }] });
   });
 
-  it('a named place to be close to goes to the agent, which can look it up', () => {
-    expect(route('near the old town', readings('priority', { wantsLocation: 0.97, namesPlace: 0.95 }))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+  it('wanting to be somewhere and naming it is "be close to it", whatever the intent label says', () => {
+    expect(route('near the old town', readings('priority', { wantsLocation: 0.97, namesPlace: 0.95 }))).toEqual({ kind: 'near', intent: 'priority' });
+    // Sam's message, as Jev read it live on 11 Nov 2026: intent must_have at 0.23.
+    expect(route('i wanna stay on east manor', { ...readings('must_have', { wantsLocation: 0.87, namesPlace: 0.86 }), intent: { choice: 'must_have', top: 0.23, margin: 0.05 } })).toEqual({ kind: 'near', intent: 'must_have' });
+  });
+
+  it('a question about a listed hotel never moves the search, even when it names a place', () => {
+    expect(route('is the Westin close to the airport?', readings('ask_hotels', { wantsLocation: 0.9, namesPlace: 0.95 })).kind).not.toBe('near');
+    expect(route('actually lets do Dallas instead', readings('new_search', { wantsLocation: 0.9, namesPlace: 0.9 })).kind).not.toBe('near');
+  });
+
+  it('naming a place without wanting to be near it is not "near"', () => {
+    expect(route('the old town', readings('priority', { wantsLocation: 0.5, namesPlace: 0.95 })).kind).not.toBe('near');
   });
 
   it('guests keep the current room count unless the message says otherwise', () => {

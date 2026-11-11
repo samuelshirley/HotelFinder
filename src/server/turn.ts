@@ -1,4 +1,6 @@
 import 'server-only';
+import type { Action } from '@/lib/store/actions';
+import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 
 import { AMENITIES, type Amenity } from '@/lib/amenities';
 import { buildAnswer, type HotelFacts } from '@/lib/answers';
@@ -23,6 +25,7 @@ import { listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
+import { nearInWords } from '@/server/nearInWords';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
@@ -342,6 +345,24 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       if (!answer) return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, decision: 'defer', deferred: 'answer_unavailable', plan: decision.plan } });
       return { text: answerLine(answer, session.currency), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
     }
+    case 'near': {
+      // Be close to a named place: looked up and applied in code (server/nearInWords.ts).
+      emit({ type: 'working', by: 'agent' });
+      const near = await nearInWords({
+        session,
+        stay,
+        message: turn.userMessage,
+        priorities: state.priorities,
+        supplier: deps.supplier,
+        callModel: deps.callModel,
+        model: deps.model,
+        now: deps.now(),
+        today: deps.today,
+      });
+      // No place in the words after all, or a whole town: the agent's.
+      if (near.kind === 'not_mine') return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, ...near.meta, deferred: 'near_not_a_place' } });
+      return { text: near.text, meta: { ...trace, intent: decision.intent, ...near.meta } };
+    }
     case 'defer':
       return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, deferred: decision.reason } });
   }
@@ -437,12 +458,13 @@ async function agentTurn(args: {
     return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : refused ? FIXED_LINES.agent_misconfigured : FIXED_LINES.agent_unavailable, meta };
   }
   if (agent.actions.length > 0) {
-    const dispatched = await dispatchActions({ session, stay, actions: agent.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+    const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
+    const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
     return {
       text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
       meta: {
         ...meta,
-        actions: agent.actions,
+        actions,
         applied: dispatched.results.filter((r) => r.ok).length,
         rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
         effect: dispatched.effect,
@@ -470,4 +492,14 @@ function distanceBasis(state: SearchState): { distanceFrom: DistanceFrom; distan
     near: state.stay.near,
   });
   return plan?.target ? { distanceFrom: plan.target.from, distanceLabel: plan.target.label } : { distanceFrom: 'search_centre', distanceLabel: null };
+}
+
+/**
+ * A message that names a place to be close to means closeness matters now: it joins
+ * what "best" means, next to what was picked before. Unless the same message set
+ * the priorities itself.
+ */
+export function withCloseness(actions: Action[], current: readonly PriorityKey[] | null): Action[] {
+  if (!actions.some((a) => a.type === 'set_near') || actions.some((a) => a.type === 'set_priorities')) return actions;
+  return [...actions, { type: 'set_priorities', priorities: canonicalPriorities([...(current ?? []), 'closest']) }];
 }

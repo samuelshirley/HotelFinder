@@ -495,3 +495,55 @@ describe('the session view', () => {
     expect(text).not.toMatch(/supplierOfferId|supplier_offer_id|supplierHotelId|marginPct|margin_pct|anonId|anon_id/);
   });
 });
+
+describe('"i wanna stay on east manor": be close to a named place, in code', () => {
+  // Jev's reading of Sam's message, live on 11 Nov 2026: no clear intent, but wants a location and names a place.
+  const nearJev = jevSays('must_have', { intent: { choice: 'must_have', top: 0.23, margin: 0.05 }, wantsLocation: 0.87, namesPlace: 0.86 });
+  const readsRibeira: CallModel = async (call) => ({
+    ok: true,
+    model: call.model,
+    stopReason: 'tool_use',
+    latencyMs: 400,
+    usage: { input: 300, cacheWrite: 0, cacheRead: 0, output: 30 },
+    content: [{ type: 'tool_use', id: 'tu_near', name: 'record_priorities', input: { priorities: ['closest'], near_place: 'Ribeira', near_place_local: null, no_preference: false } }],
+  });
+
+  it('one real place: close to it, closeness joins the earlier pick, one model call, the destination stays', async () => {
+    const { session, supplier } = await onboarded();
+    // Only the neighbourhood comes back: one real place.
+    const only = { ...supplier.supplier, searchPlaces: async (q: string) => {
+      const r = await supplier.supplier.searchPlaces(q);
+      return r.ok ? { ok: true as const, value: r.value.filter((p) => p.types.includes('neighborhood')) } : r;
+    } };
+    const { turn } = await say(session, 'i wanna stay on the ribeira', deps(only, nearJev, readsRibeira));
+    const stay = (await listStays(session.id))[0];
+    expect(stay).toMatchObject({ destinationText: 'Porto, Portugal', nearPlaceId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', nearLabel: 'Ribeira' });
+    expect(await getSession(session.id)).toMatchObject({ priorities: ['cheapest', 'closest'] });
+    expect(turn.resultMeta).toMatchObject({ decision: 'near', near: 'set', model_calls: 1 });
+    expect(supplier.placeQueries.at(-1)).toBe('Ribeira, Porto');
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { onlyClosest: true } });
+  });
+
+  it('several real places with that name: Penny asks with a button each, and nothing changes until one is picked', async () => {
+    const { session, supplier } = await onboarded();
+    const before = (await listStays(session.id))[0];
+    await say(session, 'i wanna stay on the ribeira', deps(supplier.supplier, nearJev, readsRibeira));
+    const line = await lastLine(session.id);
+    expect(line.content).toBe('Which Ribeira did you mean?');
+    const choices = (line.meta as { ui: { nearChoices: Array<{ placeId: string; label: string }>; priorities: string[] } }).ui;
+    expect(choices.nearChoices.map((c) => c.label)).toEqual(['Ribeira · Porto, Portugal', 'Ribeira Square · Porto, Portugal', 'Ribeira, 4515-102 · Foz do Sousa, Porto, Portugal']);
+    expect(choices.priorities).toEqual(['cheapest', 'closest']);
+    expect((await listStays(session.id))[0]).toMatchObject({ nearPlaceId: before.nearPlaceId, destinationText: before.destinationText });
+    expect(await getSession(session.id)).toMatchObject({ priorities: ['cheapest'] });
+  });
+
+  it('no place in the words after all: the agent has it', async () => {
+    const { session, supplier } = await onboarded();
+    const noPlace: CallModel = async (call) =>
+      call.tools?.some((t) => t.name === 'record_priorities')
+        ? { ok: true, model: call.model, stopReason: 'tool_use', latencyMs: 300, usage: { input: 200, cacheWrite: 0, cacheRead: 0, output: 20 }, content: [{ type: 'tool_use', id: 'x', name: 'record_priorities', input: { priorities: ['closest'], near_place: null, near_place_local: null, no_preference: false } }] }
+        : NO_MODEL(call);
+    const { turn } = await say(session, 'somewhere central', deps(supplier.supplier, nearJev, noPlace));
+    expect(turn.resultMeta).toMatchObject({ near: 'no_place', deferred: 'near_not_a_place' });
+  });
+});

@@ -116,17 +116,18 @@ describe('the agent: what the router did not settle', () => {
     expect(m.calls[0].system).not.toContain('Porto'); // the cached part carries nothing about this search
   });
 
-  it('a new place: looked up at the supplier, chosen by ref, and the place id never passes through the model', async () => {
+  it('a place inside the town being searched is somewhere to be close to, never a new trip, and closeness joins what "best" means', async () => {
+    // Sam, 11 Nov 2026: "i wanna stay on east manor" made Manor Road the destination and kept ranking by price only.
     const { session, supplier } = await onboarded();
     const m = scripted([{ tool: 'resolve_place', input: { query: 'Ribeira, Porto' } }], [{ tool: 'set_destination', input: { place_ref: 'P1' } }]);
     const turn = await say(session, 'actually search the Ribeira instead', deps(supplier.supplier, m.callModel));
 
     expect(supplier.placeQueries).toEqual(['Ribeira, Porto']);
-    expect(await stayOf(session.id)).toMatchObject({ placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', destinationText: 'Ribeira, Porto, Portugal' });
+    expect(await stayOf(session.id)).toMatchObject({ destinationText: 'Porto, Portugal', nearPlaceId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo' });
+    expect(await getSession(session.id)).toMatchObject({ priorities: ['cheapest', 'closest'] });
     expect(m.sent()).toContain('P1: Ribeira, Porto, Portugal');
     expect(m.sent()).not.toContain('ChIJicetJOdkJA0R8GJ9Dy_dcgo');
-    expect(turn.finalText).toMatch(/^Searching Ribeira, Porto, Portugal\. \d+ of \d+ hotels fit\.$/);
-    expect(turn.resultMeta).toMatchObject({ model_calls: 2, tools: [{ tool: 'resolve_place', outcome: '4 places' }, { tool: 'set_destination', outcome: 'queued' }] });
+    expect(turn.resultMeta).toMatchObject({ actions: [{ type: 'set_near' }, { type: 'set_priorities', priorities: ['cheapest', 'closest'] }] });
   });
 
   it('a place ref the lookup never returned is refused, and a place id written by the model is not a ref', async () => {

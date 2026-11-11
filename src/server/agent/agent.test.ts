@@ -33,6 +33,15 @@ describe('tool calls become typed actions, with ids from the server', () => {
   it('a destination is a ref from this turn, resolved by the server', () => {
     expect(parseToolCall('set_destination', { place_ref: 'p1' }, ctx())).toEqual({ kind: 'actions', actions: [{ type: 'set_destination', placeId: 'opaque-1', destinationText: 'Porto, Portugal' }] });
     expect(parseToolCall('set_destination', { place_ref: 'P2' }, ctx()).kind).toBe('invalid');
+    // On a running search, a road or district INSIDE its town is somewhere to be close to; another town is a new trip.
+    const refs = new Map([
+      ['P1', { placeId: 'road', label: 'Manor Road, Austin, TX, USA', types: ['route', 'geocode'] }],
+      ['P2', { placeId: 'town', label: 'Manor, TX, USA', types: ['locality', 'political'] }],
+      ['P3', { placeId: 'elsewhere', label: 'Ribeira, Lisbon, Portugal', types: ['neighborhood', 'political'] }],
+    ]);
+    expect(parseToolCall('set_destination', { place_ref: 'P1' }, ctx({ placeRefs: refs, searchTown: 'Austin' }))).toEqual({ kind: 'actions', actions: [{ type: 'set_near', placeId: 'road' }] });
+    expect(parseToolCall('set_destination', { place_ref: 'P2' }, ctx({ placeRefs: refs, searchTown: 'Austin' }))).toMatchObject({ actions: [{ type: 'set_destination', placeId: 'town' }] });
+    expect(parseToolCall('set_destination', { place_ref: 'P3' }, ctx({ placeRefs: refs, searchTown: 'Porto' }))).toMatchObject({ actions: [{ type: 'set_destination', placeId: 'elsewhere' }] });
     expect(parseToolCall('set_destination', { place_ref: 'opaque-1' }, ctx()).kind).toBe('invalid');
     expect(parseToolCall('set_destination', { place_ref: 'P1', place_id: 'x' }, ctx()).kind).toBe('invalid');
   });

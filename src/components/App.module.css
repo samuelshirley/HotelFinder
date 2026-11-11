@@ -162,3 +162,5 @@
 .sponsored { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tp-muted); border: 1px solid var(--tp-border-strong); border-radius: 4px; padding: 1px 6px; margin-bottom: 6px; }
 .pickButton { margin-top: 8px; background: transparent; border: 1px solid var(--tp-primary); color: var(--tp-accent-300); border-radius: 8px; padding: 6px 12px; }
 .pickButton:hover { background: var(--tp-primary-muted); }
+.choiceRow { display: flex; flex-wrap: wrap; gap: 8px; }
+.choiceRow .pickButton { margin-top: 8px; }

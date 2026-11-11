@@ -83,3 +83,43 @@ export function whichOne(places: readonly PlaceLike[]): { prompt: string; sugges
     suggestions: places.map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name, display: p.address ? `${p.name} · ${p.address}` : p.name })),
   };
 }
+
+/**
+ * Somewhere to be CLOSE TO inside the town being searched ("i wanna stay on east
+ * manor"), or that we must ask. Pure. Measured on the sandbox (11 Nov 2026):
+ * "East Manor Road, Austin" returns the road (route) and a school, a dentist and
+ * a mosque ON that road; a bare "Manor, Austin" returns the road, the
+ * expressway and businesses in the town of Manor, TX.
+ *
+ *  - Hotels are never somewhere to be near. A town is never one either: that is a
+ *    new destination, not a place inside this one.
+ *  - Real places (a road, a district, a park, a station) beat businesses that are
+ *    merely on them. Exactly one: it. Several: the one carrying every word typed,
+ *    or ask.
+ *  - No real place: a venue the words name exactly (a stadium, a museum), or ask.
+ */
+const TOWN = ['locality', 'administrative_area_level_1', 'administrative_area_level_2', 'administrative_area_level_3', 'postal_town', 'country'];
+const INSIDE = ['route', 'street_address', 'neighborhood', 'sublocality', 'sublocality_level_1', 'sublocality_level_2', 'colloquial_area', 'natural_feature', 'park', ...AIRPORT, ...STATION];
+const FILLER = new Set(['the', 'and', 'near', 'close', 'stay', 'want', 'wanna', 'around', 'area', 'street', 'road', 'avenue', 'east', 'west', 'north', 'south']);
+
+export function isTown(types: readonly string[]): boolean {
+  return types.some((t) => TOWN.includes(t));
+}
+
+/** A place inside a town, never the town: what a running search may be "close to" but never switch to. */
+export function isInsideTown(types: readonly string[]): boolean {
+  return !isTown(types) && !types.some((t) => LODGING.includes(t)) && (types.some((t) => INSIDE.includes(t)) || types.includes('point_of_interest') || types.includes('establishment'));
+}
+
+export function pickNearPlace<P extends PlaceLike>(query: string, places: readonly P[]): Pick<P> {
+  const candidates = places.filter((p) => !p.types.some((t) => LODGING.includes(t)) && !isTown(p.types));
+  if (candidates.length === 0) return { kind: 'none' };
+  const real = candidates.filter((p) => p.types.some((t) => INSIDE.includes(t)));
+  const pool = real.length > 0 ? real : candidates;
+  if (real.length === 1) return { kind: 'one', place: real[0] };
+  const words = query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3 && !FILLER.has(w));
+  const carries = pool.filter((p) => words.length > 0 && words.every((w) => p.name.toLowerCase().includes(w)));
+  if (carries.length === 1) return { kind: 'one', place: carries[0] };
+  if (real.length === 0 && carries.length === 0) return { kind: 'none' };
+  return { kind: 'ask', places: (carries.length > 1 ? carries : pool).slice(0, 4) };
+}

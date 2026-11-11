@@ -1,4 +1,5 @@
 import 'server-only';
+import { placeName } from '@/lib/finder/searchPlan';
 
 import type { ModelId } from '@/lib/models';
 import type { Action } from '@/lib/store/actions';
@@ -45,7 +46,8 @@ export type AgentResult = {
 };
 
 export async function runAgent(input: AgentInput & { shortlist: ToolContext['shortlist'] }, deps: AgentDeps): Promise<AgentResult> {
-  const ctx: ToolContext = { currency: input.currency, shortlist: input.shortlist, placeRefs: new Map() };
+  // The agent only ever runs on a search that is already running (onboarding uses the scan).
+  const ctx: ToolContext = { currency: input.currency, shortlist: input.shortlist, placeRefs: new Map(), searchTown: placeName(input.state.stay.destinationText) };
   const first = buildUserTurn(input);
   const messages: Turn[] = [{ role: 'user', content: first }];
   let grounding = first;
@@ -93,7 +95,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
           const lines = places.value.slice(0, 5).map((p) => {
             const ref = `P${ctx.placeRefs.size + 1}`;
             const label = p.address ? `${p.name}, ${p.address}` : p.name;
-            ctx.placeRefs.set(ref, { placeId: p.placeId, label });
+            ctx.placeRefs.set(ref, { placeId: p.placeId, label, types: p.types });
             return `${ref}: ${label.replace(/[<>]/g, ' ')}`;
           });
           const content = lines.join('\n');

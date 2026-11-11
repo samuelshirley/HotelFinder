@@ -8,6 +8,8 @@ import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
 import { Spinner } from './Spinner';
 import { FormControl } from './FormControl';
+import type { EditAction } from './api';
+import type { PriorityKey } from '@/lib/finder/rank';
 
 type Props = {
   view: SessionView;
@@ -16,9 +18,10 @@ type Props = {
   onAnswer: (answer: FormAnswer) => void;
   onSend: (message: string) => void;
   onOpenHotel: (propertyId: string) => void;
+  onEdit: (actions: EditAction | EditAction[]) => void;
 };
 
-export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel }: Props) {
+export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel, onEdit }: Props) {
   const [draft, setDraft] = useState('');
   const end = useRef<HTMLDivElement>(null);
   const messages = view.messages;
@@ -26,6 +29,7 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel 
   // The open question is the last row, while the search is still being set up.
   const openQuestion = view.session.status === 'onboarding' && last?.kind === 'form_question' ? last : null;
   const field = (openQuestion?.meta as { field?: string } | null)?.field;
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
@@ -87,6 +91,9 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel 
             );
           }
           const pick = (m.meta as { pennyPick?: { propertyId: string; sponsored: boolean } } | null)?.pennyPick;
+          const ui = (m.meta as { ui?: { nearChoices?: Array<{ placeId: string; label: string }>; priorities?: PriorityKey[]; onlyClosest?: boolean } } | null)?.ui;
+          // Buttons only on Penny's latest message: an older choice is no longer the question.
+          const latest = m.id === lastAssistantId;
           const pickName = pick && view.shortlist.find((r) => r.property.id === pick.propertyId)?.property.name;
           return (
             <Penny key={m.id} first={first}>
@@ -96,6 +103,26 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel 
                 {pick && pickName && (
                   <button type="button" className={styles.pickButton} onClick={() => onOpenHotel(pick.propertyId)}>
                     Open {pickName}
+                  </button>
+                )}
+                {latest && ui?.nearChoices && (
+                  <div className={styles.choiceRow}>
+                    {ui.nearChoices.map((c) => (
+                      <button
+                        key={c.placeId}
+                        type="button"
+                        className={styles.pickButton}
+                        disabled={busy !== null}
+                        onClick={() => onEdit([{ type: 'set_near', placeId: c.placeId }, ...(ui.priorities ? [{ type: 'set_priorities' as const, priorities: ui.priorities }] : [])])}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {latest && ui?.onlyClosest && (
+                  <button type="button" className={styles.pickButton} disabled={busy !== null} onClick={() => onEdit({ type: 'set_priorities', priorities: ['closest'] })}>
+                    Closeness only
                   </button>
                 )}
               </div>

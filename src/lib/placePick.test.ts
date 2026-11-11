@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizePlaces } from '@/server/supplier/liteapi/normalize';
 import { fixture } from '@/server/supplier/liteapi/fixtures';
 import { placesResponse } from '@/server/supplier/liteapi/schemas';
-import { mentionsDates, pickPlace } from './placePick';
+import { mentionsDates, pickPlace, isInsideTown, pickNearPlace } from './placePick';
 
 const recorded = (name: string) => normalizePlaces(placesResponse.parse(fixture(name)));
 const pick = (q: string, name: string) => {
@@ -44,5 +44,60 @@ describe('does the text talk about when?', () => {
     ['a hotel for 2 adults with a pool', false],
   ])('%s → %s', (text, yes) => {
     expect(mentionsDates(text)).toBe(yes);
+  });
+});
+
+describe('a place to be close to, inside the town being searched', () => {
+  const p = (name: string, address: string | null, types: string[]) => ({ placeId: `id-${name}`, name, address, types });
+  // Recorded live from the sandbox, 11 Nov 2026.
+  const EAST_MANOR = [
+    p('Manor Road', 'Austin, TX, USA', ['route', 'geocode']),
+    p('Austin Peace Academy', 'Manor Road, Austin, TX, USA', ['primary_school', 'educational_institution', 'school']),
+    p('Austin Achieve Public Schools - Manor Campus', 'Manor Road, Austin, TX, USA', ['point_of_interest', 'school', 'educational_institution']),
+    p('Austin Pearls Pediatric Dentistry', 'Manor Road, Austin, TX, USA', ['point_of_interest', 'health', 'dentist']),
+  ];
+  const BARE_MANOR = [
+    p('Austin Rifle Club', 'Littig Road, Manor, TX, USA', ['point_of_interest', 'establishment', 'sports_activity_location']),
+    p('Red Roof Inn & Suites Austin East – Manor', 'U.S. 290, Manor, TX, USA', ['lodging', 'establishment', 'hotel']),
+    p('Manor Road', 'Austin, TX, USA', ['route', 'geocode']),
+    p('Manor Expressway', 'Austin, TX, USA', ['route', 'geocode']),
+  ];
+
+  it('the road, not the businesses on it', () => {
+    expect(pickNearPlace('East Manor Road', EAST_MANOR)).toMatchObject({ kind: 'one', place: { name: 'Manor Road' } });
+  });
+
+  it('two roads called Manor: ask, and never offer a hotel', () => {
+    const r = pickNearPlace('manor', BARE_MANOR);
+    expect(r.kind).toBe('ask');
+    expect(r.kind === 'ask' && r.places.map((x) => x.name)).toEqual(['Manor Road', 'Manor Expressway']);
+  });
+
+  it('a neighbourhood beats a business named after it', () => {
+    const r = pickNearPlace('Ribeira', [
+      p('Ribeira', 'Porto, Portugal', ['geocode', 'neighborhood', 'political']),
+      p('Ribeira Square', 'Porto, Portugal', ['geocode', 'route']),
+      p('Ribeira Vintage', 'Rua de Sousa Viterbo, Porto, Portugal', ['service', 'establishment', 'point_of_interest']),
+    ]);
+    expect(r).toMatchObject({ kind: 'ask' }); // two real places named Ribeira: the neighbourhood and the square
+  });
+
+  it('one real place is it, even when its name is not the words typed (never "Which one?" with one button)', () => {
+    expect(pickNearPlace('the river', [p('Lady Bird Lake', 'Austin, TX, USA', ['natural_feature', 'geocode']), p('Riverside Bar', 'Austin, TX, USA', ['bar', 'point_of_interest'])])).toMatchObject({ kind: 'one', place: { name: 'Lady Bird Lake' } });
+  });
+
+  it('a town is never a place to be near; a hotel never is', () => {
+    expect(pickNearPlace('Manor', [p('Manor', 'TX, USA', ['locality', 'political'])])).toEqual({ kind: 'none' });
+    expect(pickNearPlace('old town', [p('Le Chalet in the heart of the old town', 'Annecy, France', ['establishment', 'point_of_interest', 'lodging'])])).toEqual({ kind: 'none' });
+  });
+
+  it('a venue named exactly, when no road or district matches', () => {
+    expect(pickNearPlace('Moody Center', [p('Moody Center', 'Austin, TX, USA', ['stadium', 'point_of_interest', 'establishment']), p('Moody Theater', 'Austin, TX, USA', ['point_of_interest'])])).toMatchObject({ kind: 'one', place: { name: 'Moody Center' } });
+  });
+
+  it('inside the town or the town itself', () => {
+    expect(isInsideTown(['route', 'geocode'])).toBe(true);
+    expect(isInsideTown(['locality', 'political'])).toBe(false);
+    expect(isInsideTown(['lodging', 'establishment'])).toBe(false);
   });
 });

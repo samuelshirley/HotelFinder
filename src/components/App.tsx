@@ -434,7 +434,7 @@ export function App() {
           </p>
         )}
         {view ? (
-          <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} />
+          <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} onEdit={(a) => void onEdit(a)} />
         ) : pendingBrief ? (
           <PendingChat bubble={pendingBrief.bubble} reading={pendingBrief.place === null} />
         ) : busy === 'boot' ? (

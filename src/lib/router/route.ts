@@ -157,9 +157,14 @@ export type RouteDecision =
   | { kind: 'ui'; intent: Intent; hint: UiHint }
   | { kind: 'line'; intent: Intent; line: 'greeting' }
   | { kind: 'answer'; intent: Intent; plan: AnswerPlan }
+  /** "I want to stay on East Manor": be close to a named place. The place is looked up in code (server/nearInWords.ts). */
+  | { kind: 'near'; intent: Intent }
   | { kind: 'defer'; reason: DeferReason };
 
 export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
+
+/** Intents a named place never turns into "be close to it". */
+const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'exclude', 'new_search', 'greeting_or_thanks'];
 
 export function routeMessage(input: {
   message: string;
@@ -178,6 +183,13 @@ export function routeMessage(input: {
   // Jev may wave a message through. Saying no is the agent's job.
   if (readings.tier.choice !== 'T1') return defer('not_about_search');
   if (readings.multiIntent === null || readings.multiIntent > SETTLE.multiIntentMax) return defer('multi_intent');
+  // Wanting to be somewhere AND naming the place is the intent, whatever the intent
+  // label says (Sam's "i wanna stay on east manor" read as must_have at 0.23, with
+  // wants_location 0.87 and names_place 0.86). Questions and actions on a listed
+  // hotel are excluded: "is the Westin close to the airport?" changes nothing.
+  if (decided(readings.wantsLocation) === true && decided(readings.namesPlace) === true && !NOT_NEAR.includes(readings.intent.choice)) {
+    return { kind: 'near', intent: readings.intent.choice };
+  }
   if (!settles(readings.intent, min) && !corroborated(readings, min)) return defer('intent_unsettled');
 
   const intent = readings.intent.choice;

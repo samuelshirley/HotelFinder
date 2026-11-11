@@ -23,7 +23,7 @@ const RECORD_PRIORITIES: ToolDef = {
         maxItems: PRIORITY_KEYS.length,
         description: 'Any of: cheapest (low price, not too expensive, good value), nicest (nice, well reviewed), closest (central, close to somewhere). Several when it says several: "nice but not crazy expensive" = ["nicest","cheapest"].',
       },
-      near_place: { type: ['string', 'null'], description: 'A specific place they want to be close to, in English, as a place search would find it (e.g. "Old Town" or "Lisbon Airport"). null if none.' },
+      near_place: { type: ['string', 'null'], description: 'A specific place they want to be close to, in English, as a place search would find it (e.g. "Old Town" or "Lisbon Airport"). A street named without its type gets its full name ("east manor" in Austin is "East Manor Road"). null if none.' },
       near_place_local: { type: ['string', 'null'], description: 'The same place in the local language of the destination (e.g. "Vieille Ville"), or null.' },
       no_preference: { type: 'boolean', description: 'True only if they say nothing matters or anything is fine.' },
     },

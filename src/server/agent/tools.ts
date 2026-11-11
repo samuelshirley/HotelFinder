@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { isInsideTown } from '@/lib/placePick';
+
 import { MUST_HAVES } from '@/lib/amenities';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
@@ -67,8 +69,13 @@ export type ToolContext = {
   /** In the order shown, position 1 first. */
   shortlist: Array<{ propertyId: string }>;
   /** Filled only by resolve_place results in this turn. */
-  placeRefs: Map<string, { placeId: string; label: string }>;
+  placeRefs: Map<string, { placeId: string; label: string; types?: string[] }>;
+  /** The town of the running search: a place inside it is somewhere to be close to, never a new destination. */
+  searchTown?: string;
 };
+
+/** "Manor Road, Austin, TX, USA" is in Austin; "Ribeira, Lisbon, Portugal" is not in Porto. */
+const inTown = (label: string, town: string) => label.toLowerCase().split(/,\s*/).slice(1).some((part) => part === town.toLowerCase());
 
 export type ParsedCall =
   | { kind: 'resolve_place'; query: string }
@@ -101,6 +108,10 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
     case 'set_destination': {
       const place = ctx.placeRefs.get((parsed.data as { place_ref: string }).place_ref.toUpperCase());
       if (!place) return { kind: 'invalid', reason: 'that ref did not come from resolve_place in this turn' };
+      // A road, a district or a venue is not a trip (Sam, 11 Nov 2026: "i wanna stay on
+      // east manor" became a search of Manor Road). On a running search it means
+      // "be close to it"; the turn adds closest to what "best" means.
+      if (ctx.searchTown && place.types && isInsideTown(place.types) && inTown(place.label, ctx.searchTown)) return { kind: 'actions', actions: [{ type: 'set_near', placeId: place.placeId }] };
       return { kind: 'actions', actions: [{ type: 'set_destination', placeId: place.placeId, destinationText: place.label }] };
     }
     case 'set_dates': {

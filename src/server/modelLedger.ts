@@ -6,7 +6,7 @@ import { logUsage } from '@/server/repos/usage';
 import type { SearchSession } from '@/server/repos/sessions';
 
 /** One ledger row per model call, failures included. Returns what the turn trace keeps. */
-export async function logModelCalls(session: Pick<SearchSession, 'id' | 'userId'>, purpose: 'agent' | 'scan' | 'priorities', replies: ModelReply[]) {
+export async function logModelCalls(session: Pick<SearchSession, 'id' | 'userId'>, purpose: 'agent' | 'scan' | 'priorities' | 'near', replies: ModelReply[]) {
   let costMicrocents = 0;
   for (const r of replies) {
     if (!r.ok && r.failure === 'not_configured') continue;
