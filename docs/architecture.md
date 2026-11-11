@@ -264,8 +264,27 @@ LiteAPI sandbox is the only implementation. Tests run on **recorded** sandbox
 responses; supplier payloads are never hand-written. Supplier ids are opaque:
 forwarded untouched, never authored or edited by a model.
 
-**[U]** which field carries the suggested selling price, and how `margin`
-interacts with it per rate. First thing to capture into fixtures.
+### Probed in the sandbox, 2026-11-11 **[V]**
+
+Five Porto hotels, 2 adults, 11–13 Dec 2026, EUR, `POST /v3.0/hotels/rates`.
+
+- The suggested selling price is `roomTypes[].suggestedSellingPrice` and
+  `rates[].retailRate.suggestedSellingPrice`, with `source: "providerDirect"`.
+- Omitting `margin` returned the same prices as `margin: 0` on this account.
+- **The gap between net and suggested price is per hotel, not a constant.**
+  Two samples: net 256.18 vs suggested 281.29 (9.8%), and net 238.52 vs
+  suggested 239.95 (0.6%). At a 1% margin the first sells 8.0% under the
+  public price and the second 0.4% over it. `margin: 15` put both above the
+  hotel's own suggested price.
+- `retailRate.taxesAndFees[]` carries `included: true|false` (the sample had
+  City Tax €12 not included, VAT included), which is what the "paid at the
+  property" label needs.
+- `cancellationPolicies.refundableTag` exists (`NRFN` in the sample).
+- Five hotels returned 2.7 MB in 2.2–3.7 s. The finder has to bound and trim
+  what it requests; an unbounded fan-out is the cost and latency risk.
+
+Sandbox data may be synthetic, so the gap figures are a shape, not a market
+measurement.
 
 ## 13. UI
 
