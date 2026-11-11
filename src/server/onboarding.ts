@@ -103,10 +103,18 @@ function scannedStayFields(scanned: ScannedTrip) {
   };
 }
 
+/** "3 nights in March", "2 nights", "some nights in March": what the words said about when, short of two dates. */
+export function hintText(hint: { nights?: number; month?: string }): string {
+  const month = hint.month ? new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(`${hint.month}-01T00:00:00Z`)) : null;
+  const what = hint.nights ? `${hint.nights} night${hint.nights === 1 ? '' : 's'}` : 'nights';
+  return `${what}${month ? ` in ${month}` : ''}`;
+}
+
 /** What was taken from the first message, so the user can see it and correct it. Only what will not be asked again. */
 function understoodLine(scanned: ScannedTrip, datesTaken: boolean, currency: string): string {
   const parts: string[] = [];
   if (datesTaken && scanned.checkIn && scanned.checkOut) parts.push(formatDates(scanned.checkIn, scanned.checkOut));
+  else if (scanned.datesHint) parts.push(hintText(scanned.datesHint));
   if (scanned.guests) parts.push(formatGuests(scanned.guests.adults, scanned.guests.childrenAges, scanned.guests.rooms));
   if (scanned.priceCapMinor) parts.push(`up to ${formatMoney(scanned.priceCapMinor, currency)} a night`);
   for (const m of scanned.mustHaves ?? []) parts.push(MUST_HAVE_LABEL[m]);
@@ -226,7 +234,7 @@ export async function answerForm(args: {
 
   const next = nextField(current, stay, guestsAnswered);
   if (next) {
-    await askQuestion(sessionId, next, questionExtra(next, stay));
+    await askQuestion(sessionId, next, questionExtra(next, stay, current));
     return { ok: true, done: false };
   }
 
@@ -245,7 +253,14 @@ export async function answerForm(args: {
 }
 
 /** What a question's control needs to say: the priorities card names where "close" means. */
-export function questionExtra(field: Field, stay: Stay | null): Record<string, unknown> {
+export function questionExtra(field: Field, stay: Stay | null, session?: SearchSession): Record<string, unknown> {
+  if (field === 'dates') {
+    // The words said "3 nights in March": open the card there, with that length.
+    const hint = session?.draft.scanned?.datesHint;
+    if (!hint) return {};
+    // With a length one tap sets the stay; without one the card takes two taps.
+    return { ...hint, prompt: `Which ${hintText(hint)}? ${hint.nights ? 'Tap the first night.' : 'Tap the first night, then the last.'}` };
+  }
   if (field !== 'priorities' || !stay) return {};
   return { near: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) };
 }

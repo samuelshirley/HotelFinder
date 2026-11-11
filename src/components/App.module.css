@@ -115,3 +115,11 @@
   .composer { padding: 0 12px 12px; }
   .bubble { max-width: 92%; }
 }
+.editable { position: relative; display: inline-flex; }
+.editor { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; width: min(560px, 90vw); background: var(--tp-surface); border: 1px solid var(--tp-border-strong); border-radius: 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.editorActions { display: flex; justify-content: flex-end; gap: 8px; }
+.editorInput { min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--tp-border); background: var(--tp-surface-muted); }
+.placeRow { display: flex; gap: 12px; align-items: baseline; padding: 8px 6px; background: transparent; border: 0; border-radius: 8px; text-align: left; }
+.placeRow:hover { background: var(--tp-primary-muted); }
+.inlineLabel { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--tp-muted); }
+.rowBetween { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }

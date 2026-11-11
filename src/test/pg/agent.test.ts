@@ -1,3 +1,4 @@
+import { buildSessionView } from '@/server/view';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -441,17 +442,41 @@ describe('the first screen: one box, three pills', () => {
   });
 
   it('four towns called Lisbon, and "3 nights in March": asks which, then the nights; never tonight', async () => {
-    const m = scanOf({ destination: 'Lisbon', adults: 2, must_haves: ['pets_allowed'], priorities: ['nicest', 'cheapest'] });
+    const m = scanOf({ destination: 'Lisbon', adults: 2, nights: 3, month: '2027-03', must_haves: ['pets_allowed'], priorities: ['nicest', 'cheapest'] });
     const { sessionId, supplier } = await submit(brief({ text: 'Lisbon with my wife and the dog, 3 nights in March, nice but not crazy expensive' }), m, () => 'places-lisbon');
     const q = (await listMessages(sessionId)).at(-1)!;
-    expect(q).toMatchObject({ kind: 'form_question', meta: { field: 'destination', prompt: 'Which one?' } });
+    expect(q).toMatchObject({ kind: 'form_question', meta: { field: 'destination', prompt: 'Which Lisbon?' } });
     expect((q.meta as { suggestions: unknown[] }).suggestions).toHaveLength(4);
     expect((await getSession(sessionId))!.draft.scanned).toMatchObject({ guests: { adults: 2 }, mustHaves: ['pets_allowed'] });
     expect((await getSession(sessionId))!.draft.scanned?.checkIn).toBeUndefined();
     // Picking Lisbon, Portugal (recorded details are Porto's: any recorded id will do for the step).
     await answerForm({ sessionId, answer: { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Lisbon, Portugal' }, guestsAnswered: false, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
-    expect((await listMessages(sessionId)).at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'dates' } });
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContainEqual(expect.stringMatching(/^From your message: 3 nights in March · 2 adults · pets allowed/i));
+    // The nights card opens on March with a 3-night stay, and says so.
+    expect((await listMessages(sessionId)).at(-1)).toMatchObject({
+      kind: 'form_question',
+      meta: { field: 'dates', nights: 3, month: '2027-03', prompt: 'Which 3 nights in March? Tap the first night.' },
+    });
     expect(supplier.searches).toHaveLength(0);
+    // The results side shows what is known so far, not an empty panel.
+    expect((await buildSessionView((await getSession(sessionId))!)).pending).toMatchObject({
+      destination: 'Lisbon, Portugal',
+      guests: { adults: 2 },
+      priorities: ['cheapest', 'nicest'],
+    });
+
+    // Typed instead of tapped: words that give no date keep the card open, and nothing is stored.
+    const vague = scanOf({});
+    await say((await getSession(sessionId))!, 'whenever really', deps(supplier.supplier, vague.callModel));
+    expect(await stayOf(sessionId)).toBeUndefined();
+    expect((await last(sessionId)).content).toMatch(/^That did not give two dates/);
+
+    // "the second weekend" is read with the card's hint, and the server's dates check still applies.
+    const typed = scanOf({ check_in: '2027-03-12', nights: 3 });
+    await say((await getSession(sessionId))!, 'the second weekend', deps(supplier.supplier, typed.callModel));
+    expect(typed.sent()).toContain('the trip is 3 nights in 2027-03');
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2027-03-12', checkOut: '2027-03-15' });
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContain('Reading that as 12–15 Mar, 3 nights.');
   });
 
   it('a pill the user set wins over the words', async () => {

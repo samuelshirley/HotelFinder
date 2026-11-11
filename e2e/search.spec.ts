@@ -19,7 +19,20 @@ test('search for a hotel in Porto', async ({ page }) => {
   await expect(trips.getByText('A search appears here once it has a place and dates.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'When: Tonight · 1 night' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Who: 2 adults' })).toBeVisible();
+  // The example answer is a real recorded search ranked by the real ranking.
+  const example = page.getByRole('region', { name: 'Example answer' });
+  await expect(example).toContainText('Example from a real search: Porto, 2 nights, low price and great reviews');
+  await expect(example.getByRole('heading', { level: 3 })).toContainText('Mercure Porto Centro Aliados');
+  await expect(example).toContainText('€158.55');
   await page.screenshot({ path: 'test-results/00-first-screen.png' });
+
+  // A whole sentence: searched as typed on Enter, or just its place, and the chips say the sentence is read.
+  await page.getByLabel('Your trip', { exact: true }).fill('Porto with my wife, 3 nights in March');
+  await expect(page.getByRole('button', { name: /Search for: “Porto with my wife, 3 nights in March”/ })).toBeVisible();
+  await expect(page.getByText('Or just the place')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Porto\s*Portugal · City$/ })).toBeVisible();
+  await expect(page.getByText('Your sentence already says what matters: we read it when you press Enter.')).toBeVisible();
+  await page.screenshot({ path: 'test-results/00a-sentence.png' });
 
   // A bare place in the box: suggestions with where and what each one is; a hotel is never one.
   await page.getByLabel('Your trip', { exact: true }).fill('porto');
@@ -31,7 +44,13 @@ test('search for a hotel in Porto', async ({ page }) => {
 
   // Nights: next weekend, through the When pill.
   await page.getByRole('button', { name: /^When:/ }).click();
+  const nightsCard = page.getByRole('dialog', { name: 'Choose your nights' });
+  await expect(nightsCard.getByRole('grid')).toHaveCount(2);
+  await expect(nightsCard).toContainText(/\w{3} \d+ \w{3} – \w{3} \d+ \w{3} · 1 night/);
   await page.getByRole('button', { name: 'Next weekend' }).click();
+  await expect(page.getByRole('button', { name: 'Next weekend' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(nightsCard).toContainText(/Fri .* – Sun .* · 2 nights/);
+  await page.screenshot({ path: 'test-results/00c-when.png' });
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(page.getByRole('button', { name: /^When: .* · 2 nights$/ })).toBeVisible();
 
@@ -115,7 +134,7 @@ test('search for a hotel in Porto', async ({ page }) => {
   await expect(page.getByText('under 120 a night')).toBeVisible();
   await expect(page.getByText(/Capped at €120 a night\. \d+ of \d+ hotels fit\.|The assistant did not answer|The assistant is set up wrongly|ANTHROPIC_API_KEY is not set/)).toBeVisible();
   // A cap keeps only the hotels under it: how many depends on today's sandbox prices.
-  const shown = await cards.count();
+  let shown = await cards.count();
   expect(shown).toBeGreaterThan(0);
   expect(shown).toBeLessThanOrEqual(5);
 
@@ -128,7 +147,8 @@ test('search for a hotel in Porto', async ({ page }) => {
   // tall sheet: the images kept their size and the strip clipped them, so the
   // strip itself is what is measured.
   expect((await sheet.locator('img').first().locator('..').boundingBox())!.height).toBeGreaterThan(150);
-  await expect(sheet.getByRole('button', { name: /Book/ })).toBeDisabled();
+  // No dead buttons: Book is hidden until checkout exists.
+  await expect(sheet.getByRole('button', { name: /Book/ })).toHaveCount(0);
   await page.screenshot({ path: 'test-results/02-detail.png' });
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
@@ -137,6 +157,22 @@ test('search for a hotel in Porto', async ({ page }) => {
   await page.reload();
   await expect(cards).toHaveCount(shown);
   await expect(page.getByText('under 120 a night')).toBeVisible();
+
+  // The header chips change the search in place: one more adult, and the search runs again.
+  await page.getByRole('button', { name: 'Change who' }).click();
+  await page.getByRole('dialog', { name: 'Change who' }).getByRole('button', { name: 'More adults' }).click();
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.getByRole('button', { name: 'Change who' })).toHaveText(/3 adults/, { timeout: 60_000 });
+  // The chat says what changed and what it did, as for a typed change.
+  await expect(convo.getByText(/3 adults.*hotels? fits?|3 adults.*No hotel|3 adults/).last()).toBeVisible();
+  await page.screenshot({ path: 'test-results/01c-chip-edit.png' });
+  // And back again.
+  await page.getByRole('button', { name: 'Change who' }).click();
+  await page.getByRole('dialog', { name: 'Change who' }).getByRole('button', { name: 'Fewer adults' }).click();
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.getByRole('button', { name: 'Change who' })).toHaveText(/2 adults/, { timeout: 60_000 });
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+  shown = await cards.count();
 
   // New search starts clean.
   await page.getByRole('button', { name: 'New search' }).click();

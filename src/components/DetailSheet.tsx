@@ -61,9 +61,6 @@ export function DetailSheet({ view, propertyId, onClose }: { view: SessionView; 
                 {row.offer.boardName ? ` · ${row.offer.boardName}` : ''}
               </p>
             )}
-            <button className={styles.primary} disabled title="Booking is the next build step">
-              Book (not built yet)
-            </button>
             {details.importantInformation && (
               <section>
                 <h3>From the hotel</h3>

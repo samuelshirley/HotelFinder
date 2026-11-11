@@ -29,6 +29,18 @@ export async function buildSessionView(session: SearchSession) {
       signedIn: session.userId !== null,
       audience,
     },
+    /** What is known before there is a stay: the place picked and the party and priorities read from the first message. */
+    pending: stay
+      ? null
+      : {
+          destination: session.draft.destination?.label ?? null,
+          guests: session.draft.scanned?.guests ?? null,
+          pets: session.draft.scanned?.mustHaves?.includes('pets_allowed') ?? false,
+          priorities: session.priorities ?? session.draft.scanned?.priorities ?? null,
+          nearLabel: session.draft.destination
+            ? nearLabel({ destinationText: session.draft.destination.label, destKind: session.draft.destination.point?.kind ?? 'area', near: null })
+            : 'the centre',
+        },
     stay: stay && {
       id: stay.id,
       destination: stay.destinationText,

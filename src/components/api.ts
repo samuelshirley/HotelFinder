@@ -35,10 +35,13 @@ export const loadSession = (id: string) => request<SessionView>(`/api/session/${
 export const answerForm = (id: string, answer: FormAnswer) =>
   request<SessionView>(`/api/session/${id}/form`, { method: 'POST', body: JSON.stringify({ answer, today: todayLocal() }) });
 /** The results header's chips: nationality, what "best" means, where "close" is from. */
-export const editSearch = (id: string, action: Extract<Action, { type: 'set_nationality' | 'set_priorities' | 'set_near' | 'clear_near' }>) =>
-  request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ action, today: todayLocal() }) });
+export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_priorities' | 'set_near' | 'clear_near' }>;
+export const editSearch = (id: string, actions: EditAction | EditAction[]) =>
+  request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ actions: Array.isArray(actions) ? actions : [actions], today: todayLocal() }) });
 export type PlaceSuggestion = { placeId: string; label: string; name: string; where: string | null; kind: string };
 export const searchPlaces = (q: string) => request<{ places: PlaceSuggestion[] }>(`/api/places?q=${encodeURIComponent(q)}`);
+export type { Example } from '@/server/example';
+export const loadExample = () => request<import('@/server/example').Example>('/api/example');
 export const startBrief = (brief: Brief) => request<{ sessionId: string }>('/api/session/brief', { method: 'POST', body: JSON.stringify({ brief, today: todayLocal() }) });
 
 export type PropertyDetails = {

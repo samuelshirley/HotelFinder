@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { canonicalPriorities, PRIORITY_KEYS } from '@/lib/finder/rank';
 import type { ModelId } from '@/lib/models';
-import { mentionsDates, pickPlace } from '@/lib/placePick';
+import { mentionsDates, pickPlace, whichOne } from '@/lib/placePick';
 import { formatGuests } from '@/lib/replies';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import { MAX_NIGHTS } from '@/lib/store/reduce';
@@ -24,7 +24,7 @@ import type { SupplierAdapter } from '@/server/supplier';
  *    override (2 adults, tonight);
  *  - the words go through the intent scan once, and only when there are words;
  *  - a picked place is used as is; a typed one is searched and picked by
- *    lib/placePick (ambiguous → "Which one?");
+ *    lib/placePick (ambiguous → "Which Lisbon?");
  *  - no dates anywhere → tonight, unless the words talk about when but did
  *    not give two dates ("3 nights in March") → the nights are asked.
  *
@@ -91,6 +91,7 @@ export function mergeBrief(brief: Brief, scanned: ScannedTrip, today: string): {
     trip.checkOut = scanned.checkOut;
   }
   const askDates = !trip.checkIn && mentionsDates(brief.text);
+  if (askDates && scanned.datesHint) trip.datesHint = scanned.datesHint;
   if (!trip.checkIn && !askDates) {
     trip.checkIn = today;
     trip.checkOut = addDays(today, 1);
@@ -142,7 +143,7 @@ export async function startFromBrief(args: {
     return { ok: true };
   }
   if (place === null || 'ask' in place) {
-    await askQuestion(session.id, 'destination', place ? { prompt: 'Which one?', suggestions: place.ask } : {});
+    await askQuestion(session.id, 'destination', place ? place.ask : {});
     return { ok: true };
   }
 
@@ -164,7 +165,7 @@ export async function startFromBrief(args: {
   return { ok: true };
 }
 
-type Found = { placeId: string; label: string } | { ask: Array<{ placeId: string; label: string }> } | null | 'unavailable';
+type Found = { placeId: string; label: string } | { ask: ReturnType<typeof whichOne> } | null | 'unavailable';
 
 async function findPlace(supplier: SupplierAdapter, query: string): Promise<Found> {
   if (!query.trim()) return null;
@@ -173,7 +174,7 @@ async function findPlace(supplier: SupplierAdapter, query: string): Promise<Foun
   const label = (p: { name: string; address: string | null }) => (p.address ? `${p.name}, ${p.address}` : p.name);
   const picked = pickPlace(query, places.value);
   if (picked.kind === 'one') return { placeId: picked.place.placeId, label: label(picked.place) };
-  if (picked.kind === 'ask') return { ask: picked.places.map((p) => ({ placeId: p.placeId, label: label(p) })) };
+  if (picked.kind === 'ask') return { ask: whichOne(picked.places) };
   return null;
 }
 

@@ -7,14 +7,15 @@ import type { DistanceFrom } from '@/lib/finder/rank';
 import { planSearch } from '@/lib/finder/searchPlan';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { answerLine, describeChange, FIXED_LINES, nearLabel, REJECTION_LINE } from '@/lib/replies';
+import { answerLine, describeChange, FIXED_LINES, formatDates, nearLabel, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
 import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
 import { dispatchActions, toSearchState } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
-import { answerPrioritiesInWords, askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
+import { answerForm, answerPrioritiesInWords, askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
 import { readingFromJev } from '@/lib/priorityReading';
+import { placeKindWord, whichOne } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -127,6 +128,7 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   const field = nextField(session, stay, guestsAnsweredIn(session, await listMessages(session.id)));
 
   if (field === 'priorities' && stay) return prioritiesInWords(session, stay, turn, deps);
+  if (field === 'dates') return datesInWords(session, turn, deps);
   if (field !== 'destination') return { text: FIXED_LINES.use_the_form, meta: { by: 'form', field } };
 
   // The first message may say more than the place ("Porto, 12 to 15 March, two of
@@ -145,11 +147,35 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   if (places.value.length === 0) {
     return { text: destination || Object.keys(rest).length === 0 ? 'No place by that name. Try a city or a neighbourhood.' : FIXED_LINES.which_place, meta: { ...meta, places: 0 } };
   }
-  await askQuestion(session.id, 'destination', {
-    prompt: 'Which one?',
-    suggestions: places.value.slice(0, 5).map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name })),
-  });
+  await askQuestion(session.id, 'destination', whichOne(places.value.filter((p) => placeKindWord(p.types) !== null).slice(0, 5)));
   return { text: '', meta: { ...meta, places: places.value.length } };
+}
+
+/**
+ * The nights card answered in words ("the second weekend"). The scan reads the
+ * words with the hint the card was opened with, so "the second weekend" after
+ * "3 nights in March" lands in March; the server checks the dates as always.
+ */
+async function datesInWords(session: SearchSession, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const hint = session.draft.scanned?.datesHint;
+  const budget = await aiBudget(session.id, deps.now());
+  if (!budget.ok) return { text: FIXED_LINES.tap_the_nights, meta: { by: 'form', field: 'dates', skipped: 'budget' } };
+  const context = hint ? ` (the trip is ${hint.nights ? `${hint.nights} night${hint.nights === 1 ? '' : 's'}` : 'some nights'}${hint.month ? ` in ${hint.month}` : ''})` : '';
+  const scan = await scanIntent({ message: `Dates: ${turn.userMessage}${context}`, today: deps.today, currency: session.currency, callModel: deps.callModel, model: deps.model });
+  const spent = await logModelCalls(session, 'scan', [scan.reply]);
+  const { checkIn, checkOut } = scan.trip;
+  if (!checkIn || !checkOut) return { text: FIXED_LINES.tap_the_nights, meta: { by: 'agent', field: 'dates', read: null, ...spent } };
+  const messages = await listMessages(session.id);
+  const result = await answerForm({
+    sessionId: session.id,
+    answer: { field: 'dates', checkIn, checkOut },
+    guestsAnswered: guestsAnsweredIn(session, messages),
+    supplier: deps.supplier,
+    now: deps.now(),
+    today: deps.today,
+    readBack: `Reading that as ${formatDates(checkIn, checkOut)}.`,
+  });
+  return { text: '', meta: { by: 'agent', field: 'dates', read: { checkIn, checkOut }, ok: result.ok, ...spent } };
 }
 
 /**

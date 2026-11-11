@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { describeChange } from '@/lib/replies';
 import { actionSchema } from '@/lib/store/actions';
 import { dispatchActions } from '@/server/dispatch';
+import { appendMessage } from '@/server/repos/chat';
 import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
 import { getSession, listStays } from '@/server/repos/sessions';
 import { getSupplier } from '@/server/supplier';
@@ -13,20 +15,21 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * The results header's chips, edited in place: the nationality used for
- * rates, what "best" means, and where "close" is measured from. Typed actions
- * through the one dispatch path; no model. Only these four action types: the
- * rest of a search is changed in the chat.
+ * The results header's chips, edited in place: where, when, who (and the
+ * pet), what "best" means, where "close" is measured from, and the
+ * nationality used for rates. Typed actions through the one dispatch path; no
+ * model. The rest of a search is changed in the chat.
  */
-const EDITABLE = ['set_nationality', 'set_priorities', 'set_near', 'clear_near'] as const;
+const EDITABLE = ['set_destination', 'set_dates', 'set_guests', 'add_must_have', 'remove_must_have', 'set_nationality', 'set_priorities', 'set_near', 'clear_near'] as const;
 const editAction = actionSchema.refine((a) => (EDITABLE as readonly string[]).includes(a.type), 'not editable here');
-const payload = z.object({ action: editAction, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
+/** One chip's change: at most a few actions (Who = the party plus the pet). */
+const payload = z.object({ actions: z.array(editAction).min(1).max(3), today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
 
 export const POST = handled(async (req: Request, ctx: { params: { id: string } }) => {
   const body = await req.json().catch(() => null);
   const parsed = payload.safeParse(body);
   if (!parsed.success) {
-    const code = (body as { action?: { type?: string } } | null)?.action?.type === 'set_nationality' ? 'unknown_country' : 'invalid_request';
+    const code = (body as { actions?: Array<{ type?: string }> } | null)?.actions?.some((a) => a?.type === 'set_nationality') ? 'unknown_country' : 'invalid_request';
     return errorResponse(code, 400);
   }
   const session = await ownedSession(ctx.params.id);
@@ -43,7 +46,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   const dispatched = await dispatchActions({
     session,
     stay,
-    actions: [parsed.data.action],
+    actions: parsed.data.actions,
     supplier: getSupplier({ sessionId: session.id, userId: session.userId }),
     now,
     today,
@@ -52,7 +55,19 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
     if (r.ok) continue;
     if (r.rejection === 'place_unavailable') return errorResponse('place_unavailable', 503);
     if (r.rejection === 'near_too_far') return errorResponse('near_too_far', 400);
+    if (r.rejection === 'dates_in_past' || r.rejection === 'checkout_not_after_checkin' || r.rejection === 'stay_too_long' || r.rejection === 'more_rooms_than_adults') return errorResponse(r.rejection, 400);
     // no_change is not an error: the chip already says that.
+  }
+  // The change and what it did go in the chat, like a typed change: the
+  // results panel points there when nothing fits.
+  if (dispatched.results.some((r) => r.ok)) {
+    await appendMessage({
+      sessionId: session.id,
+      role: 'assistant',
+      kind: 'line',
+      content: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+      meta: { by: 'chip' },
+    });
   }
   return NextResponse.json(await buildSessionView((await getSession(session.id))!));
 });

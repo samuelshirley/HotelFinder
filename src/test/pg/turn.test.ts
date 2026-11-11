@@ -170,16 +170,17 @@ describe('onboarding: a form in the chat, no model', () => {
     expect(question.meta).toMatchObject({
       field: 'destination',
       prompt: 'Which one?',
-      suggestions: [{ placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', label: 'Ribeira, Porto, Portugal' }, {}, {}, {}],
+      suggestions: [{ placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', label: 'Ribeira, Porto, Portugal', display: 'Ribeira · Porto, Portugal' }, {}, {}],
     });
   });
 
   it('typing during a later step points back at the form and calls nothing', async () => {
     const session = await createSession({ anonId: 'a' });
     const s = recordedSupplier();
-    await answerForm({ sessionId: session.id, answer: ANSWERS[0], guestsAnswered: false, supplier: s.supplier, now: RECORDED_AT, today: TODAY });
+    // Dates and priorities take words; the guests step is form-only.
+    for (const answer of ANSWERS.slice(0, 2)) await answerForm({ sessionId: session.id, answer, guestsAnswered: false, supplier: s.supplier, now: RECORDED_AT, today: TODAY });
     const d = deps(s.supplier, JEV_DOWN);
-    await say((await getSession(session.id))!, 'next weekend', d);
+    await say((await getSession(session.id))!, 'two of us', d);
     expect((await lastLine(session.id)).content).toBe('Pick one of the options above to continue.');
     expect(d.asked).toHaveLength(0);
     expect(s.placeQueries).toHaveLength(0);

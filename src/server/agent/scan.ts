@@ -24,6 +24,7 @@ const RECORD_TRIP: ToolDef = {
       check_in: nullable('string', { description: 'YYYY-MM-DD. Only if the message gives a start date you can resolve from today without guessing.' }),
       check_out: nullable('string', { description: 'YYYY-MM-DD. Only if the message gives an end date.' }),
       nights: nullable('integer', { description: 'Only if the message states a number of nights.' }),
+      month: nullable('string', { description: 'YYYY-MM. Only when the message names a month for the stay but no day ("in March"): the next such month from <today>.' }),
       adults: nullable('integer', { description: 'Only if the message says how many adults, or how many people with no children mentioned.' }),
       children_ages: { type: ['array', 'null'], items: { type: 'integer' }, description: 'Ages, only if each age is stated.' },
       rooms: nullable('integer'),
@@ -31,7 +32,7 @@ const RECORD_TRIP: ToolDef = {
       must_haves: { type: 'array', items: { type: 'string', enum: [...MUST_HAVES] }, description: 'Only requirements the message states. Travelling with a dog or cat is pets_allowed.' },
       priorities: { type: 'array', items: { type: 'string', enum: [...PRIORITY_KEYS] }, uniqueItems: true, maxItems: PRIORITY_KEYS.length, description: 'What the message says matters, any of: cheapest (low price, not too expensive, good value), nicest (nice, well reviewed), closest (central, close to somewhere). Several when it says several, e.g. "nice but not crazy expensive" = ["nicest","cheapest"]. [] when it says nothing about it.' },
     },
-    required: ['destination', 'check_in', 'check_out', 'nights', 'adults', 'children_ages', 'rooms', 'max_per_night', 'must_haves', 'priorities'],
+    required: ['destination', 'check_in', 'check_out', 'nights', 'adults', 'children_ages', 'rooms', 'max_per_night', 'must_haves', 'priorities', 'month'],
     additionalProperties: false,
   },
 };

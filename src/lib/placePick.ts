@@ -69,3 +69,17 @@ export function placeKindWord(types: readonly string[]): string | null {
   if (has(['administrative_area_level_1', 'administrative_area_level_2', 'country'])) return 'Region';
   return 'Place';
 }
+
+/**
+ * The "Which one?" question for several matches: "Which Lisbon?" when they
+ * share a name, each choice as "Lisbon · Portugal" so the difference shows.
+ */
+export function whichOne(places: readonly PlaceLike[]): { prompt: string; suggestions: Array<{ placeId: string; label: string; display: string }> } {
+  const names = new Set(places.map((p) => p.name));
+  const prompt = names.size === 1 ? `Which ${places[0].name}?` : 'Which one?';
+  return {
+    prompt,
+    // `label` becomes the search's name when picked; `display` is what the chip says.
+    suggestions: places.map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name, display: p.address ? `${p.name} · ${p.address}` : p.name })),
+  };
+}
