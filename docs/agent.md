@@ -45,18 +45,20 @@ goes to `runAgent`. A free-text first message goes to `scanIntent`.
 ($1 / $5) stays registered and `AGENT_MODEL` selects it. Prices read from
 platform.claude.com on 2026-11-11.
 
-## Not verified
+## Verified live (2026-11-11, claude-haiku-5-5)
 
-**No live call has succeeded.** The key in `.env` is not scoped to a
-workspace; the API answers HTTP 400 until `ANTHROPIC_WORKSPACE_ID` is set or
-the key is replaced. Everything above is proven against a scripted model
-(`src/test/pg/agent.test.ts`, `src/server/agent/agent.test.ts`). The prompt's
-wording, date arithmetic and injection resistance are what
-`src/server/agent/live.test.ts` checks, and it has not passed yet.
+`scripts/agent-live.sh`: all 14 cases pass. 16 model calls cost 0.286 cents
+in total, about 0.018 cents a call. The cases: absolute dates, a date with no
+year, a new destination through the place search, two requests in one
+message, a hotel question answered from its listing with an injected
+instruction in the listing ignored, an unfilterable wish, off-topic, a request
+to book, a comparison, and five intent scans.
 
-Prompt caching is requested on the system prompt, but the instructions and
-tools are probably under the model's minimum cacheable length, so expect
-`cache_read_tokens` to stay 0 until measured otherwise.
+One thing the first live turn showed: "under 120 a night" came back as a cap
+of 119.99. The tool description now says to use the number the user said.
+
+Not measured: whether prompt caching engages (the prompt is probably under
+the minimum cacheable length), and Haiku 4.5 on the same cases.
 
 ## Mutation log (2026-11-11)
 

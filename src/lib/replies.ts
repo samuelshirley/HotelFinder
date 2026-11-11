@@ -1,7 +1,10 @@
 import type { MustHave } from '@/lib/amenities';
+import type { Answer, RankValue } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
-import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
+import { canonicalPriorities, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
 import { centreLabel, placeName } from '@/lib/finder/searchPlan';
+import type { SearchField, Superlative } from '@/lib/router/catalogue';
+import type { FactAsk } from '@/lib/router/route';
 import type { ResolvedAction } from '@/lib/store/actions';
 import type { Applied, Rejection, SearchState } from '@/lib/store/reduce';
 
@@ -182,3 +185,161 @@ export const FIXED_LINES = {
   ai_budget: 'This search has used its allowance for typed requests today. The buttons and filters still work.',
   which_place: 'Which city or area?',
 } as const;
+
+/* ------------------------------------------------------------------------
+ * Answers to questions about what is on screen (lib/answers.ts). Each line is
+ * a template over values read from offer and property rows. A value the row
+ * does not hold is said as exactly that; nothing here can state a price, a
+ * term or a facility that no row gave.
+ * ---------------------------------------------------------------------- */
+
+const nightsText = (n: number) => `${n} night${n === 1 ? '' : 's'}`;
+const fromText = (from: DistanceFrom, label: string | null) =>
+  from === 'search_centre' ? 'the middle of the results' : (label ?? (from === 'place' ? 'the place you named' : 'the place you searched'));
+const km = (v: number) => (v < 1 ? `${Math.round(v * 1000)} m` : `${v.toFixed(1)} km`);
+const starsText = (n: number) => `${n} star${n === 1 ? '' : 's'}`;
+const count = (n: number) => n.toLocaleString('en');
+
+export function formatDeadline(iso: string): string {
+  const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso));
+  return `${when} UTC`;
+}
+
+/** "A", "A and B", "A, B and C". */
+export function listNames(names: string[]): string {
+  return names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
+/** What a row was silent about, in the user's terms. */
+function notHeldLine(name: string, ask: FactAsk): string {
+  switch (ask.fact) {
+    case 'price':
+      return `No price is held for ${name} on these dates.`;
+    case 'cancellation':
+      return `The listing for ${name} does not say whether it can be cancelled.`;
+    case 'breakfast':
+      return `The listing for ${name} does not say which meals are included.`;
+    case 'rating':
+      return `The listing for ${name} does not give a guest rating.`;
+    case 'stars':
+      return `The listing for ${name} does not give a star category.`;
+    case 'room':
+      return `The listing for ${name} does not name the room.`;
+    case 'distance':
+      return `The listing for ${name} does not give its position, so there is no distance.`;
+    case 'facility':
+      return `The listing for ${name} does not say whether it has ${MUST_HAVE_LABEL[ask.amenity]}.`;
+  }
+}
+
+const RANKING_HEAD: Record<Superlative, string> = {
+  cheapest: 'Cheapest',
+  priciest: 'Most expensive',
+  closest: 'Closest',
+  furthest: 'Furthest',
+  best_rated: 'Best rated',
+  most_reviews: 'Most reviews',
+  most_stars: 'Most stars',
+};
+
+const RANKING_MISSING: Record<Superlative, string> = {
+  cheapest: 'no price',
+  priciest: 'no price',
+  closest: 'no position',
+  furthest: 'no position',
+  best_rated: 'no guest rating',
+  most_reviews: 'no review count',
+  most_stars: 'no star category',
+};
+
+function rankValueText(v: RankValue, currency: string): string {
+  switch (v.on) {
+    case 'price':
+      return `${formatMoney(v.totalMinor, currency)} for ${nightsText(v.nights)}`;
+    case 'distance':
+      return `${km(v.km)} from ${fromText(v.from, v.label)}`;
+    case 'rating':
+      return v.reviews === null ? `rated ${v.rating}` : `rated ${v.rating} from ${count(v.reviews)} reviews`;
+    case 'reviews':
+      return `${count(v.reviews)} reviews`;
+    case 'stars':
+      return starsText(v.stars);
+  }
+}
+
+function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['search'], currency: string): string {
+  const dates = `${formatDates(s.checkIn, s.checkOut)}.`;
+  const guests = `${formatGuests(s.adults, s.childrenAges, s.rooms)}.`;
+  const place = `Searching ${s.destinationText}.`;
+  const cap = s.priceCapMinor === null ? null : `Capped at ${formatMoney(s.priceCapMinor, currency)} a night.`;
+  const musts = s.mustHaves.length === 0 ? null : `Must have ${listNames(s.mustHaves.map((m) => MUST_HAVE_LABEL[m]))}.`;
+  const order = s.priorities === null ? null : prioritiesLine(s.priorities, s.nearLabel);
+  switch (field) {
+    case 'dates':
+      return dates;
+    case 'guests':
+      return guests;
+    case 'destination':
+      return place;
+    case 'budget':
+      return cap ?? 'No price cap is set.';
+    case 'must_haves':
+      return musts ?? 'Nothing is required of the hotel yet.';
+    case 'priority':
+      return order ?? 'No order is set.';
+    case 'everything':
+      return [place, dates, guests, cap, musts, order].filter(Boolean).join(' ');
+  }
+}
+
+/** The words for an answer. Every number and term in it came from a row. */
+export function answerLine(a: Answer, currency: string): string {
+  switch (a.kind) {
+    case 'price': {
+      const extra = a.payAtPropertyMinor > 0 ? `, plus ${formatMoney(a.payAtPropertyMinor, currency)} paid at the hotel` : '';
+      return `${a.name}: ${formatMoney(a.totalMinor, currency)} for ${nightsText(a.nights)}, ${formatMoney(a.perNightMinor, currency)} a night${extra}.`;
+    }
+    case 'cancellation':
+      if (!a.refundable) return `${a.name}: non-refundable at this price.`;
+      return a.until === null
+        ? `${a.name}: refundable, but the listing does not give the deadline.`
+        : `${a.name}: free cancellation until ${formatDeadline(a.until)}.`;
+    case 'breakfast':
+      return a.included ? `${a.name}: breakfast is included (${a.boardName}).` : `${a.name}: breakfast is not included; the rate is ${a.boardName}.`;
+    case 'rating':
+      return a.reviews === null ? `${a.name}: rated ${a.rating}; the listing gives no review count.` : `${a.name}: rated ${a.rating} from ${count(a.reviews)} reviews.`;
+    case 'stars':
+      return `${a.name}: ${starsText(a.stars)}.`;
+    case 'room':
+      return `${a.name}: the price is for ${a.roomName}.`;
+    case 'distance':
+      return `${a.name}: ${km(a.km)} from ${fromText(a.from, a.label)}.`;
+    case 'facility':
+      // "Lists", not "has": this is the supplier's facility list, and its silence is not a no.
+      return a.listed ? `${a.name} lists ${MUST_HAVE_LABEL[a.amenity]}.` : `${a.name} does not list ${MUST_HAVE_LABEL[a.amenity]}.`;
+    case 'not_held':
+      return notHeldLine(a.name, a.ask);
+    case 'across': {
+      const [yes, no] =
+        a.ask.fact === 'facility'
+          ? [`Listing ${MUST_HAVE_LABEL[a.ask.amenity]}`, 'Not listing it']
+          : a.ask.fact === 'breakfast'
+            ? ['Breakfast included', 'Not included']
+            : ['Refundable', 'Non-refundable'];
+      const parts: string[] = [];
+      if (a.yes.length > 0) parts.push(`${yes}: ${listNames(a.yes)}.`);
+      if (a.no.length > 0) parts.push(`${no}: ${listNames(a.no)}.`);
+      if (a.unknown.length > 0) parts.push(`The listing does not say for ${listNames(a.unknown)}.`);
+      return parts.join(' ');
+    }
+    case 'ranking': {
+      const tied = a.winners.length > 1 ? ', tied' : '';
+      const missing = a.missing > 0 ? ` ${a.missing} ${a.missing === 1 ? 'has' : 'have'} ${RANKING_MISSING[a.superlative]} listed.` : '';
+      return `${RANKING_HEAD[a.superlative]} of the ${a.of} listed${tied}: ${listNames(a.winners)}, ${rankValueText(a.value, currency)}.${missing}`;
+    }
+    case 'ranking_not_held':
+      return `None of the ${a.of} listed has ${RANKING_MISSING[a.superlative].replace(/^no /, 'a ')} in its listing.`;
+    case 'search':
+      return searchLine(a.field, a.search, currency);
+  }
+}

@@ -24,6 +24,7 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
+      NEXT_DIST_DIR: '.next-e2e',
       HOTEL_FINDER_DATA_DIR: mkdtempSync(path.join(tmpdir(), 'hf-e2e-')),
       ...(process.env.E2E_JEV === '1' ? {} : { JEV_API_KEY: '' }),
     },

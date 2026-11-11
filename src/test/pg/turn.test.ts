@@ -24,7 +24,7 @@ const sure = <L extends string>(choice: L) => ({ choice, top: 0.97, margin: 0.9 
 
 function jevSays(intent: Intent, over: Partial<Readings> = {}): JevOutcome {
   return {
-    readings: { tier: sure('T1'), intent: sure(intent), multiIntent: 0.02, amenity: sure('none'), removing: 0.03, wantsPrice: 0.02, wantsQuality: 0.02, wantsLocation: 0.02, namesPlace: 0.02, ...over },
+    readings: { tier: sure('T1'), intent: sure(intent), multiIntent: 0.02, amenity: sure('none'), removing: 0.03, wantsPrice: 0.02, wantsQuality: 0.02, wantsLocation: 0.02, namesPlace: 0.02, fact: sure('none'), superlative: sure('none'), searchField: sure('none'), ...over },
     failure: null,
     latencyMs: 140,
     model: 'jev-1.14.0',
@@ -312,6 +312,169 @@ describe('a chat turn on a running search', () => {
     expect(await lastLine(session.id)).toMatchObject({ kind: 'error', meta: { code: 'turn_failed' } });
     const next = await say(session, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')));
     expect(next.turn.status).toBe('done');
+  });
+});
+
+describe('questions about what is on screen are answered from the rows, with no model', () => {
+  /** A model that fails the test if the turn reaches it. */
+  const modelCalls: string[] = [];
+  const COUNTING_MODEL: CallModel = async (call) => {
+    modelCalls.push(call.model);
+    return { ok: false, model: call.model, failure: 'not_configured', latencyMs: 0, errorMessage: 'the test model must not be called' };
+  };
+  beforeEach(() => {
+    modelCalls.length = 0;
+  });
+
+  const ask = async (message: string, over: Partial<Readings>, session?: Awaited<ReturnType<typeof onboarded>>['session']) => {
+    const o = session ? null : await onboarded();
+    const s = session ?? o!.session;
+    const supplier = o?.supplier ?? recordedSupplier();
+    const before = { names: await shortlistNames(s.id), searches: supplier.searches.length, places: supplier.placeQueries.length };
+    const { turn } = await say(s, message, deps(supplier.supplier, jevSays('ask_hotels', over), COUNTING_MODEL));
+    // Nothing was fetched, nothing was changed, and the model was never asked.
+    expect(modelCalls).toEqual([]);
+    expect(supplier.searches).toHaveLength(before.searches);
+    expect(supplier.placeQueries).toHaveLength(before.places);
+    expect(await shortlistNames(s.id)).toEqual(before.names);
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
+    return turn;
+  };
+
+  it.each<[string, Partial<Readings>, string]>([
+    ['how much is the first one?', { fact: sure('price') }, 'YOTEL Porto: €127.93 for 2 nights, €63.97 a night, plus €19.36 paid at the hotel.'],
+    ['can I cancel the YOTEL?', { fact: sure('cancellation') }, 'YOTEL Porto: non-refundable at this price.'],
+    ['can I cancel the second one?', { fact: sure('cancellation') }, 'Mercure Porto Centro Santa Catarina: free cancellation until 10 Dec, 09:59 UTC.'],
+    ['is breakfast included at the carris?', { fact: sure('breakfast') }, 'Hotel Carris Porto Ribeira: breakfast is not included; the rate is Room Only.'],
+    ['what is the neya rated?', { fact: sure('rating') }, 'NEYA Porto Hotel: rated 9 from 2,856 reviews.'],
+    ['how many stars is the third?', { fact: sure('stars') }, 'Hotel Carris Porto Ribeira: 4 stars.'],
+    ['what room is the first one?', { fact: sure('room') }, 'YOTEL Porto: the price is for Premium Queen.'],
+    ['how far is the aliados?', { fact: sure('distance') }, 'Mercure Porto Centro Aliados: 300 m from the middle of the results.'],
+    ['does the second one have parking?', { fact: sure('facility'), amenity: sure('parking') }, 'Mercure Porto Centro Santa Catarina does not list parking.'],
+    ['does the yotel have parking?', { fact: sure('facility'), amenity: sure('parking') }, 'YOTEL Porto lists parking.'],
+    ['which is the cheapest?', { superlative: sure('cheapest') }, 'Cheapest of the 5 listed: YOTEL Porto, €127.93 for 2 nights.'],
+    ['which is closest?', { superlative: sure('closest'), fact: sure('distance') }, 'Closest of the 5 listed: Mercure Porto Centro Aliados, 300 m from the middle of the results.'],
+    ['which has the best reviews?', { superlative: sure('best_rated'), fact: sure('rating') }, 'Best rated of the 5 listed: Mercure Porto Centro Aliados, rated 9.2 from 2,361 reviews.'],
+    ['is breakfast included at the cheapest?', { superlative: sure('cheapest'), fact: sure('breakfast') }, 'YOTEL Porto: breakfast is not included; the rate is Room Only.'],
+    ['does the best rated one take dogs?', { superlative: sure('best_rated'), fact: sure('facility'), amenity: sure('pets_allowed') }, 'Mercure Porto Centro Aliados lists pets allowed.'],
+    [
+      'which of them have parking?',
+      { fact: sure('facility'), amenity: sure('parking') },
+      'Listing parking: YOTEL Porto and NEYA Porto Hotel. Not listing it: Mercure Porto Centro Santa Catarina, Hotel Carris Porto Ribeira and Mercure Porto Centro Aliados.',
+    ],
+    [
+      'which can I still cancel?',
+      { fact: sure('cancellation') },
+      'Refundable: Mercure Porto Centro Santa Catarina and Hotel Carris Porto Ribeira. Non-refundable: YOTEL Porto, NEYA Porto Hotel and Mercure Porto Centro Aliados.',
+    ],
+  ])('%s', async (message, over, reply) => {
+    const turn = await ask(message, over);
+    expect(turn.status).toBe('done');
+    expect(turn.finalText).toBe(reply);
+    expect(turn.resultMeta).toMatchObject({ by: 'router', decision: 'answer', intent: 'ask_hotels', model_calls: 0 });
+  });
+
+  it('every figure in an answer is the offer row\'s, the same one the card shows', async () => {
+    const { session } = await onboarded();
+    const view = await buildSessionView(session);
+    for (const [i, row] of view.shortlist.entries()) {
+      const turn = await ask(`how much is #${i + 1}?`, { fact: sure('price') }, session);
+      const total = (row.offer!.totalMinor / 100).toFixed(2).replace(/\.00$/, '');
+      const perNight = (Math.ceil(row.offer!.totalMinor / 2) / 100).toFixed(2).replace(/\.00$/, '');
+      expect(turn.finalText).toContain(`${row.property.name}: €${total} for 2 nights, €${perNight} a night`);
+      expect(turn.finalText!.includes('paid at the hotel')).toBe(row.offer!.payAtPropertyMinor > 0);
+    }
+  });
+
+  it('a fact the listing does not hold gets "does not say", never a guess', async () => {
+    const { session } = await onboarded();
+    // The supplier sent no facility list for the first hotel, and no board name for its rate.
+    await rawQuery("update properties set content = '{}'::jsonb, rating = null, review_count = null, stars = null where name = 'YOTEL Porto'");
+    await rawQuery("update offers set board_name = null, room_name = null, refundable_tag = null where property_id = (select id from properties where name = 'YOTEL Porto')");
+
+    const facility = await ask('does the first one have parking?', { fact: sure('facility'), amenity: sure('parking') }, session);
+    expect(facility.finalText).toBe('The listing for YOTEL Porto does not say whether it has parking.');
+    expect(facility.resultMeta).toMatchObject({ answered: 'not_held', model_calls: 0 });
+
+    expect((await ask('is breakfast included at the first?', { fact: sure('breakfast') }, session)).finalText).toBe('The listing for YOTEL Porto does not say which meals are included.');
+    expect((await ask('what is the first one rated?', { fact: sure('rating') }, session)).finalText).toBe('The listing for YOTEL Porto does not give a guest rating.');
+    expect((await ask('how many stars is the first?', { fact: sure('stars') }, session)).finalText).toBe('The listing for YOTEL Porto does not give a star category.');
+    expect((await ask('what room is the first one?', { fact: sure('room') }, session)).finalText).toBe('The listing for YOTEL Porto does not name the room.');
+    expect((await ask('can I cancel the first one?', { fact: sure('cancellation') }, session)).finalText).toBe('The listing for YOTEL Porto does not say whether it can be cancelled.');
+
+    // Asked of all of them, the silent hotel is named as silent rather than counted as a no.
+    const all = await ask('which of them have parking?', { fact: sure('facility'), amenity: sure('parking') }, session);
+    expect(all.finalText).toBe(
+      'Listing parking: NEYA Porto Hotel. Not listing it: Mercure Porto Centro Santa Catarina, Hotel Carris Porto Ribeira and Mercure Porto Centro Aliados. The listing does not say for YOTEL Porto.',
+    );
+    // And it is left out of a ranking it has no value for, and counted.
+    expect((await ask('which has the best reviews?', { superlative: sure('best_rated') }, session)).finalText).toBe(
+      'Best rated of the 5 listed: Mercure Porto Centro Aliados, rated 9.2 from 2,361 reviews. 1 has no guest rating listed.',
+    );
+  });
+
+  it('asking about a facility does not make it a must-have', async () => {
+    const { session } = await onboarded();
+    await ask('does the second one have parking?', { fact: sure('facility'), amenity: sure('parking') }, session);
+    expect((await listStays(session.id))[0].mustHaves).toEqual([]);
+  });
+
+  it('questions about the search are answered from the stay row', async () => {
+    const { session, supplier } = await onboarded();
+    const q = async (message: string, field: string) => (await say(session, message, deps(supplier.supplier, jevSays('ask_search', { searchField: sure(field) }), COUNTING_MODEL))).turn;
+    const dates = await q('what dates did I pick?', 'dates');
+    expect(dates.finalText).toBe('11–13 Dec, 2 nights.');
+    expect(dates.resultMeta).toMatchObject({ by: 'router', decision: 'answer', intent: 'ask_search', plan: { about: 'search', field: 'dates' }, model_calls: 0 });
+    expect((await q('how many are we?', 'guests')).finalText).toBe('2 adults.');
+    expect((await q('where am I searching?', 'destination')).finalText).toBe('Searching Porto, Portugal.');
+    expect((await q('what is my budget?', 'budget')).finalText).toBe('No price cap is set.');
+    expect((await q('what did I say it needs?', 'must_haves')).finalText).toBe('Nothing is required of the hotel yet.');
+    expect((await q('what am I searching for?', 'everything')).finalText).toBe('Searching Porto, Portugal. 11–13 Dec, 2 nights. 2 adults. Ranked for low price.');
+    expect(modelCalls).toEqual([]);
+    expect(supplier.searches).toHaveLength(1);
+  });
+
+  it('the answer follows a change made earlier in the chat', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'under 70 a night', deps(supplier.supplier, jevSays('price_cap')));
+    const fresh = (await getSession(session.id))!;
+    const budget = await say(fresh, 'what is my budget?', deps(supplier.supplier, jevSays('ask_search', { searchField: sure('budget') }), COUNTING_MODEL));
+    expect(budget.turn.finalText).toBe('Capped at €70 a night.');
+    // Only one hotel is left on screen, so that is the one a ranking is over.
+    const cheapest = await say(fresh, 'which is cheapest?', deps(supplier.supplier, jevSays('ask_hotels', { superlative: sure('cheapest') }), COUNTING_MODEL));
+    expect(cheapest.turn.finalText).toBe('Cheapest of the 1 listed: YOTEL Porto, €127.93 for 2 nights.');
+  });
+
+  it('a tie for "the cheapest" has no single hotel to answer for, so it goes to the agent', async () => {
+    const { session, supplier } = await onboarded();
+    await rawQuery('update offers set total_minor = 12793');
+    const { turn } = await say(session, 'is breakfast included at the cheapest?', deps(supplier.supplier, jevSays('ask_hotels', { superlative: sure('cheapest'), fact: sure('breakfast') }), COUNTING_MODEL));
+    expect(turn.resultMeta).toMatchObject({ by: 'agent', decision: 'defer', deferred: 'answer_unavailable' });
+    expect(modelCalls).toHaveLength(1);
+  });
+
+  it('a question no listing field answers still goes to the agent', async () => {
+    const { session, supplier } = await onboarded();
+    const { turn } = await say(session, 'is the second one quiet?', deps(supplier.supplier, jevSays('ask_hotels'), COUNTING_MODEL));
+    expect(turn.resultMeta).toMatchObject({ by: 'agent', deferred: 'intent_for_agent' });
+    expect(modelCalls).toHaveLength(1);
+  });
+
+  it('the settle rate is a query over the ledger: labels and the decision, never the message', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'how much is the first one?', deps(supplier.supplier, jevSays('ask_hotels', { fact: sure('price') })));
+    await say(session, 'what dates did I pick?', deps(supplier.supplier, jevSays('ask_search', { searchField: sure('dates') })));
+    await say(session, 'is the second one quiet?', deps(supplier.supplier, jevSays('question')));
+    const rows = await rawQuery<{ decision: string; deferred: string | null; n: string }>(
+      "select meta->>'decision' as decision, meta->>'deferred' as deferred, count(*) as n from usage_events where provider = 'jev' group by 1, 2 order by 1, 2",
+    );
+    expect(rows.map((r) => [r.decision, r.deferred, Number(r.n)])).toEqual([
+      ['answer', null, 2],
+      ['defer', 'intent_for_agent', 1],
+    ]);
+    const meta = await rawQuery<{ meta: Record<string, unknown> }>("select meta from usage_events where provider = 'jev'");
+    expect(JSON.stringify(meta)).not.toMatch(/how much|dates did|quiet/);
+    expect(meta[0].meta).toMatchObject({ intent: { choice: 'ask_hotels' }, fact: { choice: 'price' }, superlative: { choice: 'none' }, turn_id: expect.any(String) });
   });
 });
 

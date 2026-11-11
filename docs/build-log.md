@@ -11,8 +11,9 @@ pick up from the first unfinished step.
 | 4 | Stay finder, 20 personas | done |
 | 5 | Store: actions, reducers, dispatch | done |
 | 6 | Jev module and router | built; **never run against the real Jev** |
-| 7 | Turn route: durable turns, SSE, drain, reconcile, agent | done; **agent never run against the real model** |
-| 8 | Form-in-chat onboarding, intent scan, pets question | done; scan not run live |
+| 6b | Jev answers questions about what is on screen (`docs/jev-expansion.md`) | built 2026-11-11; **never run against the real Jev** |
+| 7 | Turn route: durable turns, SSE, drain, reconcile, agent | done; agent verified live on Haiku 5.5 (14 cases) |
+| 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done; no map |
 | 10 | Guards, e2e | guards done; one Playwright flow, no OTP (no sign-in yet) |
 | 11 | Cost measurement | not started |
@@ -25,13 +26,6 @@ http://localhost:3000.
 Five-question form → first search → five ranked cards with a reason, total,
 per-night, pay-at-hotel and cancellation line → detail sheet → reload keeps
 the search → new search. `e2e/search.spec.ts`.
-
-## Blocked on Sam
-
-- **Anthropic key.** `ANTHROPIC_API_KEY` is set but not scoped to a
-  workspace: every call is HTTP 400. Needs `ANTHROPIC_WORKSPACE_ID` in `.env`
-  or a key made inside a workspace. Then run `scripts/agent-live.sh`, and
-  again with `claude-haiku-5-5`, and fix whatever the 14 cases show.
 
 ## What is not built
 
@@ -47,8 +41,10 @@ the search → new search. `e2e/search.spec.ts`.
 ## Not verified
 
 - **Jev, live.** The first build session was not permitted to call
-  api.typesafe.ai. `scripts/jev-live.sh` has not been run.
-- **The agent and the scan, live.** See above and `docs/agent.md`.
+  api.typesafe.ai. `scripts/jev-live.sh` has not been run. It now asks 36
+  messages; the 24 added with the answer intents (`ask_hotels`,
+  `ask_search`) are as unverified as the first 12. What to build next and how
+  to measure the settle rate: `docs/jev-expansion.md`.
 - macOS: Sam ran it (2026-11-11 18:18); the form works there.
 
 ## Notes for whoever resumes
@@ -60,3 +56,11 @@ the search → new search. `e2e/search.spec.ts`.
 - Next step in order: OTP sign-in → member prices → rate re-check → payment
   row → booking claim. Run the live agent cases as soon as the key works.
 - e2e in the build VM: `PLAYWRIGHT_BROWSERS_PATH=$HOME/pw LD_LIBRARY_PATH=$HOME/lib/x/usr/lib/aarch64-linux-gnu ./node_modules/.bin/playwright test`.
+
+## A trap that cost a confused bug report (2026-11-11)
+
+The e2e run starts `next dev` on this folder. It used to build into `.next`,
+the same directory as a dev server that is already running, and left that
+server showing a blank "missing required error components" page with stale
+code. The e2e server now builds into `.next-e2e` (`NEXT_DIST_DIR`), and
+`scripts/dev.sh` clears `.next` on start.

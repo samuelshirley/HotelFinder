@@ -38,6 +38,9 @@ const readings = (intent: Intent, over: Partial<Readings> = {}): Readings => ({
   wantsQuality: 0.02,
   wantsLocation: 0.02,
   namesPlace: 0.02,
+  fact: sure('none'),
+  superlative: sure('none'),
+  searchField: sure('none'),
   ...over,
 });
 const route = (message: string, r: Readings) => routeMessage({ message, readings: r, state, currency: 'EUR', shortlist });
@@ -189,5 +192,126 @@ describe('anything unsure goes to the agent', () => {
     const r = readings('more', { tier: { choice: 'T1', top: 0.8, margin: 0.5 }, intent: { choice: 'more', top: 0.8, margin: 0.5 } });
     expect(route('show me others', r).kind).toBe('defer');
     expect(routeMessage({ message: 'show me others', readings: r, state, currency: 'EUR', shortlist, settleMin: 0.75 }).kind).toBe('actions');
+  });
+});
+
+describe('questions about what is on screen become answer plans, never actions', () => {
+  const ask = (message: string, over: Partial<Readings>) => route(message, readings('ask_hotels', over));
+
+  it('one fact about a hotel named by position or by name', () => {
+    expect(ask('how much is the second one?', { fact: sure('price') })).toEqual({
+      kind: 'answer',
+      intent: 'ask_hotels',
+      plan: { about: 'hotel', propertyId: P(2), fact: 'price' },
+    });
+    expect(ask('can I cancel the YOTEL?', { fact: sure('cancellation') })).toMatchObject({ plan: { about: 'hotel', propertyId: P(1), fact: 'cancellation' } });
+    for (const fact of ['breakfast', 'rating', 'stars', 'room', 'distance'] as const) {
+      expect(ask('what about the carris?', { fact: sure(fact) })).toMatchObject({ kind: 'answer', plan: { about: 'hotel', propertyId: P(3), fact } });
+    }
+  });
+
+  it('a facility question carries which facility, from the amenity reading', () => {
+    expect(ask('does the second one have parking?', { fact: sure('facility'), amenity: sure('parking') })).toMatchObject({
+      plan: { about: 'hotel', propertyId: P(2), fact: 'facility', amenity: 'parking' },
+    });
+    // It asks; it does not require. Nothing is added to the must-haves.
+    expect(ask('does the second one have parking?', { fact: sure('facility'), amenity: sure('parking') }).kind).toBe('answer');
+  });
+
+  it('breakfast and free cancellation asked as "does it have" are the offer facts', () => {
+    expect(ask('does the first one have breakfast?', { fact: sure('facility'), amenity: sure('breakfast_included') })).toMatchObject({ plan: { about: 'hotel', fact: 'breakfast' } });
+    expect(ask('does the first one have free cancellation?', { fact: sure('facility'), amenity: sure('free_cancellation') })).toMatchObject({ plan: { about: 'hotel', fact: 'cancellation' } });
+  });
+
+  it('with no hotel named, a yes/no fact is asked of all of them; a value is not guessed for one', () => {
+    expect(ask('do any of them have a pool?', { fact: sure('facility'), amenity: sure('pool') })).toMatchObject({ plan: { about: 'all', fact: 'facility', amenity: 'pool' } });
+    expect(ask('which ones include breakfast?', { fact: sure('breakfast') })).toMatchObject({ plan: { about: 'all', fact: 'breakfast' } });
+    expect(ask('which can I cancel?', { fact: sure('cancellation') })).toMatchObject({ plan: { about: 'all', fact: 'cancellation' } });
+    expect(ask('how much is it?', { fact: sure('price') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(ask('how far is it?', { fact: sure('distance') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+  });
+
+  it('"which is cheapest?" is a ranking, with or without the matching fact', () => {
+    expect(ask('which is the cheapest?', { superlative: sure('cheapest') })).toEqual({ kind: 'answer', intent: 'ask_hotels', plan: { about: 'ranking', superlative: 'cheapest' } });
+    expect(ask('how much is the cheapest?', { superlative: sure('cheapest'), fact: sure('price') })).toMatchObject({ plan: { about: 'ranking', superlative: 'cheapest' } });
+    expect(ask('which is closest?', { superlative: sure('closest'), fact: sure('distance') })).toMatchObject({ plan: { about: 'ranking', superlative: 'closest' } });
+    expect(ask('which has the best reviews?', { superlative: sure('best_rated'), fact: sure('rating') })).toMatchObject({ plan: { about: 'ranking', superlative: 'best_rated' } });
+    expect(ask('is the yotel the cheapest?', { superlative: sure('cheapest') })).toMatchObject({ plan: { about: 'ranking' } });
+  });
+
+  it('"is breakfast included at the cheapest?": a different fact, read from the ranked hotel', () => {
+    expect(ask('is breakfast included at the cheapest?', { superlative: sure('cheapest'), fact: sure('breakfast') })).toEqual({
+      kind: 'answer',
+      intent: 'ask_hotels',
+      plan: { about: 'hotel_by_rank', superlative: 'cheapest', fact: 'breakfast' },
+    });
+    expect(ask('does the closest have parking?', { superlative: sure('closest'), fact: sure('facility'), amenity: sure('parking') })).toMatchObject({
+      plan: { about: 'hotel_by_rank', superlative: 'closest', fact: 'facility', amenity: 'parking' },
+    });
+    // Two candidates (one named, one ranked): not guessed.
+    expect(ask('does the yotel have parking like the closest?', { superlative: sure('closest'), fact: sure('facility'), amenity: sure('parking') })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+  });
+
+  it('defers what the rows cannot answer or the readings do not pin down', () => {
+    // "Is the second one quiet?": no listing field. The agent's.
+    expect(ask('is the second one quiet?', {})).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    expect(ask('how much is the second one?', { fact: { choice: 'price', top: 0.6, margin: 0.3 } })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(ask('how much is the second one?', { fact: sure('price'), superlative: { choice: 'none', top: 0.6, margin: 0.2 } })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(ask('how much is the second one?', { fact: null })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(ask('how much is the second one?', { fact: sure('price'), superlative: null })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(ask('does the second one have it?', { fact: sure('facility'), amenity: { choice: 'parking', top: 0.5, margin: 0.1 } })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(ask('does the second one have a sauna?', { fact: sure('facility'), amenity: sure('none') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    // A label that is not in the catalogue is never acted on.
+    expect(ask('how much is the second one?', { fact: sure('smell') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(ask('which is the cheapest?', { superlative: sure('tallest') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(routeMessage({ message: 'which is the cheapest?', readings: readings('ask_hotels', { superlative: sure('cheapest') }), state, currency: 'EUR', shortlist: [] })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+  });
+
+  it('a question about more than one thing still goes to the agent', () => {
+    expect(ask('how much is the second one and does it have parking?', { fact: sure('price'), multiIntent: 0.7 })).toEqual({ kind: 'defer', reason: 'multi_intent' });
+  });
+
+  it('a question about the search names its field; an unsure field gets the whole search', () => {
+    const q = (over: Partial<Readings>) => route('what dates did I pick?', readings('ask_search', over));
+    expect(q({ searchField: sure('dates') })).toEqual({ kind: 'answer', intent: 'ask_search', plan: { about: 'search', field: 'dates' } });
+    expect(q({ searchField: sure('guests') })).toMatchObject({ plan: { field: 'guests' } });
+    expect(q({ searchField: { choice: 'dates', top: 0.5, margin: 0.1 } })).toMatchObject({ plan: { about: 'search', field: 'everything' } });
+    expect(q({ searchField: null })).toMatchObject({ plan: { about: 'search', field: 'everything' } });
+    expect(q({ searchField: sure('none') })).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+  });
+});
+
+describe('an intent under the bar settles when its own detail question agrees (live run, 2026-11-11)', () => {
+  const at = <L extends string>(choice: L, top: number, margin: number) => ({ choice, top, margin });
+
+  it('the four messages the first live run deferred now settle', () => {
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.61, 0.22), wantsPrice: 0.97 }))).toEqual({
+      kind: 'actions', intent: 'priority', actions: [{ type: 'set_priorities', priorities: ['cheapest'] }],
+    });
+    expect(route('does the yotel take dogs?', readings('ask_hotels', { intent: at('ask_hotels', 0.75, 0.15), fact: at('facility', 1, 0.99), amenity: at('pets_allowed', 1, 0.99) }))).toMatchObject({
+      kind: 'answer', plan: { about: 'hotel', propertyId: P(1), fact: 'facility', amenity: 'pets_allowed' },
+    });
+    expect(route('which is the cheapest?', readings('ask_hotels', { intent: at('ask_hotels', 0.84, 0.68), superlative: at('cheapest', 0.99, 0.98) }))).toMatchObject({ kind: 'answer', plan: { about: 'ranking', superlative: 'cheapest' } });
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.3), superlative: at('closest', 0.95, 0.9) }))).toMatchObject({ kind: 'answer', plan: { about: 'ranking', superlative: 'closest' } });
+  });
+
+  it('without agreement, the same intent readings still defer', () => {
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.61, 0.22) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.3) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    // The detail question itself is unsure: that is not agreement.
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.3), superlative: at('closest', 0.7, 0.4) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('what dates?', readings('ask_search', { intent: at('ask_search', 0.7, 0.3), searchField: at('dates', 0.99, 0.9) }))).toMatchObject({ kind: 'answer', plan: { about: 'search', field: 'dates' } });
+  });
+
+  it('there is a floor: a weak or contested intent is not rescued', () => {
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.55, 0.3), wantsPrice: 0.97 }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    // A change to the search keeps the full margin; an answer may use the smaller one.
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.7, 0.15), wantsPrice: 0.97 }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.05), superlative: at('closest', 0.95, 0.9) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+  });
+
+  it('a requirement is never rescued: "takes dogs" read as must-have would change the search', () => {
+    expect(route('does the yotel take dogs?', readings('must_have', { intent: at('must_have', 0.75, 0.3), amenity: at('pets_allowed', 1, 0.99), fact: at('facility', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('not the yotel', readings('exclude', { intent: at('exclude', 0.8, 0.5) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
   });
 });
