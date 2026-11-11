@@ -59,7 +59,7 @@ export function audienceFor(session: Pick<SearchSession, 'userId'>): Audience {
 
 export async function updateSession(
   id: string,
-  patch: Partial<Pick<SearchSession, 'status' | 'priority' | 'currency' | 'guestNationality'>>,
+  patch: Partial<Pick<SearchSession, 'status' | 'priority' | 'currency' | 'guestNationality' | 'draft'>>,
 ): Promise<SearchSession | null> {
   const [row] = await db
     .update(searchSessions)

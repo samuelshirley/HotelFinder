@@ -28,7 +28,7 @@ export async function listMessages(sessionId: string): Promise<ChatMessage[]> {
     .select()
     .from(chatHistory)
     .where(eq(chatHistory.sessionId, sessionId))
-    .orderBy(asc(chatHistory.createdAt), asc(chatHistory.id));
+    .orderBy(asc(chatHistory.seq));
 }
 
 /** The tail of the conversation a model may read, oldest first. */
@@ -37,7 +37,7 @@ export async function listModelVisibleTail(sessionId: string, limit: number): Pr
     .select()
     .from(chatHistory)
     .where(and(eq(chatHistory.sessionId, sessionId), inArray(chatHistory.kind, [...MODEL_VISIBLE_KINDS])))
-    .orderBy(desc(chatHistory.createdAt), desc(chatHistory.id))
+    .orderBy(desc(chatHistory.seq))
     .limit(limit);
   return rows.reverse();
 }

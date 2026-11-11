@@ -7,48 +7,12 @@ import { rawQuery, resetDb, seedUser } from './harness';
 import { runFinder, splitParty } from '@/server/finder';
 import { addStay, adoptAnonymousSessions, createSession, updateSession, updateStay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
-import { fixture } from '@/server/supplier/liteapi/fixtures';
-import { normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
-import { hotelListResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
-import type { SearchRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
 
 beforeEach(resetDb);
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const LATER = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
-const DOWN: SupplierError = { kind: 'timeout', status: null, code: null, message: 'timed out after 20000 ms', retryable: true };
-
-/** A supplier that answers from the recorded sandbox responses and counts what it was asked. */
-function recordedSupplier(over: Partial<Record<'search' | 'facts', 'fail' | 'empty'>> = {}) {
-  const searches: SearchRequest[] = [];
-  let factCalls = 0;
-  const unused = async () => {
-    throw new Error('not used by the finder');
-  };
-  const supplier: SupplierAdapter = {
-    name: 'liteapi',
-    searchPlaces: unused,
-    getStaticContent: unused,
-    recheckRate: unused,
-    book: unused,
-    getBooking: unused,
-    cancel: unused,
-    async searchAvailability(request) {
-      searches.push(request);
-      if (over.search === 'fail') return { ok: false, error: DOWN };
-      if (over.search === 'empty') return { ok: true, value: { properties: [], offers: [] } };
-      // The recording that matches the margin asked for: net for members, +15% for the public.
-      const name = request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto';
-      return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(name)), request.marginPct, NOW) };
-    },
-    async getStaticFacts() {
-      factCalls += 1;
-      if (over.facts === 'fail') return { ok: false, error: DOWN };
-      return { ok: true, value: normalizeStaticFacts(hotelListResponse.parse(fixture('hotels-static-porto'))) };
-    },
-  };
-  return { supplier, searches, facts: () => factCalls };
-}
+import { DOWN, recordedSupplier } from './recordedSupplier';
 
 async function porto(owner: 'member' | 'anonymous' = 'member') {
   const session =

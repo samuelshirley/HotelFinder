@@ -24,7 +24,10 @@ const importsOf = (file: string) =>
 describe('supplier boundary', () => {
   // Tests may read the recorded supplier responses (the personas are judged on
   // them). Application code may not.
-  const outside = walk(SRC).filter((f) => !f.startsWith(SUPPLIER + path.sep) && !f.endsWith('.test.ts'));
+  const TEST_SUPPORT = path.join(SRC, 'test') + path.sep;
+  const outside = walk(SRC).filter(
+    (f) => !f.startsWith(SUPPLIER + path.sep) && !f.endsWith('.test.ts') && !f.startsWith(TEST_SUPPORT),
+  );
 
   it('nothing outside supplier/ reaches into it past index.ts and types.ts', () => {
     const offenders: string[] = [];

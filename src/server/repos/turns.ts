@@ -81,7 +81,7 @@ export async function nextQueuedTurn(sessionId: string): Promise<AgentTurn | nul
     .select()
     .from(agentTurns)
     .where(and(eq(agentTurns.sessionId, sessionId), eq(agentTurns.status, 'queued')))
-    .orderBy(asc(agentTurns.createdAt), asc(agentTurns.id))
+    .orderBy(asc(agentTurns.seq))
     .limit(1);
   return row ?? null;
 }
@@ -92,7 +92,7 @@ export async function latestFinishedTurn(sessionId: string): Promise<AgentTurn |
     .select()
     .from(agentTurns)
     .where(and(eq(agentTurns.sessionId, sessionId), eq(agentTurns.status, 'done')))
-    .orderBy(desc(agentTurns.finishedAt), desc(agentTurns.id))
+    .orderBy(desc(agentTurns.finishedAt), desc(agentTurns.seq))
     .limit(1);
   return row ?? null;
 }
@@ -103,5 +103,5 @@ export async function listTurns(sessionId: string): Promise<AgentTurn[]> {
     .select()
     .from(agentTurns)
     .where(eq(agentTurns.sessionId, sessionId))
-    .orderBy(asc(agentTurns.createdAt), asc(agentTurns.id));
+    .orderBy(asc(agentTurns.seq));
 }
