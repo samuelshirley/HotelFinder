@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { MUST_HAVES, type MustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
-import { PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
+import { canonicalPriorities, PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
 
 /**
@@ -18,7 +18,8 @@ export type ScannedTrip = {
   guests?: { adults: number; childrenAges: number[]; rooms: number };
   priceCapMinor?: number;
   mustHaves?: MustHave[];
-  priority?: PriorityKey;
+  /** What "best" means, when the message said: a set, canonical order. */
+  priorities?: PriorityKey[];
 };
 
 const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -33,7 +34,7 @@ const rawScan = z
     rooms: z.number().nullish(),
     max_per_night: z.number().nullish(),
     must_haves: z.array(z.string()).nullish(),
-    priority: z.string().nullish(),
+    priorities: z.array(z.string()).nullish(),
   })
   .passthrough();
 
@@ -85,6 +86,7 @@ export function validateScan(raw: unknown, today: string, currency: string): Sca
   const musts = [...new Set((r.must_haves ?? []).filter((m): m is MustHave => (MUST_HAVES as readonly string[]).includes(m)))];
   if (musts.length) out.mustHaves = musts;
 
-  if (r.priority && (PRIORITY_KEYS as readonly string[]).includes(r.priority)) out.priority = r.priority as PriorityKey;
+  const priorities = canonicalPriorities((r.priorities ?? []).filter((p): p is PriorityKey => (PRIORITY_KEYS as readonly string[]).includes(p)));
+  if (priorities.length) out.priorities = priorities;
   return out;
 }

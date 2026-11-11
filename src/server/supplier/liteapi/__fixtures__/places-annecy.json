@@ -1,0 +1,76 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJu_5hWOWPi0cRK4mrtTKskGo",
+      "displayName": "Annecy",
+      "formattedAddress": "France",
+      "types": [
+        "locality",
+        "political",
+        "geocode"
+      ]
+    },
+    {
+      "placeId": "ChIJzd0LBfiPi0cRF3wAAjvL9nE",
+      "displayName": "Annecy",
+      "formattedAddress": "Place de la Gare, Annecy, France",
+      "types": [
+        "train_station",
+        "transit_station",
+        "establishment",
+        "point_of_interest",
+        "transportation_service",
+        "transit_stop",
+        "bus_stop"
+      ]
+    },
+    {
+      "placeId": "ChIJBRHtEACPi0cR-Akng2Z10nc",
+      "displayName": "Annecy, france",
+      "formattedAddress": "Rue Saint-Maurice, Annecy, France",
+      "types": [
+        "establishment",
+        "point_of_interest",
+        "hotel",
+        "lodging"
+      ]
+    },
+    {
+      "placeId": "ChIJpyJ7TrGai0cRilSbMQJkgP0",
+      "displayName": "France Travail",
+      "formattedAddress": "Rue du Champ de la Taillée, Annecy, France",
+      "types": [
+        "government_office",
+        "tourist_information_center",
+        "establishment",
+        "local_government_office",
+        "service",
+        "point_of_interest",
+        "health",
+        "tour_agency",
+        "travel_agency",
+        "visitor_center",
+        "employment_agency"
+      ]
+    },
+    {
+      "placeId": "ChIJjYEivRqFi0cRFxQ2a-a4e1Y",
+      "displayName": "France Travail",
+      "formattedAddress": "Rue de l'Euro, Annecy, France",
+      "types": [
+        "point_of_interest",
+        "visitor_center",
+        "tour_agency",
+        "employment_agency",
+        "travel_agency",
+        "establishment",
+        "service",
+        "tourist_information_center",
+        "health",
+        "local_government_office",
+        "government_office"
+      ]
+    }
+  ],
+  "fromCache": true
+}

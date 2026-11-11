@@ -1,0 +1,78 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "pt",
+        "longText": "Praça Ribeira",
+        "shortText": "Praça Ribeira",
+        "types": [
+          "route"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "União das freguesias de Cedofeita, Santo Ildefonso, Sé, Miragaia, São Nicolau e Vitória",
+        "shortText": "União das freguesias de Cedofeita, Santo Ildefonso, Sé, Miragaia, São Nicolau e Vitória",
+        "types": [
+          "administrative_area_level_3",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Portugal",
+        "shortText": "PT",
+        "types": [
+          "country",
+          "political"
+        ]
+      }
+    ],
+    "countryCode": "PT",
+    "displayName": "Ribeira Square",
+    "location": {
+      "latitude": 41.1406179,
+      "longitude": -8.6130958
+    },
+    "types": [
+      "route"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.2420233802915,
+        "longitude": -8.511448119708497
+      },
+      "low": {
+        "latitude": 41.0393254197085,
+        "longitude": -8.714146080291501
+      }
+    }
+  }
+}

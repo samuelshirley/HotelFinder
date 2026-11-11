@@ -1,0 +1,50 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJrStKYWRvJA0R0TlgbYpXGhU",
+      "displayName": "Porto Airport (OPO)",
+      "formattedAddress": "Vila Nova da Telha, Portugal",
+      "types": [
+        "establishment",
+        "transportation_service",
+        "international_airport",
+        "point_of_interest",
+        "airport"
+      ]
+    },
+    {
+      "placeId": "ChIJYfR7hv3nXwwRBQf7eMK9pII",
+      "displayName": "Aeropuerto de Porto Santo (PXO)",
+      "formattedAddress": "Porto Santo, Portugal",
+      "types": [
+        "transportation_service",
+        "establishment",
+        "point_of_interest",
+        "airport"
+      ]
+    },
+    {
+      "placeId": "ChIJH-mH-9VnJA0RdLO9RChvqto",
+      "displayName": "Oporto Airport & Business Hotel",
+      "formattedAddress": "Rua de, Rua Casimiro Albano Monteiro, Moreira, Portugal",
+      "types": [
+        "establishment",
+        "lodging",
+        "point_of_interest",
+        "hotel"
+      ]
+    },
+    {
+      "placeId": "ChIJrdjvaYBoJA0RU893fydroa8",
+      "displayName": "AirPorto Hostel",
+      "formattedAddress": "Rua da Estrada, Moreira, Porto, Portugal",
+      "types": [
+        "hostel",
+        "lodging",
+        "point_of_interest",
+        "establishment"
+      ]
+    }
+  ],
+  "fromCache": true
+}

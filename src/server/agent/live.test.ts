@@ -21,9 +21,9 @@ const TODAY = '2026-11-11'; // a Wednesday
 
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const state: SearchState = {
-  priority: 'cheapest',
+  priorities: ['cheapest'],
   guestNationality: 'ES',
-  stay: { destinationText: 'Porto, Portugal', placeId: 'p', checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
+  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
 };
 const hotel = (position: number, name: string, totalMinor: number, rating: number): HotelOnScreen => ({
   position, name, stars: 3, rating, reviewCount: 6206, totalMinor, perNightMinor: totalMinor / 2, payAtPropertyMinor: 1200, roomName: 'Double Room', boardName: 'Room Only', refundable: false, freeCancellationUntil: null, reason: position === 1 ? 'Cheapest available' : '',
@@ -134,7 +134,7 @@ describe.skipIf(!live)(`the intent scan, live (${model})`, () => {
     expect(trip.checkIn).toBeUndefined();
     expect(trip.guests).toBeUndefined();
     expect(trip.destination).toMatch(/Lisbon/);
-    expect(trip.priority).toBe('cheapest');
+    expect(trip.priorities).toEqual(['cheapest']);
   }, 60_000);
 
   it('next weekend, counted from a Wednesday', async () => {

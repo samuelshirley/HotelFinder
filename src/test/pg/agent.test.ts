@@ -59,8 +59,7 @@ const ANSWERS: FormAnswer[] = [
   { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Porto, Portugal' },
   { field: 'dates', checkIn: '2026-12-11', checkOut: '2026-12-13' },
   { field: 'guests', adults: 2, childrenAges: [], rooms: 1, pets: false },
-  { field: 'nationality', code: 'ES' },
-  { field: 'priority', priority: 'cheapest' },
+  { field: 'priorities', priorities: ['cheapest'] },
 ];
 
 async function onboarded() {
@@ -272,7 +271,7 @@ describe('the first message: one forced extraction, then the form asks only for 
     expect(rows).toEqual([
       ['form_answer', 'Ribeira, Porto, Portugal'],
       ['line', 'From your message: 11–13 Dec, 2 nights · 2 adults · up to €120 a night · pets allowed.'],
-      ['form_question', 'Which country do you live in? Rates depend on it.'],
+      ['form_question', 'What matters most? Pick any, or say it in your own words.'],
     ]);
     expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'scan' } }]);
   });

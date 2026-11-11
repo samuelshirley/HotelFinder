@@ -1,0 +1,57 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJO_PkYRozGQ0R0DaQ5L3rAAQ",
+      "displayName": "Lisbon",
+      "formattedAddress": "Portugal",
+      "types": [
+        "geocode",
+        "political",
+        "locality"
+      ]
+    },
+    {
+      "placeId": "ChIJgwHZFkYyGQ0RRm0DWD6lZgo",
+      "displayName": "Lisbon Airport (LIS)",
+      "formattedAddress": "Alameda das Comunidades Portuguesas, Lisbon, Portugal",
+      "types": [
+        "point_of_interest",
+        "airport",
+        "transportation_service",
+        "establishment",
+        "international_airport"
+      ]
+    },
+    {
+      "placeId": "ChIJmblDvuICNIgRGiNj3M7-ZRY",
+      "displayName": "Lisbon",
+      "formattedAddress": "OH, USA",
+      "types": [
+        "locality",
+        "geocode",
+        "political"
+      ]
+    },
+    {
+      "placeId": "ChIJz7QpE3xQzlIRnm7bXQc5oVQ",
+      "displayName": "Lisbon",
+      "formattedAddress": "ND, USA",
+      "types": [
+        "geocode",
+        "locality",
+        "political"
+      ]
+    },
+    {
+      "placeId": "ChIJ-_0JybRxskwRQ_VeYIn1zng",
+      "displayName": "Lisbon",
+      "formattedAddress": "ME, USA",
+      "types": [
+        "geocode",
+        "locality",
+        "political"
+      ]
+    }
+  ],
+  "fromCache": true
+}

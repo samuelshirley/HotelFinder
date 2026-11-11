@@ -47,8 +47,11 @@ const SECRET_MARKER = 'REDACTED_AT_CAPTURE';
  */
 const addStaticFacts = process.argv.includes('--add-static-facts');
 const addPublicRates = process.argv.includes('--add-public-rates');
+const addPlaces = process.argv.includes('--add-places');
+const addCountries = process.argv.includes('--add-countries');
+const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -112,6 +115,53 @@ if (addPublicRates) {
   });
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added rates-city-porto-margin-15.json');
+  process.exit(0);
+}
+
+if (addRibeiraDetails) {
+  // Details for every place in the recorded "Ribeira Porto" search, so a test that picks any of them has a real point.
+  const places = JSON.parse(readFileSync(path.join(outDir, 'places-porto-ribeira.json'), 'utf8')).data;
+  for (const [i, p] of places.entries()) await capture(`place-porto-ribeira-${i + 1}`, 'GET', `${DATA}/data/places/${encodeURIComponent(p.placeId)}`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added Ribeira place details');
+  process.exit(0);
+}
+
+if (addCountries) {
+  // The countries the supplier accepts as guestNationality: src/lib/countries.ts is checked against it.
+  await capture('countries', 'GET', `${DATA}/data/countries`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added countries.json');
+  process.exit(0);
+}
+
+if (addPlaces) {
+  // Destination resolution and "close to" targets (docs/onboarding.md §1, §3.4):
+  // place searches, the details that carry each place's map point, and one
+  // radius search around an airport. Adds files; leaves the others untouched.
+  const find = async (name, query) => (await capture(name, 'GET', `${DATA}/data/places?textQuery=${encodeURIComponent(query)}`)).json.data ?? [];
+  const first = (places, type) => places.find((p) => (p.types ?? []).includes(type));
+  const details = (name, placeId) => capture(name, 'GET', `${DATA}/data/places/${encodeURIComponent(placeId)}`);
+
+  const annecy = await find('places-annecy', 'Annecy, France');
+  await details('place-annecy', first(annecy, 'locality').placeId);
+  await find('places-lisbon', 'Lisbon');
+  const vieille = await find('places-vieille-ville-annecy', 'Vieille Ville Annecy');
+  if (vieille[0]) await details('place-vieille-ville-annecy', vieille[0].placeId);
+  await find('places-old-town-annecy', 'old town, Annecy');
+  const porto = await find('places-porto', 'Porto, Portugal');
+  await details('place-porto', first(porto, 'locality').placeId);
+  const bcn = await find('places-barcelona-airport', 'Barcelona airport');
+  await details('place-barcelona-airport', first(bcn, 'airport').placeId);
+  const opoPlaces = await find('places-porto-airport', 'Porto airport');
+  const opo = (await details('place-porto-airport', first(opoPlaces, 'airport').placeId)).json.data.location;
+  await capture('countries', 'GET', `${DATA}/data/countries`);
+  await capture('rates-radius-porto-airport', 'POST', `${DATA}/hotels/rates`, {
+    occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13',
+    latitude: opo.latitude, longitude: opo.longitude, radius: 5000, limit: 30, maxRatesPerHotel: 1, includeHotelData: true,
+  });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added place fixtures');
   process.exit(0);
 }
 

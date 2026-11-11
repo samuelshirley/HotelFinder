@@ -1,0 +1,74 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "Pedras Rubras",
+        "shortText": "Pedras Rubras",
+        "types": [
+          "sublocality_level_1",
+          "sublocality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Vila Nova da Telha",
+        "shortText": "Vila Nova da Telha",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Porto District",
+        "shortText": "Porto District",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Portugal",
+        "shortText": "PT",
+        "types": [
+          "country",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "4470-558",
+        "shortText": "4470-558",
+        "types": [
+          "postal_code"
+        ]
+      }
+    ],
+    "countryCode": "PT",
+    "displayName": "Francisco Sá Carneiro Airport",
+    "location": {
+      "latitude": 41.2473992,
+      "longitude": -8.6806638
+    },
+    "types": [
+      "international_airport",
+      "airport",
+      "transportation_service",
+      "point_of_interest",
+      "establishment"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.3473992,
+        "longitude": -8.567662599999998
+      },
+      "low": {
+        "latitude": 41.135310999999994,
+        "longitude": -8.780663800000001
+      }
+    }
+  }
+}

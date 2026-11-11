@@ -4,6 +4,7 @@ import type {
   BookRequest,
   CancelResult,
   Place,
+  PlaceDetails,
   PropertyDetails,
   RateCheck,
   SearchRequest,
@@ -20,6 +21,7 @@ import {
   normalizeBooking,
   normalizeCancel,
   normalizeDetails,
+  normalizePlaceDetails,
   normalizePlaces,
   normalizePrebook,
   normalizeRates,
@@ -32,6 +34,7 @@ import {
   errorBody,
   hotelDetailsResponse,
   hotelListResponse,
+  placeDetailsResponse,
   placesResponse,
   prebookResponse,
   ratesResponse,
@@ -168,14 +171,30 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
       });
     },
 
+    getPlace(placeId: string): Promise<SupplierResult<PlaceDetails>> {
+      return run({
+        op: 'place',
+        method: 'GET',
+        url: `${DATA}/data/places/${encodeURIComponent(placeId)}`,
+        timeoutMs: TIMEOUTS.places,
+        schema: placeDetailsResponse,
+        normalize: (body) => normalizePlaceDetails(placeId, body),
+        meta: (v) => ({ types: v.types.slice(0, 3) }),
+      });
+    },
+
     searchAvailability(request: SearchRequest): Promise<SupplierResult<SearchResult>> {
       const fetchedAt = now();
+      const where =
+        'radiusM' in request.where
+          ? { latitude: request.where.latitude, longitude: request.where.longitude, radius: request.where.radiusM }
+          : request.where;
       return run({
         op: 'search',
         method: 'POST',
         url: `${DATA}/hotels/rates`,
         body: {
-          ...request.where,
+          ...where,
           checkin: request.checkIn,
           checkout: request.checkOut,
           occupancies: request.occupancies.map((o) => ({ adults: o.adults, children: o.childrenAges })),

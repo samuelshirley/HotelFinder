@@ -1,0 +1,79 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "Vieille Ville",
+        "shortText": "Vieille Ville",
+        "types": [
+          "neighborhood",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Annecy",
+        "shortText": "Annecy",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Haute-Savoie",
+        "shortText": "Haute-Savoie",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Auvergne-Rhône-Alpes",
+        "shortText": "Auvergne-Rhône-Alpes",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "France",
+        "shortText": "FR",
+        "types": [
+          "country",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "74000",
+        "shortText": "74000",
+        "types": [
+          "postal_code"
+        ]
+      }
+    ],
+    "countryCode": "FR",
+    "displayName": "Vieille Ville",
+    "location": {
+      "latitude": 45.899601800000006,
+      "longitude": 6.1285248
+    },
+    "types": [
+      "neighborhood",
+      "political"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 46.00012709961406,
+        "longitude": 6.232503186265624
+      },
+      "low": {
+        "latitude": 45.79690958687974,
+        "longitude": 6.022219942402581
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import type { Action } from '@/lib/store/actions';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 
@@ -32,6 +33,9 @@ export const loadTrips = () => request<{ trips: Trip[] }>('/api/session');
 export const loadSession = (id: string) => request<SessionView>(`/api/session/${id}`);
 export const answerForm = (id: string, answer: FormAnswer) =>
   request<SessionView>(`/api/session/${id}/form`, { method: 'POST', body: JSON.stringify({ answer, today: todayLocal() }) });
+/** The results header's chips: nationality, what "best" means, where "close" is from. */
+export const editSearch = (id: string, action: Extract<Action, { type: 'set_nationality' | 'set_priorities' | 'set_near' | 'clear_near' }>) =>
+  request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ action, today: todayLocal() }) });
 export const searchPlaces = (q: string) => request<{ places: Array<{ placeId: string; label: string }> }>(`/api/places?q=${encodeURIComponent(q)}`);
 
 export type PropertyDetails = {

@@ -56,6 +56,16 @@ describe('searchAvailability', () => {
     });
   });
 
+  it('a radius search sends a point and a radius in metres, and nothing else of ours', async () => {
+    const { fetchImpl, calls } = replay('rates-radius-porto-airport');
+    const { supplier } = adapter(fetchImpl);
+    const result = await supplier.searchAvailability({ ...PORTO, where: { latitude: 41.2481, longitude: -8.6814, radiusM: 5000 } });
+    expect(calls[0].body).toMatchObject({ latitude: 41.2481, longitude: -8.6814, radius: 5000 });
+    expect(calls[0].body).not.toHaveProperty('radiusM');
+    expect(calls[0].body).not.toHaveProperty('cityName');
+    expect(result.ok && result.value.offers.length).toBe(20);
+  });
+
   it('returns normalized offers and meters one successful search', async () => {
     const { fetchImpl } = replay('rates-city-porto');
     const { supplier, events } = adapter(fetchImpl);
@@ -176,6 +186,25 @@ describe('places and static content', () => {
     const result = await supplier.searchPlaces('Ribeira Porto & more');
     expect(calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/places?textQuery=Ribeira%20Porto%20%26%20more');
     expect(result.ok && result.value).toHaveLength(4);
+  });
+
+  it('fetches a place\'s map point and kind by id, and meters it', async () => {
+    const { fetchImpl, calls } = replay('place-annecy');
+    const { supplier, events } = adapter(fetchImpl);
+    const result = await supplier.getPlace('ChIJ/opaque id');
+    expect(calls[0]).toMatchObject({ method: 'GET', url: 'https://api.liteapi.travel/v3.0/data/places/ChIJ%2Fopaque%20id' });
+    expect(result).toEqual({
+      ok: true,
+      value: { placeId: 'ChIJ/opaque id', name: 'Annecy', latitude: expect.closeTo(45.9059, 3), longitude: expect.closeTo(6.1259, 3), types: expect.arrayContaining(['locality']), countryCode: 'FR' },
+    });
+    expect(events[0].provider).toBe('liteapi:place');
+  });
+
+  it('an airport is a place like any other, with its own types', async () => {
+    const { fetchImpl } = replay('place-barcelona-airport');
+    const result = await adapter(fetchImpl).supplier.getPlace('x');
+    expect(result.ok && result.value.types).toContain('airport');
+    expect(result.ok && result.value.countryCode).toBe('ES');
   });
 
   it('fetches hotel details by id', async () => {

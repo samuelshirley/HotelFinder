@@ -1,7 +1,9 @@
 import 'server-only';
 
 import { isMustHave, type MustHave } from '@/lib/amenities';
-import type { Action } from '@/lib/store/actions';
+import { canonicalPriorities } from '@/lib/finder/rank';
+import { destinationKind } from '@/lib/finder/searchPlan';
+import type { Action, ResolvedAction } from '@/lib/store/actions';
 import { reduceAll, type Applied, type Effect, type SearchState } from '@/lib/store/reduce';
 import { runFinder, type FinderOutcome } from '@/server/finder';
 import { updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -16,11 +18,18 @@ import type { SupplierAdapter } from '@/server/supplier';
 
 export function toSearchState(session: SearchSession, stay: Stay): SearchState {
   return {
-    priority: session.priority,
+    priorities: session.priorities ? canonicalPriorities(session.priorities) : null,
     guestNationality: session.guestNationality,
     stay: {
       destinationText: stay.destinationText,
       placeId: stay.placeId,
+      destPoint: stay.destLatitude !== null && stay.destLongitude !== null ? { latitude: stay.destLatitude, longitude: stay.destLongitude } : null,
+      destKind: stay.destKind,
+      destCountry: stay.destCountry,
+      near:
+        stay.nearPlaceId && stay.nearLabel && stay.latitude !== null && stay.longitude !== null
+          ? { placeId: stay.nearPlaceId, label: stay.nearLabel, latitude: stay.latitude, longitude: stay.longitude }
+          : null,
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
       adults: stay.adults,
@@ -54,15 +63,51 @@ export async function dispatchActions(args: {
 }): Promise<DispatchResult> {
   const { session, stay, supplier, now } = args;
   const before = toSearchState(session, stay);
-  const { state, effect, results } = reduceAll(before, args.actions, args.today);
+
+  // Every place id becomes the supplier's point for it, here and only here.
+  const resolved: ResolvedAction[] = [];
+  const unresolved: Applied[] = [];
+  for (const action of args.actions) {
+    if (action.type === 'set_near') {
+      const place = await supplier.getPlace(action.placeId);
+      if (!place.ok) {
+        unresolved.push({ action: { type: 'clear_near' }, ok: false, rejection: 'place_unavailable' });
+        continue;
+      }
+      const { placeId, name, latitude, longitude } = place.value;
+      resolved.push({ type: 'set_near', near: { placeId, label: name, latitude, longitude } });
+    } else if (action.type === 'set_destination') {
+      resolved.push({ ...action, point: await resolveDestination(supplier, action.placeId, action.destinationText) });
+    } else {
+      resolved.push(action);
+    }
+  }
+
+  const reduced = reduceAll(before, resolved, args.today);
+  const { state, effect } = reduced;
+  const results = [...reduced.results, ...unresolved];
 
   if (effect !== 'none') {
-    if (state.priority !== before.priority || state.guestNationality !== before.guestNationality) {
-      await updateSession(session.id, { priority: state.priority, guestNationality: state.guestNationality });
+    const samePriorities = JSON.stringify(state.priorities) === JSON.stringify(before.priorities);
+    if (!samePriorities || state.guestNationality !== before.guestNationality) {
+      await updateSession(session.id, {
+        priorities: state.priorities,
+        guestNationality: state.guestNationality,
+        // A changed nationality came from the user (the chip or a message): it is theirs now.
+        ...(state.guestNationality !== before.guestNationality ? { nationalitySource: 'user' as const } : {}),
+      });
     }
     await updateStay(stay.id, session.id, {
       destinationText: state.stay.destinationText,
       placeId: state.stay.placeId,
+      destLatitude: state.stay.destPoint?.latitude ?? null,
+      destLongitude: state.stay.destPoint?.longitude ?? null,
+      destKind: state.stay.destKind,
+      destCountry: state.stay.destCountry,
+      latitude: state.stay.near?.latitude ?? null,
+      longitude: state.stay.near?.longitude ?? null,
+      nearPlaceId: state.stay.near?.placeId ?? null,
+      nearLabel: state.stay.near?.label ?? null,
       checkIn: state.stay.checkIn,
       checkOut: state.stay.checkOut,
       adults: state.stay.adults,
@@ -80,4 +125,22 @@ export async function dispatchActions(args: {
       : null;
 
   return { results, effect, state, finder };
+}
+
+/**
+ * A destination's point, kind and country from the supplier. A failed lookup
+ * is not fatal: the search still runs on the place id, and distance falls
+ * back to the middle of the results (the reason says so).
+ */
+export async function resolveDestination(supplier: SupplierAdapter, placeId: string, label: string) {
+  const place = await supplier.getPlace(placeId);
+  if (!place.ok) return null;
+  return {
+    placeId,
+    label,
+    latitude: place.value.latitude,
+    longitude: place.value.longitude,
+    kind: destinationKind(place.value.types),
+    country: place.value.countryCode,
+  };
 }

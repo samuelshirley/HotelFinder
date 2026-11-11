@@ -3,7 +3,7 @@ import 'server-only';
 import { nightsBetween } from '@/lib/finder/geo';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { describeChange, FIXED_LINES, REJECTION_LINE } from '@/lib/replies';
+import { describeChange, FIXED_LINES, nearLabel, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import { runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
 import { dispatchActions, toSearchState } from '@/server/dispatch';
@@ -189,7 +189,8 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         adults: state.stay.adults,
         children_ages: state.stay.childrenAges,
         rooms: state.stay.rooms,
-        priority: state.priority,
+        priorities: state.priorities,
+        close_to: nearLabel(state.stay),
         must_haves: state.stay.mustHaves,
         price_cap_per_night: state.stay.priceCapMinor === null ? null : state.stay.priceCapMinor / 100,
         currency: session.currency,

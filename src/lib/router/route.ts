@@ -1,6 +1,6 @@
 import { isMustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
-import { PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
+import type { PriorityKey } from '@/lib/finder/rank';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import type { Intent, Tier } from './catalogue';
@@ -27,8 +27,30 @@ export type Readings = {
   amenity: ChoiceReading<string> | null;
   /** Probability the user is dropping the requirement rather than adding it. */
   removing: number | null;
-  priority: ChoiceReading<string> | null;
+  /** One probability per priority: is it something the user says they want? */
+  wantsPrice: number | null;
+  wantsQuality: number | null;
+  wantsLocation: number | null;
+  /** A specific place to be close to: needs a place lookup, so the agent handles it. */
+  namesPlace: number | null;
 };
+
+/**
+ * "also", "too", "as well": add to the current set instead of replacing it.
+ * A word check, not a Jev question: measured live on 2026-11-11, a yes/no
+ * question for this read 0.33–0.76 on messages that said nothing of the sort.
+ */
+export function addsToCurrent(message: string): boolean {
+  return /\b(also|too|as well|and also|plus)\b/i.test(message);
+}
+
+/** A noul read decisively, or null when Jev is unsure either way. */
+function decided(p: number | null): boolean | null {
+  if (p === null) return null;
+  if (p >= SETTLE.noulYes) return true;
+  if (p <= SETTLE.noulNo) return false;
+  return null;
+}
 
 export const SETTLE = { top: 0.85, margin: 0.2, multiIntentMax: 0.3, noulYes: 0.8, noulNo: 0.2 };
 
@@ -88,10 +110,20 @@ export function routeMessage(input: {
       return { kind: 'line', intent, line: 'greeting' };
 
     case 'priority': {
-      if (!settles(readings.priority, min)) return defer('slot_ambiguous');
-      const p = readings.priority!.choice;
-      if (!(PRIORITY_KEYS as readonly string[]).includes(p)) return defer('slot_missing');
-      return { kind: 'actions', intent, actions: [{ type: 'set_priority', priority: p as PriorityKey }] };
+      // A named place needs a lookup the router cannot do: the agent resolves it.
+      const place = decided(readings.namesPlace);
+      if (place !== false) return defer(place ? 'intent_for_agent' : 'slot_ambiguous');
+      const wants: Array<[PriorityKey, boolean | null]> = [
+        ['cheapest', decided(readings.wantsPrice)],
+        ['nicest', decided(readings.wantsQuality)],
+        ['closest', decided(readings.wantsLocation)],
+      ];
+      // Every one read decisively, or the agent decides: a half-read set is not a set.
+      if (wants.some(([, w]) => w === null)) return defer('slot_ambiguous');
+      const picked = wants.filter(([, w]) => w).map(([k]) => k);
+      if (picked.length === 0) return defer('slot_missing');
+      const priorities = addsToCurrent(message) ? [...new Set([...(state.priorities ?? []), ...picked])] : picked;
+      return { kind: 'actions', intent, actions: [{ type: 'set_priorities', priorities }] };
     }
 
     case 'price_cap': {

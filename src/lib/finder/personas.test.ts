@@ -6,7 +6,8 @@ import { hotelListResponse, ratesResponse } from '@/server/supplier/liteapi/sche
 import { toCandidates } from './candidates';
 import { haversineKm } from './geo';
 import { PERSONAS, type Persona } from './personas';
-import { rankStay, type Candidate } from './rank';
+import { rankStay, type Candidate, type NearTarget } from './rank';
+import { placeDetailsResponse } from '@/server/supplier/liteapi/schemas';
 
 /**
  * Each persona is judged on the RECORDED Porto search (20 real hotels, 2
@@ -45,6 +46,10 @@ function world(ratesFixture: string) {
 }
 
 const MEMBER = world('rates-city-porto');
+const AIRPORT = world('rates-radius-porto-airport');
+const point = (name: string) => placeDetailsResponse.parse(fixture(name)).data.location;
+/** The airport's map point, as the supplier gives it: the default "close" target when the airport is the destination. */
+const OPO = point('place-porto-airport');
 const MEMBER_PROPERTY = normalizeRates(ratesResponse.parse(fixture('rates-city-porto')), 0, AT).properties[0];
 const PUBLIC = world('rates-city-porto-margin-15');
 
@@ -75,25 +80,74 @@ function eligibleFor(persona: Persona, w: typeof MEMBER): Candidate[] {
   });
 }
 
+/** As planSearch decides it: a named place, else the airport's point, else (a city) the middle of the results. */
+function targetFor(persona: Persona): NearTarget | null {
+  if (persona.near) return { point: persona.near, label: persona.nearLabel, from: 'place' };
+  return persona.search === 'airport' ? { point: OPO, label: 'Porto Airport (OPO)', from: 'destination' } : null;
+}
+const located = (w: typeof MEMBER) => w.candidates.flatMap((c) => (c.location ? [c.location] : []));
+/** The point distance is measured from, for the oracles: the same rule, computed here. */
+function pointFor(persona: Persona): { latitude: number; longitude: number } {
+  const t = targetFor(persona);
+  if (t) return t.point;
+  const pts = located(persona.audience === 'public' ? PUBLIC : MEMBER);
+  const median = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  return { latitude: median(pts.map((p) => p.latitude)), longitude: median(pts.map((p) => p.longitude)) };
+}
+
 function run(persona: Persona) {
-  const w = persona.audience === 'public' ? PUBLIC : MEMBER;
+  const w = persona.search === 'airport' ? AIRPORT : persona.audience === 'public' ? PUBLIC : MEMBER;
   const result = rankStay({
     candidates: w.candidates,
     checkIn: CHECK_IN,
     checkOut: CHECK_OUT,
-    priority: persona.priority,
+    priorities: persona.priorities,
     mustHaves: persona.mustHaves,
     priceCapMinor: persona.capPerNightMinor,
-    near: persona.near,
+    near: targetFor(persona),
     audience: persona.audience,
   });
   return { w, result, eligible: eligibleFor(persona, w) };
 }
 
-describe('20 personas on the recorded Porto search', () => {
-  it('there are twenty, with distinct ids', () => {
-    expect(PERSONAS).toHaveLength(20);
-    expect(new Set(PERSONAS.map((p) => p.id)).size).toBe(20);
+/**
+ * The combined oracle, written here from the raw values and NOT from rank.ts:
+ * equal-weight rank percentiles over the chosen metrics (unknown is worst,
+ * ties share the middle), distance in the 100 m steps the user is shown,
+ * then price, rating, distance, reviews to break a tie.
+ */
+function oracleTop(persona: Persona, eligible: Candidate[]): Candidate {
+  const target = pointFor(persona);
+  const km = (c: Candidate) => (c.location ? Math.round(haversineKm(target, c.location) * 10) / 10 : Infinity);
+  const metric: Record<string, (c: Candidate) => number> = {
+    cheapest: (c) => c.totalMinor,
+    nicest: (c) => -(c.rating ?? -Infinity),
+    closest: km,
+  };
+  const pct = (m: (c: Candidate) => number, c: Candidate) => {
+    const v = m(c);
+    const better = eligible.filter((o) => m(o) < v).length;
+    const ties = eligible.filter((o) => m(o) === v).length;
+    return eligible.length > 1 ? (better + (ties - 1) / 2) / (eligible.length - 1) : 0;
+  };
+  const score = (c: Candidate) => persona.priorities.reduce((sum, k) => sum + pct(metric[k], c), 0);
+  const chain = ['cheapest', 'nicest', 'closest'].sort((a, b) => Number(!persona.priorities.includes(a as never)) - Number(!persona.priorities.includes(b as never)));
+  return [...eligible].sort((a, b) => {
+    const d = score(a) - score(b);
+    if (Math.abs(d) > 1e-9) return d;
+    for (const k of chain) if (metric[k](a) !== metric[k](b)) return metric[k](a) - metric[k](b);
+    return -(a.reviewCount ?? -1) + (b.reviewCount ?? -1);
+  })[0];
+}
+
+describe('27 personas on the recorded Porto searches', () => {
+  it('there are twenty-seven, with distinct ids', () => {
+    expect(PERSONAS).toHaveLength(27);
+    expect(new Set(PERSONAS.map((p) => p.id)).size).toBe(27);
   });
 
   for (const persona of PERSONAS) {
@@ -114,18 +168,18 @@ describe('20 personas on the recorded Porto search', () => {
           return;
         }
         expect(top).toBeDefined();
-        if (persona.priority === 'cheapest') {
+        const [only] = persona.priorities;
+        if (persona.priorities.length > 1) {
+          expect(top.name).toBe(oracleTop(persona, eligible).name);
+        } else if (only === 'cheapest') {
           expect(top.totalMinor).toBe(Math.min(...eligible.map((c) => c.totalMinor)));
-        } else if (persona.priority === 'nicest') {
+        } else if (only === 'nicest') {
           expect(top.rating).toBe(Math.max(...eligible.map((c) => c.rating ?? -1)));
-        } else if (persona.priority === 'closest' && persona.near) {
-          // Distance in the 100 m steps the user is shown.
-          const km = (c: Candidate) => Math.round(haversineKm(persona.near!, c.location!) * 10) / 10;
+        } else if (only === 'closest') {
+          // Distance in the 100 m steps the user is shown, from the place named or the destination's own point.
+          const target = pointFor(persona);
+          const km = (c: Candidate) => Math.round(haversineKm(target, c.location!) * 10) / 10;
           expect(km(top)).toBe(Math.min(...eligible.map(km)));
-        } else if (persona.priority === 'basic') {
-          const decent = eligible.filter((c) => (c.rating ?? 0) >= 7.5 && (c.reviewCount ?? 0) >= 50);
-          const pool = decent.length > 0 ? decent : eligible;
-          expect(top.totalMinor).toBe(Math.min(...pool.map((c) => c.totalMinor)));
         }
       });
 
@@ -174,7 +228,7 @@ describe('the picks a person would recognise as right', () => {
   it('riverside worker: closest to Ribeira, with the distance stated', () => {
     const { result } = pick('riverside-worker');
     expect(result.shortlist[0].candidate.name).toBe('Hotel Carris Porto Ribeira');
-    expect(result.shortlist[0].reason).toEqual({ kind: 'closest', km: 0.1, to: 'place' });
+    expect(result.shortlist[0].reason).toEqual({ kind: 'closest', km: 0.1, to: 'place', to_label: 'Ribeira' });
     expect(result.distanceFrom).toBe('place');
   });
 
@@ -186,6 +240,41 @@ describe('the picks a person would recognise as right', () => {
     expect(names('luxury-dog-owner')[0]).toBe('Torel Palace Porto');
     expect(names('summer-driver')[0]).toBe('Vincci Porto');
     expect(names('dog-car-breakfast')).toEqual(['Torel Avantgarde', 'Torel Palace Porto']);
+  });
+
+  it('close and nice: the best rated hotel by the river, whichever order it was asked in', () => {
+    expect(names('close-and-nice')[0]).toBe('ICON Duplo Ribeira');
+    expect(names('close-and-nice-reversed')).toEqual(names('close-and-nice'));
+    expect(pick('close-and-nice').result.shortlist[0].reason).toMatchObject({ kind: 'best_mix', of: ['nicest', 'closest'], km: 0.2, to: 'place', to_label: 'Ribeira', rating: 9.8, price_rank: 14, eligible: 20 });
+  });
+
+  it('cheap and close: the cheap hotel on the river, not the cheapest in town or the closest at any price', () => {
+    expect(names('cheap-and-close').slice(0, 2)).toEqual(['Hotel Carris Porto Ribeira', 'Mercure Porto Centro Santa Catarina']);
+    expect(names('cheap-and-close')[0]).not.toBe(names('backpacker')[0]);
+  });
+
+  it('nice but not crazy expensive: well rated, seventh cheapest of twenty', () => {
+    expect(names('nice-not-crazy')[0]).toBe('Mercure Porto Centro Aliados');
+    expect(pick('nice-not-crazy').result.shortlist[0].reason).toMatchObject({ kind: 'best_mix', of: ['cheapest', 'nicest'], rating: 9.2, price_rank: 7, eligible: 20 });
+    // The old "just a decent bed" travellers now ask for exactly this pair.
+    expect(names('wheelchair-user')[0]).toBe('Mercure Porto Centro Aliados');
+  });
+
+  it('all three, and the dog-friendly version of value for money', () => {
+    expect(names('all-three')[0]).toBe('ICON Duplo Ribeira');
+    expect(names('dog-nice-value')[0]).toBe('ICON Duplo Ribeira');
+    expect(pick('dog-nice-value').result.eligible).toBe(7);
+  });
+
+  it('cheap near the airport: judged on a radius search around it, measured from it', () => {
+    const { result } = pick('airport-cheap');
+    expect(result.shortlist[0].candidate.name).toBe('Hotel Aeroporto');
+    expect(result).toMatchObject({ distanceFrom: 'destination', distanceLabel: 'Porto Airport (OPO)' });
+    for (const row of result.ordered) expect(row.km!).toBeLessThan(6);
+  });
+
+  it('late flight, central: now has a real check, from the middle of the results', () => {
+    expect(pick('late-flight').result.shortlist[0]).toMatchObject({ candidate: { name: 'Eurostars Porto Centro' }, km: 0.2 });
   });
 
   it('impossible budget: nothing, and it says why', () => {
@@ -215,7 +304,7 @@ describe('the picks a person would recognise as right', () => {
   it('undecided: a balanced pick, labelled as such, measured from the middle of the results', () => {
     const { result } = pick('undecided');
     expect(result.shortlist[0].reason).toEqual({ kind: 'best_balance' });
-    expect(result.distanceFrom).toBe('search_centre');
+    expect(result).toMatchObject({ distanceFrom: 'search_centre', distanceLabel: null });
     expect(result.shortlist).toHaveLength(5);
   });
 });

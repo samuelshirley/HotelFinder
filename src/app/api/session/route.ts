@@ -1,9 +1,12 @@
+import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { inferNationality } from '@/lib/nationality';
 import { currentOwner, ensureOwner, errorResponse, handled, rateLimit } from '@/server/http';
 import { askQuestion } from '@/server/onboarding';
-import { createSession, listTrips } from '@/server/repos/sessions';
+import { getPreferences } from '@/server/repos/preferences';
+import { createSession, listTrips, updateSession } from '@/server/repos/sessions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +20,22 @@ export const POST = handled(async (req: Request) => {
   const limited = await rateLimit('session', 20);
   if (limited) return limited;
 
-  const session = await createSession(ensureOwner());
+  const owner = ensureOwner();
+  const session = await createSession(owner);
+
+  // The nationality for rates, inferred and never asked (docs/onboarding.md §4).
+  // Nothing here sees a price. The destination is the last resort, filled in
+  // when it is answered if none of these gave one.
+  const h = headers();
+  const saved = 'userId' in owner ? ((await getPreferences(owner.userId))?.guestNationality ?? null) : null;
+  const inferred = inferNationality({
+    saved,
+    acceptLanguage: h.get('accept-language'),
+    ipCountry: h.get('x-vercel-ip-country'),
+    destinationCountry: null,
+  });
+  if (inferred) await updateSession(session.id, { guestNationality: inferred.code, nationalitySource: inferred.source });
+
   await askQuestion(session.id, 'destination');
   return NextResponse.json({ sessionId: session.id });
 });

@@ -1,0 +1,41 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJpY58hGSepBIR15tv-0LpK_M",
+      "displayName": "Barcelona Airport (BCN)",
+      "formattedAddress": "El Prat de Llobregat, Spain",
+      "types": [
+        "point_of_interest",
+        "airport",
+        "establishment",
+        "international_airport",
+        "transportation_service"
+      ]
+    },
+    {
+      "placeId": "ChIJfTLGm5mepBIRFKOTMrithwc",
+      "displayName": "Barcelona Airport Hotel",
+      "formattedAddress": "Plaça de la Volateria, El Prat de Llobregat, Spain",
+      "types": [
+        "hotel",
+        "point_of_interest",
+        "establishment",
+        "lodging"
+      ]
+    },
+    {
+      "placeId": "ChIJCQQOaHGepBIRjTssOQEdn7E",
+      "displayName": "Barcelona Airport T1",
+      "formattedAddress": "Spain",
+      "types": [
+        "transit_stop",
+        "point_of_interest",
+        "bus_stop",
+        "transportation_service",
+        "establishment",
+        "transit_station"
+      ]
+    }
+  ],
+  "fromCache": true
+}

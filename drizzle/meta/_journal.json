@@ -8,6 +8,13 @@
       "when": 1794415475333,
       "tag": "0000_free_thena",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794419623444,
+      "tag": "0001_white_big_bertha",
+      "breakpoints": true
     }
   ]
 }

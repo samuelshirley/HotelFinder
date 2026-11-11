@@ -1,0 +1,90 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "pt",
+        "longText": "Ribeira",
+        "shortText": "Ribeira",
+        "types": [
+          "sublocality_level_1",
+          "sublocality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Foz do Sousa",
+        "shortText": "Foz do Sousa",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "União das Freguesias de Foz do Sousa e Covelo",
+        "shortText": "União das Freguesias de Foz do Sousa e Covelo",
+        "types": [
+          "administrative_area_level_3",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Gondomar",
+        "shortText": "Gondomar",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Portugal",
+        "shortText": "PT",
+        "types": [
+          "country",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "4515-102",
+        "shortText": "4515-102",
+        "types": [
+          "postal_code"
+        ]
+      }
+    ],
+    "countryCode": "PT",
+    "displayName": "Ribeira",
+    "location": {
+      "latitude": 41.081735099999996,
+      "longitude": -8.5148797
+    },
+    "types": [
+      "sublocality_level_1",
+      "sublocality",
+      "political"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.1830840802915,
+        "longitude": -8.413530719708497
+      },
+      "low": {
+        "latitude": 40.980386119708506,
+        "longitude": -8.616228680291501
+      }
+    }
+  }
+}

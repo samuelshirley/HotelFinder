@@ -65,10 +65,12 @@ describe('search sessions', () => {
     expect(err.code).toBe('23514');
   });
 
-  it('stores the priority and nationality', async () => {
+  it('stores the priorities, as a set that can be empty, and the nationality with where it came from', async () => {
     const s = await createSession({ anonId: 'a' });
-    const updated = await updateSession(s.id, { priority: 'closest', guestNationality: 'ES', status: 'active' });
-    expect(updated).toMatchObject({ priority: 'closest', guestNationality: 'ES', status: 'active' });
+    expect(s.priorities).toBeNull();
+    const updated = await updateSession(s.id, { priorities: ['cheapest', 'closest'], guestNationality: 'ES', nationalitySource: 'browser', status: 'active' });
+    expect(updated).toMatchObject({ priorities: ['cheapest', 'closest'], guestNationality: 'ES', nationalitySource: 'browser', status: 'active', priority: null });
+    expect(await updateSession(s.id, { priorities: [] })).toMatchObject({ priorities: [] });
   });
 });
 

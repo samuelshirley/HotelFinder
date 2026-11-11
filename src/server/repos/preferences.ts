@@ -7,7 +7,7 @@ import { userPreferences } from '@/server/db/schema';
 export type UserPreferences = typeof userPreferences.$inferSelect;
 export type ConfirmedPreferences = Pick<
   typeof userPreferences.$inferInsert,
-  'priority' | 'adults' | 'childrenAges' | 'mustHaves' | 'guestNationality'
+  'priorities' | 'adults' | 'childrenAges' | 'mustHaves' | 'guestNationality'
 >;
 
 export async function getPreferences(userId: string): Promise<UserPreferences | null> {

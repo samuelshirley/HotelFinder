@@ -23,6 +23,16 @@ export function fixture(name: string): Loose {
   return JSON.parse(readFileSync(path.join(FIXTURES_DIR, `${name}.json`), 'utf8')) as Loose;
 }
 
+/** Place ids that have recorded details, read from the URL each was recorded at: id → fixture name. */
+export function recordedPlaceIds(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [file, entry] of Object.entries(manifest.files)) {
+    const m = /\/data\/places\/([^/?]+)$/.exec(entry.url);
+    if (m) out.set(decodeURIComponent(m[1]), file.replace(/\.json$/, ''));
+  }
+  return out;
+}
+
 export type RecordedCall = { url: string; method: string; headers: Record<string, string>; body: unknown };
 
 /**

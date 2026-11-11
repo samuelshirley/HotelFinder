@@ -29,9 +29,9 @@ const RECORD_TRIP: ToolDef = {
       rooms: nullable('integer'),
       max_per_night: nullable('number', { description: 'A stated maximum price per night, as a number.' }),
       must_haves: { type: 'array', items: { type: 'string', enum: [...MUST_HAVES] }, description: 'Only requirements the message states. Travelling with a dog or cat is pets_allowed.' },
-      priority: { type: ['string', 'null'], enum: [...PRIORITY_KEYS, null], description: 'cheapest, closest (to the centre or the place named), nicest, or basic (cheap but decent). Only if the message says what matters most.' },
+      priorities: { type: 'array', items: { type: 'string', enum: [...PRIORITY_KEYS] }, uniqueItems: true, maxItems: PRIORITY_KEYS.length, description: 'What the message says matters, any of: cheapest (low price, not too expensive, good value), nicest (nice, well reviewed), closest (central, close to somewhere). Several when it says several, e.g. "nice but not crazy expensive" = ["nicest","cheapest"]. [] when it says nothing about it.' },
     },
-    required: ['destination', 'check_in', 'check_out', 'nights', 'adults', 'children_ages', 'rooms', 'max_per_night', 'must_haves', 'priority'],
+    required: ['destination', 'check_in', 'check_out', 'nights', 'adults', 'children_ages', 'rooms', 'max_per_night', 'must_haves', 'priorities'],
     additionalProperties: false,
   },
 };

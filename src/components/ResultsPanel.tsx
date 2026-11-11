@@ -3,13 +3,20 @@
 import { isMustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, PRIORITY_LINE } from '@/lib/replies';
+import { useState } from 'react';
+
+import { COUNTRIES, isCountryCode } from '@/lib/countries';
+import type { PriorityKey } from '@/lib/finder/rank';
+import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel } from '@/lib/replies';
+import type { Action } from '@/lib/store/actions';
 import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
 
 type Row = SessionView['shortlist'][number];
 
-export function ResultsPanel({ view, onOpen }: { view: SessionView; onOpen: (propertyId: string) => void }) {
+type Edit = Extract<Action, { type: 'set_nationality' | 'set_priorities' | 'set_near' | 'clear_near' }>;
+
+export function ResultsPanel({ view, onOpen, onEdit, busy }: { view: SessionView; onOpen: (propertyId: string) => void; onEdit: (action: Edit) => void; busy: boolean }) {
   const { stay, session, shortlist } = view;
   if (!stay) {
     return <p className={styles.empty}>Your shortlist appears here once the search has a place and dates.</p>;
@@ -24,7 +31,12 @@ export function ResultsPanel({ view, onOpen }: { view: SessionView; onOpen: (pro
           {formatDates(stay.checkIn, stay.checkOut)} · {formatGuests(stay.adults, stay.childrenAges, stay.rooms)}
         </p>
         <div className={styles.tags}>
-          {session.priority && <span className={styles.tag}>{PRIORITY_LINE[session.priority].replace(/\.$/, '')}</span>}
+          {session.priorities !== null && <PrioritiesChip priorities={session.priorities} near={stay.nearLabel} busy={busy} onEdit={onEdit} />}
+          {stay.nearIsNamed && (
+            <button className={styles.chipButton} disabled={busy} onClick={() => onEdit({ type: 'clear_near' })} title="Measure distance from the destination again">
+              Near {stay.nearLabel} ✕
+            </button>
+          )}
           {stay.priceCapMinor !== null && <span className={styles.tag}>Up to {formatMoney(stay.priceCapMinor, session.currency)} a night</span>}
           {musts.map((m) => (
             <span key={m} className={styles.tag}>
@@ -33,6 +45,7 @@ export function ResultsPanel({ view, onOpen }: { view: SessionView; onOpen: (pro
           ))}
           {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
         </div>
+        {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
         {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Member prices arrive with sign-in, which is not built yet.</p>}
       </header>
       {shortlist.length === 0 ? (
@@ -45,6 +58,57 @@ export function ResultsPanel({ view, onOpen }: { view: SessionView; onOpen: (pro
         </ol>
       )}
     </>
+  );
+}
+
+/** "Low price · Close to Annecy centre ✎": opens the three toggles in place. */
+function PrioritiesChip({ priorities, near, busy, onEdit }: { priorities: PriorityKey[]; near: string; busy: boolean; onEdit: (a: Edit) => void }) {
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<PriorityKey[]>(priorities);
+  const keys: Array<[PriorityKey, string]> = [
+    ['cheapest', 'Low price'],
+    ['nicest', 'Great reviews'],
+    ['closest', `Close to ${near}`],
+  ];
+  if (!open) {
+    return (
+      <button className={styles.chipButton} disabled={busy} onClick={() => { setPicked(priorities); setOpen(true); }} aria-label="Change what matters most">
+        {prioritiesLabel(priorities, near)} ✎
+      </button>
+    );
+  }
+  return (
+    <span className={styles.chips} role="group" aria-label="What matters most">
+      {keys.map(([k, label]) => (
+        <button key={k} className={styles.chip} aria-pressed={picked.includes(k)} disabled={busy} onClick={() => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]))}>
+          {label}
+        </button>
+      ))}
+      <button className={styles.primary} disabled={busy} onClick={() => { setOpen(false); onEdit({ type: 'set_priorities', priorities: picked }); }}>
+        Apply
+      </button>
+    </span>
+  );
+}
+
+/** The nationality the rates are for: inferred, never asked, changeable here. */
+function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; onEdit: (a: Edit) => void }) {
+  return (
+    <label className={styles.note}>
+      Nationality for rates:{' '}
+      <select
+        aria-label="Nationality for rates"
+        value={code}
+        disabled={busy}
+        onChange={(e) => isCountryCode(e.target.value) && onEdit({ type: 'set_nationality', code: e.target.value })}
+      >
+        {COUNTRIES.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

@@ -11,11 +11,11 @@ const shortlist: ShortlistRow[] = [
   { propertyId: P(3), offerId: 'o3', name: 'Hotel Carris Porto Ribeira' },
 ];
 const state: SearchState = {
-  priority: null,
+  priorities: null,
   guestNationality: 'ES',
   stay: {
     destinationText: 'Porto',
-    placeId: 'place-porto',
+    placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,
@@ -34,7 +34,10 @@ const readings = (intent: Intent, over: Partial<Readings> = {}): Readings => ({
   multiIntent: 0.02,
   amenity: sure('none'),
   removing: 0.03,
-  priority: sure('none'),
+  wantsPrice: 0.02,
+  wantsQuality: 0.02,
+  wantsLocation: 0.02,
+  namesPlace: 0.02,
   ...over,
 });
 const route = (message: string, r: Readings) => routeMessage({ message, readings: r, state, currency: 'EUR', shortlist });
@@ -67,10 +70,26 @@ describe('settled messages become typed actions', () => {
     });
   });
 
-  it('a priority', () => {
-    expect(route('just the cheapest', readings('priority', { priority: sure('cheapest') }))).toMatchObject({
-      actions: [{ type: 'set_priority', priority: 'cheapest' }],
+  it('a priority, and a set of them, read one yes/no at a time', () => {
+    expect(route('just the cheapest', readings('priority', { wantsPrice: 0.95 }))).toMatchObject({
+      actions: [{ type: 'set_priorities', priorities: ['cheapest'] }],
     });
+    expect(route('close and nice', readings('priority', { wantsQuality: 0.93, wantsLocation: 0.9 }))).toMatchObject({
+      actions: [{ type: 'set_priorities', priorities: ['nicest', 'closest'] }],
+    });
+  });
+
+  it('"also" adds to the current set; without it the set is replaced', () => {
+    const withCheap = { ...state, priorities: ['cheapest' as const] };
+    const r = (m: string, over: Partial<Readings>) => routeMessage({ message: m, readings: readings('priority', over), state: withCheap, currency: 'EUR', shortlist });
+    expect(r('also somewhere nice', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['cheapest', 'nicest'] }] });
+    expect(r('nice too', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['cheapest', 'nicest'] }] });
+    expect(r('actually just somewhere nice', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['nicest'] }] });
+    expect(r('a nice hotel, total under budget', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['nicest'] }] });
+  });
+
+  it('a named place to be close to goes to the agent, which can look it up', () => {
+    expect(route('near the old town', readings('priority', { wantsLocation: 0.97, namesPlace: 0.95 }))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
   });
 
   it('guests keep the current room count unless the message says otherwise', () => {
@@ -147,7 +166,11 @@ describe('anything unsure goes to the agent', () => {
     expect(route('needs a thing', readings('must_have', { amenity: { choice: 'parking', top: 0.5, margin: 0.1 } }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
     expect(route('parking?', readings('must_have', { amenity: sure('parking'), removing: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
     expect(route('needs a vibe', readings('must_have', { amenity: sure('none') }))).toEqual({ kind: 'defer', reason: 'slot_missing' });
-    expect(route('whatever is best', readings('priority', { priority: sure('none') }))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('whatever is best', readings('priority'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    // One unsure yes/no and the whole set is the agent's to decide.
+    expect(route('cheapish and maybe central', readings('priority', { wantsPrice: 0.9, wantsLocation: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('somewhere nice', readings('priority', { wantsQuality: 0.95, namesPlace: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('nice', readings('priority', { wantsQuality: 0.95, wantsPrice: null }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
   });
 
   it('a cap in another currency is never converted', () => {

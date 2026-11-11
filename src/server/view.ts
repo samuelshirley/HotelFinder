@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
@@ -21,7 +22,9 @@ export async function buildSessionView(session: SearchSession) {
     session: {
       id: session.id,
       status: session.status,
-      priority: session.priority,
+      priorities: session.priorities,
+      guestNationality: session.guestNationality,
+      nationalitySource: session.nationalitySource,
       currency: session.currency,
       signedIn: session.userId !== null,
       audience,
@@ -37,6 +40,9 @@ export async function buildSessionView(session: SearchSession) {
       priceCapMinor: stay.priceCapMinor,
       mustHaves: stay.mustHaves,
       excludedCount: stay.excludedPropertyIds.length,
+      /** Where "close" is measured from, in words. */
+      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }),
+      nearIsNamed: stay.nearLabel !== null,
     },
     messages: messages.map((m) => ({
       id: m.id,

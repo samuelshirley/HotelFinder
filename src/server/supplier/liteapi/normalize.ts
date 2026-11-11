@@ -7,6 +7,7 @@ import type {
   CancelResult,
   Fee,
   Place,
+  PlaceDetails,
   PropertyDetails,
   RateCheck,
   SearchResult,
@@ -21,6 +22,7 @@ import type {
   cancelResponse,
   hotelDetailsResponse,
   hotelListResponse,
+  placeDetailsResponse,
   placesResponse,
   prebookResponse,
   RatesResponse,
@@ -150,6 +152,19 @@ export function normalizePlaces(body: z.infer<typeof placesResponse>): Place[] {
     address: p.formattedAddress ?? null,
     types: p.types ?? [],
   }));
+}
+
+/** The id is the one we asked for: the details body does not repeat it. */
+export function normalizePlaceDetails(placeId: string, body: z.infer<typeof placeDetailsResponse>): PlaceDetails {
+  const d = body.data;
+  return {
+    placeId,
+    name: d.displayName,
+    latitude: d.location.latitude,
+    longitude: d.location.longitude,
+    types: d.types ?? [],
+    countryCode: d.countryCode && /^[A-Z]{2}$/.test(d.countryCode) ? d.countryCode : null,
+  };
 }
 
 export function normalizeStaticFacts(body: z.infer<typeof hotelListResponse>): StaticFacts[] {

@@ -65,15 +65,15 @@ describe('preferences', () => {
     expect(await getPreferences(user.id)).toBeNull();
     await confirmPreferences(
       user.id,
-      { priority: 'closest', adults: 2, childrenAges: [], mustHaves: ['pets_allowed'], guestNationality: 'ES' },
+      { priorities: ['closest'], adults: 2, childrenAges: [], mustHaves: ['pets_allowed'], guestNationality: 'ES' },
       new Date('2026-11-11T10:00:00Z'),
     );
     const second = await confirmPreferences(
       user.id,
-      { priority: 'cheapest', adults: 4, childrenAges: [6], mustHaves: [], guestNationality: 'ES' },
+      { priorities: ['cheapest', 'nicest'], adults: 4, childrenAges: [6], mustHaves: [], guestNationality: 'ES' },
       new Date('2026-12-01T09:00:00Z'),
     );
-    expect(second).toMatchObject({ priority: 'cheapest', adults: 4, childrenAges: [6], mustHaves: [] });
+    expect(second).toMatchObject({ priorities: ['cheapest', 'nicest'], adults: 4, childrenAges: [6], mustHaves: [] });
     expect(second.confirmedAt.toISOString()).toBe('2026-12-01T09:00:00.000Z');
     expect(await rawQuery('select 1 from user_preferences')).toHaveLength(1);
   });

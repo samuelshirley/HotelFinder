@@ -1,15 +1,26 @@
-import { fixture } from '@/server/supplier/liteapi/fixtures';
-import { normalizeDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
-import { hotelDetailsResponse, hotelListResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
+import { fixture, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
+import { normalizeDetails, normalizePlaceDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
+import { hotelDetailsResponse, hotelListResponse, placeDetailsResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { SearchRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
 
 export const RECORDED_AT = new Date('2026-11-11T12:00:00Z');
 export const DOWN: SupplierError = { kind: 'timeout', status: null, code: null, message: 'timed out after 20000 ms', retryable: true };
 
 /** A supplier that answers from the recorded sandbox responses and counts what it was asked. */
-export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places', 'fail' | 'empty'>> = {}) {
+/** Recorded place details by the real place id they were recorded for. An id with no recording is an error. */
+const RECORDED_PLACES = recordedPlaceIds();
+export const PLACE_IDS = {
+  porto: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY',
+  annecy: 'ChIJu_5hWOWPi0cRK4mrtTKskGo',
+  vieilleVille: 'ChIJiwiZIvuPi0cRxR3T-_CdlvY',
+  opo: 'ChIJrStKYWRvJA0R0TlgbYpXGhU',
+  bcn: 'ChIJpY58hGSepBIR15tv-0LpK_M',
+} as const;
+
+export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place', 'fail' | 'empty'>> = {}) {
   const searches: SearchRequest[] = [];
   const placeQueries: string[] = [];
+  const placeLookups: string[] = [];
   let factCalls = 0;
   const unused = async () => {
     throw new Error('not used here');
@@ -29,12 +40,20 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       if (over.places === 'empty') return { ok: true, value: [] };
       return { ok: true, value: normalizePlaces(placesResponse.parse(fixture('places-porto-ribeira'))) };
     },
+    async getPlace(placeId) {
+      placeLookups.push(placeId);
+      if (over.place === 'fail') return { ok: false, error: DOWN };
+      const name = RECORDED_PLACES.get(placeId);
+      if (!name) throw new Error(`no recorded place for ${placeId}`);
+      return { ok: true, value: normalizePlaceDetails(placeId, placeDetailsResponse.parse(fixture(name))) };
+    },
     async searchAvailability(request) {
       searches.push(request);
       if (over.search === 'fail') return { ok: false, error: DOWN };
       if (over.search === 'empty') return { ok: true, value: { properties: [], offers: [] } };
       // The recording that matches the margin asked for: net for members, +15% for the public.
-      const name = request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto';
+      const name =
+        'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto';
       return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(name)), request.marginPct, RECORDED_AT) };
     },
     async getStaticFacts() {
@@ -43,5 +62,5 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       return { ok: true, value: normalizeStaticFacts(hotelListResponse.parse(fixture('hotels-static-porto'))) };
     },
   };
-  return { supplier, searches, placeQueries, facts: () => factCalls };
+  return { supplier, searches, placeQueries, placeLookups, facts: () => factCalls };
 }

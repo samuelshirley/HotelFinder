@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { ModelId } from '@/lib/models';
 import type { Action } from '@/lib/store/actions';
-import { reduce, type Rejection } from '@/lib/store/reduce';
+import { previewReduce, type Rejection } from '@/lib/store/reduce';
 import type { Place, SupplierResult } from '@/server/supplier';
 import type { Block, CallModel, ModelFailure, ModelReply, ToolResult, Turn } from './anthropic';
 import { checkReply, tidy, type Guard } from './guards';
@@ -122,7 +122,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
         case 'actions': {
           const notes: string[] = [];
           for (const action of parsed.actions) {
-            const r = reduce(working, action, input.today);
+            const r = previewReduce(working, action, input.today);
             if (r.ok) {
               working = r.state;
               result.actions.push(action);

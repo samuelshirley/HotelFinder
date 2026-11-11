@@ -1,4 +1,4 @@
-import { MUST_HAVE_LABEL, formatMoney } from '@/lib/replies';
+import { MUST_HAVE_LABEL, formatMoney, nearLabel } from '@/lib/replies';
 import type { SearchState } from '@/lib/store/reduce';
 
 /**
@@ -89,7 +89,8 @@ export function buildUserTurn(input: AgentInput): string {
     `currency: ${currency}`,
     `price cap per night: ${s.priceCapMinor === null ? 'none' : formatMoney(s.priceCapMinor, currency)}`,
     `requirements: ${s.mustHaves.length ? s.mustHaves.map((m) => `${m} (${MUST_HAVE_LABEL[m]})`).join(', ') : 'none'}`,
-    `ranked by: ${state.priority ?? 'not chosen'}`,
+    `best means: ${state.priorities === null ? 'not chosen' : state.priorities.length === 0 ? 'no preference (balanced)' : state.priorities.join(' + ')}`,
+    `close is measured from: ${esc(nearLabel(s))}`,
     `hotels set aside: ${s.excludedPropertyIds.length}`,
     '</search>',
     '<hotels_on_screen>',

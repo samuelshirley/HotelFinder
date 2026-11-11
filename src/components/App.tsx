@@ -6,7 +6,7 @@ import { errorCopy } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates } from '@/lib/replies';
-import { answerForm, ApiError, createSession, loadSession, loadTrips, sendTurn, type Trip } from './api';
+import { answerForm, ApiError, createSession, editSearch, loadSession, loadTrips, sendTurn, type Trip } from './api';
 import styles from './App.module.css';
 import { ChatPanel } from './ChatPanel';
 import { DetailSheet } from './DetailSheet';
@@ -186,6 +186,19 @@ export function App() {
     }
   };
 
+  const onEdit = async (action: Parameters<typeof editSearch>[1]) => {
+    if (!view) return;
+    setBusy('form');
+    setError(null);
+    try {
+      setView(await editSearch(view.session.id, action));
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const onSend = async (message: string) => {
     if (!view) return;
     const id = view.session.id;
@@ -304,7 +317,7 @@ export function App() {
             onDoubleClick={() => { setPanelWidth(PANEL_DEFAULT); store(PANEL_KEY, String(PANEL_DEFAULT)); }}
           />
           <section className={styles.results} aria-label="Hotels">
-            <ResultsPanel view={view} onOpen={setOpenProperty} />
+            <ResultsPanel view={view} onOpen={setOpenProperty} onEdit={onEdit} busy={busy !== null} />
           </section>
         </>
       )}

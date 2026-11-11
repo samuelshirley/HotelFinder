@@ -108,6 +108,19 @@ export const placesResponse = z
   })
   .passthrough();
 
+export const placeDetailsResponse = z
+  .object({
+    data: z
+      .object({
+        displayName: z.string(),
+        location: z.object({ latitude: z.number(), longitude: z.number() }),
+        types: z.array(z.string()).nullish(),
+        countryCode: z.string().nullish(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
 export const hotelListResponse = z
   .object({
     data: z.array(z.object({ id: z.string().min(1), facilityIds: z.array(z.number().int()).nullish() }).passthrough()),

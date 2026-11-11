@@ -1,0 +1,62 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "Annecy",
+        "shortText": "Annecy",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Haute-Savoie",
+        "shortText": "Haute-Savoie",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Auvergne-Rhône-Alpes",
+        "shortText": "Auvergne-Rhône-Alpes",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "France",
+        "shortText": "FR",
+        "types": [
+          "country",
+          "political"
+        ]
+      }
+    ],
+    "countryCode": "FR",
+    "displayName": "Annecy",
+    "location": {
+      "latitude": 45.9058956,
+      "longitude": 6.1259117
+    },
+    "types": [
+      "locality",
+      "political"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 46.07671452526535,
+        "longitude": 6.304393212842698
+      },
+      "low": {
+        "latitude": 45.72799437093342,
+        "longitude": 5.948412335039443
+      }
+    }
+  }
+}

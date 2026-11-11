@@ -1,12 +1,13 @@
 import 'server-only';
 import { z } from 'zod';
 
-import { PRIORITY_KEYS } from '@/lib/finder/rank';
+import { canonicalPriorities, PRIORITY_KEYS } from '@/lib/finder/rank';
 import { nightsBetween } from '@/lib/finder/geo';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, outcomeLine, PRIORITY_LINE } from '@/lib/replies';
+import { inferNationality } from '@/lib/nationality';
+import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, nearLabel, outcomeLine, prioritiesLabel } from '@/lib/replies';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import { MAX_NIGHTS } from '@/lib/store/reduce';
-import { dispatchActions } from '@/server/dispatch';
+import { dispatchActions, resolveDestination } from '@/server/dispatch';
 import type { FinderOutcome } from '@/server/finder';
 import { appendMessage, type ChatMessage } from '@/server/repos/chat';
 import { addStay, getSession, listStays, updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -18,12 +19,16 @@ import type { SupplierAdapter } from '@/server/supplier';
  * render; answers are `form_answer` rows. No model call: a new user's first
  * search costs nothing in AI.
  *
- * Order: destination → dates → guests → nationality → priority, then the
- * first search. Each answer is validated here, on the server, and must be the
- * answer to the question currently being asked.
+ * Order: destination → dates → guests → priorities, then the first search.
+ * Each answer is validated here, on the server, and must be the answer to the
+ * question currently being asked.
+ *
+ * The nationality used for rates is NOT a question (docs/onboarding.md §4):
+ * it is inferred when the session is created (saved, browser, IP) or, failing
+ * those, from the destination, and shown on the results as an editable chip.
  */
 
-export const FIELDS = ['destination', 'dates', 'guests', 'nationality', 'priority'] as const;
+export const FIELDS = ['destination', 'dates', 'guests', 'priorities'] as const;
 export type Field = (typeof FIELDS)[number];
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -42,8 +47,16 @@ export const formAnswerSchema = z.discriminatedUnion('field', [
       pets: z.boolean(),
     })
     .strict(),
-  z.object({ field: z.literal('nationality'), code: z.string().regex(/^[A-Z]{2}$/) }).strict(),
-  z.object({ field: z.literal('priority'), priority: z.enum(PRIORITY_KEYS) }).strict(),
+  /** [] = no preference. A set: each key once, any order. */
+  z
+    .object({
+      field: z.literal('priorities'),
+      priorities: z
+        .array(z.enum(PRIORITY_KEYS))
+        .max(PRIORITY_KEYS.length)
+        .refine((p) => new Set(p).size === p.length, 'each priority once'),
+    })
+    .strict(),
 ]);
 export type FormAnswer = z.infer<typeof formAnswerSchema>;
 
@@ -51,8 +64,7 @@ const QUESTION: Record<Field, string> = {
   destination: 'Where are you going?',
   dates: 'Which nights?',
   guests: 'Who is travelling?',
-  nationality: 'Which country do you live in? Rates depend on it.',
-  priority: 'What matters most?',
+  priorities: 'What matters most? Pick any, or say it in your own words.',
 };
 
 /** The first thing still unknown, or null when the search can run. */
@@ -60,8 +72,7 @@ export function nextField(session: SearchSession, stay: Stay | null, guestsAnswe
   if (!stay && !session.draft.destination) return 'destination';
   if (!stay) return 'dates';
   if (!guestsAnswered) return 'guests';
-  if (!session.guestNationality) return 'nationality';
-  if (!session.priority) return 'priority';
+  if (session.priorities === null) return 'priorities';
   return null;
 }
 
@@ -96,7 +107,7 @@ function understoodLine(scanned: ScannedTrip, datesTaken: boolean, currency: str
   if (scanned.guests) parts.push(formatGuests(scanned.guests.adults, scanned.guests.childrenAges, scanned.guests.rooms));
   if (scanned.priceCapMinor) parts.push(`up to ${formatMoney(scanned.priceCapMinor, currency)} a night`);
   for (const m of scanned.mustHaves ?? []) parts.push(MUST_HAVE_LABEL[m]);
-  if (scanned.priority) parts.push(PRIORITY_LINE[scanned.priority].replace(/\.$/, '').toLowerCase());
+  if (scanned.priorities?.length) parts.push(prioritiesLabel(scanned.priorities, 'the centre').toLowerCase());
   return parts.length ? `From your message: ${parts.join(' · ')}.` : '';
 }
 
@@ -112,10 +123,8 @@ function answerText(answer: FormAnswer): string {
       return formatDates(answer.checkIn, answer.checkOut);
     case 'guests':
       return `${formatGuests(answer.adults, answer.childrenAges, answer.rooms)}${answer.pets ? ', with a pet' : ''}`;
-    case 'nationality':
-      return new Intl.DisplayNames(['en'], { type: 'region' }).of(answer.code) ?? answer.code;
-    case 'priority':
-      return PRIORITY_LINE[answer.priority].replace(/\.$/, '');
+    case 'priorities':
+      return answer.priorities.length === 0 ? 'No preference' : prioritiesLabel(answer.priorities, 'the centre');
   }
 }
 
@@ -146,17 +155,26 @@ export async function answerForm(args: {
   let understood = '';
 
   switch (answer.field) {
-    case 'destination':
+    case 'destination': {
+      // The destination's own point, kind and country: where "close" is
+      // measured from, whether to search a radius, and the last-resort nationality.
+      const resolved = await resolveDestination(supplier, answer.placeId, answer.label);
+      const point = resolved ? { latitude: resolved.latitude, longitude: resolved.longitude, kind: resolved.kind, country: resolved.country } : undefined;
+      const inferred = session.guestNationality
+        ? null
+        : inferNationality({ saved: null, acceptLanguage: null, ipCountry: null, destinationCountry: resolved?.country ?? null });
       current = (await updateSession(sessionId, {
-        draft: { ...session.draft, destination: { placeId: answer.placeId, label: answer.label } },
-        ...(scanned.priority ? { priority: scanned.priority } : {}),
+        draft: { ...session.draft, destination: { placeId: answer.placeId, label: answer.label, ...(point ? { point } : {}) } },
+        ...(scanned.priorities ? { priorities: scanned.priorities } : {}),
+        ...(inferred ? { guestNationality: inferred.code, nationalitySource: inferred.source } : {}),
       }))!;
       // The first message already gave the nights: the dates question is not asked again.
       if (scanned.checkIn && scanned.checkOut && scanned.checkIn >= today) {
-        stay = await addStay(sessionId, { destinationText: answer.label, placeId: answer.placeId, checkIn: scanned.checkIn, checkOut: scanned.checkOut, ...scannedStayFields(scanned) });
+        stay = await addStay(sessionId, { destinationText: answer.label, placeId: answer.placeId, ...destFields(current), checkIn: scanned.checkIn, checkOut: scanned.checkOut, ...scannedStayFields(scanned) });
       }
       understood = understoodLine(scanned, stay !== null, session.currency);
       break;
+    }
     case 'dates': {
       if (answer.checkIn < today) return { ok: false, error: 'dates_in_past' };
       const nights = nightsBetween(answer.checkIn, answer.checkOut);
@@ -166,6 +184,7 @@ export async function answerForm(args: {
       stay = await addStay(sessionId, {
         destinationText: destination.label,
         placeId: destination.placeId,
+        ...destFields(session),
         checkIn: answer.checkIn,
         checkOut: answer.checkOut,
         ...scannedStayFields(scanned),
@@ -182,11 +201,8 @@ export async function answerForm(args: {
       });
       guestsAnswered = true;
       break;
-    case 'nationality':
-      current = (await updateSession(sessionId, { guestNationality: answer.code }))!;
-      break;
-    case 'priority':
-      current = (await updateSession(sessionId, { priority: answer.priority }))!;
+    case 'priorities':
+      current = (await updateSession(sessionId, { priorities: canonicalPriorities(answer.priorities) }))!;
       break;
   }
 
@@ -195,7 +211,7 @@ export async function answerForm(args: {
 
   const next = nextField(current, stay, guestsAnswered);
   if (next) {
-    await askQuestion(sessionId, next);
+    await askQuestion(sessionId, next, questionExtra(next, stay));
     return { ok: true, done: false };
   }
 
@@ -211,6 +227,20 @@ export async function answerForm(args: {
     meta: { finder: dispatched.finder?.kind ?? null },
   });
   return { ok: true, done: true };
+}
+
+/** What a question's control needs to say: the priorities card names where "close" means. */
+export function questionExtra(field: Field, stay: Stay | null): Record<string, unknown> {
+  if (field !== 'priorities' || !stay) return {};
+  return { near: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) };
+}
+
+/** The stay's destination columns, from the point looked up when the destination was answered. */
+function destFields(session: SearchSession) {
+  const point = session.draft.destination?.point;
+  return point
+    ? { destLatitude: point.latitude, destLongitude: point.longitude, destKind: point.kind, destCountry: point.country }
+    : {};
 }
 
 /** What the first search found, in one line. */

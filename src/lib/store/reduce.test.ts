@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
-import { actionSchema, type Action } from './actions';
-import { fingerprint, reduce, reduceAll, type SearchState } from './reduce';
+import { actionSchema, type ResolvedAction } from './actions';
+import { fingerprint, NEAR_MAX_KM, reduce, reduceAll, type SearchState } from './reduce';
 
 const TODAY = '2026-11-11';
 const P1 = 'a0000000-0000-4000-8000-000000000001';
 const P2 = 'a0000000-0000-4000-8000-000000000002';
+const RIBEIRA = { placeId: 'place-ribeira', label: 'Ribeira', latitude: 41.1408, longitude: -8.613 };
 
 const state = (over: Partial<SearchState['stay']> = {}, top: Partial<SearchState> = {}): SearchState => ({
-  priority: null,
+  priorities: null,
   guestNationality: 'ES',
   stay: {
     destinationText: 'Porto',
     placeId: 'place-porto',
+    destPoint: { latitude: 41.1579, longitude: -8.6291 },
+    destKind: 'area',
+    destCountry: 'PT',
+    near: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,
@@ -26,22 +31,24 @@ const state = (over: Partial<SearchState['stay']> = {}, top: Partial<SearchState
   ...top,
 });
 
-const ok = (s: SearchState, a: Action) => {
+const ok = (s: SearchState, a: ResolvedAction) => {
   const r = reduce(s, a, TODAY);
   if (!r.ok) throw new Error(`rejected: ${r.rejection}`);
   return r;
 };
 
 describe('which changes need a new search and which only a re-rank', () => {
-  it.each<[Action, 'rerank' | 'refetch']>([
-    [{ type: 'set_priority', priority: 'cheapest' }, 'rerank'],
+  it.each<[ResolvedAction, 'rerank' | 'refetch']>([
+    [{ type: 'set_priorities', priorities: ['cheapest'] }, 'rerank'],
+    [{ type: 'set_priorities', priorities: [] }, 'rerank'],
+    [{ type: 'set_near', near: RIBEIRA }, 'refetch'],
     [{ type: 'set_price_cap', perNightMinor: 12000 }, 'rerank'],
     [{ type: 'add_must_have', mustHave: 'parking' }, 'rerank'],
     [{ type: 'exclude_property', propertyId: P1 }, 'rerank'],
     [{ type: 'more_options', propertyIds: [P1, P2] }, 'rerank'],
     [{ type: 'set_guests', adults: 4, childrenAges: [4, 9], rooms: 2 }, 'refetch'],
     [{ type: 'set_dates', checkIn: '2026-12-11', checkOut: '2026-12-14' }, 'refetch'],
-    [{ type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon' }, 'refetch'],
+    [{ type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon', point: null }, 'refetch'],
     [{ type: 'set_nationality', code: 'PT' }, 'refetch'],
   ])('%j → %s', (action, effect) => {
     expect(ok(state(), action).effect).toBe(effect);
@@ -90,8 +97,42 @@ describe('reducers', () => {
 
   it('a new destination clears what was set aside for the old one', () => {
     const s = state({ excludedPropertyIds: [P1] });
-    const next = ok(s, { type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon' }).state;
+    const next = ok(s, { type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon', point: null }).state;
     expect(next.stay).toMatchObject({ placeId: 'place-lisbon', destinationText: 'Lisbon', excludedPropertyIds: [] });
+  });
+
+  it('a new destination takes its own point and kind, and forgets the old place to be near', () => {
+    const s = ok(state(), { type: 'set_near', near: RIBEIRA }).state;
+    const next = ok(s, {
+      type: 'set_destination',
+      placeId: 'place-bcn',
+      destinationText: 'Barcelona Airport (BCN)',
+      point: { placeId: 'place-bcn', label: 'Barcelona Airport (BCN)', latitude: 41.2983, longitude: 2.08, kind: 'point', country: 'ES' },
+    }).state;
+    expect(next.stay).toMatchObject({ destPoint: { latitude: 41.2983, longitude: 2.08 }, destKind: 'point', destCountry: 'ES', near: null });
+  });
+
+  it('priorities are a set: the same set in another order is no change, and [] means no preference', () => {
+    const s = ok(state(), { type: 'set_priorities', priorities: ['closest', 'cheapest'] }).state;
+    expect(s.priorities).toEqual(['cheapest', 'closest']);
+    expect(reduce(s, { type: 'set_priorities', priorities: ['cheapest', 'closest'] }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    expect(ok(s, { type: 'set_priorities', priorities: [] }).state.priorities).toEqual([]);
+    // Not asked yet (null) and "no preference" ([]) are different answers.
+    expect(ok(state(), { type: 'set_priorities', priorities: [] }).state.priorities).toEqual([]);
+  });
+
+  it('a place to be near: set once, refused when it is another trip, and cleared back to the destination', () => {
+    const s = ok(state(), { type: 'set_near', near: RIBEIRA }).state;
+    expect(s.stay.near).toEqual(RIBEIRA);
+    expect(reduce(s, { type: 'set_near', near: RIBEIRA }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    const lisbon = { placeId: 'place-baixa', label: 'Baixa', latitude: 38.7115, longitude: -9.1375 };
+    expect(reduce(state(), { type: 'set_near', near: lisbon }, TODAY)).toEqual({ ok: false, rejection: 'near_too_far' });
+    expect(NEAR_MAX_KM).toBe(50);
+    const cleared = ok(s, { type: 'clear_near' });
+    expect(cleared).toMatchObject({ effect: 'refetch', state: { stay: { near: null } } });
+    expect(reduce(state(), { type: 'clear_near' }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    // With no destination point known there is nothing to measure "too far" from.
+    expect(ok(state({ destPoint: null }), { type: 'set_near', near: lisbon }).state.stay.near).toEqual(lisbon);
   });
 
   it('"more options" sets aside what is on screen, without duplicates, and can be undone', () => {
@@ -105,18 +146,18 @@ describe('reducers', () => {
     const { state: after, effect, results } = reduceAll(
       state(),
       [
-        { type: 'set_priority', priority: 'cheapest' },
+        { type: 'set_priorities', priorities: ['cheapest'] },
         { type: 'set_dates', checkIn: '2026-01-01', checkOut: '2026-01-02' },
         { type: 'add_must_have', mustHave: 'pool' },
       ],
       TODAY,
     );
-    expect(after.priority).toBe('cheapest');
+    expect(after.priorities).toEqual(['cheapest']);
     expect(after.stay.mustHaves).toEqual(['pool']);
     expect(after.stay.checkIn).toBe('2026-12-11');
     expect(effect).toBe('rerank');
     expect(results.map((r) => r.ok)).toEqual([true, false, true]);
-    expect(reduceAll(state(), [{ type: 'set_priority', priority: 'cheapest' }, { type: 'set_nationality', code: 'PT' }], TODAY).effect).toBe('refetch');
+    expect(reduceAll(state(), [{ type: 'set_priorities', priorities: ['cheapest'] }, { type: 'set_nationality', code: 'PT' }], TODAY).effect).toBe('refetch');
     expect(reduceAll(state(), [], TODAY).effect).toBe('none');
   });
 
@@ -125,14 +166,25 @@ describe('reducers', () => {
     const b = state({ mustHaves: ['parking', 'pool'] });
     expect(fingerprint(a)).toBe(fingerprint(b));
     expect(fingerprint(ok(a, { type: 'set_price_cap', perNightMinor: 1 }).state)).not.toBe(fingerprint(a));
-    expect(fingerprint(state({}, { priority: 'nicest' }))).not.toBe(fingerprint(state()));
+    expect(fingerprint(state({}, { priorities: ['nicest'] }))).not.toBe(fingerprint(state()));
+    expect(fingerprint(state({}, { priorities: [] }))).not.toBe(fingerprint(state()));
+    expect(fingerprint(state({}, { priorities: ['nicest', 'cheapest'] }))).toBe(fingerprint(state({}, { priorities: ['cheapest', 'nicest'] })));
+    expect(fingerprint(state({ near: RIBEIRA }))).not.toBe(fingerprint(state()));
   });
 });
 
 describe('action shapes', () => {
   it('rejects unknown types, unknown keys and nonsense values', () => {
     expect(actionSchema.safeParse({ type: 'add_fuel_stop' }).success).toBe(false);
-    expect(actionSchema.safeParse({ type: 'set_priority', priority: 'luxury' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_priorities', priorities: ['luxury'] }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_priorities', priorities: ['cheapest', 'cheapest'] }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_priorities', priorities: ['basic'] }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_priorities', priorities: ['cheapest', 'nicest'] }).success).toBe(true);
+    // A producer may name a place, never a point.
+    expect(actionSchema.safeParse({ type: 'set_near', placeId: 'ChIJ' }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_near', placeId: 'ChIJ', latitude: 41, longitude: -8 }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_near', near: { placeId: 'x', label: 'x', latitude: 1, longitude: 1 } }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_destination', placeId: 'ChIJ', destinationText: 'Porto', point: { latitude: 1 } }).success).toBe(false);
     expect(actionSchema.safeParse({ type: 'set_price_cap', perNightMinor: -5 }).success).toBe(false);
     expect(actionSchema.safeParse({ type: 'set_price_cap', perNightMinor: 100, currency: 'USD' }).success).toBe(false);
     expect(actionSchema.safeParse({ type: 'add_must_have', mustHave: 'quiet' }).success).toBe(false);
@@ -141,5 +193,7 @@ describe('action shapes', () => {
     expect(actionSchema.safeParse({ type: 'set_guests', adults: 2, childrenAges: [18], rooms: 1 }).success).toBe(false);
     expect(actionSchema.safeParse({ type: 'exclude_property', propertyId: 'lp76a2a' }).success).toBe(false);
     expect(actionSchema.safeParse({ type: 'set_nationality', code: 'es' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_nationality', code: 'ZZ' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_nationality', code: 'PT' }).success).toBe(true);
   });
 });

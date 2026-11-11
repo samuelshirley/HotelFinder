@@ -29,7 +29,9 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'set_dates', description: 'Change the nights. Both dates, always.', input_schema: obj({ check_in: date, check_out: date }) },
   { name: 'set_guests', description: 'Change who is travelling. All three values, always.', input_schema: obj({ adults: { type: 'integer', minimum: 1, maximum: 12 }, children_ages: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 17 }, maxItems: 8 }, rooms: { type: 'integer', minimum: 1, maximum: 6 } }) },
   { name: 'set_price_cap', description: 'Cap the price per night for the whole party, in the search currency. null removes the cap.', input_schema: obj({ per_night: { type: ['number', 'null'], exclusiveMinimum: 0 } }) },
-  { name: 'set_priority', description: 'What to rank by: cheapest (lowest price), closest (to the place searched), nicest (best rated), basic (cheapest that is well reviewed).', input_schema: obj({ priority: { type: 'string', enum: [...PRIORITY_KEYS] } }) },
+  { name: 'set_priorities', description: 'What "best" means, as the WHOLE set (it replaces the current one): cheapest (low price), nicest (great reviews), closest (close to the place in <search>). Several at once balance each other, e.g. ["cheapest","closest"]. [] = no preference.', input_schema: obj({ priorities: { type: 'array', items: { type: 'string', enum: [...PRIORITY_KEYS] }, uniqueItems: true, maxItems: PRIORITY_KEYS.length } }) },
+  { name: 'set_near', description: 'Measure "close" from a place the user named (the old town, a venue, the airport) instead of the destination. The ref must come from resolve_place in this turn. Does not change what "best" means: add closest with set_priorities if they want to be close.', input_schema: obj({ place_ref: { type: 'string', description: 'A ref returned by resolve_place, e.g. P1.' } }) },
+  { name: 'clear_near', description: 'Measure "close" from the destination again.', input_schema: obj({}) },
   { name: 'require', description: 'Only show hotels that have this.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
   { name: 'stop_requiring', description: 'Drop a requirement added earlier.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
   { name: 'set_aside', description: 'Remove hotels the user does not want from the list.', input_schema: obj({ positions: { type: 'array', items: position, minItems: 1, maxItems: 10 } }) },
@@ -47,7 +49,9 @@ const INPUT = {
   set_dates: z.object({ check_in: iso, check_out: iso }).strict(),
   set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6) }).strict(),
   set_price_cap: z.object({ per_night: z.number().positive().max(100_000).nullable() }).strict(),
-  set_priority: z.object({ priority: z.enum(PRIORITY_KEYS) }).strict(),
+  set_priorities: z.object({ priorities: z.array(z.enum(PRIORITY_KEYS)).max(PRIORITY_KEYS.length).refine((p) => new Set(p).size === p.length) }).strict(),
+  set_near: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
+  clear_near: z.object({}).strict(),
   require: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
   stop_requiring: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
   set_aside: z.object({ positions: z.array(pos).min(1).max(10) }).strict(),
@@ -113,8 +117,15 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       if (minor !== null && minor < 1) return { kind: 'invalid', reason: 'the cap is below one unit of the currency' };
       return { kind: 'actions', actions: [{ type: 'set_price_cap', perNightMinor: minor }] };
     }
-    case 'set_priority':
-      return { kind: 'actions', actions: [{ type: 'set_priority', priority: (parsed.data as { priority: (typeof PRIORITY_KEYS)[number] }).priority }] };
+    case 'set_priorities':
+      return { kind: 'actions', actions: [{ type: 'set_priorities', priorities: (parsed.data as { priorities: Array<(typeof PRIORITY_KEYS)[number]> }).priorities }] };
+    case 'set_near': {
+      const place = ctx.placeRefs.get((parsed.data as { place_ref: string }).place_ref.toUpperCase());
+      if (!place) return { kind: 'invalid', reason: 'that ref did not come from resolve_place in this turn' };
+      return { kind: 'actions', actions: [{ type: 'set_near', placeId: place.placeId }] };
+    }
+    case 'clear_near':
+      return { kind: 'actions', actions: [{ type: 'clear_near' }] };
     case 'require':
       return { kind: 'actions', actions: [{ type: 'add_must_have', mustHave: (parsed.data as { must_have: (typeof MUST_HAVES)[number] }).must_have }] };
     case 'stop_requiring':

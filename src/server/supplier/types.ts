@@ -29,7 +29,12 @@ export type SupplierResult<T> = { ok: true; value: T } | { ok: false; error: Sup
 export type Occupancy = { adults: number; childrenAges: number[] };
 
 export type SearchRequest = {
-  where: { placeId: string } | { cityName: string; countryCode: string } | { hotelIds: string[] };
+  where:
+    | { placeId: string }
+    | { cityName: string; countryCode: string }
+    | { hotelIds: string[] }
+    /** Hotels within `radiusM` metres of a point: for "close to" a station, an airport or a named place. */
+    | { latitude: number; longitude: number; radiusM: number };
   checkIn: string;
   checkOut: string;
   /** One entry per room. */
@@ -121,6 +126,17 @@ export type SearchResult = {
 
 export type Place = { placeId: string; name: string; address: string | null; types: string[] };
 
+/** One place with its map point: the only source of coordinates in the app. */
+export type PlaceDetails = {
+  placeId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  types: string[];
+  /** ISO 3166-1 alpha-2, when the supplier gives one. */
+  countryCode: string | null;
+};
+
 export type RateCheck = {
   prebookId: string;
   transactionId: string;
@@ -176,6 +192,8 @@ export type CancelResult = {
 export interface SupplierAdapter {
   readonly name: string;
   searchPlaces(query: string): Promise<SupplierResult<Place[]>>;
+  /** A place's map point and kind, by the opaque id from `searchPlaces`. */
+  getPlace(placeId: string): Promise<SupplierResult<PlaceDetails>>;
   /** No availability is `ok` with empty lists; the caller decides whether that is retryable. */
   searchAvailability(request: SearchRequest): Promise<SupplierResult<SearchResult>>;
   /** Compact amenity facts for many hotels in one call. Cacheable for days. */

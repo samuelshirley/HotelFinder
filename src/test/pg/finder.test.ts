@@ -5,19 +5,20 @@ vi.mock('@/server/db/client', async () => (await import('./harness')).clientModu
 
 import { rawQuery, resetDb, seedUser } from './harness';
 import { runFinder, splitParty } from '@/server/finder';
-import { addStay, adoptAnonymousSessions, createSession, updateSession, updateStay } from '@/server/repos/sessions';
+import { dispatchActions } from '@/server/dispatch';
+import { addStay, adoptAnonymousSessions, createSession, getSession, getStay, updateSession, updateStay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
 
 beforeEach(resetDb);
 
 const NOW = new Date('2026-11-11T12:00:00Z');
 const LATER = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
-import { DOWN, recordedSupplier } from './recordedSupplier';
+import { DOWN, PLACE_IDS, recordedSupplier } from './recordedSupplier';
 
 async function porto(owner: 'member' | 'anonymous' = 'member') {
   const session =
     owner === 'member' ? await createSession({ userId: (await seedUser()).id }) : await createSession({ anonId: 'anon-1' });
-  await updateSession(session.id, { guestNationality: 'ES', priority: 'cheapest' });
+  await updateSession(session.id, { guestNationality: 'ES', priorities: ['cheapest'] });
   const stay = await addStay(session.id, {
     destinationText: 'Porto',
     placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY',
@@ -44,6 +45,8 @@ describe('the stay finder', () => {
       rejected: { over_price_cap: 0, missing_must_have: 0, below_public_price: 0, excluded_by_user: 0 },
       uncheckable: 0,
       distanceFrom: 'search_centre',
+      distanceLabel: null,
+      widened: false,
       amenityFactsMissing: false,
     });
     expect(searches).toHaveLength(1);
@@ -83,7 +86,7 @@ describe('the stay finder', () => {
     expect(outcome).toMatchObject({ kind: 'ok', fetched: false, eligible: 7 });
     expect((await names(ids))[0]).toBe('Mercure Porto Centro Aliados');
 
-    await updateSession(ids.sessionId, { priority: 'nicest' });
+    await updateSession(ids.sessionId, { priorities: ['nicest'] });
     await updateStay(ids.stayId, ids.sessionId, { mustHaves: [] });
     await runFinder({ ...ids, supplier, now: LATER(6) });
     expect((await names(ids))[0]).toBe('ICON Duplo Ribeira');
@@ -213,5 +216,148 @@ describe('splitParty', () => {
       { adults: 1, childrenAges: [] },
     ]);
     expect(splitParty(2, [], 1)).toEqual([{ adults: 2, childrenAges: [] }]);
+  });
+});
+
+describe('a new search replaces the old one', () => {
+  it('after a refetch, only offers from the new search are ranked, never the old search\'s prices', async () => {
+    const ids = await porto();
+    const first = recordedSupplier();
+    await runFinder({ ...ids, supplier: first.supplier, now: NOW });
+    const before = await listShortlist(ids.sessionId, ids.stayId, 'member');
+
+    // The same hotels, dearer this time (the +15% recording): new dates, say.
+    const dearer = recordedSupplier();
+    const supplier = { ...dearer.supplier, searchAvailability: (r: Parameters<typeof dearer.supplier.searchAvailability>[0]) => dearer.supplier.searchAvailability({ ...r, marginPct: 15 }) };
+    await runFinder({ ...ids, supplier, now: LATER(1), refresh: true });
+    const after = await listShortlist(ids.sessionId, ids.stayId, 'member');
+
+    expect(after[0].offer!.fetchedAt.getTime()).toBe(LATER(1).getTime());
+    expect(after.every((r) => r.offer!.fetchedAt.getTime() === LATER(1).getTime())).toBe(true);
+    expect(after[0].offer!.totalMinor).toBeGreaterThan(before[0].offer!.totalMinor);
+
+    // And a re-rank later still sees only the newest search.
+    await runFinder({ ...ids, supplier, now: LATER(2) });
+    const reranked = await listShortlist(ids.sessionId, ids.stayId, 'member');
+    expect(reranked.every((r) => r.offer!.fetchedAt.getTime() === LATER(1).getTime())).toBe(true);
+  });
+});
+
+describe('where to search, and where "close" is from', () => {
+  async function at(place: 'opo' | 'porto', near: { placeId: string; label: string; latitude: number; longitude: number } | null = null) {
+    const session = await createSession({ userId: (await seedUser()).id });
+    await updateSession(session.id, { guestNationality: 'ES', priorities: ['cheapest', 'closest'] });
+    const opo = place === 'opo';
+    const stay = await addStay(session.id, {
+      destinationText: opo ? 'Porto Airport (OPO)' : 'Porto, Portugal',
+      placeId: opo ? PLACE_IDS.opo : PLACE_IDS.porto,
+      destLatitude: opo ? 41.2481 : 41.1579,
+      destLongitude: opo ? -8.6814 : -8.6291,
+      destKind: opo ? 'point' : 'area',
+      destCountry: 'PT',
+      checkIn: '2026-12-11',
+      checkOut: '2026-12-13',
+      ...(near ? { latitude: near.latitude, longitude: near.longitude, nearPlaceId: near.placeId, nearLabel: near.label } : {}),
+    });
+    return { sessionId: session.id, stayId: stay.id };
+  }
+
+  it('an airport as the destination: a 5 km radius around it, and distance measured from it', async () => {
+    const ids = await at('opo');
+    const { supplier, searches } = recordedSupplier();
+    const outcome = await runFinder({ ...ids, supplier, now: NOW });
+    expect(searches).toHaveLength(1);
+    expect(searches[0].where).toEqual({ latitude: 41.2481, longitude: -8.6814, radiusM: 5000 });
+    expect(outcome).toMatchObject({ kind: 'ok', distanceFrom: 'destination', distanceLabel: 'Porto Airport (OPO)', widened: false });
+    expect((await names(ids))[0]).toBe('Hotel Aeroporto');
+  });
+
+  it('fewer than ten hotels in the first radius: exactly one wider search, and the bigger answer is used', async () => {
+    const ids = await at('opo');
+    const { supplier, searches } = recordedSupplier();
+    let call = 0;
+    const thin = {
+      ...supplier,
+      async searchAvailability(r: Parameters<typeof supplier.searchAvailability>[0]) {
+        const res = await supplier.searchAvailability(r);
+        call += 1;
+        // The first radius: keep 4 of the recorded hotels, as a sparse area would answer.
+        if (call === 1 && res.ok) return { ok: true as const, value: { properties: res.value.properties.slice(0, 4), offers: res.value.offers.filter((o) => res.value.properties.slice(0, 4).some((p) => p.supplierHotelId === o.supplierHotelId)) } };
+        return res;
+      },
+    };
+    const outcome = await runFinder({ ...ids, supplier: thin, now: NOW });
+    expect(searches.map((s) => (s.where as { radiusM: number }).radiusM)).toEqual([5000, 15000]);
+    expect(outcome).toMatchObject({ kind: 'ok', widened: true, eligible: 20 });
+  });
+
+  it('a city: searched by its place id, distance from the middle of the hotels', async () => {
+    const ids = await at('porto');
+    const { supplier, searches } = recordedSupplier();
+    expect(await runFinder({ ...ids, supplier, now: NOW })).toMatchObject({ kind: 'ok', distanceFrom: 'search_centre', distanceLabel: null });
+    expect(searches[0].where).toEqual({ placeId: PLACE_IDS.porto });
+  });
+
+  it('a place the user named: a radius around it, and every reason says it', async () => {
+    const ids = await at('porto', { placeId: 'x', label: 'Ribeira', latitude: 41.1408, longitude: -8.613 });
+    const { supplier, searches } = recordedSupplier();
+    expect(await runFinder({ ...ids, supplier, now: NOW })).toMatchObject({ kind: 'ok', distanceFrom: 'place', distanceLabel: 'Ribeira' });
+    expect(searches[0].where).toEqual({ latitude: 41.1408, longitude: -8.613, radiusM: 5000 });
+    const [top] = await listShortlist(ids.sessionId, ids.stayId, 'member');
+    expect(top.entry.reason).toMatchObject({ kind: 'best_mix', to: 'place', to_label: 'Ribeira' });
+  });
+});
+
+describe('dispatch looks places up; no producer can give a point', () => {
+  it('set_near: the supplier\'s point for the id is stored, a new search runs around it, and clear_near goes back', async () => {
+    const ids = await porto();
+    const { supplier, placeLookups, searches } = recordedSupplier();
+    await runFinder({ ...ids, supplier, now: NOW });
+    const session = (await getSession(ids.sessionId))!;
+    const stay = (await getStay(ids.stayId, ids.sessionId))!;
+    const near = await dispatchActions({ session, stay, actions: [{ type: 'set_near', placeId: PLACE_IDS.vieilleVille }], supplier, now: LATER(1), today: '2026-11-11' });
+    expect(placeLookups).toEqual([PLACE_IDS.vieilleVille]);
+    expect(near.effect).toBe('refetch');
+    // The porto() stay has no destination point, so there is nothing to call "too far" from.
+    expect(near.results[0]).toMatchObject({ ok: true });
+    const afterNear = (await getStay(ids.stayId, ids.sessionId))!;
+    expect(afterNear).toMatchObject({ nearPlaceId: PLACE_IDS.vieilleVille, nearLabel: 'Vieille Ville' });
+    expect(searches.at(-1)!.where).toMatchObject({ radiusM: 5000 });
+
+    const cleared = await dispatchActions({ session: (await getSession(ids.sessionId))!, stay: afterNear, actions: [{ type: 'clear_near' }], supplier, now: LATER(2), today: '2026-11-11' });
+    expect(cleared.effect).toBe('refetch');
+    expect(await getStay(ids.stayId, ids.sessionId)).toMatchObject({ nearPlaceId: null, nearLabel: null, latitude: null });
+  });
+
+  it('a place lookup that fails changes nothing and says so', async () => {
+    const ids = await porto();
+    const { supplier } = recordedSupplier({ place: 'fail' });
+    const session = (await getSession(ids.sessionId))!;
+    const stay = (await getStay(ids.stayId, ids.sessionId))!;
+    const r = await dispatchActions({ session, stay, actions: [{ type: 'set_near', placeId: PLACE_IDS.vieilleVille }], supplier, now: NOW, today: '2026-11-11' });
+    expect(r).toMatchObject({ effect: 'none', finder: null, results: [{ ok: false, rejection: 'place_unavailable' }] });
+    expect(await getStay(ids.stayId, ids.sessionId)).toMatchObject({ nearPlaceId: null });
+  });
+
+  it('a place far from the destination is refused before anything is stored or searched', async () => {
+    const ids = await porto();
+    await updateStay(ids.stayId, ids.sessionId, { destLatitude: 41.1579, destLongitude: -8.6291, destKind: 'area' });
+    const { supplier, searches } = recordedSupplier();
+    const session = (await getSession(ids.sessionId))!;
+    const stay = (await getStay(ids.stayId, ids.sessionId))!;
+    const r = await dispatchActions({ session, stay, actions: [{ type: 'set_near', placeId: PLACE_IDS.vieilleVille }], supplier, now: NOW, today: '2026-11-11' });
+    expect(r.results[0]).toMatchObject({ ok: false, rejection: 'near_too_far' });
+    expect(searches).toHaveLength(0);
+    expect(await getStay(ids.stayId, ids.sessionId)).toMatchObject({ nearPlaceId: null });
+  });
+
+  it('a user change of nationality is recorded as theirs and triggers a new search', async () => {
+    const ids = await porto();
+    const { supplier, searches } = recordedSupplier();
+    const session = (await getSession(ids.sessionId))!;
+    const stay = (await getStay(ids.stayId, ids.sessionId))!;
+    await dispatchActions({ session, stay, actions: [{ type: 'set_nationality', code: 'US' }], supplier, now: NOW, today: '2026-11-11' });
+    expect(await getSession(ids.sessionId)).toMatchObject({ guestNationality: 'US', nationalitySource: 'user' });
+    expect(searches.at(-1)!.guestNationality).toBe('US');
   });
 });
