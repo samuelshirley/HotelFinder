@@ -324,8 +324,8 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       const row = shortlist.find((r) => r.propertyId === ('open' in hint ? hint.open.propertyId : hint.book.propertyId));
       const text =
         'book' in hint
-          ? `Booking is not built yet. ${row?.name ?? 'That hotel'} is open on the right.`
-          : `${row?.name ?? 'That hotel'} is open on the right.`;
+          ? `${row?.name ?? 'That hotel'} is open: press Book there to check the price and pay.`
+          : `${row?.name ?? 'That hotel'} is open.`;
       return { text, meta: { ...trace, intent: decision.intent, ui: { open: 'open' in hint ? hint.open : hint.book }, model_calls: 0 } };
     }
     case 'line':
@@ -453,7 +453,7 @@ async function agentTurn(args: {
   }
   if (agent.open) {
     const row = rows.find((r) => r.property.id === agent.open);
-    return { text: `${row?.property.name ?? 'That hotel'} is open on the right.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
+    return { text: `${row?.property.name ?? 'That hotel'} is open.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
   }
   if (agent.text) return { text: agent.text, kind: 'ai', meta };
   if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };

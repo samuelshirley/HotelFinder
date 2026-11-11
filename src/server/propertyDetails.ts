@@ -1,9 +1,10 @@
 import 'server-only';
 
+import { decodeEntities, plain } from '@/lib/plainText';
 import { getProperty } from '@/server/repos/properties';
 import type { SupplierAdapter } from '@/server/supplier';
 
-const plain = (html: string | null) => (html ? html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : null);
+
 
 /** One hotel's own listing, as plain text. Supplier text is data: tags are stripped and nothing in it is interpreted. */
 export async function readPropertyDetails(supplier: SupplierAdapter, propertyId: string) {
@@ -15,7 +16,7 @@ export async function readPropertyDetails(supplier: SupplierAdapter, propertyId:
     ok: true as const,
     value: {
       id: property.id,
-      name: details.value.name,
+      name: decodeEntities(details.value.name),
       address: details.value.address,
       stars: details.value.stars,
       rating: details.value.rating,
@@ -26,6 +27,18 @@ export async function readPropertyDetails(supplier: SupplierAdapter, propertyId:
       imageUrls: details.value.imageUrls.slice(0, 12),
       petsAllowed: details.value.petsAllowed,
       parking: details.value.parking,
+      childrenAllowed: details.value.childrenAllowed,
+      latitude: details.value.latitude,
+      longitude: details.value.longitude,
+      checkInFrom: details.value.checkInFrom,
+      checkOutUntil: details.value.checkOutUntil,
+      reviews: details.value.reviews && {
+        pros: details.value.reviews.pros.map(decodeEntities),
+        cons: details.value.reviews.cons.map(decodeEntities),
+        categories: details.value.reviews.categories.map((c) => ({ ...c, description: c.description && decodeEntities(c.description) })),
+      },
+      rooms: details.value.rooms.slice(0, 40),
+      allFacilities: details.value.facilities.map(decodeEntities),
     },
   };
 }

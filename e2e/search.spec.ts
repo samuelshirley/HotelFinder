@@ -10,7 +10,8 @@ test('search for a hotel in Porto', async ({ page }) => {
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(String(e)));
 
-  await page.goto('/');
+  // The slide-out variant of the detail flag here; the expanding card is checked below.
+  await page.goto('/?detail=slideout');
   // The first screen: one box for the trip, three pills, optional priorities.
   await expect(page.getByRole('heading', { name: 'Not 400 hotels. The right one, and why.' })).toBeVisible();
   // No search yet: no hotels panel, and no trip in the list on the left.
@@ -67,6 +68,10 @@ test('search for a hotel in Porto', async ({ page }) => {
 
   // The first search: a line saying what was found, and cards on the right.
   await expect(page.getByText(/\d+ of \d+ hotels fit\. The best \d are listed/)).toBeVisible({ timeout: 60_000 });
+  // Penny is the chat's face; a lot fit, so she names one, with a button that opens it.
+  await expect(page.getByText("Hi, I'm Penny.", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText(/hotels fit, so here is a nudge: I like .+, rated [\d.]+/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Open / })).toBeVisible();
   const cards = page.locator('ol > li');
   await expect(cards).toHaveCount(5);
   await expect(cards.first()).toContainText('Cheapest available');
@@ -94,37 +99,40 @@ test('search for a hotel in Porto', async ({ page }) => {
   expect(numbers).toHaveLength(5);
   expect([...numbers].sort((a, b) => a - b)).toEqual(numbers);
 
-  // The hotels panel is resizable: drag its edge left and it grows; the width survives a reload (checked below).
+  // With a search: trips | hotels (the main view) | chat on the right at 30% of the window.
   const panel = page.getByRole('region', { name: 'Hotels' });
-  const handle = page.getByRole('separator', { name: 'Resize the hotels panel' });
-  const before = (await panel.boundingBox())!.width;
+  const chat = page.getByRole('region', { name: 'Conversation' });
+  const handle = page.getByRole('separator', { name: 'Resize the chat' });
+  expect(Math.round((await chat.boundingBox())!.width)).toBe(Math.round(1360 * 0.3));
+  expect((await panel.boundingBox())!.x).toBeLessThan((await chat.boundingBox())!.x);
+  // Drag the edge left and the chat grows; the width survives a reload (checked below).
+  const before = (await chat.boundingBox())!.width;
   const edge = (await handle.boundingBox())!;
   await page.mouse.move(edge.x + 3, edge.y + 200);
   await page.mouse.down();
   await page.mouse.move(edge.x - 157, edge.y + 200, { steps: 4 });
   await page.mouse.up();
-  const widened = (await panel.boundingBox())!.width;
-  expect(Math.round(widened - before)).toBe(160);
-  // It cannot squeeze the chat below a usable width, however far it is dragged.
+  expect(Math.round((await chat.boundingBox())!.width - before)).toBe(160);
+  // The hotels never get squeezed below a usable width, however far it is dragged.
   await handle.focus();
   for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowLeft');
-  expect((await page.getByRole('region', { name: 'Conversation' }).boundingBox())!.width).toBeGreaterThanOrEqual(360);
-  // A smaller window takes the room from the panel, never from the chat.
+  expect((await panel.boundingBox())!.width).toBeGreaterThanOrEqual(480);
+  // A smaller window takes the room from the chat, never from the hotels.
   await page.setViewportSize({ width: 1000, height: 860 });
-  expect((await page.getByRole('region', { name: 'Conversation' }).boundingBox())!.width).toBeGreaterThanOrEqual(360);
+  expect((await panel.boundingBox())!.width).toBeGreaterThanOrEqual(480);
   await page.screenshot({ path: 'test-results/01b-1000-wide.png' });
   await page.setViewportSize({ width: 1360, height: 860 });
   for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowRight');
-  expect((await panel.boundingBox())!.width).toBe(340);
+  expect((await chat.boundingBox())!.width).toBe(320);
   await handle.dblclick();
-  expect((await panel.boundingBox())!.width).toBe(520);
+  expect(Math.round((await chat.boundingBox())!.width)).toBe(Math.round(1360 * 0.3));
 
-  // The trips list folds away and the chat takes its room.
-  const chatWidth = async () => (await page.getByRole('region', { name: 'Conversation' }).boundingBox())!.width;
-  const withList = await chatWidth();
+  // The trips list folds away and the hotels take its room.
+  const hotelsWidth = async () => (await panel.boundingBox())!.width;
+  const withList = await hotelsWidth();
   await page.getByRole('button', { name: 'Trips list' }).click();
   await expect(trips).toBeHidden();
-  expect(await chatWidth()).toBe(withList + 260);
+  expect(Math.round(await hotelsWidth())).toBe(Math.round(withList + 200));
   await page.getByRole('button', { name: 'Trips list' }).click();
   await expect(trips).toBeVisible();
 
@@ -138,20 +146,34 @@ test('search for a hotel in Porto', async ({ page }) => {
   expect(shown).toBeGreaterThan(0);
   expect(shown).toBeLessThanOrEqual(5);
 
-  // The detail sheet.
+  // The detail, slide-out variant: a panel over the chat, closed by Esc.
   await cards.first().getByRole('button', { name: 'Details' }).click();
   const sheet = page.getByRole('dialog');
-  await expect(sheet.getByRole('heading', { name: 'Facilities' })).toBeVisible({ timeout: 60_000 });
-  await expect(sheet.locator('img').first()).toBeVisible();
-  // The photo strip keeps its height. It once collapsed to a few pixels in a
-  // tall sheet: the images kept their size and the strip clipped them, so the
-  // strip itself is what is measured.
-  expect((await sheet.locator('img').first().locator('..').boundingBox())!.height).toBeGreaterThan(150);
-  // Book is in the sheet too, with the price it will re-check (the booking itself is e2e/book.spec.ts).
-  await expect(sheet.getByRole('button', { name: /^Book · €[\d,.]+$/ })).toBeVisible();
+  await expect(sheet.getByRole('heading', { name: 'Amenities' })).toBeVisible({ timeout: 60_000 });
+  await expect(sheet.getByRole('region', { name: 'Price' })).toContainText(/€[\d,.]+ total/);
+  await expect(sheet.getByRole('list', { name: 'Key facts' })).toBeVisible();
+  // Facilities are curated: at most eight up front, compliance notices never.
+  expect(await sheet.getByRole('heading', { name: 'Amenities' }).locator('..').locator('ul').first().locator('li').count()).toBeLessThanOrEqual(8);
+  await expect(sheet.getByText(/protocol|sanitizer/i)).toHaveCount(0);
+  // The hero photo keeps its height (a strip once collapsed to a few pixels in a tall sheet).
+  expect((await sheet.locator('img').first().boundingBox())!.height).toBeGreaterThan(150);
+  // Book is in the panel too, with the price it will re-check (the booking itself is e2e/book.spec.ts).
+  await expect(sheet.getByRole('button', { name: /^Book · €[\d,.]+$/ }).first()).toBeVisible();
   await page.screenshot({ path: 'test-results/02-detail.png' });
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
+
+  // The other variant of the flag: the card expands in the list, and collapses again.
+  await page.goto('/?detail=expand');
+  await expect(cards).toHaveCount(shown);
+  const firstCard = cards.first();
+  await firstCard.getByRole('button', { name: 'Details' }).click();
+  await expect(firstCard.getByRole('heading', { name: 'Amenities' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(firstCard.getByRole('button', { name: 'Collapse ▲' }).first()).toHaveAttribute('aria-expanded', 'true');
+  await page.screenshot({ path: 'test-results/02b-expanded.png' });
+  await firstCard.getByRole('button', { name: 'Collapse ▲' }).first().click();
+  await expect(firstCard.getByRole('heading', { name: 'Amenities' })).toHaveCount(0);
 
   // Reload: the search is still there.
   await page.reload();

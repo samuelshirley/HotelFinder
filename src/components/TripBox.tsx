@@ -9,6 +9,7 @@ import type { Brief } from '@/server/brief';
 import { loadExample, searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import type { Example } from '@/server/example';
+import { Spinner } from './Spinner';
 import styles from './TripBox.module.css';
 
 /**
@@ -162,7 +163,13 @@ export function TripBox({ busy, onSubmit }: Props) {
               Who: {whoLabel}
             </button>
             <button type="submit" className={styles.find} disabled={busy}>
-              {busy ? 'Finding…' : 'Find my hotel'}
+              {busy ? (
+                <>
+                  <Spinner size={14} /> Finding…
+                </>
+              ) : (
+                'Find my hotel'
+              )}
             </button>
           </div>
         </form>

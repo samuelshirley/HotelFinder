@@ -91,6 +91,8 @@ export async function buildSessionView(session: SearchSession) {
         boardName: offer.boardName,
         refundable: offer.refundableTag === 'RFN',
         freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
+        penalties: offerPenalties(offer.cancellation),
+        fees: offerFees(offer.taxesAndFees),
         fetchedAt: offer.fetchedAt.toISOString(),
         expiresAt: offer.expiresAt.toISOString(),
       },
@@ -99,3 +101,21 @@ export async function buildSessionView(session: SearchSession) {
 }
 
 export type SessionView = Awaited<ReturnType<typeof buildSessionView>>;
+
+/** Cancellation charges after the free period, as the supplier lists them. */
+export function offerPenalties(cancellation: unknown): Array<{ from: string | null; amountMinor: number; currency: string }> {
+  const list = (cancellation as { penalties?: Array<{ from?: string | null; amount?: { amountMinor?: number; currency?: string } }> } | null)?.penalties ?? [];
+  return list.flatMap((p) =>
+    typeof p.amount?.amountMinor === 'number' && p.amount.currency ? [{ from: p.from ?? null, amountMinor: p.amount.amountMinor, currency: p.amount.currency }] : [],
+  );
+}
+
+/** Taxes and fees, included in the total or paid at the hotel, as the supplier names them. */
+export function offerFees(fees: unknown): Array<{ description: string; amountMinor: number; currency: string; included: boolean }> {
+  const list = (fees as Array<{ description?: string; amount?: { amountMinor?: number; currency?: string }; included?: boolean }> | null) ?? [];
+  return list.flatMap((f) =>
+    typeof f.amount?.amountMinor === 'number' && f.amount.currency
+      ? [{ description: f.description || (f.included ? 'Taxes and fees' : 'Paid at the hotel'), amountMinor: f.amount.amountMinor, currency: f.amount.currency, included: Boolean(f.included) }]
+      : [],
+  );
+}

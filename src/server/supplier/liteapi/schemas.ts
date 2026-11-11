@@ -146,6 +146,33 @@ export const hotelDetailsResponse = z
         parking: z.string().nullish(),
         hotelFacilities: z.array(z.string()).nullish(),
         hotelImages: z.array(z.object({ url: z.string() }).passthrough()).nullish(),
+        checkinCheckoutTimes: z.object({ checkin_start: z.string().nullish(), checkout: z.string().nullish() }).passthrough().nullish(),
+        // The supplier's own review summary: data, shown verbatim, never interpreted.
+        sentiment_analysis: z
+          .object({
+            pros: z.array(z.string()).nullish(),
+            cons: z.array(z.string()).nullish(),
+            categories: z.array(z.object({ name: z.string(), rating: z.number().nullish(), description: z.string().nullish() }).passthrough()).nullish(),
+          })
+          .passthrough()
+          .nullish()
+          .catch(null),
+        rooms: z
+          .array(
+            z
+              .object({
+                roomName: z.string().nullish(),
+                roomSizeSquare: z.union([z.string(), z.number()]).nullish(),
+                roomSizeUnit: z.string().nullish(),
+                maxOccupancy: z.union([z.string(), z.number()]).nullish(),
+                bedTypes: z.array(z.object({ quantity: z.number().nullish(), bedType: z.string().nullish() }).passthrough()).nullish(),
+                roomAmenities: z.array(z.object({ name: z.string() }).passthrough()).nullish(),
+                photos: z.array(z.object({ url: z.string() }).passthrough()).nullish(),
+              })
+              .passthrough(),
+          )
+          .nullish()
+          .catch(null),
       })
       .passthrough(),
   })

@@ -11,6 +11,8 @@ import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabe
 import type { EditAction } from './api';
 import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
+import { CardSkeleton, Spinner } from './Spinner';
+import { HotelDetail } from './HotelDetail';
 import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
 
@@ -19,7 +21,7 @@ type Row = SessionView['shortlist'][number];
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, onOpen, onBook, booking, onEdit, busy }: { view: SessionView; onOpen: (propertyId: string) => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean }) {
   const { stay, session, shortlist } = view;
   if (!stay) {
     const p = view.pending;
@@ -28,19 +30,37 @@ export function ResultsPanel({ view, onOpen, onBook, booking, onEdit, busy }: { 
     // Nights are the last question only when the party and what matters are already known.
     const onlyNightsLeft = Boolean(p?.guests && p.priorities);
     return (
-      <div className={styles.empty}>
+      <div className={`${styles.column} ${styles.empty}`}>
         {p?.destination && <h2>{p.destination}</h2>}
         {known && known.length > 0 && <p className={styles.muted}>{known.join(' · ')}</p>}
-        <p>{p?.destination ? `The shortlist appears as soon as the nights are set.${onlyNightsLeft ? ' That is the only thing left to ask.' : ''}` : 'Your shortlist appears here once the search has a place and dates.'}</p>
+        {working ? (
+          <>
+            <Spinner label={working} />
+            <ol className={styles.cards}>
+              <CardSkeleton />
+              <CardSkeleton />
+              <CardSkeleton />
+            </ol>
+          </>
+        ) : (
+          <p>
+            {p?.destination
+              ? `The shortlist appears as soon as the nights are set.${onlyNightsLeft ? ' That is the only thing left to ask.' : ''}`
+              : 'Pick the place in the chat and the shortlist starts here.'}
+          </p>
+        )}
       </div>
     );
   }
   const nights = Math.max(1, nightsBetween(stay.checkIn, stay.checkOut));
   const musts = stay.mustHaves.filter(isMustHave);
   return (
-    <>
+    <div className={styles.column}>
       <header className={styles.summary}>
-        <h2>{stay.destination}</h2>
+        <div className={styles.summaryTop}>
+          <h2>{stay.destination}</h2>
+          {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
+        </div>
         <div className={styles.tags}>
           <WhereChip label={stay.destination} busy={busy} onEdit={onEdit} />
           <WhenChip checkIn={stay.checkIn} checkOut={stay.checkOut} busy={busy} onEdit={onEdit} />
@@ -61,19 +81,34 @@ export function ResultsPanel({ view, onOpen, onBook, booking, onEdit, busy }: { 
           ))}
           {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
         </div>
-        {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
-        {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Member prices arrive with sign-in, which is not built yet.</p>}
+        {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Sign in when you book, and your next searches show member prices.</p>}
+        {working && (
+          <p className={styles.working}>
+            <Spinner label={working} />
+          </p>
+        )}
       </header>
       {shortlist.length === 0 ? (
         <p className={styles.empty}>{session.status === 'onboarding' ? 'Answer the questions in the chat to search.' : 'Nothing on the shortlist. The last message in the chat says why.'}</p>
       ) : (
-        <ol className={styles.cards}>
+        <ol className={styles.cards} aria-busy={working !== null} data-working={working ? 'true' : undefined}>
           {shortlist.map((row) => (
-            <Card key={row.entryId} row={row} nights={nights} hasMustHaves={musts.length > 0} onOpen={onOpen} onBook={onBook} booking={booking} />
+            <Card
+              key={row.entryId}
+              view={view}
+              row={row}
+              nights={nights}
+              hasMustHaves={musts.length > 0}
+              open={expanded === row.property.id}
+              onOpen={onOpen}
+              onClose={onClose}
+              onBook={onBook}
+              booking={booking}
+            />
           ))}
         </ol>
       )}
-    </>
+    </div>
   );
 }
 
@@ -252,20 +287,46 @@ function cancellationLine(offer: NonNullable<Row['offer']>): string {
   return `Free cancellation until ${when} UTC`;
 }
 
-function Card({ row, nights, hasMustHaves, onOpen, onBook, booking }: { row: Row; nights: number; hasMustHaves: boolean; onOpen: (id: string) => void; onBook: (offerId: string) => void; booking: string | null }) {
+function Card({
+  view,
+  row,
+  nights,
+  hasMustHaves,
+  open,
+  onOpen,
+  onClose,
+  onBook,
+  booking,
+}: {
+  view: SessionView;
+  row: Row;
+  nights: number;
+  hasMustHaves: boolean;
+  open: boolean;
+  onOpen: (id: string) => void;
+  onClose: () => void;
+  onBook: (offerId: string) => void;
+  booking: string | null;
+}) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
   const why = offer ? reasonText(reason, { currency: offer.currency, hasMustHaves }) : 'You asked about this one; it has no price for these dates yet';
+  // The card body opens the hotel too; its own buttons keep their own jobs.
+  const onCard = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button, a, details')) return;
+    if (open) onClose();
+    else onOpen(property.id);
+  };
   return (
-    <li className={styles.card}>
-      {property.photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className={styles.photo} src={property.photo} alt="" loading="lazy" />
-      ) : (
-        <div className={styles.photo} aria-hidden />
-      )}
-      <div className={styles.cardBody}>
-        <div className={styles.cardTop}>
+    <li id={`hotel-${property.id}`} className={styles.cardItem} data-open={open ? 'true' : undefined}>
+      <div className={styles.card} onClick={onCard}>
+        {property.photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className={styles.photo} src={property.photo} alt="" loading="lazy" />
+        ) : (
+          <div className={styles.photo} aria-hidden />
+        )}
+        <div className={styles.cardBody}>
           <h3>
             <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
           </h3>
@@ -275,32 +336,43 @@ function Card({ row, nights, hasMustHaves, onOpen, onBook, booking }: { row: Row
             {property.stars ? <>· {property.stars}★ </> : null}
             {typeof reason?.distance_km === 'number' && <>· {formatKm(reason.distance_km)}</>}
           </p>
+          {why && <p className={styles.why}>{why}</p>}
+          {offer && (
+            <p className={styles.muted}>
+              {cancellationLine(offer)}
+              {offer.boardName ? ` · ${offer.boardName}` : ''}
+            </p>
+          )}
         </div>
-        {why && <p className={styles.why}>{why}</p>}
         {offer && (
-          <div className={styles.priceRow}>
-            <div>
-              <p className={styles.price}>{formatMoney(offer.totalMinor, offer.currency)}</p>
-              <p className={styles.muted}>
-                total for {nights} night{nights === 1 ? '' : 's'} · {formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency)} a night
-              </p>
-              {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>+ {formatMoney(offer.payAtPropertyMinor, offer.currency)} paid at the hotel</p>}
-              <p className={styles.muted}>
-                {cancellationLine(offer)}
-                {offer.boardName ? ` · ${offer.boardName}` : ''}
-              </p>
-            </div>
+          <div className={styles.priceCol}>
+            <p className={styles.price}>{formatMoney(offer.totalMinor, offer.currency)}</p>
+            <p className={styles.muted}>
+              total for {nights} night{nights === 1 ? '' : 's'} · {formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency)} a night
+            </p>
+            {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>+ {formatMoney(offer.payAtPropertyMinor, offer.currency)} paid at the hotel</p>}
             <div className={styles.cardActions}>
               <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
-                {booking === offer.id ? 'Checking the price…' : 'Book'}
+                {booking === offer.id ? (
+                  <>
+                    <Spinner size={14} /> Checking the price…
+                  </>
+                ) : (
+                  'Book'
+                )}
               </button>
-              <button className={styles.secondary} onClick={() => onOpen(property.id)}>
-                Details
+              <button className={styles.secondary} aria-expanded={open} onClick={() => (open ? onClose() : onOpen(property.id))}>
+                {open ? 'Collapse ▲' : 'Details'}
               </button>
             </div>
           </div>
         )}
       </div>
+      {open && (
+        <div className={styles.expandArea}>
+          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} />
+        </div>
+      )}
     </li>
   );
 }

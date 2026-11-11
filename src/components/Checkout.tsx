@@ -17,6 +17,7 @@ import {
   type Wallet,
 } from './api';
 import styles from './Checkout.module.css';
+import { Spinner } from './Spinner';
 
 /**
  * The checkout (mocks: "Hotel finder — trip box first screen", Checkout).
@@ -75,7 +76,7 @@ export function Checkout({ bookingId }: { bookingId: string }) {
         </main>
       ) : !page ? (
         <main className={styles.single}>
-          <p className={styles.muted}>Loading…</p>
+          <Spinner label="Opening the checkout…" />
         </main>
       ) : page.booking.status === 'prebooked' ? (
         <Pay page={page} onDone={setPage} onReload={reload} />
@@ -204,7 +205,13 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
           <div className={styles.note}>
             <p>This price check is more than 20 minutes old.</p>
             <button type="button" className={styles.secondary} disabled={rechecking || !b.offerId} onClick={() => void checkAgain()}>
-              {rechecking ? 'Checking…' : 'Check the price again'}
+              {rechecking ? (
+                <>
+                  <Spinner size={14} /> Checking…
+                </>
+              ) : (
+                'Check the price again'
+              )}
             </button>
           </div>
         )}
@@ -226,7 +233,15 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
               <div className={styles.row}>
                 <input id="email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={error?.field === 'email'} />
                 <button type="button" className={styles.secondary} disabled={sending || !email.trim()} onClick={() => void send()}>
-                  {sending ? 'Sending…' : codeSentTo ? 'Send a new code' : 'Send code'}
+                  {sending ? (
+                    <>
+                      <Spinner size={14} /> Sending…
+                    </>
+                  ) : codeSentTo ? (
+                    'Send a new code'
+                  ) : (
+                    'Send code'
+                  )}
                 </button>
               </div>
               {error?.field === 'email' && <p className={styles.error}>{errorCopy(error.code)}</p>}
@@ -337,7 +352,13 @@ function WalletSheet({ wallet, total, hotel, onCancel, onAuthorize }: { wallet: 
               Cancel
             </button>
             <button ref={payRef} type="button" className={styles.sheetPay} disabled={state !== 'ready'} onClick={() => void pay()}>
-              {state === 'paying' ? 'Booking…' : `Confirm ${total}`}
+              {state === 'paying' ? (
+                <>
+                  <Spinner size={14} /> Booking with the hotel…
+                </>
+              ) : (
+                `Confirm ${total}`
+              )}
             </button>
           </div>
         )}
@@ -423,7 +444,13 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
                     Keep it
                   </button>
                   <button type="button" className={styles.danger} disabled={cancelling} onClick={() => void cancel()}>
-                    {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
+                    {cancelling ? (
+                      <>
+                        <Spinner size={14} /> Cancelling…
+                      </>
+                    ) : (
+                      'Yes, cancel it'
+                    )}
                   </button>
                 </div>
               </div>
@@ -459,7 +486,13 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
                 void onReload().finally(() => setChecking(false));
               }}
             >
-              {checking ? 'Checking…' : 'Check again'}
+              {checking ? (
+                <>
+                  <Spinner size={14} /> Checking…
+                </>
+              ) : (
+                'Check again'
+              )}
             </button>
           </>
         )}

@@ -100,6 +100,7 @@ describe('onboarding: a form in the chat, no model', () => {
       ['form_question', 'What matters most? Pick any, or say it in your own words.'],
       ['form_answer', 'Low price'],
       ['line', '18 of 20 hotels fit. The best 5 are listed, each with the reason it is there.'],
+      ['line', '18 hotels fit, so here is a nudge: I like YOTEL Porto, rated 8.7, the cheapest of the top three. Which of these appeals to you?'],
     ]);
     // The priorities card names where "close" is measured from.
     expect(rows[6].meta).toMatchObject({ field: 'priorities', near: 'central Porto' });
@@ -135,7 +136,7 @@ describe('onboarding: a form in the chat, no model', () => {
       if (answer.field === 'guests') guestsAnswered = true;
     }
     expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: [] });
-    expect((await listMessages(session.id)).at(-2)).toMatchObject({ kind: 'form_answer', content: 'No preference' });
+    expect((await listMessages(session.id)).at(-3)).toMatchObject({ kind: 'form_answer', content: 'No preference' });
   });
 
   it('refuses an answer to a question that is not the one being asked', async () => {
@@ -237,14 +238,14 @@ describe('a chat turn on a running search', () => {
     expect(supplier.searches[1].occupancies).toEqual([{ adults: 4, childrenAges: [] }]);
   });
 
-  it('"tell me about the first" opens it; "book" says plainly that booking is not built', async () => {
+  it('"tell me about the first" opens it; "book" opens it at its Book button', async () => {
     const { session, supplier } = await onboarded();
     const names = await shortlistNames(session.id);
     const open = await say(session, 'tell me about the first one', deps(supplier.supplier, jevSays('open')));
-    expect(open.turn.finalText).toBe(`${names[0]} is open on the right.`);
+    expect(open.turn.finalText).toBe(`${names[0]} is open.`);
     expect((await lastLine(session.id)).meta).toMatchObject({ ui: { open: { propertyId: expect.any(String) } } });
     const book = await say(session, 'book the second one', deps(supplier.supplier, jevSays('book')));
-    expect(book.turn.finalText).toBe(`Booking is not built yet. ${names[1]} is open on the right.`);
+    expect(book.turn.finalText).toBe(`${names[1]} is open: press Book there to check the price and pay.`);
   });
 
   it('with no Anthropic key, what the router will not settle says so and changes nothing', async () => {

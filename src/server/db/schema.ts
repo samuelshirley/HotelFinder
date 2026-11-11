@@ -317,6 +317,11 @@ export const offers = pgTable(
     cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
     fetchedAt: ts('fetched_at').notNull(),
     expiresAt: ts('expires_at').notNull(),
+    /**
+     * Fetched for one hotel's detail ("other rooms & rates"), not by a search.
+     * Never ranked: opening a hotel must not change the shortlist.
+     */
+    detailOnly: boolean('detail_only').notNull().default(false),
   },
   (t) => ({
     byStay: index('offers_stay_idx').on(t.sessionId, t.stayId),

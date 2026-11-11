@@ -260,6 +260,15 @@ describe('the rest of the recorded responses', () => {
     });
   });
 
+  it('hotel details: check-in times, the review summary and the rooms, as the supplier gives them', () => {
+    const d = normalizeDetails(hotelDetailsResponse.parse(fixture('hotel-details')));
+    expect(d).toMatchObject({ checkInFrom: '03:00 PM', checkOutUntil: '12:00 PM' });
+    expect(d.reviews?.pros).toHaveLength(6);
+    expect(d.reviews?.categories[0]).toMatchObject({ name: 'Cleanliness', rating: 8.8 });
+    expect(d.rooms[0]).toMatchObject({ name: 'Vincci Room', sizeSqm: 22, beds: ['2 × twin bed', 'double bed'], maxOccupancy: 2 });
+    expect(d.rooms[0].photo).toMatch(/^https:\/\//);
+  });
+
   it('a non-refundable cancel is still a cancel: the supplier keeps the price as the fee', () => {
     expect(normalizeCancel(cancelResponse.parse(fixture('booking-cancel-with-charges')))).toEqual({
       supplierBookingId: '2U0GzrbQp',

@@ -30,6 +30,7 @@
 .error { color: #f2a3a7; font-size: 13px; }
 .devCode { padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--tp-border-strong); font-size: 13px; color: var(--tp-muted); }
 .devCode strong { color: var(--tp-text); letter-spacing: 0.15em; }
+.secondary, .danger, .sheetPay { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .secondary { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--tp-primary); background: transparent; color: var(--tp-accent-300); }
 .secondary:hover:not(:disabled) { background: var(--tp-primary-muted); }
 .danger { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid #e5747a; background: transparent; color: #f2a3a7; }

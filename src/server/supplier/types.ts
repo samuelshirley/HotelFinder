@@ -71,6 +71,12 @@ export type PropertyDetails = SupplierProperty & {
   importantInformation: string | null;
   description: string | null;
   imageUrls: string[];
+  /** As the supplier writes them, e.g. "03:00 PM" / "12:00 PM". */
+  checkInFrom: string | null;
+  checkOutUntil: string | null;
+  /** The supplier's review summary, verbatim. */
+  reviews: { pros: string[]; cons: string[]; categories: Array<{ name: string; rating: number; description: string | null }> } | null;
+  rooms: Array<{ name: string; sizeSqm: number | null; beds: string[]; maxOccupancy: number | null; amenities: string[]; photo: string | null }>;
 };
 
 /** The amenities a hotel is known to have. A hotel missing from the answer is unknown, not amenity-free. */

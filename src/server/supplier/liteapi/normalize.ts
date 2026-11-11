@@ -191,6 +191,31 @@ export function normalizeDetails(body: z.infer<typeof hotelDetailsResponse>): Pr
     importantInformation: d.hotelImportantInformation ?? null,
     description: d.hotelDescription ?? null,
     imageUrls: (d.hotelImages ?? []).map((i) => i.url),
+    checkInFrom: d.checkinCheckoutTimes?.checkin_start || null,
+    checkOutUntil: d.checkinCheckoutTimes?.checkout || null,
+    reviews: d.sentiment_analysis
+      ? {
+          pros: d.sentiment_analysis.pros ?? [],
+          cons: d.sentiment_analysis.cons ?? [],
+          categories: (d.sentiment_analysis.categories ?? []).flatMap((c) => (typeof c.rating === 'number' ? [{ name: c.name, rating: c.rating, description: c.description ?? null }] : [])),
+        }
+      : null,
+    rooms: (d.rooms ?? []).flatMap((r) => {
+      if (!r.roomName) return [];
+      const size = Number(r.roomSizeSquare);
+      const occupancy = Number(r.maxOccupancy);
+      const sqm = Number.isFinite(size) && size > 0 ? (r.roomSizeUnit === 'sqft' ? Math.round(size * 0.092903) : size) : null;
+      return [
+        {
+          name: r.roomName,
+          sizeSqm: sqm,
+          beds: (r.bedTypes ?? []).flatMap((b) => (b.bedType ? [`${b.quantity && b.quantity > 1 ? `${b.quantity} × ` : ''}${b.bedType.toLowerCase()}`] : [])),
+          maxOccupancy: Number.isFinite(occupancy) && occupancy > 0 ? occupancy : null,
+          amenities: (r.roomAmenities ?? []).map((a) => a.name),
+          photo: r.photos?.[0]?.url ?? null,
+        },
+      ];
+    }),
   };
 }
 

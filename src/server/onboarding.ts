@@ -13,7 +13,10 @@ import { MAX_NIGHTS } from '@/lib/store/reduce';
 import { dispatchActions, resolveDestination, toSearchState } from '@/server/dispatch';
 import type { FinderOutcome } from '@/server/finder';
 import { appendMessage, type ChatMessage } from '@/server/repos/chat';
-import { addStay, getSession, listStays, updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
+import { pennyLine, pennyPick } from '@/lib/pennyPick';
+import { SPONSORED_HOTELS } from '@/lib/sponsors';
+import { listShortlist } from '@/server/repos/shortlist';
+import { addStay, audienceFor, getSession, listStays, updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
 import type { SupplierAdapter } from '@/server/supplier';
 
 /**
@@ -249,6 +252,7 @@ export async function answerForm(args: {
     content: line,
     meta: { finder: dispatched.finder?.kind ?? null },
   });
+  await sayPennysPick(current, stay!, dispatched.finder);
   return { ok: true, done: true };
 }
 
@@ -271,6 +275,36 @@ function destFields(session: SearchSession) {
   return point
     ? { destLatitude: point.latitude, destLongitude: point.longitude, destKind: point.kind, destCountry: point.country }
     : {};
+}
+
+const kmOf = (reason: unknown): number | null => {
+  const km = (reason as { distance_km?: unknown } | null)?.distance_km;
+  return typeof km === 'number' ? km : null;
+};
+
+/** After a first search that found a lot: Penny names one and asks which appeals (lib/pennyPick.ts). */
+async function sayPennysPick(session: SearchSession, stay: Stay, outcome: FinderOutcome | null) {
+  if (outcome?.kind !== 'ok') return;
+  const rows = (await listShortlist(session.id, stay.id, audienceFor(session)))
+    .filter((r) => r.entry.source === 'finder' && r.offer)
+    .map((r) => ({
+      propertyId: r.property.id,
+      supplierHotelId: r.property.supplierHotelId,
+      name: r.property.name,
+      totalMinor: r.offer!.totalMinor,
+      currency: r.offer!.currency,
+      rating: r.property.rating,
+      km: kmOf(r.entry.reason),
+    }));
+  const pick = pennyPick(rows, outcome.eligible, SPONSORED_HOTELS);
+  if (!pick) return;
+  await appendMessage({
+    sessionId: session.id,
+    role: 'assistant',
+    kind: 'line',
+    content: pennyLine(outcome.eligible, pick),
+    meta: { pennyPick: { propertyId: pick.propertyId, sponsored: pick.sponsored } },
+  });
 }
 
 /** What the first search found, in one line. */

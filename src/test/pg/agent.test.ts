@@ -428,6 +428,8 @@ describe('the first screen: one box, three pills', () => {
     expect((await listMessages(sessionId)).map((x) => [x.role, x.kind, x.content])).toEqual([
       ['user', 'user', 'Porto, Portugal'],
       ['assistant', 'line', expect.stringMatching(/^\d+ of \d+ hotels fit\./)],
+      // A lot fit, so Penny names one: her own pick (no hotel is sponsored), with real numbers.
+      ['assistant', 'line', '18 hotels fit, so here is a nudge: I like Mercure Porto Centro Aliados, rated 9.2, the cheapest of the top three. Which of these appeals to you?'],
     ]);
   });
 

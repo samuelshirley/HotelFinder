@@ -5,22 +5,28 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorCopy } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
-import { formatDates } from '@/lib/replies';
-import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
+import { formatDates, formatGuests } from '@/lib/replies';
+import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, logEvent, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
 import styles from './App.module.css';
-import { ChatPanel } from './ChatPanel';
-import { DetailSheet } from './DetailSheet';
+import { ChatPanel, Penny, PENNY_HELLO } from './ChatPanel';
+import { HotelDetail } from './HotelDetail';
+import { detailVariant, type DetailVariant } from './flags';
+import { SlideOut } from './SlideOut';
 import { ResultsPanel } from './ResultsPanel';
+import { CardSkeleton, Spinner } from './Spinner';
 import { TripBox } from './TripBox';
 import type { Brief } from '@/server/brief';
 
 const STORAGE_KEY = 'hf_session';
-const PANEL_KEY = 'hf_panel_width';
+// v3: the right column is now the chat (30% of the window); widths stored for the old layouts are dropped.
+const PANEL_KEY = 'hf_chat_width_v3';
 const SIDEBAR_KEY = 'hf_sidebar';
-const PANEL_MIN = 340;
+/** The chat on the right, with a search on screen. */
+const PANEL_MIN = 320;
 const PANEL_DEFAULT = 520;
 /** The chat column never gets narrower than this while the panel is dragged. */
-const CHAT_MIN = 360;
+/** The hotels, the main view, never get narrower than this while the chat is dragged. */
+const CHAT_MIN = 480;
 
 /** Browser storage can be unavailable (private mode, blocked): the layout then just starts from its defaults. */
 const stored = (key: string): string | null => {
@@ -38,10 +44,22 @@ const store = (key: string, value: string) => {
   }
 };
 
+/** The chat's default width: 30% of the window, leaving the hotels at least CHAT_MIN beside the trips list. */
+/** The trips column, as the CSS sizes it: clamp(200px, 10vw, 260px). */
+const sideWidth = (total: number) => Math.min(260, Math.max(200, total * 0.1));
+const halfWindow = () => Math.max(PANEL_MIN, Math.min(Math.round(window.innerWidth * 0.3), window.innerWidth - sideWidth(window.innerWidth) - CHAT_MIN - 7));
+
+/** What the first press showed, until the server's answer replaces it. */
+type PendingBrief = { bubble: string; place: string | null };
+
 /** The whole app: your trips on the left, the conversation in the middle, the shortlist on the right. */
 export function App() {
   const [view, setView] = useState<SessionView | null>(null);
-  const [busy, setBusy] = useState<null | 'form' | 'turn' | 'boot'>('boot');
+  const [busy, setBusy] = useState<null | 'form' | 'edit' | 'turn' | 'boot'>('boot');
+  /** Set from the first press until the session exists: the chat-and-hotels layout shows at once, not 4 s later. */
+  const [pendingBrief, setPendingBrief] = useState<PendingBrief | null>(null);
+  /** Will the form answer being sent run the first search? Then the hotels panel says so while it waits. */
+  const [searching, setSearching] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openProperty, setOpenProperty] = useState<string | null>(null);
@@ -57,11 +75,14 @@ export function App() {
   /** On a narrow window only one of the two is on screen. */
   const [tab, setTab] = useState<'chat' | 'hotels'>('chat');
   const booted = useRef(false);
+  const resultsRef = useRef<HTMLElement>(null);
+  const viewRef = useRef<SessionView | null>(null);
   const shell = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const w = Number(stored(PANEL_KEY));
-    if (Number.isFinite(w) && w >= PANEL_MIN) setPanelWidth(w);
+    // 30% of the window unless the user dragged it.
+    setPanelWidth(Number.isFinite(w) && w >= PANEL_MIN ? w : halfWindow());
     if (stored(SIDEBAR_KEY) === 'closed') setSidebar(false);
   }, []);
 
@@ -89,7 +110,7 @@ export function App() {
   const clampPanel = useCallback(
     (w: number) => {
       const total = shell.current?.clientWidth ?? window.innerWidth;
-      const side = sidebar ? 260 : 0;
+      const side = sidebar ? sideWidth(total) : 0;
       return Math.round(Math.max(PANEL_MIN, Math.min(w, total - side - CHAT_MIN - 7)));
     },
     [sidebar],
@@ -189,9 +210,27 @@ export function App() {
     if (tripKey) void refreshTrips();
   }, [tripKey, refreshTrips]);
 
+  /** How a hotel opens: the `detail` flag (components/flags.ts), read once on the client. */
+  const [variant, setVariant] = useState<DetailVariant>('slideout');
+  useEffect(() => setVariant(detailVariant()), []);
+  const openHotel = useCallback(
+    (propertyId: string) => {
+      setOpenProperty((current) => (current === propertyId && variant === 'expand' ? null : propertyId));
+      setTab('hotels');
+      if (viewRef.current) void logEvent('detail_open', { variant, sessionId: viewRef.current.session.id });
+      if (variant === 'expand') {
+        // The opened card moves to the top of the list's viewport.
+        requestAnimationFrame(() => document.getElementById(`hotel-${propertyId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      }
+    },
+    [variant],
+  );
+  const closeHotel = useCallback(() => setOpenProperty(null), []);
+
   /** "Book": the hotel re-checks the price, then the checkout page opens on that check. */
   const onBook = async (offerId: string) => {
     if (!view || booking) return;
+    if (openProperty) void logEvent('detail_book', { variant, sessionId: view.session.id });
     setBooking(offerId);
     setError(null);
     try {
@@ -208,6 +247,8 @@ export function App() {
   const onBrief = async (brief: Brief) => {
     setBusy('form');
     setError(null);
+    const party = brief.guests ? formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms) : '2 adults';
+    setPendingBrief({ bubble: brief.text || [brief.place?.label, party].filter(Boolean).join(' · '), place: brief.place?.label ?? null });
     try {
       const { sessionId } = await startBrief(brief);
       store(STORAGE_KEY, sessionId);
@@ -217,6 +258,7 @@ export function App() {
     } catch (err) {
       fail(err);
     } finally {
+      setPendingBrief(null);
       setBusy(null);
     }
   };
@@ -225,6 +267,7 @@ export function App() {
     if (!view) return;
     setBusy('form');
     setError(null);
+    setSearching(answerRunsSearch(view, answer.field));
     try {
       const next = await answerForm(view.session.id, answer);
       setView(next);
@@ -233,13 +276,14 @@ export function App() {
     } catch (err) {
       fail(err);
     } finally {
+      setSearching(false);
       setBusy(null);
     }
   };
 
   const onEdit = async (action: Parameters<typeof editSearch>[1]) => {
     if (!view) return;
-    setBusy('form');
+    setBusy('edit');
     setError(null);
     try {
       setView(await editSearch(view.session.id, action));
@@ -277,7 +321,7 @@ export function App() {
       setView(next);
       const last = [...next.messages].reverse().find((m) => m.role === 'assistant');
       const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string } } }).ui;
-      if (ui?.open?.propertyId) setOpenProperty(ui.open.propertyId);
+      if (ui?.open?.propertyId) openHotel(ui.open.propertyId);
     } catch (err) {
       fail(err);
     } finally {
@@ -286,7 +330,16 @@ export function App() {
     }
   };
 
-  const hasPanel = Boolean(view?.stay);
+  /**
+   * Onboarding is the chat alone. With a search, the hotels take the middle and
+   * the chat moves right; that switch happens the moment a search starts (the
+   * skeleton holds the place), not when its results land.
+   */
+  viewRef.current = view;
+  const openRow = openProperty ? view?.shortlist.find((r) => r.property.id === openProperty) ?? null : null;
+  const hasPanel =
+    Boolean(view?.stay && view.session.status !== 'onboarding') || Boolean(pendingBrief?.place) || (busy === 'form' && searching);
+  const working = pendingBrief ? 'Finding hotels…' : busy === 'form' && searching ? 'Finding hotels…' : busy === 'edit' ? 'Updating the shortlist…' : null;
   const count = view?.shortlist.length ?? 0;
   return (
     <div
@@ -381,34 +434,104 @@ export function App() {
           </p>
         )}
         {view ? (
-          <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} />
+          <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} />
+        ) : pendingBrief ? (
+          <PendingChat bubble={pendingBrief.bubble} reading={pendingBrief.place === null} />
         ) : busy === 'boot' ? (
-          <p className={styles.muted}>Starting…</p>
+          <p className={styles.starting}>
+            <Spinner label="Starting…" />
+          </p>
         ) : (
           <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
         )}
       </section>
 
-      {hasPanel && view && (
+      {hasPanel && (
         <>
           <div
             className={styles.resizer}
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize the hotels panel"
+            aria-label="Resize the chat"
             aria-valuemin={PANEL_MIN}
             aria-valuenow={panelWidth}
             tabIndex={0}
             onPointerDown={startResize}
             onKeyDown={nudgePanel}
-            onDoubleClick={() => { setPanelWidth(PANEL_DEFAULT); store(PANEL_KEY, String(PANEL_DEFAULT)); }}
+            onDoubleClick={() => { const w = clampPanel(halfWindow()); setPanelWidth(w); store(PANEL_KEY, String(w)); }}
           />
-          <section className={styles.results} aria-label="Hotels">
-            <ResultsPanel view={view} onOpen={setOpenProperty} onBook={(id) => void onBook(id)} booking={booking} onEdit={onEdit} busy={busy !== null} />
+          <section ref={resultsRef} className={styles.results} aria-label="Hotels">
+            {view ? (
+              <ResultsPanel
+                view={view}
+                working={working}
+                expanded={variant === 'expand' ? openProperty : null}
+                onOpen={openHotel}
+                onClose={closeHotel}
+                onBook={(id) => void onBook(id)}
+                booking={booking}
+                onEdit={onEdit}
+                busy={busy !== null}
+              />
+            ) : (
+              <FirstSearch place={pendingBrief?.place ?? null} />
+            )}
           </section>
         </>
       )}
-      {view && openProperty && <DetailSheet view={view} propertyId={openProperty} onClose={() => setOpenProperty(null)} onBook={(id) => void onBook(id)} booking={booking} />}
+      {view && openRow && variant === 'slideout' && (
+        <SlideOut title={openRow.property.name} onClose={closeHotel}>
+          <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} />
+        </SlideOut>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Does answering `field` finish the questions, so the server runs the first
+ * search in the same request? Only for what the panel says while it waits;
+ * the server decides.
+ */
+function answerRunsSearch(view: SessionView, field: FormAnswer['field']): boolean {
+  const p = view.pending;
+  const prioritiesKnown = view.session.priorities !== null || Boolean(p?.priorities);
+  if (field === 'priorities') return true;
+  if (field === 'guests') return prioritiesKnown;
+  if (field === 'dates') return Boolean(p?.guests) && prioritiesKnown;
+  return false;
+}
+
+/** The chat during the first press: the user's words, and that they are being read. */
+function PendingChat({ bubble, reading }: { bubble: string; reading: boolean }) {
+  return (
+    <div className={styles.messages}>
+      <div className={styles.thread}>
+        <Penny first>
+          <p className={`${styles.bubble} ${styles.assistant}`}>{PENNY_HELLO}</p>
+        </Penny>
+        <p className={`${styles.bubble} ${styles.user}`}>{bubble}</p>
+        <Penny first>
+          <p className={`${styles.bubble} ${styles.assistant}`}>
+            <Spinner label={reading ? 'Reading your trip…' : 'Finding hotels…'} />
+          </p>
+        </Penny>
+      </div>
+    </div>
+  );
+}
+
+/** The hotels side during the first press. */
+function FirstSearch({ place }: { place: string | null }) {
+  return (
+    <div className={styles.firstSearch} aria-busy="true">
+      {place && <h2>{place}</h2>}
+      <Spinner label={place ? 'Finding hotels…' : 'Reading your trip…'} />
+      <ol className={styles.cards}>
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+      </ol>
     </div>
   );
 }

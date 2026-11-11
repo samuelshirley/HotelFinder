@@ -57,7 +57,8 @@ export async function listLiveOffers(
  * (reproduced in finder.test.ts, "a new search replaces the old one").
  */
 export async function listLiveOffersForRanking(sessionId: string, stayId: string, audience: Audience, now: Date) {
-  const mine = and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), eq(offers.audience, audience));
+  // A hotel's detail rates are never ranked: opening a hotel must not change the shortlist.
+  const mine = and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), eq(offers.audience, audience), eq(offers.detailOnly, false));
   // Two plain queries, not a subquery inside sql``: that form overflowed the
   // stack under Next's bundler (reproduced in the e2e run, 2026-11-11) though
   // it passed under vitest.
@@ -68,4 +69,21 @@ export async function listLiveOffersForRanking(sessionId: string, stayId: string
     .from(offers)
     .innerJoin(properties, eq(properties.id, offers.propertyId))
     .where(and(mine, gt(offers.expiresAt, now), eq(offers.fetchedAt, at)));
+}
+
+/** A hotel's detail rates for this stay that are still live. */
+export async function listDetailOffers(sessionId: string, stayId: string, propertyId: string, audience: Audience, now: Date): Promise<Offer[]> {
+  return db
+    .select()
+    .from(offers)
+    .where(
+      and(
+        eq(offers.sessionId, sessionId),
+        eq(offers.stayId, stayId),
+        eq(offers.propertyId, propertyId),
+        eq(offers.detailOnly, true),
+        eq(offers.audience, audience),
+        gt(offers.expiresAt, now),
+      ),
+    );
 }

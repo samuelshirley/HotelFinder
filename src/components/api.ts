@@ -44,20 +44,7 @@ export type { Example } from '@/server/example';
 export const loadExample = () => request<import('@/server/example').Example>('/api/example');
 export const startBrief = (brief: Brief) => request<{ sessionId: string }>('/api/session/brief', { method: 'POST', body: JSON.stringify({ brief, today: todayLocal() }) });
 
-export type PropertyDetails = {
-  id: string;
-  name: string;
-  address: string | null;
-  stars: number | null;
-  rating: number | null;
-  reviewCount: number | null;
-  description: string | null;
-  importantInformation: string | null;
-  facilities: string[];
-  imageUrls: string[];
-  petsAllowed: boolean | null;
-  parking: string | null;
-};
+export type PropertyDetails = import('@/server/propertyDetails').PropertyDetailsView;
 export const loadProperty = (sessionId: string, propertyId: string) => request<PropertyDetails>(`/api/session/${sessionId}/property/${propertyId}`);
 
 /**
@@ -118,3 +105,19 @@ export const confirmBooking = (
 export const cancelBookingApi = (id: string) => request<{ booking: BookingView }>(`/api/booking/${id}/cancel`, { method: 'POST', body: '{}' });
 export type BookingSummary = { id: string; status: string; hotelName: string | null; checkIn: string | null; checkOut: string | null };
 export const loadBookings = () => request<{ bookings: BookingSummary[] }>('/api/bookings');
+
+export type HotelRate = {
+  offerId: string;
+  roomName: string | null;
+  boardName: string | null;
+  refundable: boolean;
+  freeCancellationUntil: string | null;
+  penalties: Array<{ from: string | null; amountMinor: number; currency: string }>;
+  fees: Array<{ description: string; amountMinor: number; currency: string; included: boolean }>;
+  currency: string;
+  totalMinor: number;
+  payAtPropertyMinor: number;
+};
+export const loadRates = (sessionId: string, propertyId: string) => request<{ rates: HotelRate[] }>(`/api/session/${sessionId}/property/${propertyId}/rates`);
+export const logEvent = (name: 'detail_open' | 'detail_book', props: { variant: string; sessionId: string }) =>
+  fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, ...props }), keepalive: true }).catch(() => undefined);
