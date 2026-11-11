@@ -25,7 +25,7 @@ a second supplier, a native app. Full design, decisions and open questions:
 
 Next.js 14 (App Router, React 18) · TypeScript · Neon Postgres via `postgres`
 + Drizzle · Zod · NextAuth v5 (email OTP, no passwords) · Resend · Anthropic
-SDK (Haiku 4.5, ids in one registry) · **Jev** (typed-decision server, asked
+SDK (Haiku 5.5, ids in one registry) · **Jev** (typed-decision server, asked
 first on every message) · **LiteAPI** (the only supplier) · Google Maps/Places
 (paid) · Vitest, PGlite, Playwright · Vercel.
 

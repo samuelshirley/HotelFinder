@@ -11,7 +11,7 @@ export const MODELS = {
 export type ModelId = keyof typeof MODELS;
 
 /** The agent that handles what the router defers, and the intent scan. */
-export const DEFAULT_AGENT_MODEL: ModelId = 'claude-haiku-4-5-20251001';
+export const DEFAULT_AGENT_MODEL: ModelId = 'claude-haiku-5-5';
 
 export function isModelId(value: string): value is ModelId {
   return value in MODELS;

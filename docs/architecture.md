@@ -36,8 +36,8 @@ write, price alerts, group bookings, saved cards, a second supplier, native app.
 
 Same as Feral Travels, versions as pinned there today **[V]**: Next.js 14 (App
 Router) + React 18 + TypeScript, Neon Postgres via `postgres` + Drizzle, Zod,
-NextAuth v5 (email OTP), Resend, Anthropic SDK with Haiku 4.5
-(`claude-haiku-4-5-20251001`) in one model registry, Vitest + PGlite +
+NextAuth v5 (email OTP), Resend, Anthropic SDK with Haiku 5.5
+(`claude-haiku-5-5`) in one model registry, Vitest + PGlite +
 Playwright, Vercel. No mobile app, no RevenueCat, no IAP paywall.
 
 New pieces: the LiteAPI adapter, the Jev router, the payment-form chat row.

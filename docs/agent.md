@@ -40,10 +40,10 @@ goes to `runAgent`. A free-text first message goes to `scanIntent`.
 ## Model
 
 `src/lib/models.ts` is the only file that names a model. Default
-`claude-haiku-4-5-20251001` ($1 / $5 per million tokens in / out).
-`claude-haiku-5-5` is registered too ($0.10 / $0.50, prices read from
-platform.claude.com on 2026-11-11) and `AGENT_MODEL` selects it. Which one to
-run is undecided: it needs `scripts/agent-live.sh` run on both.
+`claude-haiku-5-5` ($0.10 / $0.50 per million tokens in / out, prompts up to
+100k tokens; Sam's decision, 2026-11-11, on price). `claude-haiku-4-5-20251001`
+($1 / $5) stays registered and `AGENT_MODEL` selects it. Prices read from
+platform.claude.com on 2026-11-11.
 
 ## Not verified
 

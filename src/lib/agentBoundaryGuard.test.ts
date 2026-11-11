@@ -55,7 +55,7 @@ describe('agent boundary', () => {
 
   it('the agent model is the one that was decided, and it has a price', () => {
     // Changing the model changes cost and behaviour: do it on purpose, with a measurement.
-    expect(DEFAULT_AGENT_MODEL).toBe('claude-haiku-4-5-20251001');
-    expect(MODELS[DEFAULT_AGENT_MODEL]).toEqual({ input: 1, cacheWrite: 1.25, cacheRead: 0.1, output: 5 });
+    expect(DEFAULT_AGENT_MODEL).toBe('claude-haiku-5-5'); // Sam, 2026-11-11: a tenth of the price of 4.5
+    expect(MODELS[DEFAULT_AGENT_MODEL]).toEqual({ input: 0.1, cacheWrite: 0.125, cacheRead: 0.01, output: 0.5 });
   });
 });
