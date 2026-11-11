@@ -1,0 +1,38 @@
+/**
+ * Checks on what the model wrote before a user sees it. The model's words are
+ * shown only when it made no change (an answer or a question); these make
+ * sure such a reply does not state a number the server did not give it, and
+ * does not claim something happened.
+ */
+export type Guard = 'empty' | 'ungrounded_number' | 'claims_action' | 'too_long';
+
+const MAX_CHARS = 600;
+
+/** Digit runs of two or more digits, leading zeros dropped, so "03" and "3" and "2026-03-12" all compare. */
+function numbers(text: string): string[] {
+  return (text.match(/\d+/g) ?? []).map((n) => n.replace(/^0+(?=\d)/, '')).filter((n) => n.length >= 2);
+}
+
+const CLAIMS = /\b(i(?:'ve| have)?|we(?:'ve| have)?)\s+(?:just\s+|now\s+|already\s+)?(booked|reserved|changed|updated|set|added|removed|applied|filtered|capped|found|searched|excluded|held|cancelled|canceled)\b|\b(is|are|has been|have been)\s+(now\s+)?(booked|reserved|confirmed|held)\b|\byour (booking|reservation) (is|has)\b/i;
+
+export function tidy(text: string): string {
+  return text
+    .replace(/\*\*|__|`/g, '')
+    .replace(/^\s*[-*#]+\s+/gm, '')
+    .replace(/\s*\n+\s*/g, ' ')
+    .trim();
+}
+
+/**
+ * `grounding` is everything the model was shown this turn: the search, the
+ * hotels on screen, tool results and the user's own message.
+ */
+export function checkReply(text: string, grounding: string): Guard[] {
+  const guards: Guard[] = [];
+  if (!text) return ['empty'];
+  if (text.length > MAX_CHARS) guards.push('too_long');
+  const known = new Set(numbers(grounding));
+  if (numbers(text).some((n) => !known.has(n))) guards.push('ungrounded_number');
+  if (CLAIMS.test(text)) guards.push('claims_action');
+  return guards;
+}

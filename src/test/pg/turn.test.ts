@@ -7,6 +7,7 @@ import { rawQuery, resetDb } from './harness';
 import { recordedSupplier, RECORDED_AT } from './recordedSupplier';
 import type { Intent } from '@/lib/router/catalogue';
 import type { Readings } from '@/lib/router/route';
+import type { CallModel } from '@/server/agent';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
 import { listMessages } from '@/server/repos/chat';
@@ -33,9 +34,11 @@ function jevSays(intent: Intent, over: Partial<Readings> = {}): JevOutcome {
     errorMessage: null,
   };
 }
+/** A server with no Anthropic key. */
+const NO_MODEL: CallModel = async (call) => ({ ok: false, model: call.model, failure: 'not_configured', latencyMs: 0, errorMessage: 'ANTHROPIC_API_KEY is not set' });
 const JEV_DOWN: JevOutcome = { readings: null, failure: 'timeout', latencyMs: 1500, model: null, inputTokens: 0, outputTokens: 0, settleMin: 0.85, errorMessage: 'timed out after 1500 ms' };
 
-function deps(supplier: TurnDeps['supplier'], jev: JevOutcome | ((message: string) => JevOutcome)): TurnDeps & { asked: Array<{ message: string; state: Record<string, unknown> }> } {
+function deps(supplier: TurnDeps['supplier'], jev: JevOutcome | ((message: string) => JevOutcome), model: CallModel = NO_MODEL): TurnDeps & { asked: Array<{ message: string; state: Record<string, unknown> }> } {
   const asked: Array<{ message: string; state: Record<string, unknown> }> = [];
   return {
     asked,
@@ -45,6 +48,8 @@ function deps(supplier: TurnDeps['supplier'], jev: JevOutcome | ((message: strin
       return typeof jev === 'function' ? jev(input.message) : jev;
     },
     jevCost: (tokens) => Math.round(tokens * 4.2),
+    callModel: model,
+    model: 'claude-haiku-4-5-20251001',
     now: () => RECORDED_AT,
     today: TODAY,
   };
@@ -53,7 +58,7 @@ function deps(supplier: TurnDeps['supplier'], jev: JevOutcome | ((message: strin
 const ANSWERS: FormAnswer[] = [
   { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Porto, Portugal' },
   { field: 'dates', checkIn: '2026-12-11', checkOut: '2026-12-13' },
-  { field: 'guests', adults: 2, childrenAges: [], rooms: 1 },
+  { field: 'guests', adults: 2, childrenAges: [], rooms: 1, pets: false },
   { field: 'nationality', code: 'ES' },
   { field: 'priority', priority: 'cheapest' },
 ];
@@ -123,7 +128,7 @@ describe('onboarding: a form in the chat, no model', () => {
     expect(await answer({ field: 'dates', checkIn: '2026-12-13', checkOut: '2026-12-11' })).toEqual({ ok: false, error: 'checkout_not_after_checkin' });
     expect(await answer({ field: 'dates', checkIn: '2026-12-01', checkOut: '2027-02-01' })).toEqual({ ok: false, error: 'stay_too_long' });
     await answer(ANSWERS[1]);
-    expect(await answer({ field: 'guests', adults: 1, childrenAges: [], rooms: 2 })).toEqual({ ok: false, error: 'more_rooms_than_adults' });
+    expect(await answer({ field: 'guests', adults: 1, childrenAges: [], rooms: 2, pets: false })).toEqual({ ok: false, error: 'more_rooms_than_adults' });
     expect((await listMessages(session.id)).filter((m) => m.kind === 'form_answer')).toHaveLength(2);
   });
 
@@ -214,17 +219,14 @@ describe('a chat turn on a running search', () => {
     expect(book.turn.finalText).toBe(`Booking is not built yet. ${names[1]} is open on the right.`);
   });
 
-  it('what the router will not settle gets an honest line and changes nothing', async () => {
+  it('with no Anthropic key, what the router will not settle says so and changes nothing', async () => {
     const { session, supplier } = await onboarded();
     const before = await shortlistNames(session.id);
     const unsure = await say(session, 'somewhere with a nice vibe', deps(supplier.supplier, jevSays('question')));
-    expect(unsure.turn.finalText).toMatch(/^I could not work that one out\./);
-    expect(unsure.turn.resultMeta).toMatchObject({ deferred: 'intent_for_agent', model_calls: 0 });
-    const down = await say(session, 'under 70 a night', deps(supplier.supplier, JEV_DOWN));
-    expect(down.turn.finalText).toBe('The router that handles simple changes did not answer, so nothing was changed. Send that again.');
-    expect(down.turn.resultMeta).toMatchObject({ deferred: 'no_reading', jev: { failure: 'timeout' } });
+    expect(unsure.turn.finalText).toBe('That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.');
+    expect(unsure.turn.resultMeta).toMatchObject({ by: 'agent', deferred: 'intent_for_agent', failure: 'not_configured' });
     expect(await shortlistNames(session.id)).toEqual(before);
-    expect(await rawQuery('select 1 from usage_events where success = false')).toHaveLength(1);
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
   });
 
   it('a rejected change says why and leaves the search alone', async () => {

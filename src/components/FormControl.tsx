@@ -128,6 +128,7 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
   const [adults, setAdults] = useState(2);
   const [rooms, setRooms] = useState(1);
   const [ages, setAges] = useState<number[]>([]);
+  const [pets, setPets] = useState(false);
   const step = (value: number, set: (n: number) => void, min: number, max: number, label: string) => (
     <div className={styles.stepper}>
       <span>{label}</span>
@@ -161,7 +162,11 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
         </div>
       )}
       {step(rooms, setRooms, 1, Math.min(6, adults), 'Rooms')}
-      <button className={styles.primary} disabled={disabled} onClick={() => onAnswer({ field: 'guests', adults, childrenAges: ages, rooms })}>
+      <label className={styles.check}>
+        <input type="checkbox" checked={pets} disabled={disabled} onChange={(e) => setPets(e.target.checked)} />
+        Bringing a pet
+      </label>
+      <button className={styles.primary} disabled={disabled} onClick={() => onAnswer({ field: 'guests', adults, childrenAges: ages, rooms, pets })}>
         That is everyone
       </button>
     </div>

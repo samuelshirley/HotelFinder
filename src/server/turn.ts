@@ -1,15 +1,21 @@
 import 'server-only';
 
-import { describeChange, FIXED_LINES } from '@/lib/replies';
+import { nightsBetween } from '@/lib/finder/geo';
+import { modelCostMicrocents, type ModelId } from '@/lib/models';
+import { reasonText, type ReasonLike } from '@/lib/reasonText';
+import { describeChange, FIXED_LINES, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
+import { runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
 import { dispatchActions, toSearchState } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
-import { nextField, askQuestion } from '@/server/onboarding';
-import { appendMessage, listMessages } from '@/server/repos/chat';
-import { audienceFor, getSession, listStays, type SearchSession } from '@/server/repos/sessions';
+import { askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
+import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
+import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
+import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
+import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
 /**
@@ -18,7 +24,8 @@ import type { SupplierAdapter } from '@/server/supplier';
  *   durable turn record (idempotent, one running per session)
  *   → onboarding form, if the search is not set up yet
  *   → Jev router: settle what it is sure of, with no model call
- *   → the agent, for everything else (not built yet: a fixed line says so)
+ *   → the agent, for everything the router did not settle; it queues the
+ *     same typed actions and applies nothing itself
  *   → the reply states what actually happened, and the turn row records it.
  *
  * The work runs to completion whether or not the client is still listening;
@@ -35,6 +42,9 @@ export type TurnDeps = {
   supplier: SupplierAdapter;
   askJev: (input: { message: string; state: Record<string, unknown> }) => Promise<JevOutcome>;
   jevCost: (inputTokens: number) => number;
+  /** The model behind the agent and the intent scan. Never throws. */
+  callModel: CallModel;
+  model: ModelId;
   now: () => Date;
   /** The user's date, YYYY-MM-DD. */
   today: string;
@@ -84,12 +94,12 @@ async function processOne(turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) 
   try {
     const session = await getSession(turn.sessionId);
     if (!session) throw new Error('session vanished');
-    const { text, meta } =
+    const { text, meta, kind } =
       session.status === 'onboarding'
         ? await onboardingTurn(session, turn, deps, emit)
         : await searchTurn(session, turn, deps, emit);
     if (text) {
-      await appendMessage({ sessionId: session.id, turnId: turn.id, role: 'assistant', kind: 'line', content: text, meta: meta.ui ? { ui: meta.ui } : null });
+      await appendMessage({ sessionId: session.id, turnId: turn.id, role: 'assistant', kind: kind ?? 'line', content: text, meta: meta.ui ? { ui: meta.ui } : null });
     }
     return (await finishTurn(turn.id, { finalText: text, resultMeta: meta })) ?? turn;
   } catch (err) {
@@ -99,26 +109,64 @@ async function processOne(turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) 
   }
 }
 
-type TurnResult = { text: string; meta: Record<string, unknown> & { ui?: unknown } };
+/** `kind: 'ai'` marks words the model wrote; everything else is a template over typed values. */
+type TurnResult = { text: string; meta: Record<string, unknown> & { ui?: unknown }; kind?: ChatKind };
+
+/** One ledger row per model call, failures included. Returns what the turn trace keeps. */
+async function logModelCalls(session: SearchSession, purpose: 'agent' | 'scan', replies: ModelReply[]) {
+  let costMicrocents = 0;
+  for (const r of replies) {
+    if (!r.ok && r.failure === 'not_configured') continue;
+    const cost = r.ok ? modelCostMicrocents(r.model, r.usage) : 0;
+    costMicrocents += cost;
+    await logUsage({
+      sessionId: session.id,
+      userId: session.userId,
+      provider: 'anthropic',
+      model: r.model,
+      inputTokens: r.ok ? r.usage.input : 0,
+      outputTokens: r.ok ? r.usage.output : 0,
+      cacheWriteTokens: r.ok ? r.usage.cacheWrite : 0,
+      cacheReadTokens: r.ok ? r.usage.cacheRead : 0,
+      costMicrocents: cost,
+      latencyMs: r.latencyMs,
+      success: r.ok,
+      errorMessage: r.ok ? null : r.errorMessage,
+      meta: { purpose },
+    });
+  }
+  return { model_calls: replies.length, cost_microcents: costMicrocents };
+}
 
 /** A typed message while the form is still being filled in. */
 async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void): Promise<TurnResult> {
   emit({ type: 'working', by: 'form' });
   const stay = (await listStays(session.id))[0] ?? null;
-  const guestsAnswered = (await listMessages(session.id)).some((m) => m.kind === 'form_answer' && m.meta?.field === 'guests');
-  const field = nextField(session, stay, guestsAnswered);
+  const field = nextField(session, stay, guestsAnsweredIn(session, await listMessages(session.id)));
 
   if (field !== 'destination') return { text: FIXED_LINES.use_the_form, meta: { by: 'form', field } };
 
-  // The only free text the form interprets: a place name, looked up at the supplier.
-  const places = await deps.supplier.searchPlaces(turn.userMessage);
-  if (!places.ok) return { text: 'The place search did not answer. Type the place again.', meta: { by: 'form', field, error: places.error.kind } };
-  if (places.value.length === 0) return { text: 'No place by that name. Try a city or a neighbourhood.', meta: { by: 'form', field, places: 0 } };
+  // The first message may say more than the place ("Porto, 12 to 15 March, two of
+  // us, under 120"). One forced-tool call transcribes it; the server checks every
+  // field, keeps what passes and asks the form for the rest.
+  const budget = await aiBudget(session.id, deps.now());
+  const scan = budget.ok ? await scanIntent({ message: turn.userMessage, today: deps.today, currency: session.currency, callModel: deps.callModel, model: deps.model }) : null;
+  const spent = scan ? await logModelCalls(session, 'scan', [scan.reply]) : { model_calls: 0, cost_microcents: 0 };
+  const { destination, ...rest } = scan?.trip ?? {};
+  const meta = { by: 'form' as const, field, scan: scan ? { ok: scan.reply.ok, fields: Object.keys(scan.trip) } : { skipped: budget.ok ? 'none' : 'budget' }, ...spent };
+  if (Object.keys(rest).length > 0) await updateSession(session.id, { draft: { ...session.draft, scanned: rest } });
+
+  // The place itself is always looked up at the supplier and always picked by the user.
+  const places = await deps.supplier.searchPlaces(destination ?? turn.userMessage);
+  if (!places.ok) return { text: 'The place search did not answer. Type the place again.', meta: { ...meta, error: places.error.kind } };
+  if (places.value.length === 0) {
+    return { text: destination || Object.keys(rest).length === 0 ? 'No place by that name. Try a city or a neighbourhood.' : FIXED_LINES.which_place, meta: { ...meta, places: 0 } };
+  }
   await askQuestion(session.id, 'destination', {
     prompt: 'Which one?',
     suggestions: places.value.slice(0, 5).map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name })),
   });
-  return { text: '', meta: { by: 'form', field, places: places.value.length } };
+  return { text: '', meta: { ...meta, places: places.value.length } };
 }
 
 /** A message about a search that is already running. */
@@ -126,8 +174,8 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
   const stay = (await listStays(session.id))[0];
   if (!stay) return { text: FIXED_LINES.use_the_form, meta: { by: 'form' } };
   const state = toSearchState(session, stay);
-  const shortlist = (await listShortlist(session.id, stay.id, audienceFor(session)))
-    .filter((r) => r.entry.source === 'finder')
+  const rows = (await listShortlist(session.id, stay.id, audienceFor(session))).filter((r) => r.entry.source === 'finder');
+  const shortlist = rows
     .map((r) => ({ propertyId: r.property.id, offerId: r.offer?.id ?? null, name: r.property.name }));
 
   emit({ type: 'working', by: 'router' });
@@ -208,16 +256,93 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     case 'line':
       return { text: FIXED_LINES[decision.line], meta: { ...trace, intent: decision.intent, model_calls: 0 } };
     case 'defer':
-      // The agent is the next stop. Until it is built, say so plainly. Jev being
-      // unreachable gets its own line: nothing was changed, and a retry may work.
-      return {
-        text:
-          decision.reason !== 'no_reading'
-            ? FIXED_LINES.cannot_yet
-            : jev.failure === 'not_configured'
-              ? FIXED_LINES.router_not_configured
-              : FIXED_LINES.router_unavailable,
-        meta: { ...trace, deferred: decision.reason, model_calls: 0 },
-      };
+      return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, deferred: decision.reason } });
   }
+}
+
+type ShortlistRow = Awaited<ReturnType<typeof listShortlist>>[number];
+
+/** Everything the router did not settle. The agent queues actions; this dispatches them and says what happened. */
+async function agentTurn(args: {
+  session: SearchSession;
+  stay: Stay;
+  turn: AgentTurn;
+  deps: TurnDeps;
+  emit: (e: TurnEvent) => void;
+  rows: ShortlistRow[];
+  trace: Record<string, unknown>;
+}): Promise<TurnResult> {
+  const { session, stay, turn, deps, rows } = args;
+  const budget = await aiBudget(session.id, deps.now());
+  if (!budget.ok) return { text: FIXED_LINES.ai_budget, meta: { ...args.trace, by: 'agent', budget: budget.cap, model_calls: 0 } };
+
+  args.emit({ type: 'working', by: 'agent' });
+  const state = toSearchState(session, stay);
+  const nights = nightsBetween(stay.checkIn, stay.checkOut);
+  const recent = (await listModelVisibleTail(session.id, 9))
+    .filter((m) => m.turnId !== turn.id)
+    .map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('assistant' as const), text: m.content }));
+
+  const agent = await runAgent(
+    {
+      message: turn.userMessage,
+      today: deps.today,
+      currency: session.currency,
+      state,
+      recent,
+      shortlist: rows.map((r) => ({ propertyId: r.property.id })),
+      hotels: rows.map((r, i) => ({
+        position: i + 1,
+        name: r.property.name,
+        stars: r.property.stars,
+        rating: r.property.rating,
+        reviewCount: r.property.reviewCount,
+        totalMinor: r.offer?.totalMinor ?? null,
+        perNightMinor: r.offer && nights > 0 ? Math.round(r.offer.totalMinor / nights) : null,
+        payAtPropertyMinor: r.offer?.payAtPropertyMinor ?? null,
+        roomName: r.offer?.roomName ?? null,
+        boardName: r.offer?.boardName ?? null,
+        refundable: r.offer ? r.offer.refundableTag === 'RFN' : null,
+        freeCancellationUntil: (r.offer?.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
+        reason: reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0 }),
+      })),
+    },
+    {
+      callModel: deps.callModel,
+      model: deps.model,
+      searchPlaces: (query) => deps.supplier.searchPlaces(query),
+      hotelDetails: async (propertyId) => {
+        const details = await readPropertyDetails(deps.supplier, propertyId);
+        return details.ok ? detailsAsText(details.value) : null;
+      },
+    },
+  );
+  const spent = await logModelCalls(session, 'agent', agent.replies);
+  const meta = { ...args.trace, by: 'agent' as const, ...spent, tools: agent.toolTrace, guards: agent.guards, failure: agent.failure };
+
+  if (agent.failure) {
+    return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : FIXED_LINES.agent_unavailable, meta };
+  }
+  if (agent.actions.length > 0) {
+    const dispatched = await dispatchActions({ session, stay, actions: agent.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+    return {
+      text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+      meta: {
+        ...meta,
+        actions: agent.actions,
+        applied: dispatched.results.filter((r) => r.ok).length,
+        rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
+        effect: dispatched.effect,
+        finder: dispatched.finder?.kind ?? null,
+        ...(agent.open ? { ui: { open: { propertyId: agent.open } } } : {}),
+      },
+    };
+  }
+  if (agent.open) {
+    const row = rows.find((r) => r.property.id === agent.open);
+    return { text: `${row?.property.name ?? 'That hotel'} is open on the right.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
+  }
+  if (agent.text) return { text: agent.text, kind: 'ai', meta };
+  if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };
+  return { text: FIXED_LINES.cannot_yet, meta };
 }

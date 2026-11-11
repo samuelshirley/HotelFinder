@@ -35,7 +35,7 @@ export const PRIORITY_LINE: Record<PriorityKey, string> = {
   basic: 'Cheapest well-reviewed first.',
 };
 
-const REJECTION_LINE: Record<Rejection, string> = {
+export const REJECTION_LINE: Record<Rejection, string> = {
   dates_in_past: 'Those dates are in the past.',
   checkout_not_after_checkin: 'Check-out has to be after check-in.',
   stay_too_long: 'Stays are limited to 30 nights.',
@@ -147,4 +147,8 @@ export const FIXED_LINES = {
   router_unavailable: 'The router that handles simple changes did not answer, so nothing was changed. Send that again.',
   router_not_configured: 'Messages are handled by Jev, and JEV_API_KEY is not set on this server, so nothing was changed.',
   use_the_form: 'Pick one of the options above to continue.',
+  agent_unavailable: 'The assistant did not answer, so nothing was changed. Send that again.',
+  agent_not_configured: 'That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.',
+  ai_budget: 'This search has used its allowance for typed requests today. The buttons and filters still work.',
+  which_place: 'Which city or area?',
 } as const;

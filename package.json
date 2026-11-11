@@ -11,6 +11,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "drizzle-orm": "^0.36.4",
     "next": "^14.2.35",
     "postgres": "^3.4.9",

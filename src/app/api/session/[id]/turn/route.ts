@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { agentModel } from '@/lib/models';
+import { callAnthropic } from '@/server/agent';
 import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
 import { askJev, jevCostMicrocents } from '@/server/jev';
 import { getSupplier } from '@/server/supplier';
@@ -54,6 +56,8 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
           supplier: getSupplier({ sessionId: session.id, userId: session.userId }),
           askJev,
           jevCost: jevCostMicrocents,
+          callModel: callAnthropic,
+          model: agentModel(),
           now: () => new Date(),
           today,
         },

@@ -1,6 +1,6 @@
 import { fixture } from '@/server/supplier/liteapi/fixtures';
-import { normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
-import { hotelListResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
+import { normalizeDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
+import { hotelDetailsResponse, hotelListResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { SearchRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
 
 export const RECORDED_AT = new Date('2026-11-11T12:00:00Z');
@@ -16,7 +16,9 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
   };
   const supplier: SupplierAdapter = {
     name: 'liteapi',
-    getStaticContent: unused,
+    async getStaticContent() {
+      return { ok: true, value: normalizeDetails(hotelDetailsResponse.parse(fixture('hotel-details'))) };
+    },
     recheckRate: unused,
     book: unused,
     getBooking: unused,

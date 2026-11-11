@@ -36,3 +36,12 @@ export async function aiSpendMicrocentsSince(
     );
   return Number(total);
 }
+
+/** AI spend by everyone since `since`, in microcents: the global daily brake. */
+export async function aiSpendMicrocentsAllSince(since: Date): Promise<number> {
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${usageEvents.costMicrocents}), 0)` })
+    .from(usageEvents)
+    .where(and(gte(usageEvents.createdAt, since), or(like(usageEvents.provider, 'anthropic%'), eq(usageEvents.provider, JEV_PROVIDER))));
+  return Number(total);
+}

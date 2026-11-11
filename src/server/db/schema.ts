@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { ScannedTrip } from '@/lib/scannedTrip';
 import {
   bigint,
   bigserial,
@@ -109,7 +110,7 @@ export const searchSessions = pgTable(
     /** ISO 3166-1 alpha-2. The supplier refuses a rate search without it. */
     guestNationality: text('guest_nationality'),
     /** Onboarding answers given before there is enough to create a stay. */
-    draft: jsonb('draft').$type<{ destination?: { placeId: string; label: string } }>().notNull().default({}),
+    draft: jsonb('draft').$type<{ destination?: { placeId: string; label: string }; scanned?: ScannedTrip }>().notNull().default({}),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
-import { answerForm, formAnswerSchema } from '@/server/onboarding';
+import { answerForm, formAnswerSchema, guestsAnsweredIn } from '@/server/onboarding';
 import { listMessages } from '@/server/repos/chat';
 import { getSession } from '@/server/repos/sessions';
 import { getSupplier } from '@/server/supplier';
@@ -27,7 +27,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   const today = resolveToday(parsed.data.today, now);
   if (!today) return errorResponse('bad_date', 400);
 
-  const guestsAnswered = (await listMessages(session.id)).some((m) => m.kind === 'form_answer' && m.meta?.field === 'guests');
+  const guestsAnswered = guestsAnsweredIn(session, await listMessages(session.id));
   const result = await answerForm({
     sessionId: session.id,
     answer: parsed.data.answer,
