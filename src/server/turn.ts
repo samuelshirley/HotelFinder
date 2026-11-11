@@ -1,9 +1,11 @@
 import 'server-only';
 
+import { AMENITIES, type Amenity } from '@/lib/amenities';
+import { buildAnswer, type HotelFacts } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { describeChange, FIXED_LINES, REJECTION_LINE } from '@/lib/replies';
+import { answerLine, describeChange, FIXED_LINES, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import { runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
 import { dispatchActions, toSearchState } from '@/server/dispatch';
@@ -197,6 +199,10 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       hotels_on_screen: shortlist.map((r, i) => `${i + 1}. ${r.name}`),
     },
   });
+  const decision: RouteDecision = jev.readings
+    ? routeMessage({ message: turn.userMessage, readings: jev.readings, state, currency: session.currency, shortlist, settleMin: jev.settleMin })
+    : { kind: 'defer', reason: 'no_reading' };
+
   if (jev.failure !== 'not_configured') {
     await logUsage({
       sessionId: session.id,
@@ -209,17 +215,21 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       latencyMs: jev.latencyMs,
       success: jev.failure === null,
       errorMessage: jev.errorMessage,
+      // Labels and probabilities only: never the user's words. With `decision`
+      // and `deferred` on the same row, the settle rate is one query (docs/jev-expansion.md).
       meta: {
         tier: jev.readings?.tier ?? null,
         intent: jev.readings?.intent ?? null,
         multi_intent: jev.readings?.multiIntent ?? null,
+        fact: jev.readings?.fact ?? null,
+        superlative: jev.readings?.superlative ?? null,
+        search_field: jev.readings?.searchField ?? null,
+        decision: decision.kind,
+        deferred: decision.kind === 'defer' ? decision.reason : null,
+        turn_id: turn.id,
       },
     });
   }
-
-  const decision: RouteDecision = jev.readings
-    ? routeMessage({ message: turn.userMessage, readings: jev.readings, state, currency: session.currency, shortlist, settleMin: jev.settleMin })
-    : { kind: 'defer', reason: 'no_reading' };
 
   const trace = {
     by: 'router' as const,
@@ -255,12 +265,48 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     }
     case 'line':
       return { text: FIXED_LINES[decision.line], meta: { ...trace, intent: decision.intent, model_calls: 0 } };
+    case 'answer': {
+      // Read off the rows this turn already loaded. No model, no supplier call, no write.
+      const answer = buildAnswer(decision.plan, rows.map(hotelFacts), {
+        nights: nightsBetween(stay.checkIn, stay.checkOut),
+        // The finder measures from the place searched when it has coordinates (server/finder.ts).
+        distanceFrom: stay.latitude !== null && stay.longitude !== null ? 'place' : 'search_centre',
+        search: { ...state.stay, priority: state.priority },
+      });
+      // No single honest answer in the rows (a tie for "the cheapest"): the agent's.
+      if (!answer) return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, decision: 'defer', deferred: 'answer_unavailable', plan: decision.plan } });
+      return { text: answerLine(answer, session.currency), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
+    }
     case 'defer':
       return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, deferred: decision.reason } });
   }
 }
 
 type ShortlistRow = Awaited<ReturnType<typeof listShortlist>>[number];
+
+const finite = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** What the offer and property rows say about one hotel on screen. Absent stays absent. */
+function hotelFacts(r: ShortlistRow): HotelFacts {
+  const listed = (r.property.content as { amenities?: unknown } | null)?.amenities;
+  const until = (r.offer?.cancellation as { freeCancellationUntil?: unknown } | null)?.freeCancellationUntil;
+  return {
+    propertyId: r.property.id,
+    name: r.property.name,
+    stars: r.property.stars,
+    rating: r.property.rating,
+    reviewCount: r.property.reviewCount,
+    totalMinor: r.offer?.totalMinor ?? null,
+    payAtPropertyMinor: r.offer?.payAtPropertyMinor ?? null,
+    roomName: r.offer?.roomName ?? null,
+    boardName: r.offer?.boardName ?? null,
+    refundable: r.offer && r.offer.refundableTag !== null ? r.offer.refundableTag === 'RFN' : null,
+    freeCancellationUntil: typeof until === 'string' ? until : null,
+    distanceKm: finite((r.entry.reason as { distance_km?: unknown } | null)?.distance_km),
+    // No `amenities` array = the supplier sent no facility list: unknown, not "none" (server/finder.ts).
+    amenities: Array.isArray(listed) ? listed.filter((a): a is Amenity => (AMENITIES as readonly string[]).includes(a as string)) : null,
+  };
+}
 
 /** Everything the router did not settle. The agent queues actions; this dispatches them and says what happened. */
 async function agentTurn(args: {

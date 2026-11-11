@@ -98,7 +98,7 @@ describe('askJev', () => {
     const body = JSON.parse(seen!.init.body as string);
     expect(body.model).toBe('jev-latest');
     expect(body.state).toEqual({ search: { destination: 'Porto' }, user_message: 'under 120 a night' });
-    expect(Object.keys(body.questions).sort()).toEqual(['amenity', 'intent', 'multi_intent', 'priority', 'removing', 'tier']);
+    expect(Object.keys(body.questions).sort()).toEqual(['amenity', 'fact', 'intent', 'multi_intent', 'priority', 'removing', 'search_field', 'superlative', 'tier']);
     expect(body.questions.tier.type).toBe('choice');
     expect(body.questions.multi_intent.type).toBe('noul');
     expect(outcome).toMatchObject({
@@ -109,6 +109,24 @@ describe('askJev', () => {
       settleMin: 0.85,
       readings: { tier: { choice: 'T1', top: 0.97 }, intent: { choice: 'price_cap' }, multiIntent: 0.04, removing: 0.02 },
     });
+  });
+
+  it('reads which fact, which ranking and which search field, and leaves an unanswered one missing', async () => {
+    const outcome = await askJev(
+      { message: 'is breakfast included at the cheapest?', state: {} },
+      {
+        fetchImpl: respond(
+          answers({
+            fact: { type: 'choice', choice: 'breakfast', probabilities: { breakfast: 0.93, facility: 0.05, none: 0.02 } },
+            superlative: { type: 'choice', choice: 'cheapest', probabilities: { cheapest: 0.96, none: 0.04 } },
+          }),
+        ),
+        env: ENV,
+      },
+    );
+    expect(outcome.readings).toMatchObject({ fact: { choice: 'breakfast', top: 0.93 }, superlative: { choice: 'cheapest', top: 0.96 }, searchField: null });
+    const stray = await askJev({ message: 'm', state: {} }, { fetchImpl: respond(answers({ fact: { type: 'choice', choice: 'smell', probabilities: { smell: 1 } } })), env: ENV });
+    expect(stray.readings?.fact).toBeNull();
   });
 
   it('a malformed answer becomes a missing reading, not an exception', async () => {

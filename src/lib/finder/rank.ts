@@ -85,9 +85,14 @@ export const WELL_REVIEWED = { rating: 7.5, reviews: 50 };
 
 const BREAKFAST = /breakfast|half board|full board|all inclusive/i;
 
+/** A board name that says breakfast comes with the rate. "Room Only (breakfast available at a surcharge)" does not. */
+export function includesBreakfast(boardName: string | null): boolean {
+  return boardName !== null && BREAKFAST.test(boardName) && !/room only/i.test(boardName);
+}
+
 export function meetsMustHave(c: Candidate, must: MustHave): boolean {
   if (must === 'free_cancellation') return c.refundable;
-  if (must === 'breakfast_included') return c.boardName !== null && BREAKFAST.test(c.boardName) && !/room only/i.test(c.boardName);
+  if (must === 'breakfast_included') return includesBreakfast(c.boardName);
   // An amenity we have no data for is not claimed: unknown fails the must-have.
   return c.amenities !== null && (AMENITIES as readonly string[]).includes(must) && c.amenities.includes(must);
 }
