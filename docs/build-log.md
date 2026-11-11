@@ -11,6 +11,7 @@ pick up from the first unfinished step.
 | 4 | Stay finder, 20 personas | done |
 | 5 | Store: actions, reducers, dispatch | done |
 | 6 | Jev module and router | built; **never run against the real Jev** |
+| 6b | Jev answers questions about what is on screen (`docs/jev-expansion.md`) | built 2026-11-11; **never run against the real Jev** |
 | 7 | Turn route: durable turns, SSE, drain, reconcile, agent | done; agent verified live on Haiku 5.5 (14 cases) |
 | 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done; no map |
@@ -40,7 +41,10 @@ the search → new search. `e2e/search.spec.ts`.
 ## Not verified
 
 - **Jev, live.** The first build session was not permitted to call
-  api.typesafe.ai. `scripts/jev-live.sh` has not been run.
+  api.typesafe.ai. `scripts/jev-live.sh` has not been run. It now asks 36
+  messages; the 24 added with the answer intents (`ask_hotels`,
+  `ask_search`) are as unverified as the first 12. What to build next and how
+  to measure the settle rate: `docs/jev-expansion.md`.
 - macOS: Sam ran it (2026-11-11 18:18); the form works there.
 
 ## Notes for whoever resumes

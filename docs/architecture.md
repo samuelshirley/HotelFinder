@@ -146,6 +146,8 @@ If any step fails, the message goes to Haiku with nothing applied.
 | `exclude` ("not that one") | `exclude_offer` | ordinal or `target_offer` | R1 |
 | `more` ("show me others") | `more_options` | none | R1 |
 | `open` ("tell me about the second one") | `open_offer` | ordinal or `target_offer` | R0 |
+| `ask_hotels` ("can I cancel the YOTEL?", "which is cheapest?") | none: answered from the rows on screen | hotel by ordinal or name, code; fact, ranking and facility, Jev choice | R0 |
+| `ask_search` ("what dates did I pick?") | none: answered from the stay row | field, Jev choice | R0 |
 | `book` ("book the first one") | `begin_booking` | ordinal or `target_offer` | R2 |
 | `accept` / `decline` | staged action | from the stage, never re-extracted | as staged |
 | `undo` | `undo` | none | R1 |
@@ -155,7 +157,8 @@ If any step fails, the message goes to Haiku with nothing applied.
 
 **Stays with Haiku**: a new search or a destination change, anything naming a
 place in free text ("near the Sagrada Família"), absolute dates in prose,
-questions about a property ("is it quiet?"), multi-intent messages, anything
+questions no listing field answers ("is it quiet?"; the ones a row does answer
+are `ask_hotels`, built 2026-11-11: `docs/jev-expansion.md`), multi-intent messages, anything
 the veto flags, everything unsettled.
 
 ### Asymmetries that do not move

@@ -34,6 +34,9 @@ first on every message) · **LiteAPI** (the only supplier) · Google Maps/Places
 - **Jev router**: first responder. Picks the tier and the intent from labels
   we supply; code extracts every value. Settles only what it is confident
   about; never refuses a user; never books without the user's confirmation.
+  Also answers questions about what is on screen (a hotel's price, terms,
+  rating, facilities; which is cheapest; what the search is set to) from the
+  rows, by template: `docs/jev-expansion.md`.
 - **Haiku agent**: everything Jev does not settle, plus the one forced-tool
   intent scan that extracts a new search from free text.
 - **Stay finder**: deterministic, server-side. The only thing that creates
@@ -49,7 +52,7 @@ npm run test             # vitest: unit + pg (in-process PGlite, no network)
 npm run typecheck        # tsc --noEmit
 npx playwright test      # real browser, own dev server, live LiteAPI sandbox
 npm run db:generate      # after editing schema.ts; a test fails if you forget
-scripts/jev-live.sh      # ask the real Jev twelve messages (never yet run)
+scripts/jev-live.sh      # ask the real Jev 36 messages (never yet run)
 ```
 
 ## Layout
@@ -62,7 +65,8 @@ src/
     store/        actions (closed Zod union), reducers, fingerprint
     router/       catalogue (Jev's questions), slots (code extracts values), route
     finder/       rank, geo, candidates, personas — docs/finder.md
-    replies.ts    fixed lines for changes made without a model
+    replies.ts    fixed lines for changes and answers made without a model
+    answers.ts    a question about what is on screen → typed values from the rows
     reasonText.ts words for a ranking reason
     errors.ts     every error code and its copy
     amenities.ts pricing.ts money.ts bookingStates.ts pgErrors.ts
@@ -140,6 +144,9 @@ The ones most easily broken:
 - Every API route accepts ONE Zod schema. Free text is interpreted only at the
   intent-scan boundary.
 - All DB access goes through `src/server/repos/`.
+- An answer given without a model is a template over row values. A value the
+  row does not hold is said as "the listing does not say"; no facility list
+  is unknown, never "no" (`lib/answers.ts`).
 - The model converts; it does not author. Jev and Haiku emit typed actions
   only. No price, fee, tax, cancellation term or availability claim in prose.
 - Shortlist rows come only from the finder. Supplier ids are opaque.
