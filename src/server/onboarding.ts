@@ -217,7 +217,7 @@ export async function answerForm(args: {
 export function firstSearchLine(outcome: FinderOutcome | null): string {
   if (outcome?.kind === 'ok' && outcome.eligible > 0) {
     const considered = outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0);
-    return `${outcome.eligible} of ${considered} hotels fit. The best ${outcome.shortlisted} are on the right, each with the reason it is there.`;
+    return `${outcome.eligible} of ${considered} hotels fit. The best ${outcome.shortlisted} are listed, each with the reason it is there.`;
   }
   return outcomeLine(outcome);
 }

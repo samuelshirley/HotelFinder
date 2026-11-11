@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { ensureOwner, errorResponse, handled, rateLimit } from '@/server/http';
+import { currentOwner, ensureOwner, errorResponse, handled, rateLimit } from '@/server/http';
 import { askQuestion } from '@/server/onboarding';
-import { createSession } from '@/server/repos/sessions';
+import { createSession, listTrips } from '@/server/repos/sessions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,4 +20,13 @@ export const POST = handled(async (req: Request) => {
   const session = await createSession(ensureOwner());
   await askQuestion(session.id, 'destination');
   return NextResponse.json({ sessionId: session.id });
+});
+
+/** This visitor's trips, newest first. A visitor with no cookie has none. */
+export const GET = handled(async () => {
+  const owner = currentOwner();
+  const trips = owner ? await listTrips(owner) : [];
+  return NextResponse.json({
+    trips: trips.map((t) => ({ id: t.id, status: t.status, destination: t.destination, checkIn: t.checkIn, checkOut: t.checkOut })),
+  });
 });

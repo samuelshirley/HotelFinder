@@ -42,11 +42,12 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
       ? field === 'destination'
         ? 'Type a city or neighbourhood'
         : 'Answer above to continue'
-      : 'e.g. under 120 a night';
+      : 'Change the dates, the place, the budget, or ask about a hotel';
 
   return (
     <>
       <div className={styles.messages}>
+        <div className={styles.thread}>
         {messages.map((m) => {
           if (m.kind === 'error') {
             return (
@@ -73,8 +74,10 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
         })}
         {busy === 'turn' && progress && <p className={`${styles.bubble} ${styles.assistant} ${styles.muted}`}>{progress}…</p>}
         <div ref={end} />
+        </div>
       </div>
       <form className={styles.composer} onSubmit={submit}>
+        <div className={styles.composerBox}>
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -86,6 +89,7 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
         <button type="submit" className={styles.primary} disabled={!draft.trim() || busy !== null}>
           Send
         </button>
+        </div>
       </form>
     </>
   );

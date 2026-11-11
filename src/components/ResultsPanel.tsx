@@ -36,7 +36,7 @@ export function ResultsPanel({ view, onOpen }: { view: SessionView; onOpen: (pro
         {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Member prices arrive with sign-in, which is not built yet.</p>}
       </header>
       {shortlist.length === 0 ? (
-        <p className={styles.empty}>{session.status === 'onboarding' ? 'Answer the questions on the left to search.' : 'Nothing on the shortlist. The last message on the left says why.'}</p>
+        <p className={styles.empty}>{session.status === 'onboarding' ? 'Answer the questions in the chat to search.' : 'Nothing on the shortlist. The last message in the chat says why.'}</p>
       ) : (
         <ol className={styles.cards}>
           {shortlist.map((row) => (

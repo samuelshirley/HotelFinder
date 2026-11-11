@@ -321,7 +321,9 @@ async function agentTurn(args: {
   const meta = { ...args.trace, by: 'agent' as const, ...spent, tools: agent.toolTrace, guards: agent.guards, failure: agent.failure };
 
   if (agent.failure) {
-    return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : FIXED_LINES.agent_unavailable, meta };
+    // A refused request (bad key, no workspace, unknown model) will be refused again: do not ask for a retry.
+    const refused = /^http_4\d\d$/.test(agent.failure) && agent.failure !== 'http_408' && agent.failure !== 'http_429';
+    return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : refused ? FIXED_LINES.agent_misconfigured : FIXED_LINES.agent_unavailable, meta };
   }
   if (agent.actions.length > 0) {
     const dispatched = await dispatchActions({ session, stay, actions: agent.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });

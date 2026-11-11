@@ -27,6 +27,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const createSession = () => request<{ sessionId: string }>('/api/session', { method: 'POST', body: '{}' });
+export type Trip = { id: string; status: string; destination: string; checkIn: string; checkOut: string };
+export const loadTrips = () => request<{ trips: Trip[] }>('/api/session');
 export const loadSession = (id: string) => request<SessionView>(`/api/session/${id}`);
 export const answerForm = (id: string, answer: FormAnswer) =>
   request<SessionView>(`/api/session/${id}/form`, { method: 'POST', body: JSON.stringify({ answer, today: todayLocal() }) });

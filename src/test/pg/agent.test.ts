@@ -21,7 +21,7 @@ const MODEL = 'claude-haiku-4-5-20251001' as const;
 /** Jev did not answer, so every message here reaches the agent. */
 const JEV_DOWN: JevOutcome = { readings: null, failure: 'timeout', latencyMs: 800, model: null, inputTokens: 0, outputTokens: 0, settleMin: 0.85, errorMessage: 'timed out' };
 
-type Step = Array<{ text: string } | { tool: string; input: unknown }> | 'fail';
+type Step = Array<{ text: string } | { tool: string; input: unknown }> | 'fail' | 'refused';
 type Call = Parameters<CallModel>[0];
 
 /** A model that answers from a script and records what it was sent. */
@@ -31,6 +31,7 @@ function scripted(...steps: Step[]) {
     calls.push(structuredClone(call));
     const step = steps[calls.length - 1];
     if (step === undefined) throw new Error(`the model was called ${calls.length} times; the script has ${steps.length}`);
+    if (step === 'refused') return { ok: false, model: call.model, failure: 'http_400', latencyMs: 90, errorMessage: 'HTTP 400 invalid_request_error' };
     if (step === 'fail') return { ok: false, model: call.model, failure: 'overloaded', latencyMs: 900, errorMessage: 'HTTP 529' };
     return {
       ok: true,
@@ -210,6 +211,13 @@ describe('the agent: what the router did not settle', () => {
     expect(turn.finalText).toBe('The assistant did not answer, so nothing was changed. Send that again.');
     expect(await names(session.id)).toEqual(before);
     expect(await rawQuery("select success, error_message, cost_microcents::int as cost from usage_events where provider = 'anthropic'")).toEqual([{ success: false, error_message: 'HTTP 529', cost: 0 }]);
+  });
+
+  it('a refused key is a setup problem: the line does not ask the user to send it again', async () => {
+    const { session, supplier } = await onboarded();
+    const turn = await say(session, 'the weekend after', deps(supplier.supplier, scripted('refused').callModel));
+    expect(turn.finalText).toBe('The assistant is set up wrongly on this server (its API key was refused), so nothing was changed. Sending again will not help.');
+    expect(turn.resultMeta).toMatchObject({ failure: 'http_400' });
   });
 
   it('over the session allowance the model is not called', async () => {

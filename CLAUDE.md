@@ -74,6 +74,10 @@ src/
     onboarding.ts the form-in-chat; turn.ts one chat turn; view.ts; http.ts
     supplier/     BOUNDED — index.ts + types.ts are the only public surface
     jev/          BOUNDED — index.ts is the only public surface
+    agent/        BOUNDED — index.ts is the only public surface; the only
+                  importer of the Anthropic SDK (docs/agent.md)
+    spend.ts      the 24-hour caps checked before every model call
+    propertyDetails.ts  one hotel's listing as plain text
     auth/anon.ts  the signed anonymous cookie
   test/pg/        PGlite harness, recorded supplier, repo and turn tests
 e2e/              Playwright
@@ -84,7 +88,7 @@ docs/             every "why"
 ### API routes
 
 ```
-api/places  api/session  api/session/[id]  api/session/[id]/form
+api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  api/session/[id]/form
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
 api/session/[id]/turns
 ```
@@ -106,17 +110,23 @@ ONLY), usage, preferences, bookings, appMeta, rateLimit
 ### Guard tests
 
 `schemaGuard` · `supplierBoundaryGuard` · `fixturesGuard` ·
-`shortlistSourceGuard` · `errorCopyGuard` (every error code has copy; no
+`shortlistSourceGuard` · `agentBoundaryGuard` (SDK, key and model ids each
+in one place) · `errorCopyGuard` (every error code has copy; no
 empty catch) · `devDatabase` (migrations build exactly the schema). Mutation
 logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 
-### Agent tools
+### Agent tools (`src/server/agent/tools.ts`)
 
-None yet: the agent is not built.
+resolve_place, hotel_details (lookups) · set_destination, set_dates,
+set_guests, set_price_cap, set_priority, require, stop_requiring, set_aside,
+show_others, bring_back_all (each becomes typed actions) · open_hotel.
+The agent names a hotel by position and a place by a ref from this turn's
+lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
 ### Scripts (`scripts/`)
 
-capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh
+capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
+agent-live.sh (14 real cases against Anthropic; prints the cost)
 
 ### E2E specs (`e2e/`)
 

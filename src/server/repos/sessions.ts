@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql, desc } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
 import { searchSessions, stays, type Audience, PRIORITIES } from '@/server/db/schema';
@@ -121,4 +121,26 @@ export async function getStay(stayId: string, sessionId: string): Promise<Stay |
     .from(stays)
     .where(and(eq(stays.id, stayId), eq(stays.sessionId, sessionId)));
   return row ?? null;
+}
+
+/**
+ * The visitor's searches that have a place and dates, newest first: the trips
+ * list. A search still on its first question is not a trip yet.
+ */
+export async function listTrips(owner: Owner, limit = 30) {
+  const mine = 'userId' in owner ? eq(searchSessions.userId, owner.userId) : eq(searchSessions.anonId, owner.anonId);
+  return db
+    .select({
+      id: searchSessions.id,
+      status: searchSessions.status,
+      createdAt: searchSessions.createdAt,
+      destination: stays.destinationText,
+      checkIn: stays.checkIn,
+      checkOut: stays.checkOut,
+    })
+    .from(searchSessions)
+    .innerJoin(stays, and(eq(stays.sessionId, searchSessions.id), eq(stays.position, 0)))
+    .where(mine)
+    .orderBy(desc(searchSessions.createdAt))
+    .limit(limit);
 }

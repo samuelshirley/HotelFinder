@@ -102,7 +102,7 @@ describe('onboarding: a form in the chat, no model', () => {
       ['form_answer', 'Spain'],
       ['form_question', 'What matters most?'],
       ['form_answer', 'Lowest price first'],
-      ['line', '18 of 20 hotels fit. The best 5 are on the right, each with the reason it is there.'],
+      ['line', '18 of 20 hotels fit. The best 5 are listed, each with the reason it is there.'],
     ]);
     expect(session.status).toBe('active');
     expect(supplier.searches).toHaveLength(1);
