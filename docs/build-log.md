@@ -10,8 +10,9 @@ pick up from the first unfinished step.
 | 3 | LiteAPI adapter on recorded fixtures | done |
 | 4 | Stay finder, 20 personas | done |
 | 5 | Store: actions, reducers, dispatch | done |
-| 6 | Jev module and router | built; **never run against the real Jev** |
-| 6b | Jev answers questions about what is on screen (`docs/jev-expansion.md`) | built 2026-11-11; **never run against the real Jev** |
+| 6 | Jev module and router | built; run against the real Jev 2026-11-12: 46 of 46 cases |
+| 6b | Jev answers questions about what is on screen (`docs/jev-expansion.md`) | built 2026-11-11; run live 2026-11-12, all 20 answer cases settle |
+| 7b | Staged yes, the 280 s turn budget, chat breakers, `submit_idea` (`docs/agent.md`) | built 2026-11-12; turn-level tests on real Postgres; **not exercised in a browser or against the live model** |
 | 7 | Turn route: durable turns, SSE, drain, reconcile, agent | done; agent verified live on Haiku 5.5 (14 cases) |
 | 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done |
@@ -42,18 +43,21 @@ the search → new search. `e2e/search.spec.ts`.
   reload. Needs a client reference on book and a lookup by it (unverified).
 - **Member prices after sign-in** apply to new searches; a booking keeps the
   price of the card that was pressed.
-- **Staged yes, the 280 s turn budget, breakers.** Per-IP request limits and
-  the two spend caps exist.
 - **Cost measurement** (step 11) and the persona-driven simulated users.
-- `submit_idea` (the agent has no tool for feature requests yet).
+- Stored ideas (`submit_idea`) have no admin page yet: `select * from ideas`.
+- The detail slide-out still opens over the map.
 
 ## Not verified
 
-- **Jev, live.** The first build session was not permitted to call
-  api.typesafe.ai. `scripts/jev-live.sh` has not been run. It now asks 36
-  messages; the 24 added with the answer intents (`ask_hotels`,
-  `ask_search`) are as unverified as the first 12. What to build next and how
-  to measure the settle rate: `docs/jev-expansion.md`.
+- **Jev's settle rate on real traffic.** `scripts/jev-live.sh` was run on
+  2026-11-12 from Sam's Mac: 46 of 46 cases, median 151 ms, about 2,290 input
+  tokens a message. Two things it changed: "close to the old town please" now
+  settles as `near` (the expectation was older than the feature), and "hide
+  the map" came back tier T3 until the T1 wording named the screen. The cases
+  are hand-written; the settle rate on what people really type is unmeasured.
+- **Staged yes, the turn budget and `submit_idea` against the live model.**
+  Whether Haiku calls `hold_for_confirmation` and `submit_idea` when it should
+  is untested: the turn tests script the model.
 - macOS: Sam ran it (2026-11-11 18:18); the form works there.
 
 ## Cost per search (2026-11-12, branch `admin-cost-view`)

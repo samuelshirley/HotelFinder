@@ -7,12 +7,8 @@ options so that we never even call Haiku."
 
 ## Read this first: what is and is not known
 
-- **Jev has never been called for this project.** Every label, every
-  instruction sentence and both thresholds below are unverified wording. The
-  code paths are proven with a fake Jev (`jevSays(...)`); whether the real
-  model picks `ask_hotels` over `question` for "can I cancel the YOTEL?" is
-  what `scripts/jev-live.sh` exists to find out. It now asks 36 messages
-  (12 original, 24 added here).
+- **Jev was first run for this project on 2026-11-12** (the section at the end): 46 of 46
+  hand-written cases. Before that, every label and threshold here was unverified wording.
 - **There is no traffic.** No real user has typed a message, so every "share
   of deferrals removed" below is a guess, marked as one. Section 7 is how to
   turn them into numbers.
@@ -430,3 +426,18 @@ The 0.6 and 0.1 floors are fitted to these four readings. They are not
 measured on traffic: re-run `scripts/jev-live.sh` after any catalogue change,
 and treat the floors as the first thing to revisit once wrong settles are
 counted. 7 of 7 mutations killed.
+
+## Run against the real Jev (2026-11-12)
+
+`scripts/jev-live.sh`, from Sam's Mac: **46 of 46 cases**, median 151 ms, max
+245 ms, about 2,290 input tokens a message. All 20 answer cases settled as
+planned. Two corrections came out of the first run (43 of 46):
+
+- "close to the old town please" settles as `near` (wants_location 0.95,
+  names_place 0.93). The case still expected `defer` from before `near` existed.
+- "hide the map" and "can you get rid of the map" picked intent `map` at 1.0 but
+  tier T3 (0.78 and 0.94), so both deferred. The T1 wording now names the
+  screen and the map; both read T1 at 1.0 on the re-run.
+
+These are 46 hand-written messages. The settle rate on real traffic is the
+ledger query described above, and has no data yet.

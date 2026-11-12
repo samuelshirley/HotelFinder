@@ -79,3 +79,38 @@ that turn cannot be recovered. Now recorded per call, and the `incomplete`
 guard withholds any reply that did not end with `end_turn`. Mutations killed:
 guard removed; loop passing a literal `end_turn`; loop never recording the
 stop reason; ledger dropping `stop_reason`.
+
+## Staged yes, the turn budget, breakers, ideas (2026-11-12)
+
+**Staged yes** (`lib/stagedPlan.ts`, `server/turn.ts` `stagedAnswer`). When the
+agent had to guess and a wrong guess would redo the search, it queues the change
+as usual and calls `hold_for_confirmation` in the same reply. The turn stages
+the typed actions on its own row (`result_meta.stagedPlan`) and shows the
+agent's question (or `Shall I go ahead with that?` if the question fails the
+reply guards). The next message, if it is nothing but a yes, applies the stage
+through `dispatchActions` with no Jev call and no model call; nothing but a no
+drops it. "Yes but under 100" is a new request and takes the normal path. A
+stage is honoured only from the turn immediately before, only while the search
+fingerprint is what it was, and only for 15 minutes; read back from the row it
+is re-validated against the action schema. The stage never reaches the
+browser: neither the chat row nor the turns endpoint carries `result_meta`.
+
+**Turn budget** (`lib/turnBudget.ts`). The platform kills the function at
+300 s. The turn stops itself at 280 s by checking BEFORE each long step that
+the step's longest run still fits: 65 s for a model call (30 s timeout, one
+SDK retry), 60 s for a dispatch that searches again. Nothing is raced or
+abandoned mid-flight. Out of time means the queued actions are dropped, not
+applied (`out_of_time`), and a message queued behind the turn is failed with
+`turn_timeout` rather than left queued for nobody.
+
+**Breakers** (`server/breakers.ts`). In the turn route, before the turn record:
+a kill switch (`CHAT_KILL_SWITCH=1`, or `app_meta.chat_kill_switch = 'on'`) and
+a flood breaker (`CHAT_TURNS_PER_MINUTE`, default 120, everyone together).
+Tripped is 503 `circuit_open`. They fail closed: a breaker that cannot be read
+counts as tripped. AI spend is deliberately not one of them: the 24-hour caps
+stop the model and leave the router, the chips and the map working.
+
+**Ideas**. `submit_idea` stores a request the app cannot serve yet (`ideas`
+table, with the session) and the server answers `idea_noted`. The text is the
+model's few-word summary, capped at 200 characters, asked to hold no personal
+details; that last part is an instruction, not a check.

@@ -54,7 +54,7 @@ npm run test             # vitest: unit + pg (in-process PGlite, no network)
 npm run typecheck        # tsc --noEmit
 npx playwright test      # real browser, own dev server, live LiteAPI sandbox
 npm run db:generate      # after editing schema.ts; a test fails if you forget
-scripts/jev-live.sh      # ask the real Jev 36 messages (never yet run)
+scripts/jev-live.sh      # ask the real Jev 46 messages (46 of 46 on 2026-11-12)
 ```
 
 ## Layout
@@ -71,6 +71,7 @@ src/
     answers.ts    a question about what is on screen → typed values from the rows
     reasonText.ts words for a ranking reason
     mapView.ts    the map's pure half: pins, label layout, camera frame, ring
+    stagedPlan.ts a yes with no model call; turnBudget.ts the 280 s stop
     errors.ts     every error code and its copy
     amenities.ts pricing.ts money.ts bookingStates.ts pgErrors.ts
   server/
@@ -84,6 +85,7 @@ src/
     agent/        BOUNDED — index.ts is the only public surface; the only
                   importer of the Anthropic SDK (docs/agent.md)
     spend.ts      the 24-hour caps checked before every model call
+    breakers.ts   kill switch + flood breaker before a turn: 503 circuit_open, fail closed
     propertyDetails.ts  one hotel's listing as plain text
     auth/anon.ts  the signed anonymous cookie
   test/pg/        PGlite harness, recorded supplier, repo and turn tests
@@ -116,7 +118,7 @@ userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas
 ### Repos (`src/server/repos/`)
 
 sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
-ONLY), usage, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit
+ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit
 
 ### Guard tests
 
@@ -135,7 +137,8 @@ logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 resolve_place, hotel_details (lookups) · set_destination, set_dates,
 set_guests, set_price_cap, set_priority, require, stop_requiring, set_aside,
 show_others, bring_back_all (each becomes typed actions) · open_hotel,
-show_map, mark_on_map (the screen only).
+show_map, mark_on_map (the screen only) · hold_for_confirmation (stage the
+queued changes for a yes) · submit_idea.
 The agent names a hotel by position and a place by a ref from this turn's
 lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
