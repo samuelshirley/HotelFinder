@@ -101,11 +101,16 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         m.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
         map.current = m;
         m.on('load', () => !dead && setReady(true));
-        const tookOver = (e: { originalEvent?: unknown }) => {
-          if (!e.originalEvent) return; // our own camera moves carry no input event
+        // A move the user started (drag, wheel, pinch, the zoom buttons) carries its input event; our own camera moves do not.
+        // Asked at the START of the move: a wheel zoom's end event arrives without one.
+        m.on('movestart', (e: { originalEvent?: unknown }) => {
+          if (!e.originalEvent) return;
           userMoved.current = true;
           setMoved(true);
           setPicked(null);
+        });
+        const tookOver = () => {
+          if (!userMoved.current) return;
           const c = lastFit.current.centre;
           if (!c) return setAway(false);
           const at = m.project([c.longitude, c.latitude]);
@@ -113,8 +118,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
           setAway(Math.hypot(at.x - w / 2, at.y - h / 2) > Math.min(w, h) * 0.35);
         };
         m.on('move', () => declutterRef.current());
-        m.on('dragend', tookOver);
-        m.on('zoomend', tookOver);
+        m.on('moveend', tookOver);
         m.on('click', (e) => {
           // A named place under the pointer: offer to measure from it.
           const named = m.queryRenderedFeatures(e.point).find((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1);
