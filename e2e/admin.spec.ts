@@ -14,7 +14,13 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByRole('button', { name: 'Send code' }).click();
   // RESEND_API_KEY is blank for e2e: the code is shown on the page, never emailed.
-  const dev = await page.getByText(/Dev mailbox: \d{6}/).textContent();
+  // A refusal (e.g. too many codes for this email) fails here with its copy, not by timing out.
+  const devCode = page.getByText(/Dev mailbox: \d{6}/);
+  // Scoped to the form: Next's route announcer is a role="alert" on every page.
+  const form = page.getByRole('form', { name: 'Admin sign-in' });
+  await expect(devCode.or(form.getByRole('alert'))).toBeVisible();
+  await expect(form.getByRole('alert')).toHaveCount(0);
+  const dev = await devCode.textContent();
   await page.getByLabel(/Code sent to/).fill(dev!.match(/\d{6}/)![0]);
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
@@ -40,8 +46,14 @@ test('a real search shows up with its cost, place lookup included', async ({ pag
   await page.getByLabel('Your trip', { exact: true }).fill('porto');
   await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();
   await page.getByRole('button', { name: 'Find my hotel' }).click();
-  // Wait for real hotels, so every supplier call of the search is in the ledger.
-  await expect(page.locator('ol > li').first()).toBeVisible({ timeout: 60_000 });
+  // Wait until the search is saved: it is listed under "Your trips" only once it has its stay and
+  // shortlist. Hotel cards are not the signal: list items render in the panel before that, and the
+  // first screen's example answer is an `ol > li` too (both reproduced 2026-11-12).
+  await expect(page.getByRole('navigation', { name: 'Your trips' }).getByRole('button', { name: /Porto, Portugal/ })).toBeVisible({ timeout: 60_000 });
+  // This browser's own search, by id: other searches in the same database must not decide the test.
+  const trips = (await (await page.request.get('./api/session')).json()) as { trips: { id: string; destination: string }[] };
+  expect(trips.trips).toHaveLength(1);
+  const searchId = trips.trips[0].id;
 
   await signIn(page, ADMIN);
   await expect(page.getByRole('heading', { name: 'Cost per search' })).toBeVisible();
@@ -50,14 +62,15 @@ test('a real search shows up with its cost, place lookup included', async ({ pag
   await expect(page.getByText('LiteAPI calls here used a sandbox key')).toBeVisible();
 
   const table = page.getByRole('region', { name: 'Most expensive searches' });
-  const row = table.getByRole('row').filter({ hasText: 'Porto, Portugal' });
+  const row = table.getByRole('row').filter({ has: page.locator(`a[href$="/admin/search/${searchId}"]`) });
   await expect(row).toHaveCount(1);
+  await expect(row).toContainText('Porto, Portugal');
   // Two place calls at $0.01 each (the lookup and the details), rates and content free or unpriced.
   await expect(row.getByRole('cell').nth(2)).toHaveText(/^\$0\.0[2-9]\d*$/);
   await page.screenshot({ path: 'test-results/admin-01-overview.png', fullPage: true });
 
   await row.getByRole('link', { name: 'Porto, Portugal' }).click();
-  await expect(page).toHaveURL(/\/hotels\/admin\/search\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(new RegExp(`/hotels/admin/search/${searchId}$`));
   const calls = page.getByRole('table', { name: 'Calls' });
   const lookup = calls.getByRole('row').filter({ hasText: 'liteapi:places' });
   await expect(lookup).toHaveCount(1);
@@ -71,7 +84,7 @@ test('a real search shows up with its cost, place lookup included', async ({ pag
   await page.getByRole('link', { name: '24 hours' }).click();
   await expect(page).toHaveURL(/\/hotels\/admin\?days=1$/);
   await expect(page.getByRole('link', { name: '24 hours' })).toHaveAttribute('aria-current', 'page');
-  await expect(table.getByRole('row').filter({ hasText: 'Porto, Portugal' })).toHaveCount(1);
+  await expect(table.getByRole('row').filter({ has: page.locator(`a[href$="/admin/search/${searchId}"]`) })).toHaveCount(1);
 
   expect(errors).toEqual([]);
 });
