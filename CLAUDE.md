@@ -131,7 +131,9 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
 agent-live.sh (14 real cases against Anthropic; prints the cost),
-share.sh (the app on this Mac behind one public ngrok URL)
+share.sh (the app on this Mac behind one public ngrok URL),
+setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
+Neon URL kept in .env.neon so dev stays on embedded Postgres)
 
 ### E2E specs (`e2e/`)
 
