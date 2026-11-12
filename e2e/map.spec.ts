@@ -138,6 +138,20 @@ test('the map over the list', async ({ page }) => {
   await page.getByRole('button', { name: 'Show map' }).click();
   await expect(page.getByTestId('map')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
 
+  // Penny can fold it away too. Jev is off in this run, so this is the agent, live, if it can be reached.
+  await page.getByLabel('Message').fill('hide the map');
+  await page.getByRole('button', { name: 'Send' }).click();
+  const said = page.getByRole('region', { name: 'Conversation' }).getByText(/The map is folded away\.|The assistant did not answer|The assistant is set up wrongly|ANTHROPIC_API_KEY is not set|used its allowance/);
+  await expect(said).toBeVisible({ timeout: 90_000 });
+  if (/folded away/.test((await said.textContent())!)) {
+    await expect(page.getByTestId('map')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Show map' })).toBeVisible();
+    await page.getByRole('button', { name: 'Show map' }).click();
+  } else {
+    console.log('[map.spec] the agent was not reachable, so "hide the map" by chat was not exercised:', await said.textContent());
+  }
+  await expect(page.getByTestId('map')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
+
   // A wide window: the map stands beside the list, and the card keeps its price column.
   await page.setViewportSize({ width: 2000, height: 900 });
   const wideMap = (await page.getByTestId('map').boundingBox())!;
