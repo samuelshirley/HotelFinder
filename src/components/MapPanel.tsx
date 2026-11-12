@@ -48,6 +48,8 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   const markers = useRef(new Map<string, { marker: MlMarker; el: HTMLButtonElement; rank: number | null; point: MapPoint; fullWidth: number }>());
   const extras = useRef<MlMarker[]>([]);
   const userMoved = useRef(false);
+  /** True while a camera move of our own is under way: every other move is the user's. */
+  const ours = useRef(false);
   const lastFit = useRef<{ key: string; anchorKey: string; centre: MapPoint | null }>({ key: '', anchorKey: '', centre: null });
   const handlers = useRef({ onHover, onSelect });
   handlers.current = { onHover, onSelect };
@@ -101,15 +103,19 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         m.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
         map.current = m;
         m.on('load', () => !dead && setReady(true));
-        // A move the user started (drag, wheel, pinch, the zoom buttons) carries its input event; our own camera moves do not.
-        // Asked at the START of the move: a wheel zoom's end event arrives without one.
-        m.on('movestart', (e: { originalEvent?: unknown }) => {
-          if (!e.originalEvent) return;
+        // Any move we did not start is the user's: a drag, the wheel, a pinch, the zoom buttons.
+        // (Not told apart by the event's input: measured in the browser, a wheel zoom's events carry none.)
+        m.on('movestart', () => {
+          if (ours.current) return;
           userMoved.current = true;
           setMoved(true);
           setPicked(null);
         });
         const tookOver = () => {
+          if (ours.current) {
+            ours.current = false;
+            return;
+          }
           if (!userMoved.current) return;
           const c = lastFit.current.centre;
           if (!c) return setAway(false);
@@ -124,7 +130,13 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
           const named = m.queryRenderedFeatures(e.point).find((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1);
           setPicked(named ? { x: e.point.x, y: e.point.y, name: String(named.properties['name:latin'] ?? named.properties.name).trim() } : null);
         });
-        observer = new ResizeObserver(() => m.resize());
+        observer = new ResizeObserver(() => {
+          // A resize moves the camera's frame, synchronously; it is not the user steering.
+          const was = ours.current;
+          ours.current = true;
+          m.resize();
+          ours.current = was;
+        });
         observer.observe(box.current);
       })
       .catch((err) => {
@@ -226,7 +238,9 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         userMoved.current = false;
         setMoved(false);
         setAway(false);
+        ours.current = true;
         m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+        if (!m.isMoving()) ours.current = false; // already framed: no move, so no end to wait for
       }
     }
     declutterRef.current();
@@ -249,7 +263,11 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     if (!ready || !m || !pin) return;
     const at = m.project([pin.longitude, pin.latitude]);
     const { clientWidth: w, clientHeight: h } = m.getContainer();
-    if (at.x < 48 || at.y < 48 || at.x > w - 48 || at.y > h - 48) m.easeTo({ center: [pin.longitude, pin.latitude], duration: reducedMotion() ? 0 : 400 });
+    if (at.x < 48 || at.y < 48 || at.x > w - 48 || at.y > h - 48) {
+      ours.current = true;
+      m.easeTo({ center: [pin.longitude, pin.latitude], duration: reducedMotion() ? 0 : 400 });
+      if (!m.isMoving()) ours.current = false;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.n, ready]);
 
@@ -264,7 +282,9 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     setMoved(false);
     setAway(false);
     setPicked(null);
+    ours.current = true;
     m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+    if (!m.isMoving()) ours.current = false;
   };
 
   const searchHere = () => {
