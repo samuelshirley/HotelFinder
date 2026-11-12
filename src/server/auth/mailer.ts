@@ -8,7 +8,9 @@ import 'server-only';
  */
 export type Delivery = { via: 'email' } | { via: 'dev_mailbox'; code: string };
 
-const FROM = process.env.EMAIL_FROM ?? 'Hotel finder <sign-in@hotelfinder.app>';
+// The app lives at feraltravels.com/hotels, and feraltravels.com is the domain verified in Resend
+// (a sender on any other domain is refused with a 403: tried 2026-11-12).
+const FROM = process.env.EMAIL_FROM ?? 'Hotel finder <hotels@feraltravels.com>';
 
 export async function deliverCode(email: string, code: string): Promise<Delivery | null> {
   const key = process.env.RESEND_API_KEY;
