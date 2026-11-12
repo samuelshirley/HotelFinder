@@ -228,5 +228,7 @@ export type SupplierMeterEvent = {
   latencyMs: number;
   success: boolean;
   errorMessage: string | null;
+  /** List price of this call (src/lib/supplierPrices.ts); 0 for free AND unpriced: `meta.pricing` tells which. */
+  costMicrocents: number;
   meta: Record<string, unknown>;
 };

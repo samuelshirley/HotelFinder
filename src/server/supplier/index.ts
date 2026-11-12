@@ -18,15 +18,15 @@ let instance: SupplierAdapter | null = null;
  * The configured supplier, with every call written to the usage ledger.
  * `context` ties those rows to a session or user.
  */
-export function getSupplier(context: { sessionId?: string | null; userId?: string | null } = {}): SupplierAdapter {
+export function getSupplier(context: { sessionId?: string | null; userId?: string | null; anonId?: string | null } = {}): SupplierAdapter {
   const apiKey = process.env.LITE_API_KEY;
   if (!apiKey) throw new Error('LITE_API_KEY is not set');
-  if (context.sessionId || context.userId) return build(apiKey, context);
+  if (context.sessionId || context.userId || context.anonId) return build(apiKey, context);
   instance ??= build(apiKey, {});
   return instance;
 }
 
-function build(apiKey: string, context: { sessionId?: string | null; userId?: string | null }): SupplierAdapter {
+function build(apiKey: string, context: { sessionId?: string | null; userId?: string | null; anonId?: string | null }): SupplierAdapter {
   return createLiteApiAdapter({
     apiKey,
     meter: async (event) => {
@@ -35,9 +35,11 @@ function build(apiKey: string, context: { sessionId?: string | null; userId?: st
         latencyMs: event.latencyMs,
         success: event.success,
         errorMessage: event.errorMessage,
+        costMicrocents: event.costMicrocents,
         meta: event.meta,
         sessionId: context.sessionId ?? null,
         userId: context.userId ?? null,
+        anonId: context.anonId ?? null,
       });
     },
   });

@@ -16,6 +16,8 @@ import type {
   SupplierMeterEvent,
   SupplierResult,
 } from '../types';
+import { supplierCall, type SupplierOp } from '@/lib/supplierPrices';
+
 import { callLiteApi, type FetchLike } from './http';
 import {
   normalizeBooking,
@@ -78,7 +80,7 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
    * 200), schema validation, normalization, and exactly one meter event.
    */
   async function run<S extends z.ZodTypeAny, T>(spec: {
-    op: string;
+    op: SupplierOp;
     method: 'GET' | 'POST' | 'PUT';
     url: string;
     body?: unknown;
@@ -90,6 +92,9 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
     meta?: (value: T) => Record<string, unknown>;
   }): Promise<SupplierResult<T>> {
     const provider = `${SUPPLIER}:${spec.op}`;
+    // List price per call, failures included: a refused request is still a request (src/lib/supplierPrices.ts).
+    const { costMicrocents, pricing } = supplierCall(spec.op);
+    const priced = { costMicrocents, pricing, sandbox: isSandboxKey(deps.apiKey) };
     const http = await callLiteApi({
       apiKey: deps.apiKey,
       method: spec.method,
@@ -105,12 +110,13 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
         latencyMs: http.latencyMs,
         success: false,
         errorMessage: error.message,
-        meta: { kind: error.kind, status: error.status, code: error.code },
+        costMicrocents: priced.costMicrocents,
+        meta: { kind: error.kind, status: error.status, code: error.code, pricing: priced.pricing, sandbox: priced.sandbox },
       });
       return { ok: false, error };
     };
     const succeed = async (value: T, status: number): Promise<SupplierResult<T>> => {
-      await record({ provider, latencyMs: http.latencyMs, success: true, errorMessage: null, meta: { status, ...spec.meta?.(value) } });
+      await record({ provider, latencyMs: http.latencyMs, success: true, errorMessage: null, costMicrocents: priced.costMicrocents, meta: { status, pricing: priced.pricing, sandbox: priced.sandbox, ...spec.meta?.(value) } });
       return { ok: true, value };
     };
 

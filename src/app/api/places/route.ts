@@ -14,11 +14,12 @@ const query = z.object({ q: z.string().trim().min(2).max(80) }).strict();
 export const GET = handled(async (req: Request) => {
   const parsed = query.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!parsed.success) return errorResponse('invalid_request', 400);
-  await ensureOwner();
+  // Asked before any search exists: the ledger ties the lookup to the visitor instead (docs/usage.md).
+  const owner = await ensureOwner();
   const limited = await rateLimit('places', 60);
   if (limited) return limited;
 
-  const places = await getSupplier().searchPlaces(parsed.data.q);
+  const places = await getSupplier('userId' in owner ? { userId: owner.userId } : { anonId: owner.anonId }).searchPlaces(parsed.data.q);
   if (!places.ok) return errorResponse('supplier_unavailable', 503);
   // Hotels are never a destination; every row says where and what it is (docs/entry-ux.md §2.2).
   return NextResponse.json({
