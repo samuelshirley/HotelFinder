@@ -1,5 +1,6 @@
 'use client';
 
+import { withBase } from '@/lib/basePath';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { errorCopy } from '@/lib/errors';
@@ -67,7 +68,7 @@ export function Checkout({ bookingId }: { bookingId: string }) {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <a href="/">← Back to the shortlist</a>
+        <a href={withBase('/')}>← Back to the shortlist</a>
         <span className={styles.brand}>Hotel finder</span>
       </header>
       {loadError ? (
@@ -179,7 +180,7 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
     setRechecking(true);
     try {
       const { bookingId } = await startCheckout(b.sessionId, b.offerId);
-      window.location.assign(`/book/${bookingId}`);
+      window.location.assign(withBase(`/book/${bookingId}`));
     } catch (err) {
       setError({ code: codeOf(err), field: 'pay' });
       setRechecking(false);
@@ -501,7 +502,7 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
             {errorCopy(error)}
           </p>
         )}
-        <a className={styles.backLink} href="/">
+        <a className={styles.backLink} href={withBase('/')}>
           Back to the shortlist
         </a>
       </section>

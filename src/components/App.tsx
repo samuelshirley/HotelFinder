@@ -1,5 +1,6 @@
 'use client';
 
+import { withBase } from '@/lib/basePath';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { errorCopy } from '@/lib/errors';
@@ -236,7 +237,7 @@ export function App() {
     try {
       const { bookingId } = await startCheckout(view.session.id, offerId);
       store(STORAGE_KEY, view.session.id);
-      window.location.assign(`/book/${bookingId}`);
+      window.location.assign(withBase(`/book/${bookingId}`));
     } catch (err) {
       fail(err);
       setBooking(null);
@@ -377,7 +378,7 @@ export function App() {
             <ul className={styles.trips}>
               {bookings.map((b) => (
                 <li key={b.id}>
-                  <a className={styles.bookingLink} href={`/book/${b.id}`}>
+                  <a className={styles.bookingLink} href={withBase(`/book/${b.id}`)}>
                     <span className={styles.tripName}>{b.hotelName}</span>
                     <span className={styles.tripDates}>
                       {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut) : ''}
@@ -397,7 +398,7 @@ export function App() {
                 void signOut().then(() => {
                   // Signed-in searches belong to the account: the page starts over as a visitor.
                   store(STORAGE_KEY, '');
-                  window.location.assign('/');
+                  window.location.assign(withBase('/'));
                 })
               }
             >

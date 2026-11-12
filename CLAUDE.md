@@ -9,7 +9,9 @@
 
 ## Status
 
-**It runs locally: `scripts/dev.sh`.** What works, what is not built and what
+**It runs locally: `scripts/dev.sh`, at `localhost:3000/hotels`.** Served at
+**feraltravels.com/hotels**: every browser-side URL goes through `withBase`
+(`lib/basePath.ts`), guarded by `basePathGuard`. What works, what is not built and what
 has never been verified: **`docs/build-log.md`**. Read that first.
 
 ## Scope — hold the line
@@ -116,7 +118,8 @@ ONLY), usage, preferences, bookings, appMeta, rateLimit
 `schemaGuard` · `supplierBoundaryGuard` · `fixturesGuard` ·
 `shortlistSourceGuard` · `agentBoundaryGuard` (SDK, key and model ids each
 in one place) · `errorCopyGuard` (every error code has copy; no
-empty catch) · `devDatabase` (migrations build exactly the schema). Mutation
+empty catch) · `basePathGuard` (no root path in a fetch, href, src or
+navigation; next.config's basePath equals BASE_PATH) · `devDatabase` (migrations build exactly the schema). Mutation
 logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 
 ### Agent tools (`src/server/agent/tools.ts`)
@@ -131,7 +134,6 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
 agent-live.sh (14 real cases against Anthropic; prints the cost),
-share.sh (the app on this Mac behind one public ngrok URL),
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
 Neon URL kept in .env.neon so dev stays on embedded Postgres)
 

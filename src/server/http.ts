@@ -1,3 +1,4 @@
+import { BASE_PATH } from '@/lib/basePath';
 import 'server-only';
 import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -42,7 +43,7 @@ export async function ensureOwner(): Promise<Owner> {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    path: '/',
+    path: BASE_PATH,
     maxAge: 60 * 60 * 24 * 30,
   });
   return { anonId };
@@ -51,14 +52,14 @@ export async function ensureOwner(): Promise<Owner> {
 /** Signs the browser in as `userId` and hands it this browser's anonymous searches. */
 export async function signInBrowser(userId: string, now: Date): Promise<void> {
   const { token, expires } = await createUserSession(userId, now);
-  cookies().set(USER_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', expires });
+  cookies().set(USER_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: BASE_PATH, expires });
   const anonId = currentAnonId();
   if (anonId) await adoptAnonymousSessions(anonId, userId);
 }
 
 export async function signOutBrowser(): Promise<void> {
   await endUserSession(cookies().get(USER_COOKIE)?.value);
-  cookies().delete(USER_COOKIE);
+  cookies().delete({ name: USER_COOKIE, path: BASE_PATH });
 }
 
 /** The session if this visitor owns it; otherwise a 404 that does not say whether it exists. */

@@ -1,3 +1,4 @@
+import { withBase } from '@/lib/basePath';
 import type { Action } from '@/lib/store/actions';
 import type { Brief } from '@/server/brief';
 import type { FormAnswer } from '@/server/onboarding';
@@ -19,7 +20,7 @@ export const todayLocal = () => {
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(url, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
+    res = await fetch(withBase(url), { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
   } catch {
     throw new ApiError('network');
   }
@@ -54,7 +55,7 @@ export const loadProperty = (sessionId: string, propertyId: string) => request<P
 export async function sendTurn(id: string, message: string, idempotencyKey: string, onEvent: (type: string) => void): Promise<void> {
   let res: Response;
   try {
-    res = await fetch(`/api/session/${id}/turn`, {
+    res = await fetch(withBase(`/api/session/${id}/turn`), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message, idempotencyKey, today: todayLocal() }),
@@ -120,4 +121,4 @@ export type HotelRate = {
 };
 export const loadRates = (sessionId: string, propertyId: string) => request<{ rates: HotelRate[] }>(`/api/session/${sessionId}/property/${propertyId}/rates`);
 export const logEvent = (name: 'detail_open' | 'detail_book', props: { variant: string; sessionId: string }) =>
-  fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, ...props }), keepalive: true }).catch(() => undefined);
+  fetch(withBase('/api/events'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, ...props }), keepalive: true }).catch(() => undefined);

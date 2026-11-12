@@ -10,7 +10,7 @@ import { expect, test, type Page } from '@playwright/test';
 const EMAIL = `e2e+${Date.now()}@fixture.hotelfinder.invalid`;
 
 async function search(page: Page) {
-  await page.goto('/');
+  await page.goto('./');
   await page.getByLabel('Your trip', { exact: true }).fill('porto');
   await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();
   await page.getByRole('button', { name: /^When:/ }).click();
@@ -33,7 +33,7 @@ test('book a hotel: re-check, sign in with a code, Apple Pay (test), booked, the
   await card.getByRole('button', { name: 'Book' }).click();
 
   // The checkout: what is booked, re-checked with the hotel.
-  await expect(page).toHaveURL(/\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
+  await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
   const stay = page.getByRole('region', { name: 'Your stay' });
   await expect(stay.getByRole('heading', { name: hotel })).toBeVisible();
   await expect(stay).toContainText(/Fri \d+ – Sun \d+ \w{3} · 2 nights · 2 adults/);
@@ -121,7 +121,7 @@ test('book a hotel: re-check, sign in with a code, Apple Pay (test), booked, the
   await page.screenshot({ path: 'test-results/14-cancelled.png' });
 
   // Sign out: the account line goes, and the bookings with it.
-  await page.goto('/');
+  await page.goto('./');
   await nav.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByLabel('Your trip', { exact: true })).toBeVisible();
   await expect(nav.getByText(/Signed in as/)).toHaveCount(0);

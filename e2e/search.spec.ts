@@ -11,7 +11,7 @@ test('search for a hotel in Porto', async ({ page }) => {
   page.on('pageerror', (e) => errors.push(String(e)));
 
   // The slide-out variant of the detail flag here; the expanding card is checked below.
-  await page.goto('/?detail=slideout');
+  await page.goto('./?detail=slideout');
   // The first screen: one box for the trip, three pills, optional priorities.
   await expect(page.getByRole('heading', { name: 'Not 400 hotels. The right one, and why.' })).toBeVisible();
   // No search yet: no hotels panel, and no trip in the list on the left.
@@ -164,7 +164,7 @@ test('search for a hotel in Porto', async ({ page }) => {
   await expect(sheet).toBeHidden();
 
   // The other variant of the flag: the card expands in the list, and collapses again.
-  await page.goto('/?detail=expand');
+  await page.goto('./?detail=expand');
   await expect(cards).toHaveCount(shown);
   const firstCard = cards.first();
   await firstCard.getByRole('button', { name: 'Details' }).click();

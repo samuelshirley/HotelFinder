@@ -1,5 +1,6 @@
 'use client';
 
+import { withBase } from '@/lib/basePath';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { errorCopy } from '@/lib/errors';
@@ -173,7 +174,7 @@ export function Penny({ first, children }: { first: boolean; children: React.Rea
     <div className={styles.pennyRow}>
       {first ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className={styles.pennyAvatar} src="/penny.png" alt="" width={32} height={32} />
+        <img className={styles.pennyAvatar} src={withBase('/penny.png')} alt="" width={32} height={32} />
       ) : (
         <span className={styles.pennyAvatar} aria-hidden="true" data-blank="true" />
       )}
