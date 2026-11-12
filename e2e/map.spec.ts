@@ -82,7 +82,17 @@ test('the map over the list', async ({ page }) => {
 
   // The wheel over the map zooms the map; the list does not scroll.
   const list = page.locator('ol').locator('..');
-  const scrolledBefore = await list.evaluate((el) => el.scrollTop);
+  // The pressed pin's card is still gliding into view: let the list come to rest first.
+  await expect(cards.nth(1)).toBeInViewport();
+  let scrolledBefore = -1;
+  await expect
+    .poll(async () => {
+      const now = await list.evaluate((el) => el.scrollTop);
+      const still = now === scrolledBefore;
+      scrolledBefore = now;
+      return still;
+    }, { intervals: [300], timeout: 10_000 })
+    .toBe(true);
   await page.mouse.move(band.x + band.width / 2, band.y + band.height / 2);
   await page.mouse.wheel(0, -300);
   await page.waitForTimeout(600);
