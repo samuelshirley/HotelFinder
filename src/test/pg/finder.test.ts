@@ -395,6 +395,23 @@ describe('dispatch looks places up; no producer can give a point', () => {
     expect(await getStay(ids.stayId, ids.sessionId)).toMatchObject({ nearPlaceId: null, nearLabel: null, latitude: null });
   });
 
+  it('set_near_point (the user\'s own map): no lookup, a new search around the point, and the view carries it as the map\'s anchor', async () => {
+    const ids = await porto();
+    const { supplier, placeLookups, searches } = recordedSupplier();
+    await runFinder({ ...ids, supplier, now: NOW });
+    const session = (await getSession(ids.sessionId))!;
+    const stay = (await getStay(ids.stayId, ids.sessionId))!;
+    const r = await dispatchActions({ session, stay, actions: [{ type: 'set_near_point', latitude: 41.1496, longitude: -8.6109 }], supplier, now: LATER(1), today: '2026-11-11' });
+    expect(placeLookups).toEqual([]); // nothing to look up: the point is the user's
+    expect(r.effect).toBe('refetch');
+    expect(r.results[0]).toMatchObject({ ok: true, action: { type: 'set_near', near: { label: 'the spot on your map', latitude: 41.1496, longitude: -8.6109 } } });
+    expect(searches.at(-1)!.where).toEqual({ latitude: 41.1496, longitude: -8.6109, radiusM: 5000 });
+    expect(await getStay(ids.stayId, ids.sessionId)).toMatchObject({ nearPlaceId: 'map:41.1496,-8.6109', nearLabel: 'the spot on your map', latitude: 41.1496, longitude: -8.6109 });
+    const { buildSessionView } = await import('@/server/view');
+    const view = await buildSessionView((await getSession(ids.sessionId))!);
+    expect(view.stay).toMatchObject({ nearIsNamed: true, anchor: { latitude: 41.1496, longitude: -8.6109, label: 'the spot on your map' } });
+  });
+
   it('a place lookup that fails changes nothing and says so', async () => {
     const ids = await porto();
     const { supplier } = recordedSupplier({ place: 'fail' });

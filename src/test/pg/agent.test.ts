@@ -82,6 +82,23 @@ const stayOf = async (sessionId: string) => (await listStays(sessionId))[0];
 const names = async (sessionId: string) => (await listShortlist(sessionId, (await stayOf(sessionId)).id, 'public')).map((r) => r.property.name);
 
 describe('the agent: what the router did not settle', () => {
+  it('the map through the agent: one call, the fixed line, and the screen told what to do', async () => {
+    const { session, supplier } = await onboarded();
+    const before = await names(session.id);
+    const hide = scripted([{ tool: 'show_map', input: { visible: false } }]);
+    const turn = await say(session, 'the map is in my way', deps(supplier.supplier, hide.callModel));
+    expect(hide.calls).toHaveLength(1);
+    expect(turn.finalText).toBe('The map is folded away. Say "show the map" to bring it back.');
+    expect((await last(session.id)).meta).toEqual({ ui: { map: 'hide' } });
+    expect((await last(session.id)).kind).toBe('line');
+
+    const mark = scripted([{ tool: 'mark_on_map', input: { position: 2 } }]);
+    const marked = await say((await getSession(session.id))!, 'point out the second on the map', deps(supplier.supplier, mark.callModel));
+    expect(marked.finalText).toBe(`${before[1]} is marked on the map.`);
+    expect((await last(session.id)).meta).toMatchObject({ ui: { focus: { propertyId: expect.any(String) } } });
+    expect(await names(session.id)).toEqual(before);
+  });
+
   it('new dates in prose become one typed action; the reply is the server\'s, and the call is on the ledger', async () => {
     const { session, supplier } = await onboarded();
     const m = scripted([{ text: 'Sure, I have changed your dates!' }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);

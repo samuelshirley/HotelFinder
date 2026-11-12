@@ -151,5 +151,27 @@ test('the map over the list', async ({ page }) => {
   expect(book.x).toBeGreaterThan(name.x + name.width - 1);
   await page.screenshot({ path: 'test-results/14-wide-side-by-side.png' });
 
+  // A named place on the map: pressing its name offers to measure from it, and taking the offer is a chat message.
+  const measure = page.getByTestId('map').getByRole('button', { name: /^Measure from / });
+  const area = (await page.getByTestId('map').boundingBox())!;
+  search: for (let y = area.y + 60; y < area.y + area.height - 60; y += 40) {
+    for (let x = area.x + 60; x < area.x + area.width - 80; x += 50) {
+      const onPin = await page.evaluate(([px, py]) => Boolean(document.elementFromPoint(px, py)?.closest('button')), [x, y]);
+      if (onPin) continue;
+      await page.mouse.click(x, y);
+      if (await measure.isVisible()) break search;
+    }
+  }
+  await expect(measure).toBeVisible();
+  const place = (await measure.textContent())!.replace(/^Measure from /, '');
+  await page.screenshot({ path: 'test-results/15-measure-from.png' });
+  // Pressing empty map puts the offer away.
+  await measure.click();
+  await expect(measure).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Conversation' }).getByText(`Stay close to ${place}`, { exact: true })).toBeVisible();
+  // Jev is off in this run, so the agent answers if it can be reached; either way the turn ends and says something.
+  await expect(page.getByLabel('Message')).toBeEnabled({ timeout: 90_000 });
+  await page.screenshot({ path: 'test-results/16-measured.png' });
+
   expect(errors).toEqual([]);
 });

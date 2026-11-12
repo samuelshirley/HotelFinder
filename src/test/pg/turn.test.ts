@@ -251,6 +251,25 @@ describe('a chat turn on a running search', () => {
     expect(book.turn.finalText).toBe(`${names[1]} is open: press Book there to check the price and pay.`);
   });
 
+  it('the map: Penny folds it away, brings it back, or marks one hotel on it; no model, no supplier, nothing changed', async () => {
+    const { session, supplier } = await onboarded();
+    const names = await shortlistNames(session.id);
+    const searches = supplier.searches.length;
+    const hide = await say(session, 'hide the map', deps(supplier.supplier, jevSays('map')));
+    expect(hide.turn.finalText).toBe('The map is folded away. Say "show the map" to bring it back.');
+    expect((await lastLine(session.id)).meta).toEqual({ ui: { map: 'hide' } });
+    const show = await say(session, 'show me the map again', deps(supplier.supplier, jevSays('map')));
+    expect(show.turn.finalText).toBe('The map is showing.');
+    expect((await lastLine(session.id)).meta).toEqual({ ui: { map: 'show' } });
+    const mark = await say(session, 'where is the third one on the map', deps(supplier.supplier, jevSays('map')));
+    expect(mark.turn.finalText).toBe(`${names[2]} is marked on the map.`);
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { focus: { propertyId: expect.any(String) } } });
+    expect(mark.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', model_calls: 0 });
+    expect(supplier.searches).toHaveLength(searches);
+    expect(await shortlistNames(session.id)).toEqual(names);
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
+  });
+
   it('with no Anthropic key, what the router will not settle says so and changes nothing', async () => {
     const { session, supplier } = await onboarded();
     const before = await shortlistNames(session.id);
