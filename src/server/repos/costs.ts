@@ -184,3 +184,15 @@ export async function unattributedSince(since: Date): Promise<{ calls: number; t
   const byProvider = out.map((r) => ({ provider: String(r.provider), calls: num(r.calls), totalMicrocents: num(r.total) }));
   return { calls: byProvider.reduce((n, p) => n + p.calls, 0), totalMicrocents: byProvider.reduce((n, p) => n + p.totalMicrocents, 0), byProvider };
 }
+
+/** Anthropic tokens this app's ledger recorded since `since`, every environment that writes here. */
+export async function ledgerAnthropicTokens(since: Date, until: Date): Promise<{ calls: number; input: number; output: number; cacheRead: number; cacheWrite: number; costMicrocents: number }> {
+  const [r] = await rows(sql`
+    select count(*) as calls,
+      coalesce(sum(input_tokens), 0) as input, coalesce(sum(output_tokens), 0) as output,
+      coalesce(sum(cache_read_tokens), 0) as cache_read, coalesce(sum(cache_write_tokens), 0) as cache_write,
+      coalesce(sum(cost_microcents), 0) as cost
+    from usage_events where provider like 'anthropic%' and created_at >= ${since} and created_at < ${until}
+  `);
+  return { calls: num(r.calls), input: num(r.input), output: num(r.output), cacheRead: num(r.cache_read), cacheWrite: num(r.cache_write), costMicrocents: num(r.cost) };
+}

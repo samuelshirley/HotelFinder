@@ -124,7 +124,7 @@ ONLY), usage, costs (admin read-only cost views), preferences, bookings, appMeta
 in one place) · `errorCopyGuard` (every error code has copy; no
 empty catch) · `basePathGuard` (no root path in a fetch, href, src or
 navigation; `<Link>` exempt, never wrapped in withBase) · `meterGuard` (only
-four server files call out, each writes the usage ledger; every supplier op
+five server files call out, each writes the usage ledger; every supplier op
 priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `devDatabase` (migrations build exactly the schema). Mutation
 logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 

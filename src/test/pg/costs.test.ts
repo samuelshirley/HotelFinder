@@ -5,7 +5,7 @@ vi.mock('@/server/db/client', async () => (await import('./harness')).clientModu
 
 import { rawQuery, resetDb, seedUser } from './harness';
 import { seedSearch } from './fixtures';
-import { costDistribution, searchCosts, searchLedger, unattributedSince } from '@/server/repos/costs';
+import { costDistribution, ledgerAnthropicTokens, searchCosts, searchLedger, unattributedSince } from '@/server/repos/costs';
 import { logUsage, type UsageInput } from '@/server/repos/usage';
 
 beforeEach(resetDb);
@@ -120,5 +120,18 @@ describe('cost per search', () => {
   it('is empty, not an error, with no searches', async () => {
     expect(await costDistribution(at(0))).toEqual({ searches: 0, medianMicrocents: 0, p90Microcents: 0, maxMicrocents: 0, totalMicrocents: 0 });
     expect(await searchCosts(at(0))).toEqual([]);
+  });
+});
+
+describe('ledger tokens for the Anthropic comparison', () => {
+  it('sums Anthropic rows inside [since, until) only', async () => {
+    const t = { success: true, provider: 'anthropic', inputTokens: 100, outputTokens: 10, cacheReadTokens: 5, cacheWriteTokens: 7, costMicrocents: 1_000 };
+    await row(0, t);
+    await row(30, t);
+    await row(60, t); // at `until`: excluded
+    await row(-1, t); // before `since`: excluded
+    await row(10, { ...t, provider: 'jev' });
+    await row(10, { ...t, provider: 'admin:anthropic' }); // the Admin API read itself is not model usage
+    expect(await ledgerAnthropicTokens(at(0), at(60))).toEqual({ calls: 2, input: 200, output: 20, cacheRead: 10, cacheWrite: 14, costMicrocents: 2_000 });
   });
 });

@@ -31,6 +31,7 @@ const METERED: Record<string, string> = {
   'server/jev/index.ts': 'server/turn.ts',
   'server/agent/anthropic.ts': 'server/modelLedger.ts',
   'server/auth/mailer.ts': 'server/auth/mailer.ts',
+  'server/providerUsage.ts': 'server/providerUsage.ts', // Admin API reads, free, provider 'admin:anthropic'
 };
 
 describe('every outbound call is metered', () => {

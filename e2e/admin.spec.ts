@@ -67,6 +67,9 @@ test('a real search shows up with its cost, place lookup included', async ({ pag
   await expect(row).toContainText('Porto, Portugal');
   // Two place calls at $0.01 each (the lookup and the details), rates and content free or unpriced.
   await expect(row.getByRole('cell').nth(2)).toHaveText(/^\$0\.0[2-9]\d*$/);
+  // Anthropic's own figures: a comparison table with ANTHROPIC_ADMIN_KEY, otherwise a note saying why not.
+  const check = page.getByRole('region', { name: 'Anthropic check' });
+  await expect(check.getByRole('table').or(check.getByText(/ANTHROPIC_ADMIN_KEY|Admin API|cannot see/))).toBeVisible();
   await page.screenshot({ path: 'test-results/admin-01-overview.png', fullPage: true });
 
   await row.getByRole('link', { name: 'Porto, Portugal' }).click();

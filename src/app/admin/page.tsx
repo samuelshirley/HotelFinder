@@ -5,7 +5,9 @@ import { z } from 'zod';
 import { AdminSignIn } from '@/components/AdminSignIn';
 import { formatMicrocents } from '@/lib/costFormat';
 import { adminAccess } from '@/server/admin';
-import { costDistribution, searchCosts, unattributedSince } from '@/server/repos/costs';
+import { isModelId, modelCostMicrocents } from '@/lib/models';
+import { anthropicUsage, type Tokens } from '@/server/providerUsage';
+import { costDistribution, ledgerAnthropicTokens, searchCosts, unattributedSince } from '@/server/repos/costs';
 
 import styles from './admin.module.css';
 
@@ -24,7 +26,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Record
 
   const { days } = params.parse({ days: searchParams.days });
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const [dist, top, loose] = await Promise.all([costDistribution(since), searchCosts(since, 50), unattributedSince(since)]);
+  const [dist, top, loose, anthropic] = await Promise.all([costDistribution(since), searchCosts(since, 50), unattributedSince(since), anthropicUsage(since)]);
+  // Same span on both sides: from the UTC day Anthropic's buckets start on to the end of its last complete bucket.
+  const ours = anthropic.ok ? await ledgerAnthropicTokens(anthropic.from, anthropic.through) : null;
   const unpriced = top.reduce((n, s) => n + s.unpricedCalls, 0);
   const sandbox = top.some((s) => s.sandbox);
 
@@ -104,6 +108,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Record
         </table>
       </section>
 
+      <AnthropicCheck report={anthropic} ours={ours} />
+
       {loose.byProvider.length > 0 && (
         <section aria-label="Not tied to a search">
           <h2 className={styles.muted}>Not tied to a search</h2>
@@ -121,6 +127,71 @@ export default async function AdminPage({ searchParams }: { searchParams: Record
         </section>
       )}
     </main>
+  );
+}
+
+type Ours = Awaited<ReturnType<typeof ledgerAnthropicTokens>>;
+
+/** Anthropic's own usage report for the app's key next to what this ledger recorded, for the same span. */
+function AnthropicCheck({ report, ours }: { report: Awaited<ReturnType<typeof anthropicUsage>>; ours: Ours | null }) {
+  if (!report.ok)
+    return (
+      <section aria-label="Anthropic check">
+        <h2 className={styles.muted}>Anthropic&apos;s own figures</h2>
+        <p className={styles.note}>
+          {report.reason === 'not_configured' && 'Set ANTHROPIC_ADMIN_KEY to compare with Anthropic’s usage report.'}
+          {report.reason === 'key_not_found' && 'The admin key cannot see exactly one live API key matching ANTHROPIC_API_KEY.'}
+          {report.reason === 'api_error' && `Anthropic’s Admin API did not answer (${report.detail ?? 'error'}).`}
+        </p>
+      </section>
+    );
+  // Anthropic's tokens priced with our own table, per model: the provider's count, our price list.
+  const theirCost = Object.entries(report.byModel).reduce(
+    (n, [model, t]) => n + (isModelId(model) ? modelCostMicrocents(model, { input: t.input, output: t.output, cacheRead: t.cacheRead, cacheWrite: t.cacheWrite }) : 0),
+    0,
+  );
+  const rows: [string, keyof Tokens][] = [
+    ['Input tokens', 'input'],
+    ['Output tokens', 'output'],
+    ['Cache read', 'cacheRead'],
+    ['Cache write', 'cacheWrite'],
+  ];
+  const ourTokens: Tokens = ours ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  const pct = (a: number, b: number) => (b === 0 ? (a === 0 ? '0%' : '–') : `${(((a - b) / b) * 100).toFixed(1)}%`);
+  return (
+    <section aria-label="Anthropic check">
+      <h2 className={styles.muted}>Anthropic&apos;s own figures</h2>
+      <p className={styles.subtle}>
+        Key “{report.key.name}”, {report.from.toISOString().slice(0, 16).replace('T', ' ')} → {report.through.toISOString().slice(0, 16).replace('T', ' ')} UTC (Anthropic&apos;s report
+        runs about an hour behind). Anthropic counts every use of this key — local dev and test runs too — so the two only match when production has a key of its own.
+      </p>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th />
+            <th className={styles.num}>Anthropic</th>
+            <th className={styles.num}>This ledger</th>
+            <th className={styles.num}>Difference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, k]) => (
+            <tr key={k}>
+              <td>{label}</td>
+              <td className={styles.num}>{report.tokens[k].toLocaleString('en')}</td>
+              <td className={styles.num}>{ourTokens[k].toLocaleString('en')}</td>
+              <td className={styles.num}>{pct(ourTokens[k], report.tokens[k])}</td>
+            </tr>
+          ))}
+          <tr>
+            <td>At list price</td>
+            <td className={styles.num}>{formatMicrocents(theirCost)}</td>
+            <td className={styles.num}>{formatMicrocents(ours?.costMicrocents ?? 0)}</td>
+            <td className={styles.num}>{pct(ours?.costMicrocents ?? 0, theirCost)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
   );
 }
 
