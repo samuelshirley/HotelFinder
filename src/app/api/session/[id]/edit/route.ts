@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { describeChange } from '@/lib/replies';
 import { actionSchema } from '@/lib/store/actions';
 import { dispatchActions } from '@/server/dispatch';
-import { appendMessage } from '@/server/repos/chat';
+import { upsertChipLine } from '@/server/repos/chat';
 import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
 import { getSession, listStays } from '@/server/repos/sessions';
 import { getSupplier } from '@/server/supplier';
@@ -58,16 +58,12 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
     if (r.rejection === 'dates_in_past' || r.rejection === 'checkout_not_after_checkin' || r.rejection === 'stay_too_long' || r.rejection === 'more_rooms_than_adults') return errorResponse(r.rejection, 400);
     // no_change is not an error: the chip already says that.
   }
-  // The change and what it did go in the chat, like a typed change: the
-  // results panel points there when nothing fits.
+  // The change and what it did go in the chat, like a typed change (the
+  // results panel points there when nothing fits) — but as ONE line that a run
+  // of chip edits keeps rewriting, not a new message per filter.
   if (dispatched.results.some((r) => r.ok)) {
-    await appendMessage({
-      sessionId: session.id,
-      role: 'assistant',
-      kind: 'line',
-      content: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
-      meta: { by: 'chip' },
-    });
+    const content = describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder);
+    if (content) await upsertChipLine(session.id, content);
   }
   return NextResponse.json(await buildSessionView((await getSession(session.id))!));
 });
