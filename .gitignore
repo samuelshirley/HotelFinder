@@ -12,3 +12,4 @@ test-results/
 .DS_Store
 .data/
 next-env.d.ts
+.claude/worktrees/

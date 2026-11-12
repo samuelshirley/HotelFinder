@@ -137,6 +137,14 @@ agent-live.sh (14 real cases against Anthropic; prints the cost),
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
 Neon URL kept in .env.neon so dev stays on embedded Postgres)
 
+### Agent tooling
+
+Neon agent skill in `.claude/skills/neon/` (pinned in `skills-lock.json`;
+`npx neon skills status` / `update -y`) and the Neon MCP server in
+`.mcp.json` (OAuth: URL only, sign-in on first use, no key in the repo).
+Do not run `neon link`/`checkout`: they pull `DATABASE_URL` into `.env`,
+which would point dev at Neon. The Neon URL lives in `.env.neon`.
+
 ### E2E specs (`e2e/`)
 
 search
