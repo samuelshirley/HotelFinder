@@ -1,22 +1,31 @@
 import 'server-only';
+import type { Action } from '@/lib/store/actions';
+import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 
 import { AMENITIES, type Amenity } from '@/lib/amenities';
 import { buildAnswer, type HotelFacts } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
+import type { DistanceFrom } from '@/lib/finder/rank';
+import { planSearch } from '@/lib/finder/searchPlan';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { answerLine, describeChange, FIXED_LINES, REJECTION_LINE } from '@/lib/replies';
+import { answerLine, describeChange, FIXED_LINES, formatDates, nearLabel, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
-import { runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
+import type { SearchState } from '@/lib/store/reduce';
+import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
 import { dispatchActions, toSearchState } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
-import { askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
+import { answerForm, answerPrioritiesInWords, askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
+import { readingFromJev } from '@/lib/priorityReading';
+import { placeKindWord, whichOne } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
+import { logModelCalls } from '@/server/modelLedger';
+import { nearInWords } from '@/server/nearInWords';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
@@ -114,31 +123,6 @@ async function processOne(turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) 
 /** `kind: 'ai'` marks words the model wrote; everything else is a template over typed values. */
 type TurnResult = { text: string; meta: Record<string, unknown> & { ui?: unknown }; kind?: ChatKind };
 
-/** One ledger row per model call, failures included. Returns what the turn trace keeps. */
-async function logModelCalls(session: SearchSession, purpose: 'agent' | 'scan', replies: ModelReply[]) {
-  let costMicrocents = 0;
-  for (const r of replies) {
-    if (!r.ok && r.failure === 'not_configured') continue;
-    const cost = r.ok ? modelCostMicrocents(r.model, r.usage) : 0;
-    costMicrocents += cost;
-    await logUsage({
-      sessionId: session.id,
-      userId: session.userId,
-      provider: 'anthropic',
-      model: r.model,
-      inputTokens: r.ok ? r.usage.input : 0,
-      outputTokens: r.ok ? r.usage.output : 0,
-      cacheWriteTokens: r.ok ? r.usage.cacheWrite : 0,
-      cacheReadTokens: r.ok ? r.usage.cacheRead : 0,
-      costMicrocents: cost,
-      latencyMs: r.latencyMs,
-      success: r.ok,
-      errorMessage: r.ok ? null : r.errorMessage,
-      meta: { purpose },
-    });
-  }
-  return { model_calls: replies.length, cost_microcents: costMicrocents };
-}
 
 /** A typed message while the form is still being filled in. */
 async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void): Promise<TurnResult> {
@@ -146,6 +130,8 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   const stay = (await listStays(session.id))[0] ?? null;
   const field = nextField(session, stay, guestsAnsweredIn(session, await listMessages(session.id)));
 
+  if (field === 'priorities' && stay) return prioritiesInWords(session, stay, turn, deps);
+  if (field === 'dates') return datesInWords(session, turn, deps);
   if (field !== 'destination') return { text: FIXED_LINES.use_the_form, meta: { by: 'form', field } };
 
   // The first message may say more than the place ("Porto, 12 to 15 March, two of
@@ -164,11 +150,92 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   if (places.value.length === 0) {
     return { text: destination || Object.keys(rest).length === 0 ? 'No place by that name. Try a city or a neighbourhood.' : FIXED_LINES.which_place, meta: { ...meta, places: 0 } };
   }
-  await askQuestion(session.id, 'destination', {
-    prompt: 'Which one?',
-    suggestions: places.value.slice(0, 5).map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name })),
-  });
+  await askQuestion(session.id, 'destination', whichOne(places.value.filter((p) => placeKindWord(p.types) !== null).slice(0, 5)));
   return { text: '', meta: { ...meta, places: places.value.length } };
+}
+
+/**
+ * The nights card answered in words ("the second weekend"). The scan reads the
+ * words with the hint the card was opened with, so "the second weekend" after
+ * "3 nights in March" lands in March; the server checks the dates as always.
+ */
+async function datesInWords(session: SearchSession, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const hint = session.draft.scanned?.datesHint;
+  const budget = await aiBudget(session.id, deps.now());
+  if (!budget.ok) return { text: FIXED_LINES.tap_the_nights, meta: { by: 'form', field: 'dates', skipped: 'budget' } };
+  const context = hint ? ` (the trip is ${hint.nights ? `${hint.nights} night${hint.nights === 1 ? '' : 's'}` : 'some nights'}${hint.month ? ` in ${hint.month}` : ''})` : '';
+  const scan = await scanIntent({ message: `Dates: ${turn.userMessage}${context}`, today: deps.today, currency: session.currency, callModel: deps.callModel, model: deps.model });
+  const spent = await logModelCalls(session, 'scan', [scan.reply]);
+  const { checkIn, checkOut } = scan.trip;
+  if (!checkIn || !checkOut) return { text: FIXED_LINES.tap_the_nights, meta: { by: 'agent', field: 'dates', read: null, ...spent } };
+  const messages = await listMessages(session.id);
+  const result = await answerForm({
+    sessionId: session.id,
+    answer: { field: 'dates', checkIn, checkOut },
+    guestsAnswered: guestsAnsweredIn(session, messages),
+    supplier: deps.supplier,
+    now: deps.now(),
+    today: deps.today,
+    readBack: `Reading that as ${formatDates(checkIn, checkOut)}.`,
+  });
+  return { text: '', meta: { by: 'agent', field: 'dates', read: { checkIn, checkOut }, ok: result.ok, ...spent } };
+}
+
+/**
+ * "What matters most?" answered in words. Jev first (no model call when its
+ * yes/no answers settle the set); Haiku when they do not or a place is named.
+ */
+async function prioritiesInWords(session: SearchSession, stay: Stay, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const jev = await deps.askJev({
+    message: turn.userMessage,
+    state: { question: 'What matters most for this hotel search?', search: { destination: stay.destinationText } },
+  });
+  const fromJev = readingFromJev(jev.readings);
+  if (jev.failure !== 'not_configured') {
+    await logUsage({
+      sessionId: session.id,
+      userId: session.userId,
+      provider: 'jev',
+      model: jev.model,
+      inputTokens: jev.inputTokens,
+      outputTokens: jev.outputTokens,
+      costMicrocents: deps.jevCost(jev.inputTokens),
+      latencyMs: jev.latencyMs,
+      success: jev.failure === null,
+      errorMessage: jev.errorMessage,
+      // Probabilities only: never the user's words.
+      meta: {
+        purpose: 'priorities',
+        wants: jev.readings ? [jev.readings.wantsPrice, jev.readings.wantsQuality, jev.readings.wantsLocation, jev.readings.namesPlace] : null,
+        decision: fromJev ? 'settled' : 'defer',
+      },
+    });
+  }
+
+  let reading = fromJev;
+  let spent = { model_calls: 0, cost_microcents: 0 };
+  if (!reading) {
+    const budget = await aiBudget(session.id, deps.now());
+    if (!budget.ok) return { text: 'Pick one or more of the options above.', meta: { by: 'form', field: 'priorities', skipped: 'budget' } };
+    const read = await readPriorities({ message: turn.userMessage, destination: stay.destinationText, callModel: deps.callModel, model: deps.model });
+    spent = await logModelCalls(session, 'priorities', [read.reply]);
+    reading = read.reading;
+  }
+  if (!reading) return { text: 'That did not say what matters. Pick one or more of the options above, or say it another way.', meta: { by: fromJev ? 'router' : 'agent', field: 'priorities', read: null, ...spent } };
+
+  const messages = await listMessages(session.id);
+  const result = await answerPrioritiesInWords({
+    sessionId: session.id,
+    reading,
+    guestsAnswered: guestsAnsweredIn(session, messages),
+    supplier: deps.supplier,
+    now: deps.now(),
+    today: deps.today,
+  });
+  return {
+    text: '',
+    meta: { by: fromJev ? 'router' : 'agent', field: 'priorities', read: { priorities: reading.priorities, near: result.near }, ok: result.ok, ...spent },
+  };
 }
 
 /** A message about a search that is already running. */
@@ -191,7 +258,8 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         adults: state.stay.adults,
         children_ages: state.stay.childrenAges,
         rooms: state.stay.rooms,
-        priority: state.priority,
+        priorities: state.priorities,
+        close_to: nearLabel(state.stay),
         must_haves: state.stay.mustHaves,
         price_cap_per_night: state.stay.priceCapMinor === null ? null : state.stay.priceCapMinor / 100,
         currency: session.currency,
@@ -259,8 +327,8 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       const row = shortlist.find((r) => r.propertyId === ('open' in hint ? hint.open.propertyId : hint.book.propertyId));
       const text =
         'book' in hint
-          ? `Booking is not built yet. ${row?.name ?? 'That hotel'} is open on the right.`
-          : `${row?.name ?? 'That hotel'} is open on the right.`;
+          ? `${row?.name ?? 'That hotel'} is open: press Book there to check the price and pay.`
+          : `${row?.name ?? 'That hotel'} is open.`;
       return { text, meta: { ...trace, intent: decision.intent, ui: { open: 'open' in hint ? hint.open : hint.book }, model_calls: 0 } };
     }
     case 'line':
@@ -269,13 +337,31 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       // Read off the rows this turn already loaded. No model, no supplier call, no write.
       const answer = buildAnswer(decision.plan, rows.map(hotelFacts), {
         nights: nightsBetween(stay.checkIn, stay.checkOut),
-        // The finder measures from the place searched when it has coordinates (server/finder.ts).
-        distanceFrom: stay.latitude !== null && stay.longitude !== null ? 'place' : 'search_centre',
-        search: { ...state.stay, priority: state.priority },
+        // Measured from where the finder measured, by the same rule (lib/finder/searchPlan.ts).
+        ...distanceBasis(state),
+        search: { ...state.stay, priorities: state.priorities, nearLabel: nearLabel(state.stay) },
       });
       // No single honest answer in the rows (a tie for "the cheapest"): the agent's.
       if (!answer) return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, decision: 'defer', deferred: 'answer_unavailable', plan: decision.plan } });
       return { text: answerLine(answer, session.currency), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
+    }
+    case 'near': {
+      // Be close to a named place: looked up and applied in code (server/nearInWords.ts).
+      emit({ type: 'working', by: 'agent' });
+      const near = await nearInWords({
+        session,
+        stay,
+        message: turn.userMessage,
+        priorities: state.priorities,
+        supplier: deps.supplier,
+        callModel: deps.callModel,
+        model: deps.model,
+        now: deps.now(),
+        today: deps.today,
+      });
+      // No place in the words after all, or a whole town: the agent's.
+      if (near.kind === 'not_mine') return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, ...near.meta, deferred: 'near_not_a_place' } });
+      return { text: near.text, meta: { ...trace, intent: decision.intent, ...near.meta } };
     }
     case 'defer':
       return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, deferred: decision.reason } });
@@ -372,12 +458,13 @@ async function agentTurn(args: {
     return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : refused ? FIXED_LINES.agent_misconfigured : FIXED_LINES.agent_unavailable, meta };
   }
   if (agent.actions.length > 0) {
-    const dispatched = await dispatchActions({ session, stay, actions: agent.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+    const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
+    const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
     return {
       text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
       meta: {
         ...meta,
-        actions: agent.actions,
+        actions,
         applied: dispatched.results.filter((r) => r.ok).length,
         rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
         effect: dispatched.effect,
@@ -388,9 +475,31 @@ async function agentTurn(args: {
   }
   if (agent.open) {
     const row = rows.find((r) => r.property.id === agent.open);
-    return { text: `${row?.property.name ?? 'That hotel'} is open on the right.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
+    return { text: `${row?.property.name ?? 'That hotel'} is open.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
   }
   if (agent.text) return { text: agent.text, kind: 'ai', meta };
   if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };
   return { text: FIXED_LINES.cannot_yet, meta };
+}
+
+/** Where the shortlist's distances were measured from: a named place, a point destination, else the middle of the results. */
+function distanceBasis(state: SearchState): { distanceFrom: DistanceFrom; distanceLabel: string | null } {
+  const plan = planSearch({
+    destinationText: state.stay.destinationText,
+    placeId: state.stay.placeId,
+    destPoint: state.stay.destPoint,
+    destKind: state.stay.destKind,
+    near: state.stay.near,
+  });
+  return plan?.target ? { distanceFrom: plan.target.from, distanceLabel: plan.target.label } : { distanceFrom: 'search_centre', distanceLabel: null };
+}
+
+/**
+ * A message that names a place to be close to means closeness matters now: it joins
+ * what "best" means, next to what was picked before. Unless the same message set
+ * the priorities itself.
+ */
+export function withCloseness(actions: Action[], current: readonly PriorityKey[] | null): Action[] {
+  if (!actions.some((a) => a.type === 'set_near') || actions.some((a) => a.type === 'set_priorities')) return actions;
+  return [...actions, { type: 'set_priorities', priorities: canonicalPriorities([...(current ?? []), 'closest']) }];
 }

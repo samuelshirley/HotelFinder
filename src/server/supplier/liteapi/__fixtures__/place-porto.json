@@ -1,0 +1,62 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Porto District",
+        "shortText": "Porto District",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Porto District",
+        "shortText": "Porto District",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Portugal",
+        "shortText": "PT",
+        "types": [
+          "country",
+          "political"
+        ]
+      }
+    ],
+    "countryCode": "PT",
+    "displayName": "Porto",
+    "location": {
+      "latitude": 41.1579438,
+      "longitude": -8.629105299999999
+    },
+    "types": [
+      "locality",
+      "political"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.28602848569317,
+        "longitude": -8.452613373962807
+      },
+      "low": {
+        "latitude": 41.038350609089264,
+        "longitude": -8.791293920826337
+      }
+    }
+  }
+}

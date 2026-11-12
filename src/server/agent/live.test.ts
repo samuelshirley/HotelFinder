@@ -7,6 +7,7 @@ import type { SearchState } from '@/lib/store/reduce';
 import { callAnthropic } from './anthropic';
 import { runAgent, type AgentResult } from './loop';
 import type { HotelOnScreen } from './prompt';
+import { readPriorities } from './priorities';
 import { scanIntent } from './scan';
 
 /**
@@ -21,9 +22,9 @@ const TODAY = '2026-11-11'; // a Wednesday
 
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const state: SearchState = {
-  priority: 'cheapest',
+  priorities: ['cheapest'],
   guestNationality: 'ES',
-  stay: { destinationText: 'Porto, Portugal', placeId: 'p', checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
+  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
 };
 const hotel = (position: number, name: string, totalMinor: number, rating: number): HotelOnScreen => ({
   position, name, stars: 3, rating, reviewCount: 6206, totalMinor, perNightMinor: totalMinor / 2, payAtPropertyMinor: 1200, roomName: 'Double Room', boardName: 'Room Only', refundable: false, freeCancellationUntil: null, reason: position === 1 ? 'Cheapest available' : '',
@@ -134,7 +135,7 @@ describe.skipIf(!live)(`the intent scan, live (${model})`, () => {
     expect(trip.checkIn).toBeUndefined();
     expect(trip.guests).toBeUndefined();
     expect(trip.destination).toMatch(/Lisbon/);
-    expect(trip.priority).toBe('cheapest');
+    expect(trip.priorities).toEqual(['cheapest']);
   }, 60_000);
 
   it('next weekend, counted from a Wednesday', async () => {
@@ -152,4 +153,26 @@ describe.skipIf(!live)(`the intent scan, live (${model})`, () => {
     console.log(`[live] ${model}: ${calls} model calls, ${(microcents / 1_000_000).toFixed(3)} cents`);
     expect(calls).toBeGreaterThan(0);
   });
+});
+
+describe.runIf(live)('reading "what matters most" in words, live', () => {
+  const read = (message: string, destination = 'Annecy, France') => readPriorities({ message, destination, callModel: callAnthropic, model });
+  it.each<[string, string[], RegExp | null]>([
+    ['nice but not crazy expensive', ['cheapest', 'nicest'], null],
+    ['close to the old town please', ['closest'], /old town|vieille ville/i],
+    ['cheap, near the station', ['cheapest', 'closest'], /station|gare/i],
+    ['central and well rated', ['nicest', 'closest'], null],
+    ['somewhere quiet, I sleep badly', [], null],
+  ])('%s', async (message, priorities, place) => {
+    const { reading, reply } = await read(message);
+    console.log(JSON.stringify({ message, reading, ok: reply.ok }));
+    expect(reply.ok).toBe(true);
+    if (priorities.length === 0) {
+      expect(reading === null || reading.priorities.length === 0).toBe(true);
+      return;
+    }
+    expect(reading?.priorities).toEqual(priorities);
+    if (place) expect(`${reading?.nearQuery} ${reading?.nearQueryLocal}`).toMatch(place);
+    else expect(reading?.nearQuery).toBeNull();
+  }, 30_000);
 });

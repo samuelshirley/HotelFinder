@@ -7,6 +7,7 @@ import type {
   CancelResult,
   Fee,
   Place,
+  PlaceDetails,
   PropertyDetails,
   RateCheck,
   SearchResult,
@@ -21,6 +22,7 @@ import type {
   cancelResponse,
   hotelDetailsResponse,
   hotelListResponse,
+  placeDetailsResponse,
   placesResponse,
   prebookResponse,
   RatesResponse,
@@ -152,6 +154,19 @@ export function normalizePlaces(body: z.infer<typeof placesResponse>): Place[] {
   }));
 }
 
+/** The id is the one we asked for: the details body does not repeat it. */
+export function normalizePlaceDetails(placeId: string, body: z.infer<typeof placeDetailsResponse>): PlaceDetails {
+  const d = body.data;
+  return {
+    placeId,
+    name: d.displayName,
+    latitude: d.location.latitude,
+    longitude: d.location.longitude,
+    types: d.types ?? [],
+    countryCode: d.countryCode && /^[A-Z]{2}$/.test(d.countryCode) ? d.countryCode : null,
+  };
+}
+
 export function normalizeStaticFacts(body: z.infer<typeof hotelListResponse>): StaticFacts[] {
   return body.data.map((h) => ({ supplierHotelId: h.id, amenities: amenitiesFromFacilityIds(h.facilityIds ?? []) }));
 }
@@ -176,6 +191,31 @@ export function normalizeDetails(body: z.infer<typeof hotelDetailsResponse>): Pr
     importantInformation: d.hotelImportantInformation ?? null,
     description: d.hotelDescription ?? null,
     imageUrls: (d.hotelImages ?? []).map((i) => i.url),
+    checkInFrom: d.checkinCheckoutTimes?.checkin_start || null,
+    checkOutUntil: d.checkinCheckoutTimes?.checkout || null,
+    reviews: d.sentiment_analysis
+      ? {
+          pros: d.sentiment_analysis.pros ?? [],
+          cons: d.sentiment_analysis.cons ?? [],
+          categories: (d.sentiment_analysis.categories ?? []).flatMap((c) => (typeof c.rating === 'number' ? [{ name: c.name, rating: c.rating, description: c.description ?? null }] : [])),
+        }
+      : null,
+    rooms: (d.rooms ?? []).flatMap((r) => {
+      if (!r.roomName) return [];
+      const size = Number(r.roomSizeSquare);
+      const occupancy = Number(r.maxOccupancy);
+      const sqm = Number.isFinite(size) && size > 0 ? (r.roomSizeUnit === 'sqft' ? Math.round(size * 0.092903) : size) : null;
+      return [
+        {
+          name: r.roomName,
+          sizeSqm: sqm,
+          beds: (r.bedTypes ?? []).flatMap((b) => (b.bedType ? [`${b.quantity && b.quantity > 1 ? `${b.quantity} × ` : ''}${b.bedType.toLowerCase()}`] : [])),
+          maxOccupancy: Number.isFinite(occupancy) && occupancy > 0 ? occupancy : null,
+          amenities: (r.roomAmenities ?? []).map((a) => a.name),
+          photo: r.photos?.[0]?.url ?? null,
+        },
+      ];
+    }),
   };
 }
 
@@ -203,7 +243,10 @@ export function normalizePrebook(body: z.infer<typeof prebookResponse>, checkedA
 export function bookingStatus(raw: string): SupplierBookingStatus {
   const s = raw.trim().toUpperCase();
   if (s === 'CONFIRMED') return 'confirmed';
-  if (s === 'CANCELLED' || s === 'CANCELED') return 'cancelled';
+  // The sandbox answers a non-refundable cancel with CANCELLED_WITH_CHARGES (seen
+  // live 2026-11-11, booking 9OMqobucP): cancelled, with the fee kept. Any
+  // CANCELLED* is cancelled; the money is in the fee and refund fields.
+  if (/^CANCEL+ED(_|$)/.test(s)) return 'cancelled';
   return 'other';
 }
 

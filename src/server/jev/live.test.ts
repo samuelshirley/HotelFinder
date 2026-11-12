@@ -18,9 +18,9 @@ import { askJev } from './index';
 const live = process.env.LIVE_JEV === '1';
 
 const state: SearchState = {
-  priority: null,
+  priorities: null,
   guestNationality: 'ES',
-  stay: { destinationText: 'Porto, Portugal', placeId: 'p', checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
+  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
 };
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const shortlist = [
@@ -29,7 +29,7 @@ const shortlist = [
   { propertyId: P(3), offerId: 'o3', name: 'Hotel Carris Porto Ribeira' },
 ];
 const jevState = {
-  search: { destination: 'Porto, Portugal', check_in: '2026-12-11', check_out: '2026-12-13', adults: 2, children_ages: [], rooms: 1, priority: null, must_haves: [], price_cap_per_night: null, currency: 'EUR' },
+  search: { destination: 'Porto, Portugal', check_in: '2026-12-11', check_out: '2026-12-13', adults: 2, children_ages: [], rooms: 1, priorities: null, must_haves: [], price_cap_per_night: null, currency: 'EUR' },
   hotels_on_screen: shortlist.map((r, i) => `${i + 1}. ${r.name}`),
 };
 
@@ -37,7 +37,13 @@ const CASES: Array<[string, string]> = [
   ['under 120 a night', 'actions:set_price_cap'],
   ['it needs parking for my truck', 'actions:add_must_have'],
   ['I am bringing my dog', 'actions:add_must_have'],
-  ['just show me the cheapest', 'actions:set_priority'],
+  ['just show me the cheapest', 'actions:set_priorities'],
+  // Measured 2026-11-11: Jev read quality 0.75 / location 0.79 and price 0.86 / quality 0.76, just under
+  // the 0.8 bar, so these go to the agent. That is the safe direction; the bar is not lowered to win them.
+  ['somewhere close and nice', 'defer'],
+  ['nice but not crazy expensive', 'defer'],
+  ['cheap, near the station', 'defer'],
+  ['close to the old town please', 'defer'],
   ['not the second one', 'actions:exclude_property'],
   ['show me some other options', 'actions:more_options'],
   ['tell me more about the yotel', 'ui'],
@@ -90,7 +96,7 @@ describe.runIf(live)('Jev, live', () => {
         multi: outcome.readings?.multiIntent,
         amenity: outcome.readings?.amenity,
         removing: outcome.readings?.removing,
-        priority: outcome.readings?.priority,
+        wants: [outcome.readings?.wantsPrice, outcome.readings?.wantsQuality, outcome.readings?.wantsLocation, outcome.readings?.namesPlace],
         fact: outcome.readings?.fact,
         superlative: outcome.readings?.superlative,
         search_field: outcome.readings?.searchField,

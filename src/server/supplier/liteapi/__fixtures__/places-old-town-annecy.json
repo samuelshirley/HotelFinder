@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJm7v1pSCPi0cRSCozCua2YT8",
+      "displayName": "Le Chalet in the heart of the old town",
+      "formattedAddress": "Faubourg Sainte-Claire, Annecy, France",
+      "types": [
+        "establishment",
+        "point_of_interest",
+        "lodging",
+        "service"
+      ]
+    }
+  ],
+  "fromCache": false
+}

@@ -93,4 +93,32 @@ describe.runIf(live)('LiteAPI sandbox, live', () => {
     expect(details.ok && details.value.name).toBe('Vincci Porto');
     expect(await supplier.getBooking('does-not-exist')).toMatchObject({ ok: false, error: { kind: 'supplier', status: 404 } });
   }, 60_000);
+
+  // Makes a real SANDBOX booking and cancels it. Its own switch, on top of LIVE_LITEAPI.
+  it.runIf(process.env.LIVE_LITEAPI_BOOK === '1')(
+    'checkout with a test payment: the re-check keeps the searched price, books, reads back, cancels',
+    async () => {
+      expect(key.startsWith('sand_')).toBe(true);
+      const search = await supplier.searchAvailability(stay({ marginPct: 10, maxHotels: 10, maxRatesPerHotel: 3 }));
+      expect(search.ok).toBe(true);
+      if (!search.ok) return;
+      const offer = search.value.offers.find((o) => o.cancellation.refundable) ?? search.value.offers[0];
+      const check = await supplier.recheckRate(offer.supplierOfferId);
+      expect(check.ok).toBe(true);
+      if (!check.ok) return;
+      // What the checkout compares: the price on the card and the price the supplier will charge now.
+      console.log('[live] offer', offer.total, 'prebook', check.value.total, 'refundable', offer.cancellation.refundable);
+      const guest = { firstName: 'Sandbox', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+      const booked = await supplier.book({ prebookId: check.value.prebookId, transactionId: check.value.transactionId, holder: guest, guests: [guest], payment: 'sandbox_test' });
+      console.log('[live] book', booked.ok ? { status: booked.value.statusRaw, total: booked.value.total, code: booked.value.hotelConfirmationCode } : booked.error);
+      expect(booked).toMatchObject({ ok: true, value: { status: 'confirmed' } });
+      if (!booked.ok) return;
+      const read = await supplier.getBooking(booked.value.supplierBookingId);
+      expect(read).toMatchObject({ ok: true, value: { status: 'confirmed' } });
+      const cancelled = await supplier.cancel(booked.value.supplierBookingId);
+      console.log('[live] cancel', cancelled.ok ? cancelled.value : cancelled.error);
+      expect(cancelled).toMatchObject({ ok: true, value: { status: 'cancelled' } });
+    },
+    120_000,
+  );
 });

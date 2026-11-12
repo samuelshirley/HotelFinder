@@ -22,7 +22,10 @@ const answers = (over: Record<string, unknown> = {}) => ({
     multi_intent: { type: 'noul', noul: 0.04 },
     amenity: { type: 'choice', choice: 'none', probabilities: { none: 0.99, parking: 0.01 } },
     removing: { type: 'noul', noul: 0.02 },
-    priority: { type: 'choice', choice: 'none', probabilities: { none: 0.9, cheapest: 0.1 } },
+    wants_price: { type: 'noul', noul: 0.03 },
+    wants_quality: { type: 'noul', noul: 0.91 },
+    wants_location: { type: 'noul', noul: 0.04 },
+    names_place: { type: 'noul', noul: 0.01 },
     ...over,
   },
   usage: { input_tokens: 612, output_tokens: 48 },
@@ -98,7 +101,7 @@ describe('askJev', () => {
     const body = JSON.parse(seen!.init.body as string);
     expect(body.model).toBe('jev-latest');
     expect(body.state).toEqual({ search: { destination: 'Porto' }, user_message: 'under 120 a night' });
-    expect(Object.keys(body.questions).sort()).toEqual(['amenity', 'fact', 'intent', 'multi_intent', 'priority', 'removing', 'search_field', 'superlative', 'tier']);
+    expect(Object.keys(body.questions).sort()).toEqual(['amenity', 'fact', 'intent', 'multi_intent', 'names_place', 'removing', 'search_field', 'superlative', 'tier', 'wants_location', 'wants_price', 'wants_quality']);
     expect(body.questions.tier.type).toBe('choice');
     expect(body.questions.multi_intent.type).toBe('noul');
     expect(outcome).toMatchObject({
@@ -107,7 +110,7 @@ describe('askJev', () => {
       inputTokens: 612,
       outputTokens: 48,
       settleMin: 0.85,
-      readings: { tier: { choice: 'T1', top: 0.97 }, intent: { choice: 'price_cap' }, multiIntent: 0.04, removing: 0.02 },
+      readings: { tier: { choice: 'T1', top: 0.97 }, intent: { choice: 'price_cap' }, multiIntent: 0.04, removing: 0.02, wantsPrice: 0.03, wantsQuality: 0.91, wantsLocation: 0.04, namesPlace: 0.01 },
     });
   });
 

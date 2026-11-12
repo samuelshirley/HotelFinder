@@ -536,3 +536,11 @@ carries it.
 - The sandbox place search and radius results above were captured on
   2026-11-11. Production inventory may differ; the rules do not depend on the
   exact numbers.
+
+## 9. As built (11 Nov 2026), where it differs from the proposal above
+
+- **Default "close" for a city is the middle of the returned hotels, not the city's map point.** Measured on the recordings: Porto's map point is 1.8–2.3 km from Aliados, the Sé and Ribeira; the median of its 20 hotels is 0.3–0.5 km from them. Annecy: 0.73 km vs 0.56 km from the old town. The map point is kept on the stay (`dest_latitude/longitude`) and used for airports and stations (radius search), and to refuse a "near" place more than 50 km away. The chip says "Close to central Porto".
+- **Stale offers fixed.** Reproduced first (`finder.test.ts`, "a new search replaces the old one"): after any refetch (dates, guests, nationality, place), the previous search's still-live offers were ranked alongside the new ones, so old-date prices could top the new shortlist. `listLiveOffersForRanking` now returns the latest search only.
+- **Migrations stay additive.** `priority` columns and enum are kept (never written; a guard enforces it); `priorities priority_key[]` is new, and the migration carries old values over (`basic` → `{cheapest, nicest}`).
+- **Countries** come from a recorded `/data/countries` answer; `src/lib/countries.ts` is checked against it, so `ZZ` is refused.
+- **Not built yet:** the auto-pick of an unambiguous destination and the merged When/Who card (both wait on `docs/entry-ux.md`), and free text on the priorities card going through Jev → Haiku (the composer is still disabled during onboarding).

@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJiwiZIvuPi0cRxR3T-_CdlvY",
+      "displayName": "Vieille Ville",
+      "formattedAddress": "Annecy, France",
+      "types": [
+        "neighborhood",
+        "geocode",
+        "political"
+      ]
+    }
+  ],
+  "fromCache": true
+}

@@ -5,14 +5,26 @@ import { haversineKm, medianPoint, nightsBetween, type LatLng } from './geo';
  * The stay finder's ranking. Pure: candidates in, a ranked shortlist with a
  * machine-readable reason per row out. No I/O, no clock, no model.
  *
- * Two properties are tested for every priority:
+ * Two properties are tested for every set of priorities:
  *  - nothing on the shortlist violates a hard constraint;
  *  - DOMINANCE: a hotel that is no worse on price, distance, rating and review
  *    count than another, and better on at least one, never ranks below it.
  */
 
-export const PRIORITY_KEYS = ['cheapest', 'closest', 'nicest', 'basic'] as const;
+export const PRIORITY_KEYS = ['cheapest', 'closest', 'nicest'] as const;
 export type PriorityKey = (typeof PRIORITY_KEYS)[number];
+
+/** The order priorities are reported and tie-broken in, whatever order they were picked in. */
+export const CANONICAL_PRIORITIES: readonly PriorityKey[] = ['cheapest', 'nicest', 'closest'];
+
+/** A set of priorities in canonical order, without duplicates. */
+export function canonicalPriorities(priorities: readonly PriorityKey[]): PriorityKey[] {
+  return CANONICAL_PRIORITIES.filter((k) => priorities.includes(k));
+}
+
+/** Where "close" is measured from. `place` = the user named it; `destination` = the destination's own map point. */
+export type NearTarget = { point: LatLng; label: string | null; from: 'place' | 'destination' };
+export type DistanceFrom = 'place' | 'destination' | 'search_centre';
 
 export type Candidate = {
   /** Our id for the offer row (or any stable id in tests). */
@@ -38,13 +50,16 @@ export type RankInput = {
   candidates: Candidate[];
   checkIn: string;
   checkOut: string;
-  /** null = the user has not said what "best" means yet. */
-  priority: PriorityKey | null;
+  /**
+   * What "best" means to the user, as a set: the order it was picked in never
+   * matters. Empty = not said, or "no preference": a balanced order.
+   */
+  priorities: readonly PriorityKey[];
   mustHaves: readonly MustHave[];
   /** Per night for the whole party, minor units. */
   priceCapMinor: number | null;
-  /** The place the user wants to be near, when one was resolved. */
-  near: LatLng | null;
+  /** Where distance is measured from. null = the middle of the results (the last resort). */
+  near: NearTarget | null;
   /** Anonymous visitors may not be shown a price under the hotel's public price. */
   audience: 'public' | 'member';
   excludedPropertyIds?: readonly string[];
@@ -55,9 +70,21 @@ export type RejectionReason = 'over_price_cap' | 'missing_must_have' | 'below_pu
 
 export type Reason =
   | { kind: 'cheapest_meeting_all_musts' }
-  | { kind: 'closest'; km: number; to: 'place' | 'search_centre' }
+  | { kind: 'closest'; km: number; to: DistanceFrom; to_label: string | null }
   | { kind: 'best_rated'; rating: number; reviews: number | null }
-  | { kind: 'cheapest_well_reviewed'; rating: number; reviews: number }
+  | {
+      kind: 'best_mix';
+      /** The priorities it balanced, canonical order. */
+      of: PriorityKey[];
+      km: number | null;
+      to: DistanceFrom | null;
+      to_label: string | null;
+      rating: number | null;
+      reviews: number | null;
+      /** 1 = cheapest of the eligible hotels. A rank, never an amount. */
+      price_rank: number;
+      eligible: number;
+    }
   | { kind: 'best_balance' }
   | { kind: 'runner_up'; price_delta_minor: number; km_delta: number | null; rating_delta: number | null };
 
@@ -77,11 +104,9 @@ export type RankResult = {
   rejected: Record<RejectionReason, number>;
   /** Which must-haves could not be checked for at least one hotel (amenities unknown). */
   uncheckable: number;
-  distanceFrom: 'place' | 'search_centre' | null;
+  distanceFrom: DistanceFrom | null;
+  distanceLabel: string | null;
 };
-
-/** "Well reviewed" for the `basic` priority: enough people, and they liked it. */
-export const WELL_REVIEWED = { rating: 7.5, reviews: 50 };
 
 const BREAKFAST = /breakfast|half board|full board|all inclusive/i;
 
@@ -104,8 +129,6 @@ const price = (s: Scored) => s.c.totalMinor;
 const dist = (s: Scored) => s.km ?? Number.POSITIVE_INFINITY;
 const rating = (s: Scored) => -(s.c.rating ?? Number.NEGATIVE_INFINITY);
 const reviews = (s: Scored) => -(s.c.reviewCount ?? Number.NEGATIVE_INFINITY);
-const wellReviewed = (s: Scored) =>
-  (s.c.rating ?? 0) >= WELL_REVIEWED.rating && (s.c.reviewCount ?? 0) >= WELL_REVIEWED.reviews ? 0 : 1;
 
 type Key = (s: Scored) => number;
 
@@ -118,8 +141,48 @@ const ORDER: Record<PriorityKey, Key[]> = {
   cheapest: [price, rating, dist, reviews],
   closest: [dist, price, rating, reviews],
   nicest: [rating, reviews, price, dist],
-  basic: [wellReviewed, price, rating, dist, reviews],
 };
+
+/** The one metric each priority is scored on when several are combined. */
+const METRIC: Record<PriorityKey, Key> = { cheapest: price, nicest: rating, closest: dist };
+
+/**
+ * Two or three priorities: an equal-weight sum of rank percentiles over the
+ * selected metrics, lower is better.
+ *
+ * Percentile, not min-max: one 900-euro suite must not squash everyone else's
+ * price spread. Kept in integers (twice the "better than" count plus ties,
+ * all over the same denominator), so adding a hotel worse on everything
+ * cannot reorder the rest and no float rounding can flip a tie.
+ *
+ * Dominance-safe: a dominating hotel is no worse on any metric, so its score
+ * is no higher, and an equal score falls to a chain ending in all four metrics.
+ */
+function mixedOrder(scored: Scored[], selected: PriorityKey[]): (a: Scored, b: Scored) => number {
+  const score = new Map<Scored, number>();
+  for (const s of scored) score.set(s, 0);
+  for (const key of selected) {
+    const metric = METRIC[key];
+    const values = scored.map(metric);
+    scored.forEach((s, i) => {
+      let better = 0;
+      let ties = 0;
+      for (const v of values) {
+        if (v < values[i]) better += 1;
+        else if (v === values[i]) ties += 1;
+      }
+      // (2 * better + (ties - 1)) / (2 * (n - 1)): the denominator is shared, so drop it.
+      score.set(s, score.get(s)! + 2 * better + (ties - 1));
+    });
+  }
+  const unselected = CANONICAL_PRIORITIES.filter((k) => !selected.includes(k));
+  const tieBreak = compareBy([...selected.map((k) => METRIC[k]), ...unselected.map((k) => METRIC[k]), reviews]);
+  return (a, b) => {
+    const x = score.get(a)!;
+    const y = score.get(b)!;
+    return x !== y ? (x < y ? -1 : 1) : tieBreak(a, b);
+  };
+}
 
 function compareBy(keys: Key[]) {
   return (a: Scored, b: Scored) => {
@@ -153,20 +216,37 @@ function balancedOrder(scored: Scored[]): (a: Scored, b: Scored) => number {
   };
 }
 
-function topReason(priority: PriorityKey | null, top: Scored, from: 'place' | 'search_centre' | null): Reason {
-  switch (priority) {
+function topReason(
+  selected: PriorityKey[],
+  top: Scored,
+  all: Scored[],
+  from: DistanceFrom | null,
+  label: string | null,
+): Reason {
+  if (selected.length > 1) {
+    return {
+      kind: 'best_mix',
+      of: selected,
+      km: top.km,
+      to: top.km !== null ? from : null,
+      to_label: top.km !== null && from !== 'search_centre' ? label : null,
+      rating: top.c.rating,
+      reviews: top.c.reviewCount,
+      price_rank: 1 + all.filter((s) => s.c.totalMinor < top.c.totalMinor).length,
+      eligible: all.length,
+    };
+  }
+  switch (selected[0]) {
     case 'cheapest':
       return { kind: 'cheapest_meeting_all_musts' };
     case 'closest':
-      return top.km !== null && from ? { kind: 'closest', km: top.km, to: from } : { kind: 'best_balance' };
+      return top.km !== null && from
+        ? { kind: 'closest', km: top.km, to: from, to_label: from === 'search_centre' ? null : label }
+        : { kind: 'best_balance' };
     case 'nicest':
       return top.c.rating !== null
         ? { kind: 'best_rated', rating: top.c.rating, reviews: top.c.reviewCount }
         : { kind: 'best_balance' };
-    case 'basic':
-      return wellReviewed(top) === 0
-        ? { kind: 'cheapest_well_reviewed', rating: top.c.rating as number, reviews: top.c.reviewCount as number }
-        : { kind: 'cheapest_meeting_all_musts' };
     default:
       return { kind: 'best_balance' };
   }
@@ -186,10 +266,13 @@ export function rankStay(input: RankInput): RankResult {
   let uncheckable = 0;
 
   // Distances are measured from the place the user named, else from the
-  // middle of what the search returned. The reason says which.
+  // destination's own map point, else (no point known) from the middle of
+  // what the search returned. The reason says which.
   const located = input.candidates.flatMap((c) => (c.location ? [c.location] : []));
-  const centre = input.near ?? medianPoint(located);
-  const distanceFrom = input.near ? 'place' : centre ? 'search_centre' : null;
+  const centre = input.near?.point ?? medianPoint(located);
+  const distanceFrom: DistanceFrom | null = input.near ? input.near.from : centre ? 'search_centre' : null;
+  const distanceLabel = input.near?.label ?? null;
+  const selected = canonicalPriorities(input.priorities);
 
   const eligible: Scored[] = [];
   for (const c of input.candidates) {
@@ -217,7 +300,12 @@ export function rankStay(input: RankInput): RankResult {
     eligible.push({ c, km: centre && c.location ? round1(haversineKm(centre, c.location)) : null, perNightMinor });
   }
 
-  const order = input.priority ? compareBy(ORDER[input.priority]) : balancedOrder(eligible);
+  const order =
+    selected.length === 0
+      ? balancedOrder(eligible)
+      : selected.length === 1
+        ? compareBy(ORDER[selected[0]])
+        : mixedOrder(eligible, selected);
   eligible.sort(order);
 
   const top = eligible[0];
@@ -228,7 +316,7 @@ export function rankStay(input: RankInput): RankResult {
     perNightMinor: s.perNightMinor,
     reason:
       i === 0
-        ? topReason(input.priority, s, distanceFrom)
+        ? topReason(selected, s, eligible, distanceFrom, distanceLabel)
         : {
             kind: 'runner_up',
             price_delta_minor: s.c.totalMinor - top.c.totalMinor,
@@ -244,6 +332,7 @@ export function rankStay(input: RankInput): RankResult {
     rejected,
     uncheckable,
     distanceFrom,
+    distanceLabel: distanceFrom === 'search_centre' ? null : distanceLabel,
   };
 }
 

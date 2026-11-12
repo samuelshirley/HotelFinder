@@ -56,6 +56,16 @@ describe('searchAvailability', () => {
     });
   });
 
+  it('a radius search sends a point and a radius in metres, and nothing else of ours', async () => {
+    const { fetchImpl, calls } = replay('rates-radius-porto-airport');
+    const { supplier } = adapter(fetchImpl);
+    const result = await supplier.searchAvailability({ ...PORTO, where: { latitude: 41.2481, longitude: -8.6814, radiusM: 5000 } });
+    expect(calls[0].body).toMatchObject({ latitude: 41.2481, longitude: -8.6814, radius: 5000 });
+    expect(calls[0].body).not.toHaveProperty('radiusM');
+    expect(calls[0].body).not.toHaveProperty('cityName');
+    expect(result.ok && result.value.offers.length).toBe(20);
+  });
+
   it('returns normalized offers and meters one successful search', async () => {
     const { fetchImpl } = replay('rates-city-porto');
     const { supplier, events } = adapter(fetchImpl);
@@ -178,6 +188,25 @@ describe('places and static content', () => {
     expect(result.ok && result.value).toHaveLength(4);
   });
 
+  it('fetches a place\'s map point and kind by id, and meters it', async () => {
+    const { fetchImpl, calls } = replay('place-annecy');
+    const { supplier, events } = adapter(fetchImpl);
+    const result = await supplier.getPlace('ChIJ/opaque id');
+    expect(calls[0]).toMatchObject({ method: 'GET', url: 'https://api.liteapi.travel/v3.0/data/places/ChIJ%2Fopaque%20id' });
+    expect(result).toEqual({
+      ok: true,
+      value: { placeId: 'ChIJ/opaque id', name: 'Annecy', latitude: expect.closeTo(45.9059, 3), longitude: expect.closeTo(6.1259, 3), types: expect.arrayContaining(['locality']), countryCode: 'FR' },
+    });
+    expect(events[0].provider).toBe('liteapi:place');
+  });
+
+  it('an airport is a place like any other, with its own types', async () => {
+    const { fetchImpl } = replay('place-barcelona-airport');
+    const result = await adapter(fetchImpl).supplier.getPlace('x');
+    expect(result.ok && result.value.types).toContain('airport');
+    expect(result.ok && result.value.countryCode).toBe('ES');
+  });
+
   it('fetches hotel details by id', async () => {
     const { fetchImpl, calls } = replay('hotel-details');
     const { supplier, events } = adapter(fetchImpl);
@@ -219,7 +248,7 @@ describe('recheckRate, book, getBooking, cancel', () => {
     const { supplier, events } = adapter(fetchImpl);
     const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
     const second = { firstName: 'Second', lastName: 'Guest', email: 'second@fixture.hotelfinder.invalid' };
-    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder, second] });
+    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder, second], payment: 'transaction_id' });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       method: 'POST',
@@ -238,6 +267,22 @@ describe('recheckRate, book, getBooking, cancel', () => {
     expect(events[0]).toMatchObject({ provider: 'liteapi:book', success: true, meta: { status: 'CONFIRMED' } });
   });
 
+  it('a test payment books with the sandbox card method, and only with a sandbox key', async () => {
+    const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+    const sandbox = replay('book-confirmed');
+    const sb = createLiteApiAdapter({ apiKey: 'sand_fixture', fetchImpl: sandbox.fetchImpl });
+    expect(await sb.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder], payment: 'sandbox_test' })).toMatchObject({ ok: true });
+    expect(sandbox.calls[0].body).toMatchObject({ payment: { method: 'ACC_CREDIT_CARD' } });
+
+    const liveCalls = replay('book-confirmed');
+    const live = createLiteApiAdapter({ apiKey: 'prod_fixture', fetchImpl: liveCalls.fetchImpl });
+    expect(await live.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder], payment: 'sandbox_test' })).toMatchObject({
+      ok: false,
+      error: { kind: 'supplier', message: 'a test payment needs a sandbox key', retryable: false },
+    });
+    expect(liveCalls.calls).toHaveLength(0);
+  });
+
   it('never retries book on its own: a timeout is one call and one failure', async () => {
     vi.useFakeTimers();
     try {
@@ -248,7 +293,7 @@ describe('recheckRate, book, getBooking, cancel', () => {
       };
       const { supplier } = adapter(hanging);
       const holder = { firstName: 'A', lastName: 'B', email: 'a@fixture.hotelfinder.invalid' };
-      const pending = supplier.book({ prebookId: 'p', transactionId: 't', holder, guests: [holder] });
+      const pending = supplier.book({ prebookId: 'p', transactionId: 't', holder, guests: [holder], payment: 'transaction_id' });
       await vi.advanceTimersByTimeAsync(60_000);
       expect(await pending).toMatchObject({ ok: false, error: { kind: 'timeout' } });
       expect(calls).toBe(1);

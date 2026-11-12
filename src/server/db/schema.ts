@@ -92,9 +92,25 @@ export const emailOtpCodes = pgTable(
 
 export const sessionStatus = pgEnum('session_status', ['onboarding', 'active', 'closed']);
 
-/** What "best" means to this user (architecture decision 8). */
-export const PRIORITIES = ['cheapest', 'closest', 'nicest', 'basic'] as const;
-export const priority = pgEnum('priority', PRIORITIES);
+/**
+ * RETIRED single priority (architecture decision 8, superseded by multi-select
+ * in docs/onboarding.md). Kept because migrations are additive: nothing
+ * writes `priority` columns any more; `priorities` replaced them.
+ */
+export const LEGACY_PRIORITIES = ['cheapest', 'closest', 'nicest', 'basic'] as const;
+export const priority = pgEnum('priority', LEGACY_PRIORITIES);
+
+/** What "best" means to this user: a SET of these (docs/onboarding.md §3). */
+export const PRIORITIES = ['cheapest', 'closest', 'nicest'] as const;
+export const priorityKey = pgEnum('priority_key', PRIORITIES);
+
+/** How the nationality used for rates was decided. `user` = picked by the user; the rest are inferred. */
+export const NATIONALITY_SOURCES = ['user', 'saved', 'browser', 'ip', 'destination'] as const;
+export const nationalitySource = pgEnum('nationality_source', NATIONALITY_SOURCES);
+
+/** A destination that covers an area (a city, a neighbourhood) or is one point (an airport, a station, a venue). */
+export const DESTINATION_KINDS = ['area', 'point'] as const;
+export const destinationKind = pgEnum('destination_kind', DESTINATION_KINDS);
 
 export const searchSessions = pgTable(
   'search_sessions',
@@ -105,12 +121,23 @@ export const searchSessions = pgTable(
     /** The signed anonymous cookie id. Kept after adoption for the audit trail. */
     anonId: text('anon_id'),
     status: sessionStatus('status').notNull().default('onboarding'),
+    /** Retired: see LEGACY_PRIORITIES. Never written. */
     priority: priority('priority'),
+    /** null = not asked yet; [] = "no preference" (balanced). A set: order carries no meaning. */
+    priorities: priorityKey('priorities').array(),
     currency: text('currency').notNull().default('EUR'),
-    /** ISO 3166-1 alpha-2. The supplier refuses a rate search without it. */
+    /** ISO 3166-1 alpha-2. The supplier refuses a rate search without it. Inferred, never asked; the user may change it. */
     guestNationality: text('guest_nationality'),
+    nationalitySource: nationalitySource('nationality_source'),
     /** Onboarding answers given before there is enough to create a stay. */
-    draft: jsonb('draft').$type<{ destination?: { placeId: string; label: string }; scanned?: ScannedTrip }>().notNull().default({}),
+    draft: jsonb('draft')
+      .$type<{
+        /** `point` is the supplier's place details for it; absent when the lookup failed. */
+        destination?: { placeId: string; label: string; point?: { latitude: number; longitude: number; kind: 'area' | 'point'; country: string | null } };
+        scanned?: ScannedTrip;
+      }>()
+      .notNull()
+      .default({}),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -130,8 +157,21 @@ export const stays = pgTable(
     destinationText: text('destination_text').notNull(),
     /** Opaque, from the place resolver. Never authored by a model. */
     placeId: text('place_id'),
+    /** The destination's own map point, from the supplier's place details. Never authored by a model. */
+    destLatitude: doublePrecision('dest_latitude'),
+    destLongitude: doublePrecision('dest_longitude'),
+    destKind: destinationKind('dest_kind'),
+    /** ISO 3166-1 alpha-2 of the destination, when the supplier gave one. */
+    destCountry: text('dest_country'),
+    /**
+     * The place the user wants to be near, when they named one ("close to the
+     * old town"). null = measure from the destination point. Point from the
+     * supplier's place details only.
+     */
     latitude: doublePrecision('latitude'),
     longitude: doublePrecision('longitude'),
+    nearPlaceId: text('near_place_id'),
+    nearLabel: text('near_label'),
     /** Machine dates, never free text. */
     checkIn: date('check_in', { mode: 'string' }).notNull(),
     checkOut: date('check_out', { mode: 'string' }).notNull(),
@@ -277,6 +317,11 @@ export const offers = pgTable(
     cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
     fetchedAt: ts('fetched_at').notNull(),
     expiresAt: ts('expires_at').notNull(),
+    /**
+     * Fetched for one hotel's detail ("other rooms & rates"), not by a search.
+     * Never ranked: opening a hotel must not change the shortlist.
+     */
+    detailOnly: boolean('detail_only').notNull().default(false),
   },
   (t) => ({
     byStay: index('offers_stay_idx').on(t.sessionId, t.stayId),
@@ -318,7 +363,9 @@ export const shortlistEntries = pgTable(
 
 export const userPreferences = pgTable('user_preferences', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  /** Retired: see LEGACY_PRIORITIES. Never written. */
   priority: priority('priority'),
+  priorities: priorityKey('priorities').array(),
   adults: integer('adults'),
   childrenAges: jsonb('children_ages').$type<number[]>(),
   mustHaves: jsonb('must_haves').$type<string[]>(),
@@ -366,6 +413,33 @@ export const bookings = pgTable(
     totalMinor: integer('total_minor').notNull(),
     /** The price on the offer the user picked. Differs when the rate changed. */
     quotedTotalMinor: integer('quoted_total_minor').notNull(),
+    /**
+     * What was booked, copied at the price check: the search it came from can
+     * change afterwards (new dates, a new place), the booking does not.
+     */
+    propertyId: uuid('property_id').references(() => properties.id, { onDelete: 'set null' }),
+    hotelName: text('hotel_name'),
+    roomName: text('room_name'),
+    boardName: text('board_name'),
+    checkIn: date('check_in', { mode: 'string' }),
+    checkOut: date('check_out', { mode: 'string' }),
+    adults: integer('adults'),
+    childrenAges: jsonb('children_ages').$type<number[]>(),
+    rooms: integer('rooms'),
+    payAtPropertyMinor: integer('pay_at_property_minor'),
+    /** The cancellation terms the supplier confirmed at prebook (normalized CancellationPolicy). */
+    cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
+    /** Who the room is booked for, as typed at checkout. */
+    holderFirstName: text('holder_first_name'),
+    holderLastName: text('holder_last_name'),
+    holderEmail: text('holder_email'),
+    /** The wallet the guest paid with. `test` payments move no money (sandbox only). */
+    paidWith: text('paid_with'),
+    testPayment: boolean('test_payment').notNull().default(false),
+    /** Why a booking ended in `failed`: an ErrorCode, never supplier text. */
+    failureCode: text('failure_code'),
+    refundMinor: integer('refund_minor'),
+    cancelFeeMinor: integer('cancel_fee_minor'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

@@ -10,6 +10,7 @@ import type { SupplierAdapter } from './types';
  * outside knows which supplier it is talking to.
  */
 export type * from './types';
+export { recordedExampleSearch } from './liteapi/example';
 
 let instance: SupplierAdapter | null = null;
 

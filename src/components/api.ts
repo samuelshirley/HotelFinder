@@ -1,3 +1,5 @@
+import type { Action } from '@/lib/store/actions';
+import type { Brief } from '@/server/brief';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 
@@ -32,22 +34,17 @@ export const loadTrips = () => request<{ trips: Trip[] }>('/api/session');
 export const loadSession = (id: string) => request<SessionView>(`/api/session/${id}`);
 export const answerForm = (id: string, answer: FormAnswer) =>
   request<SessionView>(`/api/session/${id}/form`, { method: 'POST', body: JSON.stringify({ answer, today: todayLocal() }) });
-export const searchPlaces = (q: string) => request<{ places: Array<{ placeId: string; label: string }> }>(`/api/places?q=${encodeURIComponent(q)}`);
+/** The results header's chips: nationality, what "best" means, where "close" is from. */
+export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_priorities' | 'set_near' | 'clear_near' }>;
+export const editSearch = (id: string, actions: EditAction | EditAction[]) =>
+  request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ actions: Array.isArray(actions) ? actions : [actions], today: todayLocal() }) });
+export type PlaceSuggestion = { placeId: string; label: string; name: string; where: string | null; kind: string };
+export const searchPlaces = (q: string) => request<{ places: PlaceSuggestion[] }>(`/api/places?q=${encodeURIComponent(q)}`);
+export type { Example } from '@/server/example';
+export const loadExample = () => request<import('@/server/example').Example>('/api/example');
+export const startBrief = (brief: Brief) => request<{ sessionId: string }>('/api/session/brief', { method: 'POST', body: JSON.stringify({ brief, today: todayLocal() }) });
 
-export type PropertyDetails = {
-  id: string;
-  name: string;
-  address: string | null;
-  stars: number | null;
-  rating: number | null;
-  reviewCount: number | null;
-  description: string | null;
-  importantInformation: string | null;
-  facilities: string[];
-  imageUrls: string[];
-  petsAllowed: boolean | null;
-  parking: string | null;
-};
+export type PropertyDetails = import('@/server/propertyDetails').PropertyDetailsView;
 export const loadProperty = (sessionId: string, propertyId: string) => request<PropertyDetails>(`/api/session/${sessionId}/property/${propertyId}`);
 
 /**
@@ -88,3 +85,39 @@ export async function sendTurn(id: string, message: string, idempotencyKey: stri
     }
   }
 }
+
+// ── Sign-in and booking ─────────────────────────────────────────────────────
+export type BookingView = import('@/server/checkout').BookingView;
+export type Wallet = import('@/server/payments').Wallet;
+export type Me = { user: { email: string } | null; lastHolder: { firstName: string; lastName: string } | null };
+export type BookingPage = Me & { booking: BookingView; me: { email: string } | null; payment: 'test' | 'none' };
+
+export const loadMe = () => request<Me>('/api/me');
+export const sendSignInCode = (email: string) => request<{ sent: true; devCode?: string }>('/api/auth/code', { method: 'POST', body: JSON.stringify({ email }) });
+export const signOut = () => request<{ signedIn: false }>('/api/auth/sign-out', { method: 'POST', body: '{}' });
+export const startCheckout = (sessionId: string, offerId: string) =>
+  request<{ bookingId: string }>(`/api/session/${sessionId}/checkout`, { method: 'POST', body: JSON.stringify({ offerId }) });
+export const loadBooking = (id: string) => request<BookingPage>(`/api/booking/${id}`);
+export const confirmBooking = (
+  id: string,
+  body: { email: string; code: string; firstName: string; lastName: string; wallet: Wallet; acceptedTotalMinor: number },
+) => request<{ booking: BookingView }>(`/api/booking/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) });
+export const cancelBookingApi = (id: string) => request<{ booking: BookingView }>(`/api/booking/${id}/cancel`, { method: 'POST', body: '{}' });
+export type BookingSummary = { id: string; status: string; hotelName: string | null; checkIn: string | null; checkOut: string | null };
+export const loadBookings = () => request<{ bookings: BookingSummary[] }>('/api/bookings');
+
+export type HotelRate = {
+  offerId: string;
+  roomName: string | null;
+  boardName: string | null;
+  refundable: boolean;
+  freeCancellationUntil: string | null;
+  penalties: Array<{ from: string | null; amountMinor: number; currency: string }>;
+  fees: Array<{ description: string; amountMinor: number; currency: string; included: boolean }>;
+  currency: string;
+  totalMinor: number;
+  payAtPropertyMinor: number;
+};
+export const loadRates = (sessionId: string, propertyId: string) => request<{ rates: HotelRate[] }>(`/api/session/${sessionId}/property/${propertyId}/rates`);
+export const logEvent = (name: 'detail_open' | 'detail_book', props: { variant: string; sessionId: string }) =>
+  fetch('/api/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, ...props }), keepalive: true }).catch(() => undefined);

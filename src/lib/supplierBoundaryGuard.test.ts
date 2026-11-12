@@ -53,9 +53,22 @@ describe('supplier boundary', () => {
     expect(outside.length).toBeGreaterThan(10);
   });
 
-  it('the adapter never books with the account card', () => {
+  /**
+   * ACC_CREDIT_CARD charges the LiteAPI ACCOUNT's own card. With a live key it
+   * would book on our money with no guest payment at all. It is allowed only as
+   * the sandbox test payment: once in the adapter, and only past the sandbox-key
+   * refusal (adapter.test.ts proves a live key never reaches the request).
+   */
+  it('the account card is used only for sandbox test payments, behind the sandbox-key check', () => {
     const adapter = readFileSync(path.join(SUPPLIER, 'liteapi', 'adapter.ts'), 'utf8');
-    expect(adapter).not.toMatch(/ACC_CREDIT_CARD|WALLET|NUITEE_PAY/);
+    expect(adapter).not.toMatch(/WALLET|NUITEE_PAY/);
     expect(adapter).toMatch(/method: 'TRANSACTION_ID'/);
+    expect(adapter.match(/ACC_CREDIT_CARD/g)).toHaveLength(1);
+    expect(adapter).toMatch(/export const isSandboxKey = \(key: string\) => key\.startsWith\('sand_'\);/);
+    const book = adapter.slice(adapter.indexOf('book(request: BookRequest)'));
+    const refusal = book.indexOf("if (request.payment === 'sandbox_test' && !isSandboxKey(deps.apiKey))");
+    expect(refusal).toBeGreaterThan(-1);
+    expect(refusal).toBeLessThan(book.indexOf('return run('));
+    expect(book.indexOf('return run(')).toBeLessThan(book.indexOf('ACC_CREDIT_CARD'));
   });
 });

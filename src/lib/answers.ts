@@ -1,5 +1,5 @@
 import type { Amenity, MustHave } from '@/lib/amenities';
-import { includesBreakfast, type PriorityKey } from '@/lib/finder/rank';
+import { includesBreakfast, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
 import type { SearchField, Superlative } from '@/lib/router/catalogue';
 import type { AnswerPlan, FactAsk } from '@/lib/router/route';
 
@@ -35,8 +35,9 @@ export type HotelFacts = {
 
 export type AnswerContext = {
   nights: number;
-  /** What `distanceKm` is measured from. */
-  distanceFrom: 'place' | 'search_centre';
+  /** What `distanceKm` is measured from, and its name when it has one (the place named, the airport). */
+  distanceFrom: DistanceFrom;
+  distanceLabel: string | null;
   search: {
     destinationText: string;
     checkIn: string;
@@ -46,13 +47,16 @@ export type AnswerContext = {
     rooms: number;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
-    priority: PriorityKey | null;
+    /** null = not asked; [] = no preference. */
+    priorities: PriorityKey[] | null;
+    /** Where "close" is measured from, in words. */
+    nearLabel: string;
   };
 };
 
 export type RankValue =
   | { on: 'price'; totalMinor: number; nights: number }
-  | { on: 'distance'; km: number; from: 'place' | 'search_centre' }
+  | { on: 'distance'; km: number; from: DistanceFrom; label: string | null }
   | { on: 'rating'; rating: number; reviews: number | null }
   | { on: 'reviews'; reviews: number }
   | { on: 'stars'; stars: number };
@@ -64,7 +68,7 @@ export type Answer =
   | { kind: 'rating'; name: string; rating: number; reviews: number | null }
   | { kind: 'stars'; name: string; stars: number }
   | { kind: 'room'; name: string; roomName: string }
-  | { kind: 'distance'; name: string; km: number; from: 'place' | 'search_centre' }
+  | { kind: 'distance'; name: string; km: number; from: DistanceFrom; label: string | null }
   | { kind: 'facility'; name: string; amenity: Amenity; listed: boolean }
   | { kind: 'not_held'; name: string; ask: FactAsk }
   | { kind: 'across'; ask: FactAsk; yes: string[]; no: string[]; unknown: string[] }
@@ -103,7 +107,7 @@ export function hotelAnswer(h: HotelFacts, ask: FactAsk, ctx: AnswerContext): An
     case 'room':
       return h.roomName === null ? notHeld : { kind: 'room', name: h.name, roomName: h.roomName };
     case 'distance':
-      return h.distanceKm === null ? notHeld : { kind: 'distance', name: h.name, km: h.distanceKm, from: ctx.distanceFrom };
+      return h.distanceKm === null ? notHeld : { kind: 'distance', name: h.name, km: h.distanceKm, from: ctx.distanceFrom, label: ctx.distanceLabel };
     case 'facility':
       return h.amenities === null ? notHeld : { kind: 'facility', name: h.name, amenity: ask.amenity, listed: h.amenities.includes(ask.amenity) };
   }
@@ -152,7 +156,7 @@ function rankValue(superlative: Superlative, winner: HotelFacts, best: number, c
       return { on: 'price', totalMinor: best, nights: ctx.nights };
     case 'closest':
     case 'furthest':
-      return { on: 'distance', km: best, from: ctx.distanceFrom };
+      return { on: 'distance', km: best, from: ctx.distanceFrom, label: ctx.distanceLabel };
     case 'best_rated':
       return { on: 'rating', rating: best, reviews: winner.reviewCount };
     case 'most_reviews':

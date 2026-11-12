@@ -1,0 +1,15 @@
+.cal { display: flex; flex-direction: column; gap: 6px; }
+.nav { display: flex; justify-content: space-between; }
+.nav button { width: 36px; height: 32px; border-radius: 8px; border: 1px solid var(--tp-border); background: transparent; font-size: 18px; line-height: 1; }
+.months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.months[data-months='1'] { grid-template-columns: minmax(0, 1fr); }
+.month { display: flex; flex-direction: column; gap: 6px; }
+.name { font-weight: 600; text-align: center; }
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.dow { font-size: 12px; color: var(--tp-subtle); text-align: center; }
+.day { height: 34px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; }
+.day:hover:not(:disabled) { background: var(--tp-primary-muted); }
+.day:disabled { color: var(--tp-border-strong); }
+.day[data-state='edge'] { background: var(--tp-primary); color: var(--tp-bg); font-weight: 600; }
+.day[data-state='inside'] { background: var(--tp-primary-muted); color: var(--tp-accent-300); }
+@media (max-width: 600px) { .months { grid-template-columns: minmax(0, 1fr); } }

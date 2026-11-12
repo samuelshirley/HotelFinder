@@ -1,0 +1,73 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "El Prat de Llobregat",
+        "shortText": "El Prat de Llobregat",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Barcelona",
+        "shortText": "B",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Catalonia",
+        "shortText": "CT",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Spain",
+        "shortText": "ES",
+        "types": [
+          "country",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "08820",
+        "shortText": "08820",
+        "types": [
+          "postal_code"
+        ]
+      }
+    ],
+    "countryCode": "ES",
+    "displayName": "Josep Tarradellas Barcelona-El Prat Airport",
+    "location": {
+      "latitude": 41.298340499999995,
+      "longitude": 2.0800095
+    },
+    "types": [
+      "international_airport",
+      "airport",
+      "transportation_service",
+      "point_of_interest",
+      "establishment"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.4071773,
+        "longitude": 2.1945987
+      },
+      "low": {
+        "latitude": 41.1832352,
+        "longitude": 1.9578211999999997
+      }
+    }
+  }
+}

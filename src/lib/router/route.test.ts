@@ -11,11 +11,11 @@ const shortlist: ShortlistRow[] = [
   { propertyId: P(3), offerId: 'o3', name: 'Hotel Carris Porto Ribeira' },
 ];
 const state: SearchState = {
-  priority: null,
+  priorities: null,
   guestNationality: 'ES',
   stay: {
     destinationText: 'Porto',
-    placeId: 'place-porto',
+    placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,
@@ -34,7 +34,10 @@ const readings = (intent: Intent, over: Partial<Readings> = {}): Readings => ({
   multiIntent: 0.02,
   amenity: sure('none'),
   removing: 0.03,
-  priority: sure('none'),
+  wantsPrice: 0.02,
+  wantsQuality: 0.02,
+  wantsLocation: 0.02,
+  namesPlace: 0.02,
   fact: sure('none'),
   superlative: sure('none'),
   searchField: sure('none'),
@@ -70,10 +73,37 @@ describe('settled messages become typed actions', () => {
     });
   });
 
-  it('a priority', () => {
-    expect(route('just the cheapest', readings('priority', { priority: sure('cheapest') }))).toMatchObject({
-      actions: [{ type: 'set_priority', priority: 'cheapest' }],
+  it('a priority, and a set of them, read one yes/no at a time', () => {
+    expect(route('just the cheapest', readings('priority', { wantsPrice: 0.95 }))).toMatchObject({
+      actions: [{ type: 'set_priorities', priorities: ['cheapest'] }],
     });
+    expect(route('close and nice', readings('priority', { wantsQuality: 0.93, wantsLocation: 0.9 }))).toMatchObject({
+      actions: [{ type: 'set_priorities', priorities: ['nicest', 'closest'] }],
+    });
+  });
+
+  it('"also" adds to the current set; without it the set is replaced', () => {
+    const withCheap = { ...state, priorities: ['cheapest' as const] };
+    const r = (m: string, over: Partial<Readings>) => routeMessage({ message: m, readings: readings('priority', over), state: withCheap, currency: 'EUR', shortlist });
+    expect(r('also somewhere nice', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['cheapest', 'nicest'] }] });
+    expect(r('nice too', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['cheapest', 'nicest'] }] });
+    expect(r('actually just somewhere nice', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['nicest'] }] });
+    expect(r('a nice hotel, total under budget', { wantsQuality: 0.95 })).toMatchObject({ actions: [{ type: 'set_priorities', priorities: ['nicest'] }] });
+  });
+
+  it('wanting to be somewhere and naming it is "be close to it", whatever the intent label says', () => {
+    expect(route('near the old town', readings('priority', { wantsLocation: 0.97, namesPlace: 0.95 }))).toEqual({ kind: 'near', intent: 'priority' });
+    // Sam's message, as Jev read it live on 11 Nov 2026: intent must_have at 0.23.
+    expect(route('i wanna stay on east manor', { ...readings('must_have', { wantsLocation: 0.87, namesPlace: 0.86 }), intent: { choice: 'must_have', top: 0.23, margin: 0.05 } })).toEqual({ kind: 'near', intent: 'must_have' });
+  });
+
+  it('a question about a listed hotel never moves the search, even when it names a place', () => {
+    expect(route('is the Westin close to the airport?', readings('ask_hotels', { wantsLocation: 0.9, namesPlace: 0.95 })).kind).not.toBe('near');
+    expect(route('actually lets do Dallas instead', readings('new_search', { wantsLocation: 0.9, namesPlace: 0.9 })).kind).not.toBe('near');
+  });
+
+  it('naming a place without wanting to be near it is not "near"', () => {
+    expect(route('the old town', readings('priority', { wantsLocation: 0.5, namesPlace: 0.95 })).kind).not.toBe('near');
   });
 
   it('guests keep the current room count unless the message says otherwise', () => {
@@ -150,7 +180,11 @@ describe('anything unsure goes to the agent', () => {
     expect(route('needs a thing', readings('must_have', { amenity: { choice: 'parking', top: 0.5, margin: 0.1 } }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
     expect(route('parking?', readings('must_have', { amenity: sure('parking'), removing: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
     expect(route('needs a vibe', readings('must_have', { amenity: sure('none') }))).toEqual({ kind: 'defer', reason: 'slot_missing' });
-    expect(route('whatever is best', readings('priority', { priority: sure('none') }))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('whatever is best', readings('priority'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    // One unsure yes/no and the whole set is the agent's to decide.
+    expect(route('cheapish and maybe central', readings('priority', { wantsPrice: 0.9, wantsLocation: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('somewhere nice', readings('priority', { wantsQuality: 0.95, namesPlace: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('nice', readings('priority', { wantsQuality: 0.95, wantsPrice: null }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
   });
 
   it('a cap in another currency is never converted', () => {
@@ -262,8 +296,8 @@ describe('an intent under the bar settles when its own detail question agrees (l
   const at = <L extends string>(choice: L, top: number, margin: number) => ({ choice, top, margin });
 
   it('the four messages the first live run deferred now settle', () => {
-    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.61, 0.22), priority: at('cheapest', 1, 0.99) }))).toEqual({
-      kind: 'actions', intent: 'priority', actions: [{ type: 'set_priority', priority: 'cheapest' }],
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.61, 0.22), wantsPrice: 0.97 }))).toEqual({
+      kind: 'actions', intent: 'priority', actions: [{ type: 'set_priorities', priorities: ['cheapest'] }],
     });
     expect(route('does the yotel take dogs?', readings('ask_hotels', { intent: at('ask_hotels', 0.75, 0.15), fact: at('facility', 1, 0.99), amenity: at('pets_allowed', 1, 0.99) }))).toMatchObject({
       kind: 'answer', plan: { about: 'hotel', propertyId: P(1), fact: 'facility', amenity: 'pets_allowed' },
@@ -281,9 +315,9 @@ describe('an intent under the bar settles when its own detail question agrees (l
   });
 
   it('there is a floor: a weak or contested intent is not rescued', () => {
-    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.55, 0.3), priority: at('cheapest', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.55, 0.3), wantsPrice: 0.97 }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
     // A change to the search keeps the full margin; an answer may use the smaller one.
-    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.7, 0.15), priority: at('cheapest', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('just show me the cheapest', readings('priority', { intent: at('priority', 0.7, 0.15), wantsPrice: 0.97 }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
     expect(route('which is closest?', readings('ask_hotels', { intent: at('ask_hotels', 0.65, 0.05), superlative: at('closest', 0.95, 0.9) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
   });
 

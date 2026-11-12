@@ -1,5 +1,4 @@
 import { MUST_HAVES } from '@/lib/amenities';
-import { PRIORITY_KEYS } from '@/lib/finder/rank';
 
 /**
  * The questions Jev is asked about every message, and the labels it may pick
@@ -57,7 +56,7 @@ export const QUESTIONS = {
     type: 'choice',
     instructions: 'Pick the single thing the user is asking for.',
     criteria: {
-      priority: 'Says what matters most: cheapest, closest or most central, nicest or best rated, or just somewhere decent to sleep.',
+      priority: 'Says what matters most, or how to order the hotels: cheapest, closest or most central, nicest or best rated, or a mix of these.',
       price_cap: 'Sets, changes or removes a maximum price.',
       must_have: 'Adds or drops something the hotel must have: pets, parking, pool, breakfast, free cancellation, wifi, air conditioning, a lift, accessibility, a gym, family rooms, soundproofing, an airport shuttle.',
       guests: 'Changes who is travelling or how many rooms.',
@@ -99,17 +98,11 @@ export const QUESTIONS = {
     },
   },
   removing: { type: 'noul', instructions: 'The user says they do NOT need, or no longer need, the thing they mention.' },
-  priority: {
-    type: 'choice',
-    instructions: 'What does the user say matters most?',
-    criteria: {
-      cheapest: 'The lowest price.',
-      closest: 'Location: closest, most central, walkable.',
-      nicest: 'Quality: the best rated or nicest.',
-      basic: 'Nothing special: a decent, safe place to sleep.',
-      none: 'They do not say.',
-    },
-  },
+  // What "best" means is a SET (docs/onboarding.md §3.2): one yes/no question per priority.
+  wants_price: { type: 'noul', instructions: 'The user wants a low price, cheap, good value, or not too expensive.' },
+  wants_quality: { type: 'noul', instructions: 'The user wants a nice, well-rated, well-reviewed or high-quality hotel.' },
+  wants_location: { type: 'noul', instructions: 'The user wants to be central, close to something, walkable, or in a particular area.' },
+  names_place: { type: 'noul', instructions: 'The user names a specific place to be close to: a neighbourhood, landmark, venue, station or airport.' },
   fact: {
     type: 'choice',
     instructions: 'Which fact about a listed hotel is the user asking for?',
@@ -163,7 +156,6 @@ export const LABELS = {
   tier: TIERS,
   intent: INTENTS,
   amenity: [...MUST_HAVES, 'none'] as const,
-  priority: [...PRIORITY_KEYS, 'none'] as const,
   fact: [...HOTEL_FACTS, 'none'] as const,
   superlative: [...SUPERLATIVES, 'none'] as const,
   search_field: [...SEARCH_FIELDS, 'none'] as const,

@@ -1,0 +1,97 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "105",
+        "shortText": "105",
+        "types": [
+          "street_number"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Rua de Sousa Viterbo",
+        "shortText": "R. de Sousa Viterbo",
+        "types": [
+          "route"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "União das freguesias de Cedofeita, Santo Ildefonso, Sé, Miragaia, São Nicolau e Vitória",
+        "shortText": "União das freguesias de Cedofeita, Santo Ildefonso, Sé, Miragaia, São Nicolau e Vitória",
+        "types": [
+          "administrative_area_level_3",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Portugal",
+        "shortText": "PT",
+        "types": [
+          "country",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "4050-593",
+        "shortText": "4050-593",
+        "types": [
+          "postal_code"
+        ]
+      }
+    ],
+    "countryCode": "PT",
+    "displayName": "Ribeira Vintage",
+    "location": {
+      "latitude": 41.142606699999995,
+      "longitude": -8.614674899999999
+    },
+    "types": [
+      "lodging",
+      "point_of_interest",
+      "service",
+      "establishment"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.243942280291506,
+        "longitude": -8.5132816697085
+      },
+      "low": {
+        "latitude": 41.041244319708504,
+        "longitude": -8.715979630291502
+      }
+    }
+  }
+}

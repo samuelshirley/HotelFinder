@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJwVPhxKtlJA0RvBSxQFbZSKY",
+      "displayName": "Porto",
+      "formattedAddress": "Portugal",
+      "types": [
+        "political",
+        "geocode",
+        "locality"
+      ]
+    },
+    {
+      "placeId": "ChIJWc4aMgBlJA0RW0PCEpfASRs",
+      "displayName": "Porto portugal",
+      "formattedAddress": "Porto, Portugal",
+      "types": [
+        "point_of_interest",
+        "establishment",
+        "body_art_service"
+      ]
+    },
+    {
+      "placeId": "ChIJffoXVABlJA0RwBqF9day7tQ",
+      "displayName": "Portugal hotel",
+      "formattedAddress": "Rua de Sá da Bandeira, Porto, Portugal",
+      "types": [
+        "hotel",
+        "point_of_interest",
+        "lodging",
+        "establishment"
+      ]
+    },
+    {
+      "placeId": "ChIJK_GmWe5kJA0R7LCN6RI4EXM",
+      "displayName": "Portugal Oporto Hotel",
+      "formattedAddress": "Rua de Coelho Neto, Porto, Portugal",
+      "types": [
+        "establishment",
+        "point_of_interest",
+        "lodging"
+      ]
+    }
+  ],
+  "fromCache": true
+}

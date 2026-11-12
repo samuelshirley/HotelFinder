@@ -12,7 +12,8 @@ export const ANON_COOKIE = 'hf_anon';
 
 let devSecret: string | null = null;
 
-function secret(): string {
+/** The server's signing secret: AUTH_SECRET, or a generated dev secret beside the dev database. */
+export function authSecret(): string {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
   if (process.env.NODE_ENV === 'production') throw new Error('AUTH_SECRET is not set');
   // Local development: a secret generated once and kept beside the dev database.
@@ -28,7 +29,7 @@ function secret(): string {
   return devSecret;
 }
 
-const sign = (id: string) => createHmac('sha256', secret()).update(id).digest('base64url');
+const sign = (id: string) => createHmac('sha256', authSecret()).update(id).digest('base64url');
 
 export function mintAnonCookie(): { anonId: string; value: string } {
   const anonId = randomBytes(18).toString('base64url');

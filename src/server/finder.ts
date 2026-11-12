@@ -2,6 +2,7 @@ import 'server-only';
 
 import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenities';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
+import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
 import { replaceFinderShortlist } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
@@ -29,6 +30,9 @@ export type FinderOutcome =
       rejected: RankResult['rejected'];
       uncheckable: number;
       distanceFrom: RankResult['distanceFrom'];
+      distanceLabel: RankResult['distanceLabel'];
+      /** Radius searches only: true when the first radius held too few hotels and one wider search was made. */
+      widened: boolean;
       /** True when the supplier's amenity facts could not be fetched, so must-haves were unverifiable. */
       amenityFactsMissing: boolean;
     }
@@ -54,16 +58,26 @@ export async function runFinder(args: {
   const audience = audienceFor(session);
   let held = args.refresh ? [] : await listLiveOffersForRanking(sessionId, stayId, audience, now);
   let fetched = false;
+  let widened = false;
   let amenityFactsMissing = false;
+  const plan = planSearch({
+    destinationText: stay.destinationText,
+    placeId: stay.placeId,
+    destPoint: stay.destLatitude !== null && stay.destLongitude !== null ? { latitude: stay.destLatitude, longitude: stay.destLongitude } : null,
+    destKind: stay.destKind,
+    near:
+      stay.latitude !== null && stay.longitude !== null && stay.nearLabel !== null
+        ? { label: stay.nearLabel, latitude: stay.latitude, longitude: stay.longitude }
+        : null,
+  });
 
   if (held.length === 0) {
-    if (!stay.placeId) return { kind: 'needs_place' };
+    if (!plan) return { kind: 'needs_place' };
     if (!session.guestNationality) return { kind: 'needs_nationality' };
     const marginPct = marginFor(audience, args.env);
 
     const rooms = Math.max(1, stay.rooms);
-    const search = await supplier.searchAvailability({
-      where: { placeId: stay.placeId },
+    const request = {
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
       occupancies: splitParty(stay.adults, stay.childrenAges, rooms),
@@ -72,7 +86,14 @@ export async function runFinder(args: {
       marginPct,
       maxHotels: 30,
       maxRatesPerHotel: 1,
-    });
+    };
+    let search = await supplier.searchAvailability({ ...request, where: plan.where });
+    // Too few hotels in the first radius: one wider search, never more.
+    if (plan.kind === 'radius' && search.ok && search.value.properties.length < MIN_HOTELS) {
+      const wider = await supplier.searchAvailability({ ...request, where: plan.wider });
+      widened = true;
+      if (wider.ok && wider.value.properties.length > search.value.properties.length) search = wider;
+    }
     if (!search.ok) return { kind: 'supplier_error', error: search.error };
     if (search.value.offers.length === 0) return { kind: 'no_availability' };
 
@@ -162,10 +183,10 @@ export async function runFinder(args: {
     candidates,
     checkIn: stay.checkIn,
     checkOut: stay.checkOut,
-    priority: session.priority,
+    priorities: session.priorities ?? [],
     mustHaves: stay.mustHaves.filter(isMustHave) as MustHave[],
     priceCapMinor: stay.priceCapMinor,
-    near: stay.latitude !== null && stay.longitude !== null ? { latitude: stay.latitude, longitude: stay.longitude } : null,
+    near: plan?.target ?? null,
     audience,
     excludedPropertyIds: stay.excludedPropertyIds,
   });
@@ -190,6 +211,8 @@ export async function runFinder(args: {
     rejected: result.rejected,
     uncheckable: result.uncheckable,
     distanceFrom: result.distanceFrom,
+    distanceLabel: result.distanceLabel,
+    widened,
     amenityFactsMissing,
   };
 }

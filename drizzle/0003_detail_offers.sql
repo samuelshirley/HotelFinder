@@ -1,0 +1,1 @@
+ALTER TABLE "offers" ADD COLUMN "detail_only" boolean DEFAULT false NOT NULL;

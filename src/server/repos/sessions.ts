@@ -59,7 +59,8 @@ export function audienceFor(session: Pick<SearchSession, 'userId'>): Audience {
 
 export async function updateSession(
   id: string,
-  patch: Partial<Pick<SearchSession, 'status' | 'priority' | 'currency' | 'guestNationality' | 'draft'>>,
+  // The retired single `priority` is deliberately not patchable: nothing writes it.
+  patch: Partial<Pick<SearchSession, 'status' | 'priorities' | 'currency' | 'guestNationality' | 'nationalitySource' | 'draft'>>,
 ): Promise<SearchSession | null> {
   const [row] = await db
     .update(searchSessions)
@@ -74,8 +75,14 @@ export type StayInput = Pick<Stay, 'destinationText' | 'checkIn' | 'checkOut'> &
     Pick<
       Stay,
       | 'placeId'
+      | 'destLatitude'
+      | 'destLongitude'
+      | 'destKind'
+      | 'destCountry'
       | 'latitude'
       | 'longitude'
+      | 'nearPlaceId'
+      | 'nearLabel'
       | 'adults'
       | 'childrenAges'
       | 'rooms'

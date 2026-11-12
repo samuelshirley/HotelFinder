@@ -29,7 +29,12 @@ export type SupplierResult<T> = { ok: true; value: T } | { ok: false; error: Sup
 export type Occupancy = { adults: number; childrenAges: number[] };
 
 export type SearchRequest = {
-  where: { placeId: string } | { cityName: string; countryCode: string } | { hotelIds: string[] };
+  where:
+    | { placeId: string }
+    | { cityName: string; countryCode: string }
+    | { hotelIds: string[] }
+    /** Hotels within `radiusM` metres of a point: for "close to" a station, an airport or a named place. */
+    | { latitude: number; longitude: number; radiusM: number };
   checkIn: string;
   checkOut: string;
   /** One entry per room. */
@@ -66,6 +71,12 @@ export type PropertyDetails = SupplierProperty & {
   importantInformation: string | null;
   description: string | null;
   imageUrls: string[];
+  /** As the supplier writes them, e.g. "03:00 PM" / "12:00 PM". */
+  checkInFrom: string | null;
+  checkOutUntil: string | null;
+  /** The supplier's review summary, verbatim. */
+  reviews: { pros: string[]; cons: string[]; categories: Array<{ name: string; rating: number; description: string | null }> } | null;
+  rooms: Array<{ name: string; sizeSqm: number | null; beds: string[]; maxOccupancy: number | null; amenities: string[]; photo: string | null }>;
 };
 
 /** The amenities a hotel is known to have. A hotel missing from the answer is unknown, not amenity-free. */
@@ -121,6 +132,17 @@ export type SearchResult = {
 
 export type Place = { placeId: string; name: string; address: string | null; types: string[] };
 
+/** One place with its map point: the only source of coordinates in the app. */
+export type PlaceDetails = {
+  placeId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  types: string[];
+  /** ISO 3166-1 alpha-2, when the supplier gives one. */
+  countryCode: string | null;
+};
+
 export type RateCheck = {
   prebookId: string;
   transactionId: string;
@@ -146,6 +168,12 @@ export type BookRequest = {
   holder: GuestName;
   /** One guest per room, in occupancy order. */
   guests: GuestName[];
+  /**
+   * How the guest paid. `transaction_id`: the supplier's own payment form took
+   * the money, and `transactionId` says so. `sandbox_test`: no money moved (the
+   * mock wallet); the adapter refuses it for any key that is not a sandbox key.
+   */
+  payment: 'transaction_id' | 'sandbox_test';
 };
 
 export type SupplierBookingStatus = 'confirmed' | 'cancelled' | 'other';
@@ -176,6 +204,8 @@ export type CancelResult = {
 export interface SupplierAdapter {
   readonly name: string;
   searchPlaces(query: string): Promise<SupplierResult<Place[]>>;
+  /** A place's map point and kind, by the opaque id from `searchPlaces`. */
+  getPlace(placeId: string): Promise<SupplierResult<PlaceDetails>>;
   /** No availability is `ok` with empty lists; the caller decides whether that is retryable. */
   searchAvailability(request: SearchRequest): Promise<SupplierResult<SearchResult>>;
   /** Compact amenity facts for many hotels in one call. Cacheable for days. */

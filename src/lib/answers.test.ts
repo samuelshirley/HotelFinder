@@ -29,7 +29,8 @@ const silent = (over: Partial<HotelFacts> = {}): HotelFacts =>
 const ctx: AnswerContext = {
   nights: 2,
   distanceFrom: 'search_centre',
-  search: { destinationText: 'Porto, Portugal', checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], priority: 'cheapest' },
+  distanceLabel: null,
+  search: { destinationText: 'Porto, Portugal', checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], priorities: ['cheapest'], nearLabel: 'central Porto' },
 };
 const say = (h: HotelFacts, ask: FactAsk) => answerLine(hotelAnswer(h, ask, ctx), 'EUR');
 
@@ -64,6 +65,8 @@ describe('one fact about one hotel, from its row', () => {
     expect(say(hotel(), { fact: 'room' })).toBe('YOTEL Porto: the price is for Premium Queen.');
     expect(say(hotel(), { fact: 'distance' })).toBe('YOTEL Porto: 1.0 km from the middle of the results.');
     expect(answerLine(hotelAnswer(hotel({ distanceKm: 0.4 }), { fact: 'distance' }, { ...ctx, distanceFrom: 'place' }), 'EUR')).toBe('YOTEL Porto: 400 m from the place you named.');
+    expect(answerLine(hotelAnswer(hotel({ distanceKm: 0.4 }), { fact: 'distance' }, { ...ctx, distanceFrom: 'place', distanceLabel: 'Ribeira' }), 'EUR')).toBe('YOTEL Porto: 400 m from Ribeira.');
+    expect(answerLine(hotelAnswer(hotel({ distanceKm: 1.5 }), { fact: 'distance' }, { ...ctx, distanceFrom: 'destination', distanceLabel: 'Porto Airport (OPO)' }), 'EUR')).toBe('YOTEL Porto: 1.5 km from Porto Airport (OPO).');
   });
 
   it('a facility is what the supplier lists: listed, not listed, or no list at all', () => {
@@ -156,13 +159,15 @@ describe('what the search is set to', () => {
     expect(line('budget', { priceCapMinor: 7000 })).toBe('Capped at €70 a night.');
     expect(line('must_haves')).toBe('Nothing is required of the hotel yet.');
     expect(line('must_haves', { mustHaves: ['parking', 'pool', 'wifi'] })).toBe('Must have parking, a pool and wifi.');
-    expect(line('priority')).toBe('Lowest price first.');
-    expect(line('priority', { priority: null })).toBe('No order is set.');
+    expect(line('priority')).toBe('Ranked for low price.');
+    expect(line('priority', { priorities: ['closest', 'nicest'] })).toBe('Ranked for great reviews and being close to central Porto.');
+    expect(line('priority', { priorities: [] })).toBe('Balanced: price, rating and distance.');
+    expect(line('priority', { priorities: null })).toBe('No order is set.');
   });
 
   it('everything: only what is set', () => {
-    expect(line('everything')).toBe('Searching Porto, Portugal. 11–13 Dec, 2 nights. 2 adults. Lowest price first.');
-    expect(line('everything', { priceCapMinor: 7000, mustHaves: ['parking'], priority: null })).toBe('Searching Porto, Portugal. 11–13 Dec, 2 nights. 2 adults. Capped at €70 a night. Must have parking.');
+    expect(line('everything')).toBe('Searching Porto, Portugal. 11–13 Dec, 2 nights. 2 adults. Ranked for low price.');
+    expect(line('everything', { priceCapMinor: 7000, mustHaves: ['parking'], priorities: null })).toBe('Searching Porto, Portugal. 11–13 Dec, 2 nights. 2 adults. Capped at €70 a night. Must have parking.');
   });
 });
 

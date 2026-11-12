@@ -1,15 +1,22 @@
 import type { MustHave } from '@/lib/amenities';
-import { nightsBetween } from '@/lib/finder/geo';
-import type { PriorityKey } from '@/lib/finder/rank';
-import type { Action } from './actions';
+import { haversineKm, nightsBetween, type LatLng } from '@/lib/finder/geo';
+import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
+import type { Action, ResolvedAction, ResolvedPoint } from './actions';
 
 /** The part of a search an action can change. A plain value: no database, no clock. */
 export type SearchState = {
-  priority: PriorityKey | null;
+  /** null = not asked yet; [] = no preference. Kept in canonical order. */
+  priorities: PriorityKey[] | null;
   guestNationality: string | null;
   stay: {
     destinationText: string;
     placeId: string | null;
+    /** The destination's own point and kind, from the supplier. null = unknown (lookup failed). */
+    destPoint: LatLng | null;
+    destKind: 'area' | 'point' | null;
+    destCountry: string | null;
+    /** A place the user named to be close to. null = measure from the destination. */
+    near: ResolvedPoint | null;
     checkIn: string;
     checkOut: string;
     adults: number;
@@ -34,16 +41,22 @@ export type Rejection =
   | 'checkout_not_after_checkin'
   | 'stay_too_long'
   | 'more_rooms_than_adults'
+  | 'near_too_far'
+  /** Set by dispatch, not the reducer: the supplier could not say where a named place is. */
+  | 'place_unavailable'
   | 'no_change';
 
 export type Reduced = { ok: true; state: SearchState; effect: Effect } | { ok: false; rejection: Rejection };
 
 export const MAX_NIGHTS = 30;
 
+/** A place to be near must be within this of the destination; further is a different trip. */
+export const NEAR_MAX_KM = 50;
+
 const stronger = (a: Effect, b: Effect): Effect => (a === 'refetch' || b === 'refetch' ? 'refetch' : a === 'rerank' || b === 'rerank' ? 'rerank' : 'none');
 
 /** Pure. `today` is the user's date (YYYY-MM-DD), passed in. */
-export function reduce(state: SearchState, action: Action, today: string): Reduced {
+export function reduce(state: SearchState, action: ResolvedAction, today: string): Reduced {
   const stay = state.stay;
   const withStay = (patch: Partial<SearchState['stay']>, effect: Effect): Reduced => ({
     ok: true,
@@ -53,9 +66,22 @@ export function reduce(state: SearchState, action: Action, today: string): Reduc
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
   switch (action.type) {
-    case 'set_priority':
-      if (state.priority === action.priority) return { ok: false, rejection: 'no_change' };
-      return { ok: true, state: { ...state, priority: action.priority }, effect: 'rerank' };
+    case 'set_priorities': {
+      const next = canonicalPriorities(action.priorities);
+      if (state.priorities !== null && same(next, canonicalPriorities(state.priorities))) return { ok: false, rejection: 'no_change' };
+      return { ok: true, state: { ...state, priorities: next }, effect: 'rerank' };
+    }
+
+    case 'set_near': {
+      if (stay.near?.placeId === action.near.placeId) return { ok: false, rejection: 'no_change' };
+      if (stay.destPoint && haversineKm(stay.destPoint, action.near) > NEAR_MAX_KM) return { ok: false, rejection: 'near_too_far' };
+      // A new point to search around, not just a re-sort: the hotels near it may not be in hand.
+      return withStay({ near: action.near }, 'refetch');
+    }
+
+    case 'clear_near':
+      if (!stay.near) return { ok: false, rejection: 'no_change' };
+      return withStay({ near: null }, 'refetch');
 
     case 'set_price_cap':
       if (stay.priceCapMinor === action.perNightMinor) return { ok: false, rejection: 'no_change' };
@@ -89,8 +115,20 @@ export function reduce(state: SearchState, action: Action, today: string): Reduc
 
     case 'set_destination':
       if (stay.placeId === action.placeId) return { ok: false, rejection: 'no_change' };
-      // A new place: what was set aside for the old one no longer means anything.
-      return withStay({ placeId: action.placeId, destinationText: action.destinationText, excludedPropertyIds: [] }, 'refetch');
+      // A new place: what was set aside for the old one, and where to be close
+      // to in it, no longer mean anything.
+      return withStay(
+        {
+          placeId: action.placeId,
+          destinationText: action.destinationText,
+          destPoint: action.point ? { latitude: action.point.latitude, longitude: action.point.longitude } : null,
+          destKind: action.point?.kind ?? null,
+          destCountry: action.point?.country ?? null,
+          near: null,
+          excludedPropertyIds: [],
+        },
+        'refetch',
+      );
 
     case 'set_nationality':
       if (state.guestNationality === action.code) return { ok: false, rejection: 'no_change' };
@@ -112,10 +150,24 @@ export function reduce(state: SearchState, action: Action, today: string): Reduc
   }
 }
 
-export type Applied = { action: Action; ok: true } | { action: Action; ok: false; rejection: Rejection };
+/**
+ * For a producer (the agent) checking actions before it queues them, with no
+ * supplier at hand: a named place is not looked up here, so `set_near` passes
+ * unless it repeats the current place, and a new destination carries no point.
+ * Dispatch looks both up and runs the real reducer.
+ */
+export function previewReduce(state: SearchState, action: Action, today: string): Reduced {
+  if (action.type === 'set_near') {
+    return state.stay.near?.placeId === action.placeId ? { ok: false, rejection: 'no_change' } : { ok: true, state, effect: 'refetch' };
+  }
+  if (action.type === 'set_destination') return reduce(state, { ...action, point: null }, today);
+  return reduce(state, action, today);
+}
+
+export type Applied = { action: ResolvedAction; ok: true } | { action: ResolvedAction; ok: false; rejection: Rejection };
 
 /** Apply actions in order. A rejected action changes nothing and does not stop the rest. */
-export function reduceAll(state: SearchState, actions: Action[], today: string) {
+export function reduceAll(state: SearchState, actions: ResolvedAction[], today: string) {
   let current = state;
   let effect: Effect = 'none';
   const results: Applied[] = [];
@@ -136,9 +188,10 @@ export function reduceAll(state: SearchState, actions: Action[], today: string) 
 export function fingerprint(state: SearchState): string {
   const s = state.stay;
   return JSON.stringify([
-    state.priority,
+    state.priorities === null ? null : canonicalPriorities(state.priorities),
     state.guestNationality,
     s.placeId,
+    s.near?.placeId ?? null,
     s.checkIn,
     s.checkOut,
     s.adults,

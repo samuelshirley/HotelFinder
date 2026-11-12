@@ -16,13 +16,28 @@ export function reasonText(reason: ReasonLike | null, ctx: { currency: string; h
       return ctx.hasMustHaves ? 'Cheapest that has everything you asked for' : 'Cheapest available';
     case 'closest': {
       const km = num(reason.km);
-      const where = reason.to === 'place' ? 'the place you named' : 'the middle of the results';
-      return km === null ? 'Closest' : `Closest: ${formatKm(km)} from ${where}`;
+      return km === null ? 'Closest' : `Closest: ${formatKm(km)} from ${fromWhere(reason)}`;
+    }
+    case 'best_mix': {
+      const of = (Array.isArray(reason.of) ? reason.of : []).filter((k): k is string => typeof k === 'string');
+      const words: Record<string, string> = { cheapest: 'low price', nicest: 'great reviews', closest: 'location' };
+      const named = of.map((k) => words[k]).filter(Boolean);
+      const facts: string[] = [];
+      const rating = num(reason.rating);
+      if (of.includes('nicest') && rating !== null) facts.push(`rated ${rating}`);
+      const rank = num(reason.price_rank);
+      const eligible = num(reason.eligible);
+      if (of.includes('cheapest') && rank !== null && eligible !== null) facts.push(`${ordinal(rank)} cheapest of ${eligible}`);
+      const km = num(reason.km);
+      if (of.includes('closest') && km !== null) facts.push(`${formatKm(km)} from ${fromWhere(reason)}`);
+      const list = named.length > 1 ? `${named.slice(0, -1).join(', ')} and ${named.at(-1)}` : (named[0] ?? 'what you asked for');
+      return `Best mix of ${list}${facts.length ? `: ${facts.join(', ')}` : ''}`;
     }
     case 'best_rated': {
       const reviews = num(reason.reviews);
       return `Best rated: ${reason.rating}${reviews === null ? '' : ` from ${reviews.toLocaleString('en')} reviews`}`;
     }
+    // Retired with "just a decent bed"; rows ranked before the change can still carry it.
     case 'cheapest_well_reviewed':
       return `Cheapest rated ${reason.rating} or better by ${num(reason.reviews)?.toLocaleString('en') ?? 'many'} guests`;
     case 'best_balance':
@@ -40,6 +55,18 @@ export function reasonText(reason: ReasonLike | null, ctx: { currency: string; h
     default:
       return '';
   }
+}
+
+function fromWhere(reason: ReasonLike): string {
+  const label = typeof reason.to_label === 'string' && reason.to_label ? reason.to_label : null;
+  if (reason.to === 'place') return label ?? 'the place you named';
+  if (reason.to === 'destination') return label ?? 'the place you searched';
+  return 'the middle of the results';
+}
+
+function ordinal(n: number): string {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
+  return `${n}${s}`;
 }
 
 export function formatKm(km: number): string {

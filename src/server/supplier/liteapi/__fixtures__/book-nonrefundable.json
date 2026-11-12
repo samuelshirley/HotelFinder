@@ -1,0 +1,173 @@
+{
+  "data": {
+    "bookingId": "2U0GzrbQp",
+    "clientReference": "",
+    "supplierBookingId": "2U0GzrbQp",
+    "supplierBookingName": "nuitee",
+    "supplier": "nuitee",
+    "supplierId": 2,
+    "status": "CONFIRMED",
+    "hotelConfirmationCode": "test",
+    "checkin": "2026-12-11",
+    "checkout": "2026-12-13",
+    "hotel": {
+      "hotelId": "lp55362",
+      "name": "PortoBay Teatro",
+      "phone": "",
+      "email": ""
+    },
+    "bookedRooms": [
+      {
+        "roomType": {
+          "roomTypeId": "",
+          "name": "Test rate 1"
+        },
+        "boardType": "RO",
+        "boardName": "Room Only",
+        "adults": 1,
+        "children": 0,
+        "rate": {
+          "rateId": "I5MTGVCNJVFFOTKNGNDUOTSSKZDTIWSEJ5HUUU2HIEZVIRKOKRDUOWSUIRGVUQSTI5ATGRCNJZKEORZULJCEKTKCKRDUSWSEIFHFEUSHLEZEIT2OJJLU2TJTKREU4WSUKBIVSU2HJVJFCR2JGNCEGTKSKJDUMNSEIVGUEU2HLFMVIRKNJJKFAUSTK42FQMSWJNHDMRKLKUZTISKWJNLEKN2CKNEUKWKFI43UEVKHKVNEIUZXIRFEWQSUKZFVGRBUI5CTGVCTJZBFKR2JGNCECT2KLJDVCWSUKNLEWU2NJI2EGR2NLJKUQRKZIRCU4USEI5MTGRCTJRFFIR2RGRKECTKSK5IFESCGIVJFGT2QKFNEIQKNKJLUORKZKRBU2QSSI5AVSRCBG5BFEUCSJJCEGTKCLBDTKNSEINHUEVKHLEZFGR2VKNIEKTSIIZCVEU2PIVGVURCBJVJFORSVLFKEGTCKKJDUCUKEINGUEMSHIFMUGR34GE4DILRWGV6HYUSPPR6HY7CHMFWGYZLSPEQFE33PNUQGM33SEAZCAQLEOVWHI434GAXDAMD4GAXDAMD4PQYC4MBQPQYC4MBQ",
+          "retailRate": {
+            "total": {
+              "amount": 184.65,
+              "currency": "EUR"
+            },
+            "suggestedSellingPrice": {
+              "source": "providerDirect"
+            },
+            "taxesAndFees": [
+              {
+                "included": false,
+                "description": "City Tax",
+                "amount": 11.93,
+                "currency": "EUR"
+              },
+              {
+                "included": true,
+                "description": "VAT",
+                "amount": 10.44,
+                "currency": "EUR"
+              }
+            ]
+          },
+          "cancellationPolicies": {
+            "cancelPolicyInfos": [
+              {
+                "cancelTime": "2026-12-11 23:59:59",
+                "amount": 184.65,
+                "type": "amount",
+                "timezone": "GMT",
+                "currency": "EUR"
+              }
+            ],
+            "hotelRemarks": [],
+            "refundableTag": "NRFN"
+          },
+          "maxOccupancy": 1,
+          "boardType": "Room Only",
+          "boardName": "RO",
+          "remarks": "",
+          "perks": []
+        },
+        "firstName": "Fixture",
+        "lastName": "Guest",
+        "childrenAges": null,
+        "board": "Room Only",
+        "boardCode": "RO",
+        "cancellationPolicies": {
+          "cancelPolicyInfos": null,
+          "hotelRemarks": [],
+          "refundableTag": "NRFN"
+        },
+        "room_id": "I5MTGVCNJVFFOTKNGNDUOTSSKZDTIWSEJ5HUUU2HIEZVIRKOKRDUOWSUIRGVUQSTI5ATGRCNJZKEORZULJCEKTKCKRDUSWSEIFHFEUSHLEZEIT2OJJLU2TJTKREU4WSUKBIVSU2HJVJFCR2JGNCEGTKSKJDUMNSEIVGUEU2HLFMVIRKNJJKFAUSTK42FQMSWJNHDMRKLKUZTISKWJNLEKN2CKNEUKWKFI43UEVKHKVNEIUZXIRFEWQSUKZFVGRBUI5CTGVCTJZBFKR2JGNCECT2KLJDVCWSUKNLEWU2NJI2EGR2NLJKUQRKZIRCU4USEI5MTGRCTJRFFIR2RGRKECTKSK5IFESCGIVJFGT2QKFNEIQKNKJLUORKZKRBU2QSSI5AVSRCBG5BFEUCSJJCEGTKCLBDTKNSEINHUEVKHLEZFGR2VKNIEKTSIIZCVEU2PIVGVURCBJVJFORSVLFKEGTCKKJDUCUKEINGUEMSHIFMUGR34GE4DILRWGV6HYUSPPR6HY7CHMFWGYZLSPEQFE33PNUQGM33SEAZCAQLEOVWHI434GAXDAMD4GAXDAMD4PQYC4MBQPQYC4MBQ",
+        "occupancy_number": 1,
+        "amount": 184.65,
+        "currency": "EUR",
+        "children_count": 0,
+        "remarks": "",
+        "guests": [
+          {
+            "firstName": "Fixture",
+            "lastName": "Guest",
+            "email": "guest@fixture.hotelfinder.invalid",
+            "phone": "",
+            "remarks": "",
+            "occupancyNumber": 1
+          }
+        ]
+      }
+    ],
+    "holder": {
+      "firstName": "Fixture",
+      "lastName": "Guest",
+      "email": "guest@fixture.hotelfinder.invalid",
+      "phone": ""
+    },
+    "createdAt": "2026-11-11T19:41:47",
+    "updatedAt": "",
+    "cancellationPolicies": {
+      "cancelPolicyInfos": null,
+      "hotelRemarks": [],
+      "refundableTag": "NRFN"
+    },
+    "specialRemarks": "Example special remarks",
+    "optionalFees": "Optional fees",
+    "mandatoryFees": "Mandatory fees",
+    "knowBeforeYouGo": "Know before you go",
+    "price": 184.65,
+    "sellingPriceToUser": 184.65,
+    "commission": 0,
+    "addonsTotalAmount": 0,
+    "currency": "EUR",
+    "remarks": "",
+    "voucherCode": "",
+    "voucherTotalAmount": 0,
+    "addons": null,
+    "guestId": 318188,
+    "distributorCommission": 0,
+    "distributorPrice": 0,
+    "trackingId": "",
+    "firstName": "Fixture",
+    "lastName": "Guest",
+    "adults": 2,
+    "children": "",
+    "childrenCount": 0,
+    "prebookId": "hKl4p6JtG",
+    "paymentStatus": "succeeded",
+    "paymentTransactionId": "tr_cts_-aEFYdpCBKaT3bpML8ql8",
+    "sellingPrice": "184.65",
+    "exchangeRate": 1,
+    "exchangeRateUsd": 1.1164814049,
+    "email": "guest@fixture.hotelfinder.invalid",
+    "tag": "NRFN",
+    "lastFreeCancellationDate": null,
+    "userId": 389413,
+    "nationality": "ES",
+    "holderTitle": "",
+    "hotelId": "lp55362",
+    "hotelName": "PortoBay Teatro",
+    "cancelledAt": null,
+    "refundedAt": null,
+    "loyaltyGuestId": 318188,
+    "sandbox": 1,
+    "clientCommission": 0,
+    "voucherId": null,
+    "voucherTransationId": null,
+    "processingFee": 2.05,
+    "amountRefunded": 0,
+    "refundType": "",
+    "addonsRedemptions": null,
+    "rebookFrom": "",
+    "agentId": null,
+    "cancelledBy": null,
+    "feed": "liteapionboarding",
+    "goodwillPayment": null,
+    "newCharges": 0,
+    "compensationAmount": 0,
+    "hotelRemarks": "<br/><br/>Guests must provide a valid credit card upon check-in in case of any damages made during the stay. No preauthorization will be made.<br/>",
+    "payLaterDeadline": null
+  },
+  "guestLevel": 0,
+  "sandbox": true
+}

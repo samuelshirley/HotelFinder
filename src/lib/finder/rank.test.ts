@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { AMENITIES } from '@/lib/amenities';
 import { haversineKm, medianPoint, nightsBetween } from './geo';
-import { dominates, meetsMustHave, PRIORITY_KEYS, rankStay, type Candidate, type PriorityKey } from './rank';
+import { CANONICAL_PRIORITIES, dominates, meetsMustHave, rankStay, type Candidate, type PriorityKey } from './rank';
+
+/** Every set of priorities: none, each alone, every pair, all three. */
+const SUBSETS: PriorityKey[][] = [0, 1, 2, 3, 4, 5, 6, 7].map((mask) => CANONICAL_PRIORITIES.filter((_, i) => mask & (1 << i)));
+const label = (set: readonly PriorityKey[]) => (set.length ? set.join('+') : 'none');
 
 /** A small seeded PRNG so a failure can be replayed. */
 function mulberry32(seed: number) {
@@ -37,21 +41,20 @@ function randomCandidates(rand: () => number, n: number): Candidate[] {
 const base = { checkIn: '2026-12-11', checkOut: '2026-12-13', mustHaves: [], priceCapMinor: null, near: null, audience: 'member' as const };
 
 describe('dominance: a hotel no worse on anything and better on something never ranks lower', () => {
-  const priorities: Array<PriorityKey | null> = [...PRIORITY_KEYS, null];
-  for (const priority of priorities) {
-    it(`holds for priority=${priority ?? 'none'} over 400 random searches`, () => {
+  for (const priorities of SUBSETS) {
+    it(`holds for priorities=${label(priorities)} over 400 random searches`, () => {
       const rand = mulberry32(20261111);
       let dominatedPairs = 0;
       for (let round = 0; round < 400; round++) {
         const candidates = randomCandidates(rand, 3 + Math.floor(rand() * 12));
-        const near = rand() < 0.5 ? { latitude: 41.145, longitude: -8.615 } : null;
-        const { ordered } = rankStay({ ...base, candidates, priority, near });
+        const near = rand() < 0.5 ? { point: { latitude: 41.145, longitude: -8.615 }, label: 'Here', from: 'place' as const } : null;
+        const { ordered } = rankStay({ ...base, candidates, priorities, near });
         for (let i = 0; i < ordered.length; i++) {
           for (let j = i + 1; j < ordered.length; j++) {
             const upper = { ...ordered[i].candidate, km: kmOf(ordered[i]) };
             const lower = { ...ordered[j].candidate, km: kmOf(ordered[j]) };
             if (dominates(lower, upper)) {
-              throw new Error(`round ${round}: ${lower.name} dominates ${upper.name} but ranks below it (priority ${priority})`);
+              throw new Error(`round ${round}: ${lower.name} dominates ${upper.name} but ranks below it (priorities ${label(priorities)})`);
             }
             if (dominates(upper, lower)) dominatedPairs += 1;
           }
@@ -67,15 +70,15 @@ describe('dominance: a hotel no worse on anything and better on something never 
 });
 
 describe('ranking is a pure, total order', () => {
-  it('the same candidates in any input order give the same ranking', () => {
+  it('the same candidates in any input order, and the priorities in any order, give the same ranking', () => {
     const rand = mulberry32(7);
     for (let round = 0; round < 100; round++) {
       const candidates = randomCandidates(rand, 10);
       const shuffled = [...candidates].sort(() => rand() - 0.5);
-      for (const priority of [...PRIORITY_KEYS, null]) {
-        const a = rankStay({ ...base, candidates, priority }).ordered.map((r) => r.candidate.offerId);
-        const b = rankStay({ ...base, candidates: shuffled, priority }).ordered.map((r) => r.candidate.offerId);
-        expect(b).toEqual(a);
+      for (const priorities of SUBSETS) {
+        const a = rankStay({ ...base, candidates, priorities }).ordered.map((r) => r.candidate.offerId);
+        const b = rankStay({ ...base, candidates: shuffled, priorities: [...priorities].reverse() }).ordered.map((r) => r.candidate.offerId);
+        expect(b, label(priorities)).toEqual(a);
       }
     }
   });
@@ -83,7 +86,7 @@ describe('ranking is a pure, total order', () => {
   it('does not mutate its input', () => {
     const candidates = randomCandidates(mulberry32(3), 8);
     const before = JSON.stringify(candidates);
-    rankStay({ ...base, candidates, priority: 'cheapest' });
+    rankStay({ ...base, candidates, priorities: ['cheapest'] });
     expect(JSON.stringify(candidates)).toBe(before);
   });
 });
@@ -108,7 +111,7 @@ describe('hard constraints', () => {
   it('unknown amenities never satisfy a must-have', () => {
     expect(meetsMustHave(hotel({ amenities: null }), 'parking')).toBe(false);
     expect(meetsMustHave(hotel({ amenities: ['parking'] }), 'parking')).toBe(true);
-    const result = rankStay({ ...base, candidates: [hotel({ amenities: null })], priority: 'cheapest', mustHaves: ['parking'] });
+    const result = rankStay({ ...base, candidates: [hotel({ amenities: null })], priorities: ['cheapest'], mustHaves: ['parking'] });
     expect(result).toMatchObject({ eligible: 0, uncheckable: 1, rejected: { missing_must_have: 1 } });
   });
 
@@ -123,49 +126,130 @@ describe('hard constraints', () => {
   it('the price cap is per night for the whole stay, rounded up', () => {
     const three = { ...base, checkOut: '2026-12-14' }; // 3 nights
     const c = hotel({ totalMinor: 30001 });
-    expect(rankStay({ ...three, candidates: [c], priority: 'cheapest', priceCapMinor: 10000 }).eligible).toBe(0);
-    expect(rankStay({ ...three, candidates: [c], priority: 'cheapest', priceCapMinor: 10001 }).shortlist[0].perNightMinor).toBe(10001);
+    expect(rankStay({ ...three, candidates: [c], priorities: ['cheapest'], priceCapMinor: 10000 }).eligible).toBe(0);
+    expect(rankStay({ ...three, candidates: [c], priorities: ['cheapest'], priceCapMinor: 10001 }).shortlist[0].perNightMinor).toBe(10001);
   });
 
   it('a member may see a price under the public price; an anonymous visitor may not', () => {
     const c = hotel({ totalMinor: 10000, suggestedSellingMinor: 12000 });
-    expect(rankStay({ ...base, candidates: [c], priority: 'cheapest' }).eligible).toBe(1);
-    expect(rankStay({ ...base, candidates: [c], priority: 'cheapest', audience: 'public' })).toMatchObject({
+    expect(rankStay({ ...base, candidates: [c], priorities: ['cheapest'] }).eligible).toBe(1);
+    expect(rankStay({ ...base, candidates: [c], priorities: ['cheapest'], audience: 'public' })).toMatchObject({
       eligible: 0,
       rejected: { below_public_price: 1 },
     });
     const atPar = hotel({ totalMinor: 12000, suggestedSellingMinor: 12000 });
-    expect(rankStay({ ...base, candidates: [atPar], priority: 'cheapest', audience: 'public' }).eligible).toBe(1);
+    expect(rankStay({ ...base, candidates: [atPar], priorities: ['cheapest'], audience: 'public' }).eligible).toBe(1);
   });
 
   it('a hotel the user rejected does not come back', () => {
     const a = hotel({ offerId: 'a', propertyId: 'pa', totalMinor: 100 });
     const b = hotel({ offerId: 'b', propertyId: 'pb', totalMinor: 200 });
-    const result = rankStay({ ...base, candidates: [a, b], priority: 'cheapest', excludedPropertyIds: ['pa'] });
+    const result = rankStay({ ...base, candidates: [a, b], priorities: ['cheapest'], excludedPropertyIds: ['pa'] });
     expect(result.shortlist.map((r) => r.candidate.propertyId)).toEqual(['pb']);
     expect(result.rejected.excluded_by_user).toBe(1);
   });
 
   it('the shortlist is five by default and its size can be set', () => {
     const many = Array.from({ length: 9 }, (_, i) => hotel({ offerId: `o${i}`, propertyId: `p${i}`, totalMinor: 100 + i }));
-    expect(rankStay({ ...base, candidates: many, priority: 'cheapest' }).shortlist).toHaveLength(5);
-    expect(rankStay({ ...base, candidates: many, priority: 'cheapest', size: 3 }).shortlist).toHaveLength(3);
-    expect(rankStay({ ...base, candidates: many, priority: 'cheapest' }).ordered).toHaveLength(9);
+    expect(rankStay({ ...base, candidates: many, priorities: ['cheapest'] }).shortlist).toHaveLength(5);
+    expect(rankStay({ ...base, candidates: many, priorities: ['cheapest'], size: 3 }).shortlist).toHaveLength(3);
+    expect(rankStay({ ...base, candidates: many, priorities: ['cheapest'] }).ordered).toHaveLength(9);
   });
 
   it('"nicest" breaks a rating tie by how many people rated, before price', () => {
     const fewReviewsCheaper = hotel({ offerId: 'f', propertyId: 'pf', totalMinor: 10000, rating: 9.5, reviewCount: 40 });
     const manyReviewsDearer = hotel({ offerId: 'm', propertyId: 'pm', totalMinor: 30000, rating: 9.5, reviewCount: 4000 });
-    const result = rankStay({ ...base, candidates: [fewReviewsCheaper, manyReviewsDearer], priority: 'nicest' });
+    const result = rankStay({ ...base, candidates: [fewReviewsCheaper, manyReviewsDearer], priorities: ['nicest'] });
     expect(result.shortlist.map((r) => r.candidate.offerId)).toEqual(['m', 'f']);
   });
+});
 
-  it('"basic" prefers a well-reviewed hotel over a cheaper unknown one', () => {
-    const unknown = hotel({ offerId: 'u', propertyId: 'pu', totalMinor: 5000, rating: 9.9, reviewCount: 3 });
-    const decent = hotel({ offerId: 'd', propertyId: 'pd', totalMinor: 9000, rating: 7.6, reviewCount: 500 });
-    const result = rankStay({ ...base, candidates: [unknown, decent], priority: 'basic' });
-    expect(result.shortlist.map((r) => r.candidate.offerId)).toEqual(['d', 'u']);
-    expect(result.shortlist[0].reason).toEqual({ kind: 'cheapest_well_reviewed', rating: 7.6, reviews: 500 });
+describe('combined priorities', () => {
+  const at = (offerId: string, totalMinor: number, rating: number, km: number, reviewCount = 100): Candidate => ({
+    offerId,
+    propertyId: `p-${offerId}`,
+    name: offerId,
+    totalMinor,
+    suggestedSellingMinor: null,
+    // Due north of the target: 1 degree of latitude is ~111.2 km.
+    location: { latitude: 41 + km / 111.195, longitude: -8 },
+    rating,
+    reviewCount,
+    stars: 3,
+    amenities: [],
+    refundable: false,
+    boardName: 'Room Only',
+  });
+  const near = { point: { latitude: 41, longitude: -8 }, label: 'the old town', from: 'place' as const };
+  const order = (candidates: Candidate[], priorities: PriorityKey[]) =>
+    rankStay({ ...base, candidates, priorities, near }).ordered.map((r) => r.candidate.offerId);
+
+  // A cheap far hotel, a dear close hotel, and one in the middle on both.
+  const cheapFar = at('cheapFar', 6000, 8.0, 5);
+  const dearClose = at('dearClose', 30000, 8.0, 0.2);
+  const middle = at('middle', 12000, 8.0, 1.5);
+  const worse = at('worse', 20000, 8.0, 3);
+
+  it('two priorities pick the hotel good at both, not the best at either', () => {
+    expect(order([cheapFar, dearClose, middle, worse], ['cheapest'])[0]).toBe('cheapFar');
+    expect(order([cheapFar, dearClose, middle, worse], ['closest'])[0]).toBe('dearClose');
+    expect(order([cheapFar, dearClose, middle, worse], ['cheapest', 'closest'])[0]).toBe('middle');
+  });
+
+  it('an unselected metric carries no weight', () => {
+    // On price + distance, A and B tie (A cheaper, B closer) and price breaks it.
+    // B is far better rated: any weight on rating would put B first.
+    const a = at('A', 9000, 5.0, 1.0);
+    const b = at('B', 10000, 9.9, 0.5);
+    const c = at('C', 11000, 7.0, 2.0);
+    expect(order([a, b, c], ['cheapest', 'closest'])).toEqual(['A', 'B', 'C']);
+  });
+
+  it('adding a hotel that is worst on every metric never reorders the others', () => {
+    const rand = mulberry32(99);
+    for (let round = 0; round < 200; round++) {
+      const candidates = randomCandidates(rand, 4 + Math.floor(rand() * 8)).map((c) => ({ ...c, location: c.location ?? { latitude: 41.14, longitude: -8.61 }, rating: c.rating ?? 7, reviewCount: c.reviewCount ?? 10 }));
+      const worst: Candidate = { ...candidates[0], offerId: 'zz-worst', propertyId: 'zz', totalMinor: 99_999_999, location: { latitude: 60, longitude: 20 }, rating: 0, reviewCount: 0 };
+      for (const priorities of SUBSETS.filter((s) => s.length > 1)) {
+        const nearHere = { point: { latitude: 41.145, longitude: -8.615 }, label: null, from: 'place' as const };
+        const before = rankStay({ ...base, candidates, priorities, near: nearHere }).ordered.map((r) => r.candidate.offerId);
+        const after = rankStay({ ...base, candidates: [...candidates, worst], priorities, near: nearHere }).ordered.map((r) => r.candidate.offerId);
+        expect(after.filter((id) => id !== 'zz-worst'), `round ${round} ${label(priorities)}`).toEqual(before);
+        expect(after.at(-1)).toBe('zz-worst');
+      }
+    }
+  });
+
+  it('the top row says it is a mix, with ranks and never an amount', () => {
+    const result = rankStay({ ...base, candidates: [cheapFar, dearClose, middle, worse], priorities: ['closest', 'cheapest'], near });
+    expect(result.shortlist[0].reason).toEqual({
+      kind: 'best_mix',
+      of: ['cheapest', 'closest'],
+      km: 1.5,
+      to: 'place',
+      to_label: 'the old town',
+      rating: 8,
+      reviews: 100,
+      price_rank: 2,
+      eligible: 4,
+    });
+    expect(result.shortlist[1].reason.kind).toBe('runner_up');
+  });
+
+  it('one priority keeps its single reason, and says where distance is from', () => {
+    const result = rankStay({ ...base, candidates: [cheapFar, dearClose, middle, worse], priorities: ['closest'], near: { ...near, from: 'destination', label: 'Annecy centre' } });
+    expect(result.shortlist[0].reason).toEqual({ kind: 'closest', km: 0.2, to: 'destination', to_label: 'Annecy centre' });
+    expect(result).toMatchObject({ distanceFrom: 'destination', distanceLabel: 'Annecy centre' });
+  });
+
+  it('with no target known, distance falls back to the middle of the results and carries no label', () => {
+    const result = rankStay({ ...base, candidates: [cheapFar, dearClose, middle, worse], priorities: ['closest'], near: null });
+    expect(result).toMatchObject({ distanceFrom: 'search_centre', distanceLabel: null });
+    expect(result.shortlist[0].reason).toMatchObject({ kind: 'closest', to: 'search_centre', to_label: null });
+  });
+
+  it('a duplicated priority counts once', () => {
+    expect(order([cheapFar, dearClose, middle, worse], ['cheapest', 'cheapest'])).toEqual(order([cheapFar, dearClose, middle, worse], ['cheapest']));
   });
 });
 

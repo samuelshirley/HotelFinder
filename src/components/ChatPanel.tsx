@@ -6,17 +6,22 @@ import { errorCopy } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
+import { Spinner } from './Spinner';
 import { FormControl } from './FormControl';
+import type { EditAction } from './api';
+import type { PriorityKey } from '@/lib/finder/rank';
 
 type Props = {
   view: SessionView;
-  busy: null | 'form' | 'turn' | 'boot';
+  busy: null | 'form' | 'edit' | 'turn' | 'boot';
   progress: string | null;
   onAnswer: (answer: FormAnswer) => void;
   onSend: (message: string) => void;
+  onOpenHotel: (propertyId: string) => void;
+  onEdit: (actions: EditAction | EditAction[]) => void;
 };
 
-export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
+export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel, onEdit }: Props) {
   const [draft, setDraft] = useState('');
   const end = useRef<HTMLDivElement>(null);
   const messages = view.messages;
@@ -24,6 +29,7 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
   // The open question is the last row, while the search is still being set up.
   const openQuestion = view.session.status === 'onboarding' && last?.kind === 'form_question' ? last : null;
   const field = (openQuestion?.meta as { field?: string } | null)?.field;
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
@@ -41,38 +47,102 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
     view.session.status === 'onboarding'
       ? field === 'destination'
         ? 'Type a city or neighbourhood'
-        : 'Answer above to continue'
-      : 'Change the dates, the place, the budget, or ask about a hotel';
+        : field === 'dates'
+          ? 'Or type it: the second weekend'
+          : field === 'priorities'
+          ? 'Or say it: near the old town, not too pricey'
+          : 'Answer above to continue'
+      : 'Ask Penny, or change the search';
 
   return (
     <>
       <div className={styles.messages}>
         <div className={styles.thread}>
-        {messages.map((m) => {
+        <Penny first>
+          <p className={`${styles.bubble} ${styles.assistant}`}>{PENNY_HELLO}</p>
+        </Penny>
+        {messages.map((m, i) => {
+          // Penny's face and name on the first of each run of her messages.
+          const first = messages[i - 1]?.role !== 'assistant';
           if (m.kind === 'error') {
             return (
-              <p key={m.id} className={`${styles.bubble} ${styles.assistant} ${styles.errorBubble}`}>
-                {errorCopy((m.meta as { code?: string } | null)?.code)}
-              </p>
+              <Penny key={m.id} first={first}>
+                <p className={`${styles.bubble} ${styles.assistant} ${styles.errorBubble}`}>{errorCopy((m.meta as { code?: string } | null)?.code)}</p>
+              </Penny>
             );
           }
           if (m.kind === 'form_question') {
             const prompt = (m.meta as { prompt?: string } | null)?.prompt;
             return (
-              <div key={m.id} className={`${styles.bubble} ${styles.assistant}`}>
-                <p>{prompt ?? m.content}</p>
-                {openQuestion?.id === m.id && <FormControl question={m} disabled={busy !== null} onAnswer={onAnswer} />}
-              </div>
+              <Penny key={m.id} first={first}>
+                <div className={`${styles.bubble} ${styles.assistant}`}>
+                  <p>{prompt ?? m.content}</p>
+                  {openQuestion?.id === m.id && <FormControl question={m} disabled={busy !== null} onAnswer={onAnswer} />}
+                </div>
+              </Penny>
             );
           }
           if (!m.content) return null;
+          if (m.role === 'user') {
+            return (
+              <p key={m.id} className={`${styles.bubble} ${styles.user}`}>
+                {m.content}
+              </p>
+            );
+          }
+          const pick = (m.meta as { pennyPick?: { propertyId: string; sponsored: boolean } } | null)?.pennyPick;
+          const ui = (m.meta as { ui?: { nearChoices?: Array<{ placeId: string; label: string }>; priorities?: PriorityKey[]; onlyClosest?: boolean } } | null)?.ui;
+          // Buttons only on Penny's latest message: an older choice is no longer the question.
+          const latest = m.id === lastAssistantId;
+          const pickName = pick && view.shortlist.find((r) => r.property.id === pick.propertyId)?.property.name;
           return (
-            <p key={m.id} className={`${styles.bubble} ${m.role === 'user' ? styles.user : styles.assistant}`}>
-              {m.content}
-            </p>
+            <Penny key={m.id} first={first}>
+              <div className={`${styles.bubble} ${styles.assistant}`}>
+                {pick?.sponsored && <span className={styles.sponsored}>Sponsored</span>}
+                <p>{m.content}</p>
+                {pick && pickName && (
+                  <button type="button" className={styles.pickButton} onClick={() => onOpenHotel(pick.propertyId)}>
+                    Open {pickName}
+                  </button>
+                )}
+                {latest && ui?.nearChoices && (
+                  <div className={styles.choiceRow}>
+                    {ui.nearChoices.map((c) => (
+                      <button
+                        key={c.placeId}
+                        type="button"
+                        className={styles.pickButton}
+                        disabled={busy !== null}
+                        onClick={() => onEdit([{ type: 'set_near', placeId: c.placeId }, ...(ui.priorities ? [{ type: 'set_priorities' as const, priorities: ui.priorities }] : [])])}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {latest && ui?.onlyClosest && (
+                  <button type="button" className={styles.pickButton} disabled={busy !== null} onClick={() => onEdit({ type: 'set_priorities', priorities: ['closest'] })}>
+                    Closeness only
+                  </button>
+                )}
+              </div>
+            </Penny>
           );
         })}
-        {busy === 'turn' && progress && <p className={`${styles.bubble} ${styles.assistant} ${styles.muted}`}>{progress}…</p>}
+        {busy === 'turn' && progress && (
+          <Penny first={last?.role !== 'assistant'}>
+            <p className={`${styles.bubble} ${styles.assistant}`}>
+              <Spinner label={`${progress}…`} />
+            </p>
+          </Penny>
+        )}
+        {busy === 'form' && (
+          <Penny first={last?.role !== 'assistant'}>
+            <p className={`${styles.bubble} ${styles.assistant}`}>
+              <Spinner label={field === 'destination' ? 'Looking up the place…' : 'One moment…'} />
+            </p>
+          </Penny>
+        )}
         <div ref={end} />
         </div>
       </div>
@@ -84,7 +154,7 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
           placeholder={placeholder}
           aria-label="Message"
           maxLength={1000}
-          disabled={busy === 'boot' || (view.session.status === 'onboarding' && field !== 'destination')}
+          disabled={busy === 'boot' || (view.session.status === 'onboarding' && field !== 'destination' && field !== 'dates' && field !== 'priorities')}
         />
         <button type="submit" className={styles.primary} disabled={!draft.trim() || busy !== null}>
           Send
@@ -92,5 +162,25 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend }: Props) {
         </div>
       </form>
     </>
+  );
+}
+
+export const PENNY_HELLO = "Hi, I'm Penny. I'll ask only what I need, then show you the few hotels worth your time.";
+
+/** One of Penny's messages: her photo and name on the first of a run, the same indent for the rest. */
+export function Penny({ first, children }: { first: boolean; children: React.ReactNode }) {
+  return (
+    <div className={styles.pennyRow}>
+      {first ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className={styles.pennyAvatar} src="/penny.png" alt="" width={32} height={32} />
+      ) : (
+        <span className={styles.pennyAvatar} aria-hidden="true" data-blank="true" />
+      )}
+      <div className={styles.pennyBody}>
+        {first && <span className={styles.pennyName}>Penny</span>}
+        {children}
+      </div>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import type {
   BookRequest,
   CancelResult,
   Place,
+  PlaceDetails,
   PropertyDetails,
   RateCheck,
   SearchRequest,
@@ -20,6 +21,7 @@ import {
   normalizeBooking,
   normalizeCancel,
   normalizeDetails,
+  normalizePlaceDetails,
   normalizePlaces,
   normalizePrebook,
   normalizeRates,
@@ -32,6 +34,7 @@ import {
   errorBody,
   hotelDetailsResponse,
   hotelListResponse,
+  placeDetailsResponse,
   placesResponse,
   prebookResponse,
   ratesResponse,
@@ -54,6 +57,9 @@ export type LiteApiDeps = {
   meter?: (event: SupplierMeterEvent) => Promise<void> | void;
   onMeterError?: (err: unknown) => void;
 };
+
+/** LiteAPI sandbox keys start `sand_`; nothing booked with one is real. */
+export const isSandboxKey = (key: string) => key.startsWith('sand_');
 
 export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
   const now = deps.now ?? (() => new Date());
@@ -168,14 +174,30 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
       });
     },
 
+    getPlace(placeId: string): Promise<SupplierResult<PlaceDetails>> {
+      return run({
+        op: 'place',
+        method: 'GET',
+        url: `${DATA}/data/places/${encodeURIComponent(placeId)}`,
+        timeoutMs: TIMEOUTS.places,
+        schema: placeDetailsResponse,
+        normalize: (body) => normalizePlaceDetails(placeId, body),
+        meta: (v) => ({ types: v.types.slice(0, 3) }),
+      });
+    },
+
     searchAvailability(request: SearchRequest): Promise<SupplierResult<SearchResult>> {
       const fetchedAt = now();
+      const where =
+        'radiusM' in request.where
+          ? { latitude: request.where.latitude, longitude: request.where.longitude, radius: request.where.radiusM }
+          : request.where;
       return run({
         op: 'search',
         method: 'POST',
         url: `${DATA}/hotels/rates`,
         body: {
-          ...request.where,
+          ...where,
           checkin: request.checkIn,
           checkout: request.checkOut,
           occupancies: request.occupancies.map((o) => ({ adults: o.adults, children: o.childrenAges })),
@@ -231,6 +253,14 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
     },
 
     book(request: BookRequest): Promise<SupplierResult<SupplierBooking>> {
+      // A test payment books without money. Only the sandbox may ever see one:
+      // with a live key it is refused here, before any request is made.
+      if (request.payment === 'sandbox_test' && !isSandboxKey(deps.apiKey)) {
+        return Promise.resolve({
+          ok: false,
+          error: { kind: 'supplier', status: null, code: null, message: 'a test payment needs a sandbox key', retryable: false },
+        });
+      }
       return run({
         op: 'book',
         method: 'POST',
@@ -238,9 +268,9 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
         body: {
           prebookId: request.prebookId,
           holder: request.holder,
-          // The only payment method the app uses: the guest paid the supplier's
-          // own form, and this id says so. Card data never passes through here.
-          payment: { method: 'TRANSACTION_ID', transactionId: request.transactionId },
+          // The guest paid the supplier's own form, and this id says so; or, in
+          // the sandbox only, a test payment. Card data never passes through here.
+          payment: request.payment === 'transaction_id' ? { method: 'TRANSACTION_ID', transactionId: request.transactionId } : { method: 'ACC_CREDIT_CARD' },
           guests: request.guests.map((g, i) => ({ occupancyNumber: i + 1, ...g })),
         },
         timeoutMs: TIMEOUTS.book,

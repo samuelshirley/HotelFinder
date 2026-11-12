@@ -1,3 +1,4 @@
+import { buildSessionView } from '@/server/view';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -13,6 +14,7 @@ import { createSession, getSession, listStays } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
 import { logUsage } from '@/server/repos/usage';
 import { runTurn, type TurnDeps } from '@/server/turn';
+import { briefSchema, checkBrief, startFromBrief, type Brief } from '@/server/brief';
 
 beforeEach(resetDb);
 
@@ -59,8 +61,7 @@ const ANSWERS: FormAnswer[] = [
   { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Porto, Portugal' },
   { field: 'dates', checkIn: '2026-12-11', checkOut: '2026-12-13' },
   { field: 'guests', adults: 2, childrenAges: [], rooms: 1, pets: false },
-  { field: 'nationality', code: 'ES' },
-  { field: 'priority', priority: 'cheapest' },
+  { field: 'priorities', priorities: ['cheapest'] },
 ];
 
 async function onboarded() {
@@ -115,17 +116,18 @@ describe('the agent: what the router did not settle', () => {
     expect(m.calls[0].system).not.toContain('Porto'); // the cached part carries nothing about this search
   });
 
-  it('a new place: looked up at the supplier, chosen by ref, and the place id never passes through the model', async () => {
+  it('a place inside the town being searched is somewhere to be close to, never a new trip, and closeness joins what "best" means', async () => {
+    // Sam, 11 Nov 2026: "i wanna stay on east manor" made Manor Road the destination and kept ranking by price only.
     const { session, supplier } = await onboarded();
     const m = scripted([{ tool: 'resolve_place', input: { query: 'Ribeira, Porto' } }], [{ tool: 'set_destination', input: { place_ref: 'P1' } }]);
     const turn = await say(session, 'actually search the Ribeira instead', deps(supplier.supplier, m.callModel));
 
     expect(supplier.placeQueries).toEqual(['Ribeira, Porto']);
-    expect(await stayOf(session.id)).toMatchObject({ placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', destinationText: 'Ribeira, Porto, Portugal' });
+    expect(await stayOf(session.id)).toMatchObject({ destinationText: 'Porto, Portugal', nearPlaceId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo' });
+    expect(await getSession(session.id)).toMatchObject({ priorities: ['cheapest', 'closest'] });
     expect(m.sent()).toContain('P1: Ribeira, Porto, Portugal');
     expect(m.sent()).not.toContain('ChIJicetJOdkJA0R8GJ9Dy_dcgo');
-    expect(turn.finalText).toMatch(/^Searching Ribeira, Porto, Portugal\. \d+ of \d+ hotels fit\.$/);
-    expect(turn.resultMeta).toMatchObject({ model_calls: 2, tools: [{ tool: 'resolve_place', outcome: '4 places' }, { tool: 'set_destination', outcome: 'queued' }] });
+    expect(turn.resultMeta).toMatchObject({ actions: [{ type: 'set_near' }, { type: 'set_priorities', priorities: ['cheapest', 'closest'] }] });
   });
 
   it('a place ref the lookup never returned is refused, and a place id written by the model is not a ref', async () => {
@@ -272,7 +274,7 @@ describe('the first message: one forced extraction, then the form asks only for 
     expect(rows).toEqual([
       ['form_answer', 'Ribeira, Porto, Portugal'],
       ['line', 'From your message: 11–13 Dec, 2 nights · 2 adults · up to €120 a night · pets allowed.'],
-      ['form_question', 'Which country do you live in? Rates depend on it.'],
+      ['form_question', 'What matters most? Pick any, or say it in your own words.'],
     ]);
     expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'scan' } }]);
   });
@@ -322,5 +324,191 @@ describe('the guests question', () => {
     expect((await stayOf(session.id)).mustHaves).toEqual(['pets_allowed']);
     expect((await listMessages(session.id)).find((m) => m.meta?.field === 'guests' && m.kind === 'form_answer')!.content).toBe('2 adults, with a pet');
     expect((await names(session.id)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('"what matters most?" answered in words', () => {
+  /** Destination, dates and guests answered: the priorities card is open. */
+  async function atPriorities(placesFor?: (q: string) => string) {
+    const supplier = recordedSupplier({}, placesFor);
+    const session = await createSession({ anonId: 'w' });
+    await askQuestion(session.id, 'destination');
+    let guestsAnswered = false;
+    for (const answer of ANSWERS.slice(0, 3)) {
+      expect(await answerForm({ sessionId: session.id, answer, guestsAnswered, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY })).toMatchObject({ ok: true });
+      if (answer.field === 'guests') guestsAnswered = true;
+    }
+    expect((await listMessages(session.id)).at(-1)).toMatchObject({ meta: { field: 'priorities' } });
+    return { session: (await getSession(session.id))!, supplier };
+  }
+  const jevReads = (wants: [number, number, number, number]): JevOutcome => ({
+    ...JEV_DOWN,
+    failure: null,
+    readings: {
+      tier: { choice: 'T1', top: 1, margin: 1 }, intent: { choice: 'priority', top: 0.9, margin: 0.8 }, multiIntent: 0.05, amenity: { choice: 'none', top: 1, margin: 1 }, removing: 0.05,
+      wantsPrice: wants[0], wantsQuality: wants[1], wantsLocation: wants[2], namesPlace: wants[3], fact: null, superlative: null, searchField: null,
+    },
+  });
+
+  it('Jev settles the set: no model call, the search runs, and the chat says how it was read', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted();
+    await say(session, 'nice but not crazy expensive', { ...deps(supplier.supplier, m.callModel), askJev: async () => jevReads([0.9, 0.92, 0.1, 0.02]) });
+    expect(m.calls).toHaveLength(0);
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: ['cheapest', 'nicest'] });
+    const rows = (await listMessages(session.id)).map((r) => [r.kind, r.content]);
+    expect(rows).toContainEqual(['line', 'Ranked for low price and great reviews.']);
+    // The typed words are the user's bubble; no second, form-style echo.
+    expect(rows.filter(([k]) => k === 'form_answer')).toHaveLength(3);
+    expect(supplier.searches).toHaveLength(1);
+  });
+
+  it('Jev unsure: one forced Haiku call; a named place is looked up in this town, and the search is around it', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: ['cheapest'], near_place: 'Ribeira', near_place_local: 'Ribeira', no_preference: false } }]);
+    await say(session, 'cheap, near the river by Ribeira', { ...deps(supplier.supplier, m.callModel), askJev: async () => jevReads([0.9, 0.3, 0.95, 0.95]) });
+    expect(m.calls).toHaveLength(1);
+    expect(m.calls[0].forceTool).toBe('record_priorities');
+    expect(supplier.placeQueries.at(-1)).toBe('Ribeira, Porto'); // local name first; the same here
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: ['cheapest', 'closest'] });
+    const [stay] = await listStays(session.id);
+    expect(stay).toMatchObject({ nearPlaceId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', nearLabel: 'Ribeira' });
+    expect(supplier.searches[0].where).toMatchObject({ radiusM: 5000 });
+    expect((await listMessages(session.id)).map((r) => r.content)).toContain('Ranked for low price and being close to Ribeira.');
+    expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'priorities' } }]);
+  });
+
+  it('a place search that finds only hotels is not a place to be near: the search runs, and says so', async () => {
+    // Recorded: "old town, Annecy" returns one hotel and nothing else.
+    const { session, supplier } = await atPriorities(() => 'places-old-town-annecy');
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: ['closest'], near_place: 'old town', near_place_local: null, no_preference: false } }]);
+    await say(session, 'close to the old town', deps(supplier.supplier, m.callModel));
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: ['closest'] });
+    expect((await listStays(session.id))[0]).toMatchObject({ nearPlaceId: null });
+    expect(supplier.placeLookups).not.toContain(expect.stringMatching(/old/i));
+    expect((await listMessages(session.id)).map((r) => r.content)).toContain('Ranked for being close to central Porto. "old town" was not found in Porto, so close means central Porto.');
+  });
+
+  it('words that say nothing about it keep the question open', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: [], near_place: null, near_place_local: null, no_preference: false } }]);
+    const turn = await say(session, 'hmm', deps(supplier.supplier, m.callModel));
+    expect(turn.finalText).toMatch(/did not say what matters/);
+    expect(await getSession(session.id)).toMatchObject({ status: 'onboarding', priorities: null });
+    expect(supplier.searches).toHaveLength(0);
+  });
+
+  it('"anything is fine" is an answer: a balanced search', async () => {
+    const { session, supplier } = await atPriorities();
+    const m = scripted([{ tool: 'record_priorities', input: { priorities: [], near_place: null, near_place_local: null, no_preference: true } }]);
+    await say(session, 'anything is fine honestly', deps(supplier.supplier, m.callModel));
+    expect(await getSession(session.id)).toMatchObject({ status: 'active', priorities: [] });
+    expect((await listMessages(session.id)).map((r) => r.content)).toContain('No preference: a balanced search.');
+  });
+});
+
+describe('the first screen: one box, three pills', () => {
+  const scanOf = (input: Record<string, unknown>) =>
+    scripted([{ tool: 'record_trip', input: { destination: null, check_in: null, check_out: null, nights: null, adults: null, children_ages: null, rooms: null, max_per_night: null, must_haves: [], priorities: [], ...input } }]);
+  const brief = (over: Partial<Brief>): Brief => briefSchema.parse(over);
+  async function submit(b: Brief, model = scripted(), placesFor?: (q: string) => string) {
+    const supplier = recordedSupplier({}, placesFor);
+    const session = await createSession({ anonId: 'box' });
+    const r = await startFromBrief({ session, brief: b, supplier: supplier.supplier, callModel: model.callModel, model: MODEL, now: RECORDED_AT, today: TODAY });
+    return { r, supplier, model, sessionId: session.id };
+  }
+
+  it('a picked place and nothing else: no model call, tonight for 2 adults, balanced, and straight to results', async () => {
+    const { r, supplier, model, sessionId } = await submit(brief({ place: { placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Porto, Portugal' } }));
+    expect(r).toEqual({ ok: true });
+    expect(model.calls).toHaveLength(0);
+    expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: [] });
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 2, rooms: 1 });
+    expect(supplier.searches).toHaveLength(1);
+    // One bubble, the user's: no form-style echo of the place, no "From your message" line.
+    expect((await listMessages(sessionId)).map((x) => [x.role, x.kind, x.content])).toEqual([
+      ['user', 'user', 'Porto, Portugal'],
+      ['assistant', 'line', expect.stringMatching(/^\d+ of \d+ hotels fit\./)],
+      // A lot fit, so Penny names one: her own pick (no hotel is sponsored), with real numbers.
+      ['assistant', 'line', '18 hotels fit, so here is a nudge: I like Mercure Porto Centro Aliados, rated 9.2, the cheapest of the top three. Which of these appeals to you?'],
+    ]);
+  });
+
+  it('a sentence: read once, the place picked without asking, its words used, tonight by default', async () => {
+    const m = scanOf({ destination: 'Annecy, France', adults: 1, priorities: ['nicest', 'closest'] });
+    const { supplier, sessionId } = await submit(brief({ text: 'Annecy, just me, central and well rated' }), m, () => 'places-annecy');
+    expect(m.calls).toHaveLength(1);
+    expect(supplier.placeQueries).toEqual(['Annecy, France']);
+    expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: ['nicest', 'closest'] });
+    expect(await stayOf(sessionId)).toMatchObject({ destinationText: 'Annecy, France', checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 1, destKind: 'area' });
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContain('Searching Annecy, France.');
+  });
+
+  it('four towns called Lisbon, and "3 nights in March": asks which, then the nights; never tonight', async () => {
+    const m = scanOf({ destination: 'Lisbon', adults: 2, nights: 3, month: '2027-03', must_haves: ['pets_allowed'], priorities: ['nicest', 'cheapest'] });
+    const { sessionId, supplier } = await submit(brief({ text: 'Lisbon with my wife and the dog, 3 nights in March, nice but not crazy expensive' }), m, () => 'places-lisbon');
+    const q = (await listMessages(sessionId)).at(-1)!;
+    expect(q).toMatchObject({ kind: 'form_question', meta: { field: 'destination', prompt: 'Which Lisbon?' } });
+    expect((q.meta as { suggestions: unknown[] }).suggestions).toHaveLength(4);
+    expect((await getSession(sessionId))!.draft.scanned).toMatchObject({ guests: { adults: 2 }, mustHaves: ['pets_allowed'] });
+    expect((await getSession(sessionId))!.draft.scanned?.checkIn).toBeUndefined();
+    // Picking Lisbon, Portugal (recorded details are Porto's: any recorded id will do for the step).
+    await answerForm({ sessionId, answer: { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Lisbon, Portugal' }, guestsAnswered: false, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContainEqual(expect.stringMatching(/^From your message: 3 nights in March · 2 adults · pets allowed/i));
+    // The nights card opens on March with a 3-night stay, and says so.
+    expect((await listMessages(sessionId)).at(-1)).toMatchObject({
+      kind: 'form_question',
+      meta: { field: 'dates', nights: 3, month: '2027-03', prompt: 'Which 3 nights in March? Tap the first night.' },
+    });
+    expect(supplier.searches).toHaveLength(0);
+    // The results side shows what is known so far, not an empty panel.
+    expect((await buildSessionView((await getSession(sessionId))!)).pending).toMatchObject({
+      destination: 'Lisbon, Portugal',
+      guests: { adults: 2 },
+      priorities: ['cheapest', 'nicest'],
+    });
+
+    // Typed instead of tapped: words that give no date keep the card open, and nothing is stored.
+    const vague = scanOf({});
+    await say((await getSession(sessionId))!, 'whenever really', deps(supplier.supplier, vague.callModel));
+    expect(await stayOf(sessionId)).toBeUndefined();
+    expect((await last(sessionId)).content).toMatch(/^That did not give two dates/);
+
+    // "the second weekend" is read with the card's hint, and the server's dates check still applies.
+    const typed = scanOf({ check_in: '2027-03-12', nights: 3 });
+    await say((await getSession(sessionId))!, 'the second weekend', deps(supplier.supplier, typed.callModel));
+    expect(typed.sent()).toContain('the trip is 3 nights in 2027-03');
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2027-03-12', checkOut: '2027-03-15' });
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContain('Reading that as 12–15 Mar, 3 nights.');
+  });
+
+  it('a pill the user set wins over the words', async () => {
+    const m = scanOf({ destination: 'Porto', check_in: '2026-11-13', check_out: '2026-11-15', adults: 4 });
+    const { sessionId } = await submit(
+      brief({ text: 'Porto next weekend for four', dates: { checkIn: '2026-12-11', checkOut: '2026-12-13' }, guests: { adults: 2, childrenAges: [], rooms: 1, pets: false }, priorities: ['cheapest'] }),
+      m,
+      () => 'places-porto',
+    );
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2 });
+    expect(await getSession(sessionId)).toMatchObject({ priorities: ['cheapest'] });
+  });
+
+  it('refused before anything is stored: nothing typed or picked, dates in the past, more rooms than adults', () => {
+    expect(checkBrief(brief({}), TODAY)).toBe('empty_brief');
+    expect(checkBrief(brief({ text: '  ' }), TODAY)).toBe('empty_brief');
+    expect(checkBrief(brief({ text: 'Porto', dates: { checkIn: '2026-11-01', checkOut: '2026-11-02' } }), TODAY)).toBe('dates_in_past');
+    expect(checkBrief(brief({ text: 'Porto', guests: { adults: 1, childrenAges: [], rooms: 2, pets: false } }), TODAY)).toBe('more_rooms_than_adults');
+    expect(briefSchema.safeParse({ text: 'x', priorities: ['basic'] }).success).toBe(false);
+    expect(briefSchema.safeParse({ text: 'x', placeId: 'injected' }).success).toBe(false);
+  });
+
+  it('the place search down: the user is asked to type it again, nothing searched', async () => {
+    const supplier = recordedSupplier({ places: 'fail' });
+    const session = await createSession({ anonId: 'down' });
+    const m = scanOf({ destination: 'Porto' });
+    expect(await startFromBrief({ session, brief: brief({ text: 'Porto' }), supplier: supplier.supplier, callModel: m.callModel, model: MODEL, now: RECORDED_AT, today: TODAY })).toEqual({ ok: true });
+    const rows = await listMessages(session.id);
+    expect(rows.at(-2)).toMatchObject({ kind: 'line', content: 'The place search did not answer. Type the place again.' });
+    expect(rows.at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination' } });
   });
 });

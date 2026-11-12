@@ -1,6 +1,6 @@
 import { AMENITIES, isMustHave, type Amenity } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
-import { PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
+import type { PriorityKey } from '@/lib/finder/rank';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import { HOTEL_FACTS, SEARCH_FIELDS, SUPERLATIVES, type HotelFact, type Intent, type SearchField, type Superlative, type Tier } from './catalogue';
@@ -29,7 +29,12 @@ export type Readings = {
   amenity: ChoiceReading<string> | null;
   /** Probability the user is dropping the requirement rather than adding it. */
   removing: number | null;
-  priority: ChoiceReading<string> | null;
+  /** One probability per priority: is it something the user says they want? */
+  wantsPrice: number | null;
+  wantsQuality: number | null;
+  wantsLocation: number | null;
+  /** A specific place to be close to: needs a place lookup, so the agent handles it. */
+  namesPlace: number | null;
   /** Which fact about a hotel is asked for. */
   fact: ChoiceReading<string> | null;
   /** Whether a hotel is singled out by rank ("the cheapest"), and on what. */
@@ -37,6 +42,23 @@ export type Readings = {
   /** Which part of the search is asked about. */
   searchField: ChoiceReading<string> | null;
 };
+
+/**
+ * "also", "too", "as well": add to the current set instead of replacing it.
+ * A word check, not a Jev question: measured live on 2026-11-11, a yes/no
+ * question for this read 0.33-0.76 on messages that said nothing of the sort.
+ */
+export function addsToCurrent(message: string): boolean {
+  return /\b(also|too|as well|and also|plus)\b/i.test(message);
+}
+
+/** A noul read decisively, or null when Jev is unsure either way. */
+function decided(p: number | null): boolean | null {
+  if (p === null) return null;
+  if (p >= SETTLE.noulYes) return true;
+  if (p <= SETTLE.noulNo) return false;
+  return null;
+}
 
 export const SETTLE = {
   top: 0.85,
@@ -60,7 +82,7 @@ export function settles(r: { top: number; margin: number } | null, min = SETTLE.
  * The first live run (2026-11-11) deferred four messages Jev had right. Each
  * time the intent was the top label but under 0.85 (0.61 to 0.84), while the
  * detail question only that intent uses was at 0.95 or more: "just show me the
- * cheapest" had priority=cheapest at 1.0. So an intent below the usual bar
+ * cheapest" had priority=cheapest at 1.0 (now wants_price at 0.97). So an intent below the usual bar
  * still settles when (a) it is the top label by a clear margin and (b) its own
  * detail question settles at the FULL bar on a real label, not `none`.
  *
@@ -77,7 +99,8 @@ function corroborated(readings: Readings, min: number): boolean {
   const real = (r: ChoiceReading<string> | null) => settles(r, min) && r!.choice !== 'none';
   switch (intent.choice) {
     case 'priority':
-      return intent.margin >= SETTLE.margin && real(readings.priority);
+      // Its detail questions are the yes/no wants: at least one a clear yes.
+      return intent.margin >= SETTLE.margin && [readings.wantsPrice, readings.wantsQuality, readings.wantsLocation].some((w) => decided(w) === true);
     case 'ask_hotels':
       return intent.margin >= SETTLE.answerMargin && (real(readings.fact) || real(readings.superlative));
     case 'ask_search':
@@ -134,9 +157,14 @@ export type RouteDecision =
   | { kind: 'ui'; intent: Intent; hint: UiHint }
   | { kind: 'line'; intent: Intent; line: 'greeting' }
   | { kind: 'answer'; intent: Intent; plan: AnswerPlan }
+  /** "I want to stay on East Manor": be close to a named place. The place is looked up in code (server/nearInWords.ts). */
+  | { kind: 'near'; intent: Intent }
   | { kind: 'defer'; reason: DeferReason };
 
 export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
+
+/** Intents a named place never turns into "be close to it". */
+const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'exclude', 'new_search', 'greeting_or_thanks'];
 
 export function routeMessage(input: {
   message: string;
@@ -155,6 +183,13 @@ export function routeMessage(input: {
   // Jev may wave a message through. Saying no is the agent's job.
   if (readings.tier.choice !== 'T1') return defer('not_about_search');
   if (readings.multiIntent === null || readings.multiIntent > SETTLE.multiIntentMax) return defer('multi_intent');
+  // Wanting to be somewhere AND naming the place is the intent, whatever the intent
+  // label says (Sam's "i wanna stay on east manor" read as must_have at 0.23, with
+  // wants_location 0.87 and names_place 0.86). Questions and actions on a listed
+  // hotel are excluded: "is the Westin close to the airport?" changes nothing.
+  if (decided(readings.wantsLocation) === true && decided(readings.namesPlace) === true && !NOT_NEAR.includes(readings.intent.choice)) {
+    return { kind: 'near', intent: readings.intent.choice };
+  }
   if (!settles(readings.intent, min) && !corroborated(readings, min)) return defer('intent_unsettled');
 
   const intent = readings.intent.choice;
@@ -169,10 +204,20 @@ export function routeMessage(input: {
       return { kind: 'line', intent, line: 'greeting' };
 
     case 'priority': {
-      if (!settles(readings.priority, min)) return defer('slot_ambiguous');
-      const p = readings.priority!.choice;
-      if (!(PRIORITY_KEYS as readonly string[]).includes(p)) return defer('slot_missing');
-      return { kind: 'actions', intent, actions: [{ type: 'set_priority', priority: p as PriorityKey }] };
+      // A named place needs a lookup the router cannot do: the agent resolves it.
+      const place = decided(readings.namesPlace);
+      if (place !== false) return defer(place ? 'intent_for_agent' : 'slot_ambiguous');
+      const wants: Array<[PriorityKey, boolean | null]> = [
+        ['cheapest', decided(readings.wantsPrice)],
+        ['nicest', decided(readings.wantsQuality)],
+        ['closest', decided(readings.wantsLocation)],
+      ];
+      // Every one read decisively, or the agent decides: a half-read set is not a set.
+      if (wants.some(([, w]) => w === null)) return defer('slot_ambiguous');
+      const picked = wants.filter(([, w]) => w).map(([k]) => k);
+      if (picked.length === 0) return defer('slot_missing');
+      const priorities = addsToCurrent(message) ? [...new Set([...(state.priorities ?? []), ...picked])] : picked;
+      return { kind: 'actions', intent, actions: [{ type: 'set_priorities', priorities }] };
     }
 
     case 'price_cap': {

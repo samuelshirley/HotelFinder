@@ -1,0 +1,80 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "pt-PT",
+        "longText": "Ribeira",
+        "shortText": "Ribeira",
+        "types": [
+          "neighborhood",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Sé",
+        "shortText": "Sé",
+        "types": [
+          "administrative_area_level_3",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "pt",
+        "longText": "Porto",
+        "shortText": "Porto",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Portugal",
+        "shortText": "PT",
+        "types": [
+          "country",
+          "political"
+        ]
+      }
+    ],
+    "countryCode": "PT",
+    "displayName": "Ribeira",
+    "location": {
+      "latitude": 41.1432682,
+      "longitude": -8.610313500000002
+    },
+    "types": [
+      "neighborhood",
+      "political"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 41.24703806032518,
+        "longitude": -8.501833332573291
+      },
+      "low": {
+        "latitude": 41.03989538093652,
+        "longitude": -8.716485231398986
+      }
+    }
+  }
+}

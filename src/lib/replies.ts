@@ -1,10 +1,11 @@
 import type { MustHave } from '@/lib/amenities';
 import type { Answer, RankValue } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
-import type { PriorityKey } from '@/lib/finder/rank';
+import { canonicalPriorities, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
+import { centreLabel, placeName } from '@/lib/finder/searchPlan';
 import type { SearchField, Superlative } from '@/lib/router/catalogue';
 import type { FactAsk } from '@/lib/router/route';
-import type { Action } from '@/lib/store/actions';
+import type { ResolvedAction } from '@/lib/store/actions';
 import type { Applied, Rejection, SearchState } from '@/lib/store/reduce';
 
 /**
@@ -31,18 +32,42 @@ export const MUST_HAVE_LABEL: Record<MustHave, string> = {
   breakfast_included: 'breakfast included',
 };
 
-export const PRIORITY_LINE: Record<PriorityKey, string> = {
-  cheapest: 'Lowest price first.',
-  closest: 'Closest first.',
-  nicest: 'Best rated first.',
-  basic: 'Cheapest well-reviewed first.',
+/** The chip words for each priority (docs/onboarding.md §3.1). "Close to" takes its target. */
+export const PRIORITY_CHIP: Record<PriorityKey, string> = {
+  cheapest: 'Low price',
+  nicest: 'Great reviews',
+  closest: 'Close to',
 };
+
+/** Where "close" is measured from, in words: the place named, else the destination's centre (or the point itself). */
+export function nearLabel(stay: { destinationText: string; destKind: 'area' | 'point' | null; near: { label: string } | null }): string {
+  if (stay.near) return stay.near.label;
+  return stay.destKind === 'point' ? placeName(stay.destinationText) : centreLabel(stay.destinationText);
+}
+
+/** "Low price · Close to Annecy centre", or "Balanced" for no preference. */
+export function prioritiesLabel(priorities: readonly PriorityKey[], near: string): string {
+  const set = canonicalPriorities(priorities);
+  if (set.length === 0) return 'Balanced';
+  return set.map((k) => (k === 'closest' ? `Close to ${near}` : PRIORITY_CHIP[k])).join(' · ');
+}
+
+/** The reply line for a changed set of priorities. */
+export function prioritiesLine(priorities: readonly PriorityKey[], near: string): string {
+  const set = canonicalPriorities(priorities);
+  if (set.length === 0) return 'Balanced: price, rating and distance.';
+  const words: Record<PriorityKey, string> = { cheapest: 'low price', nicest: 'great reviews', closest: `being close to ${near}` };
+  const parts = set.map((k) => words[k]);
+  return `Ranked for ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`}.`;
+}
 
 export const REJECTION_LINE: Record<Rejection, string> = {
   dates_in_past: 'Those dates are in the past.',
   checkout_not_after_checkin: 'Check-out has to be after check-in.',
   stay_too_long: 'Stays are limited to 30 nights.',
   more_rooms_than_adults: 'Each room needs at least one adult.',
+  near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
+  place_unavailable: 'The place lookup did not answer. Try again in a moment.',
   no_change: 'That is already how the search is set.',
 };
 
@@ -72,10 +97,14 @@ export function formatGuests(adults: number, childrenAges: number[], rooms: numb
   return parts.join(', ');
 }
 
-function actionLine(action: Action, state: SearchState, currency: string): string {
+function actionLine(action: ResolvedAction, state: SearchState, currency: string): string {
   switch (action.type) {
-    case 'set_priority':
-      return PRIORITY_LINE[action.priority];
+    case 'set_priorities':
+      return prioritiesLine(action.priorities, nearLabel(state.stay));
+    case 'set_near':
+      return `Close to ${action.near.label}.`;
+    case 'clear_near':
+      return `Close to ${nearLabel(state.stay)} again.`;
     case 'set_price_cap':
       return action.perNightMinor === null ? 'Price cap removed.' : `Capped at ${formatMoney(action.perNightMinor, currency)} a night.`;
     case 'add_must_have':
@@ -150,6 +179,7 @@ export const FIXED_LINES = {
   router_unavailable: 'The router that handles simple changes did not answer, so nothing was changed. Send that again.',
   router_not_configured: 'Messages are handled by Jev, and JEV_API_KEY is not set on this server, so nothing was changed.',
   use_the_form: 'Pick one of the options above to continue.',
+  tap_the_nights: 'That did not give two dates. Tap the first night above, or say it another way: 12 to 15 March.',
   agent_unavailable: 'The assistant did not answer, so nothing was changed. Send that again.',
   agent_misconfigured: 'The assistant is set up wrongly on this server (its API key was refused), so nothing was changed. Sending again will not help.',
   agent_not_configured: 'That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.',
@@ -165,7 +195,8 @@ export const FIXED_LINES = {
  * ---------------------------------------------------------------------- */
 
 const nightsText = (n: number) => `${n} night${n === 1 ? '' : 's'}`;
-const fromText = (from: 'place' | 'search_centre') => (from === 'place' ? 'the place you named' : 'the middle of the results');
+const fromText = (from: DistanceFrom, label: string | null) =>
+  from === 'search_centre' ? 'the middle of the results' : (label ?? (from === 'place' ? 'the place you named' : 'the place you searched'));
 const km = (v: number) => (v < 1 ? `${Math.round(v * 1000)} m` : `${v.toFixed(1)} km`);
 const starsText = (n: number) => `${n} star${n === 1 ? '' : 's'}`;
 const count = (n: number) => n.toLocaleString('en');
@@ -227,7 +258,7 @@ function rankValueText(v: RankValue, currency: string): string {
     case 'price':
       return `${formatMoney(v.totalMinor, currency)} for ${nightsText(v.nights)}`;
     case 'distance':
-      return `${km(v.km)} from ${fromText(v.from)}`;
+      return `${km(v.km)} from ${fromText(v.from, v.label)}`;
     case 'rating':
       return v.reviews === null ? `rated ${v.rating}` : `rated ${v.rating} from ${count(v.reviews)} reviews`;
     case 'reviews':
@@ -243,7 +274,7 @@ function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['
   const place = `Searching ${s.destinationText}.`;
   const cap = s.priceCapMinor === null ? null : `Capped at ${formatMoney(s.priceCapMinor, currency)} a night.`;
   const musts = s.mustHaves.length === 0 ? null : `Must have ${listNames(s.mustHaves.map((m) => MUST_HAVE_LABEL[m]))}.`;
-  const order = s.priority === null ? null : PRIORITY_LINE[s.priority];
+  const order = s.priorities === null ? null : prioritiesLine(s.priorities, s.nearLabel);
   switch (field) {
     case 'dates':
       return dates;
@@ -283,7 +314,7 @@ export function answerLine(a: Answer, currency: string): string {
     case 'room':
       return `${a.name}: the price is for ${a.roomName}.`;
     case 'distance':
-      return `${a.name}: ${km(a.km)} from ${fromText(a.from)}.`;
+      return `${a.name}: ${km(a.km)} from ${fromText(a.from, a.label)}.`;
     case 'facility':
       // "Lists", not "has": this is the supplier's facility list, and its silence is not a no.
       return a.listed ? `${a.name} lists ${MUST_HAVE_LABEL[a.amenity]}.` : `${a.name} does not list ${MUST_HAVE_LABEL[a.amenity]}.`;

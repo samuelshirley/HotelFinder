@@ -8,6 +8,27 @@
       "when": 1794415475333,
       "tag": "0000_free_thena",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794419623444,
+      "tag": "0001_white_big_bertha",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794425440961,
+      "tag": "0002_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794427679754,
+      "tag": "0003_detail_offers",
+      "breakpoints": true
     }
   ]
 }

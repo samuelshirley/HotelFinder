@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { MUST_HAVES, type MustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
-import { PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
+import { canonicalPriorities, PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
 
 /**
@@ -18,7 +18,13 @@ export type ScannedTrip = {
   guests?: { adults: number; childrenAges: number[]; rooms: number };
   priceCapMinor?: number;
   mustHaves?: MustHave[];
-  priority?: PriorityKey;
+  /** What "best" means, when the message said: a set, canonical order. */
+  priorities?: PriorityKey[];
+  /**
+   * Prefill only, never a stay: what the words said about when without
+   * giving two dates ("3 nights in March"). It opens the nights card there.
+   */
+  datesHint?: { nights?: number; month?: string };
 };
 
 const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -33,7 +39,8 @@ const rawScan = z
     rooms: z.number().nullish(),
     max_per_night: z.number().nullish(),
     must_haves: z.array(z.string()).nullish(),
-    priority: z.string().nullish(),
+    priorities: z.array(z.string()).nullish(),
+    month: z.string().nullish(),
   })
   .passthrough();
 
@@ -85,6 +92,15 @@ export function validateScan(raw: unknown, today: string, currency: string): Sca
   const musts = [...new Set((r.must_haves ?? []).filter((m): m is MustHave => (MUST_HAVES as readonly string[]).includes(m)))];
   if (musts.length) out.mustHaves = musts;
 
-  if (r.priority && (PRIORITY_KEYS as readonly string[]).includes(r.priority)) out.priority = r.priority as PriorityKey;
+  // A hint only when no date was written at all: a date that failed its checks means the length is a guess too.
+  if (!out.checkIn && r.check_in == null && r.check_out == null) {
+    const hint: { nights?: number; month?: string } = {};
+    if (typeof r.nights === 'number' && Number.isInteger(r.nights) && r.nights >= 1 && r.nights <= MAX_NIGHTS) hint.nights = r.nights;
+    if (r.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(r.month) && r.month >= today.slice(0, 7)) hint.month = r.month;
+    if (hint.nights || hint.month) out.datesHint = hint;
+  }
+
+  const priorities = canonicalPriorities((r.priorities ?? []).filter((p): p is PriorityKey => (PRIORITY_KEYS as readonly string[]).includes(p)));
+  if (priorities.length) out.priorities = priorities;
   return out;
 }
