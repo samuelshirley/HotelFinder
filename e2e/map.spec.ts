@@ -46,13 +46,15 @@ test('the map over the list', async ({ page }) => {
   // The first choice always shows its price, and no two pins cover each other:
   // where two labels would, the worse-ranked one shows only its rank.
   await expect(pins.first()).toHaveAttribute('data-compact', 'false');
-  const overlaps = await pins.evaluateAll((els) => {
-    const r = els.map((el) => el.getBoundingClientRect());
-    const out: string[] = [];
-    for (let a = 0; a < r.length; a++) for (let b = a + 1; b < r.length; b++) if (r[a].left < r[b].right && r[b].left < r[a].right && r[a].top < r[b].bottom && r[b].top < r[a].bottom) out.push(`${a + 1}+${b + 1}`);
-    return out;
-  });
-  expect(overlaps).toEqual([]);
+  const overlaps = () =>
+    pins.evaluateAll((els) => {
+      const r = els.map((el) => el.getBoundingClientRect());
+      const out: string[] = [];
+      for (let a = 0; a < r.length; a++) for (let b = a + 1; b < r.length; b++) if (r[a].left < r[b].right && r[b].left < r[a].right && r[a].top < r[b].bottom && r[b].top < r[a].bottom) out.push(`${a + 1}+${b + 1}`);
+      return out;
+    });
+  // Once the first camera move has settled (it takes 600 ms).
+  await expect.poll(overlaps, { timeout: 10_000 }).toEqual([]);
   // All five pins are inside the band after the first fit.
   for (let i = 0; i < 5; i++) {
     const b = (await pins.nth(i).boundingBox())!;
