@@ -56,6 +56,15 @@ the search → new search. `e2e/search.spec.ts`.
   to measure the settle rate: `docs/jev-expansion.md`.
 - macOS: Sam ran it (2026-11-11 18:18); the form works there.
 
+## Cost per search (2026-11-12, branch `admin-cost-view`)
+
+`/admin`: median, p90 and max cost per search over 24h/7d/30d, the most
+expensive searches with a Haiku / Jev / LiteAPI split, and each search's
+ledger. LiteAPI calls are now priced (place calls $0.01 each, booking flow
+free, hotel content unpriced); place lookups made before a search are
+charged to it; sign-in emails are metered. Measured ~$0.020 per search, a
+floor while content calls are unpriced. All of it: `docs/usage.md`.
+
 ## Notes for whoever resumes
 
 - Tests: `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc --noEmit`,

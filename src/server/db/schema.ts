@@ -461,6 +461,12 @@ export const usageEvents = pgTable(
     /** Set null on account deletion: spend history survives anonymously. */
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     sessionId: uuid('session_id').references(() => searchSessions.id, { onDelete: 'set null' }),
+    /**
+     * The anonymous cookie, for calls made before a search exists (the trip
+     * box's place lookups). Lets the admin view charge them to the search that
+     * visitor started next (docs/usage.md).
+     */
+    anonId: text('anon_id'),
     /** 'anthropic', 'jev', 'liteapi:search', 'liteapi:prebook', 'google:places', … */
     provider: text('provider').notNull(),
     model: text('model'),
@@ -479,6 +485,7 @@ export const usageEvents = pgTable(
   (t) => ({
     byUser: index('usage_events_user_idx').on(t.userId, t.createdAt),
     bySession: index('usage_events_session_idx').on(t.sessionId, t.createdAt),
+    byAnon: index('usage_events_anon_idx').on(t.anonId, t.createdAt),
     byProvider: index('usage_events_provider_idx').on(t.provider, t.createdAt),
   }),
 );

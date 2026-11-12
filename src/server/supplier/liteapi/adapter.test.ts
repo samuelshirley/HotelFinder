@@ -76,7 +76,14 @@ describe('searchAvailability', () => {
     expect(result.value.offers[0].fetchedAt).toBe(NOW);
     expect(result.value.offers[0].marginPct).toBe(3);
     expect(events).toEqual([
-      { provider: 'liteapi:search', latencyMs: expect.any(Number), success: true, errorMessage: null, meta: { status: 200, hotels: 20, offers: 20 } },
+      {
+        provider: 'liteapi:search',
+        latencyMs: expect.any(Number),
+        success: true,
+        errorMessage: null,
+        costMicrocents: 0,
+        meta: { status: 200, hotels: 20, offers: 20, pricing: 'free', sandbox: true },
+      },
     ]);
   });
 
@@ -155,6 +162,23 @@ describe('transport failures', () => {
       error: { kind: 'http', status: 503, code: null, message: 'HTTP 503', retryable: true },
     });
     expect(await adapter(page(403)).supplier.searchPlaces('x')).toMatchObject({ ok: false, error: { kind: 'http', retryable: false } });
+  });
+
+  it('meters a place search at its list price, on success and on failure (src/lib/supplierPrices.ts)', async () => {
+    const ok = adapter(replay('places-porto').fetchImpl);
+    expect((await ok.supplier.searchPlaces('Porto')).ok).toBe(true);
+    expect(ok.events).toEqual([expect.objectContaining({ provider: 'liteapi:places', success: true, costMicrocents: 1_000_000, meta: expect.objectContaining({ pricing: 'per_call', sandbox: true }) })]);
+
+    const refused = adapter(async () => new Response('<html>nope</html>', { status: 503 }));
+    await refused.supplier.searchPlaces('Porto');
+    expect(refused.events).toEqual([expect.objectContaining({ provider: 'liteapi:places', success: false, costMicrocents: 1_000_000, meta: expect.objectContaining({ pricing: 'per_call' }) })]);
+  });
+
+  it('a production key is marked as not sandbox', async () => {
+    const events: SupplierMeterEvent[] = [];
+    const prod = createLiteApiAdapter({ apiKey: 'prod_not-real', fetchImpl: replay('places-porto').fetchImpl, now: () => NOW, meter: (e) => void events.push(e) });
+    await prod.searchPlaces('Porto');
+    expect(events[0].meta).toMatchObject({ pricing: 'per_call', sandbox: false });
   });
 
   it('a 200 that is not JSON is bad_json', async () => {
