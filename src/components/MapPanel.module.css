@@ -4,6 +4,9 @@
 
 /* Rank and price, always shown: the rank joins the pin to its card. */
 .pin { height: 28px; padding: 0 10px; border: 0; border-radius: 14px; background: var(--tp-primary); color: #161826; font: 700 13px/28px var(--font); white-space: nowrap; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px #161826; cursor: pointer; }
+/* Its label would cover a better-ranked pin: only the rank, until it is under the pointer or pressed. */
+.pin[data-compact='true']:not([data-hover='true']):not([data-selected='true']):not(:focus-visible) { width: 28px; padding: 0; text-align: center; }
+.pin[data-compact='true']:not([data-hover='true']):not([data-selected='true']):not(:focus-visible) .pinPrice { display: none; }
 .pin[data-hover='true'] { background: var(--tp-primary-hover); }
 .pin[data-selected='true'] { background: var(--tp-accent-300); box-shadow: 0 0 0 2px #161826, 0 0 0 4px var(--tp-accent-300); }
 .pin:focus-visible { outline: 2px solid var(--tp-text); outline-offset: 3px; }

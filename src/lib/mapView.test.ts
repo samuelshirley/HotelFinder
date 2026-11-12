@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fitKeyFor, fitPoints, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
+import { layoutPins, fitKeyFor, fitPoints, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
 
 const row = (id: string, rank: number, lat: number | null, lng: number | null, over: Record<string, unknown> = {}) => ({
   rank,
@@ -86,5 +86,46 @@ describe('when the camera may move', () => {
   it('a different set, or a new anchor, changes it', () => {
     expect(fitKeyFor([a], null)).not.toBe(fitKeyFor([a, b], null));
     expect(fitKeyFor([a, b], { latitude: 41.14, longitude: -8.61 })).not.toBe(fitKeyFor([a, b], null));
+  });
+});
+
+describe('labels never cover each other', () => {
+  const box = (id: string, rank: number | null, x: number, y: number) => ({ id, rank, x, y, width: 102, height: 28 });
+  const rects = (boxes: ReturnType<typeof box>[]) => {
+    const places = layoutPins(boxes);
+    return boxes.flatMap((b) => {
+      const p = places.get(b.id);
+      return p ? [{ id: b.id, x: b.x, y: b.y + p.dy, w: p.compact ? 28 : b.width, h: b.height }] : [];
+    });
+  };
+  const overlapping = (rs: ReturnType<typeof rects>) =>
+    rs.flatMap((a, i) => rs.slice(i + 1).filter((b) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h).map((b) => `${a.id}+${b.id}`));
+
+  it('the Porto case: 2 under 3, and 1, 4 and 5 within 12 px — all five readable, the better rank where it belongs', () => {
+    // Centres as measured in the browser on 12 Nov 2026.
+    const boxes = [box('p1', 1, 610, 403), box('p2', 2, 538, 256), box('p3', 3, 540, 258), box('p4', 4, 609, 393), box('p5', 5, 612, 405)];
+    const places = layoutPins(boxes);
+    expect(places.get('p1')).toEqual({ dy: 0, compact: false });
+    expect(places.get('p2')).toEqual({ dy: 0, compact: false });
+    expect([...places.values()].every((p) => !p.compact)).toBe(true);
+    expect(overlapping(rects(boxes))).toEqual([]);
+  });
+
+  it('pins apart stay exactly where their hotels are', () => {
+    const places = layoutPins([box('a', 1, 100, 100), box('b', 2, 300, 100), box('c', 3, 100, 140)]);
+    expect([...places.values()]).toEqual([{ dy: 0, compact: false }, { dy: 0, compact: false }, { dy: 0, compact: false }]);
+  });
+
+  it('more hotels on one spot than there are slots: the rest show their rank alone', () => {
+    const boxes = Array.from({ length: 7 }, (_, i) => box(`h${i + 1}`, i + 1, 200, 200));
+    const places = layoutPins(boxes);
+    expect(boxes.filter((b) => !places.get(b.id)!.compact).map((b) => b.id)).toEqual(['h1', 'h2', 'h3', 'h4', 'h5']);
+    expect(places.get('h6')!.compact).toBe(true);
+  });
+
+  it('near-misses are rings, not labels: never moved, never in the way', () => {
+    const places = layoutPins([box('m', null, 100, 100), box('a', 1, 100, 100)]);
+    expect(places.has('m')).toBe(false);
+    expect(places.get('a')).toEqual({ dy: 0, compact: false });
   });
 });

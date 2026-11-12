@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Map as MlMap, Marker as MlMarker } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 
-import { fitKeyFor, fitPoints, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
+import { layoutPins, fitKeyFor, fitPoints, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
 import styles from './MapPanel.module.css';
@@ -45,12 +45,32 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const lib = useRef<typeof import('maplibre-gl') | null>(null);
-  const markers = useRef(new Map<string, { marker: MlMarker; el: HTMLButtonElement }>());
+  const markers = useRef(new Map<string, { marker: MlMarker; el: HTMLButtonElement; rank: number | null; point: MapPoint; fullWidth: number }>());
   const extras = useRef<MlMarker[]>([]);
   const userMoved = useRef(false);
   const lastFit = useRef<{ key: string; anchorKey: string; centre: MapPoint | null }>({ key: '', anchorKey: '', centre: null });
   const handlers = useRef({ onHover, onSelect });
   handlers.current = { onHover, onSelect };
+
+  /** Labels that would cover each other are stacked, or as a last resort shown as a rank alone (lib/mapView.ts layoutPins). */
+  const declutter = () => {
+    const m = map.current;
+    if (!m) return;
+    const boxes = [...markers.current].map(([id, k]) => {
+      const at = m.project([k.point.longitude, k.point.latitude]);
+      return { id, rank: k.rank, x: at.x, y: at.y, width: k.fullWidth, height: 28 };
+    });
+    const places = layoutPins(boxes);
+    for (const [id, { el, marker }] of markers.current) {
+      const place = places.get(id);
+      el.dataset.compact = place?.compact ? 'true' : 'false';
+      const dy = place?.dy ?? 0;
+      // Only when it changes: setOffset repositions the marker.
+      if (marker.getOffset().y !== dy) marker.setOffset([0, dy]);
+    }
+  };
+  const declutterRef = useRef(declutter);
+  declutterRef.current = declutter;
 
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -92,6 +112,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
           const { clientWidth: w, clientHeight: h } = m.getContainer();
           setAway(Math.hypot(at.x - w / 2, at.y - h / 2) > Math.min(w, h) * 0.35);
         };
+        m.on('move', () => declutterRef.current());
         m.on('dragend', tookOver);
         m.on('zoomend', tookOver);
         m.on('click', (e) => {
@@ -130,7 +151,13 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       el.dataset.pin = pin.id;
       if (pin.rank !== null) {
         el.className = styles.pin;
-        el.textContent = pin.price ? `${pin.rank} · ${pin.price}` : String(pin.rank);
+        el.append(String(pin.rank));
+        if (pin.price) {
+          const price = document.createElement('span');
+          price.className = styles.pinPrice;
+          price.textContent = ` · ${pin.price}`;
+          el.appendChild(price);
+        }
         el.setAttribute('aria-label', `${pin.rank}. ${pin.name}${pin.price ? `, ${pin.price}` : ''}`);
       } else {
         el.className = styles.miss;
@@ -149,7 +176,8 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         handlers.current.onSelect(pin.id);
       });
       const marker = new ml.Marker({ element: el, anchor: 'center' }).setLngLat([pin.longitude, pin.latitude]).addTo(m);
-      markers.current.set(pin.id, { marker, el });
+      // Measured once, with the full label, before anything is made compact.
+      markers.current.set(pin.id, { marker, el, rank: pin.rank, point: pin, fullWidth: el.offsetWidth });
     }
 
     if (anchor) {
@@ -194,9 +222,10 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         userMoved.current = false;
         setMoved(false);
         setAway(false);
-        m.fitBounds(bounds, { padding: 56, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+        m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
       }
     }
+    declutterRef.current();
   }, [ready, pins, anchor, ringKm]);
 
   // Hover and selection are styles on pins that already exist.
@@ -204,8 +233,9 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     for (const [id, { el }] of markers.current) {
       el.dataset.hover = id === hovered ? 'true' : 'false';
       el.dataset.selected = id === selected ? 'true' : 'false';
-      el.style.zIndex = id === selected ? '3' : id === hovered ? '2' : '';
     }
+    // The best rank on top, so the first choice is never the one hidden; the pin in hand above them all.
+    for (const [id, { el, rank }] of markers.current) el.style.zIndex = String(id === hovered ? 300 : id === selected ? 200 : rank === null ? 1 : 100 - Math.min(rank, 90));
   }, [hovered, selected, pins, ready]);
 
   // A hotel brought into view: pan only if its pin is out of sight, never zoom.
@@ -230,7 +260,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     setMoved(false);
     setAway(false);
     setPicked(null);
-    m.fitBounds(bounds, { padding: 56, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+    m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
   };
 
   const searchHere = () => {

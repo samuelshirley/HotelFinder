@@ -38,11 +38,21 @@ test('the map over the list', async ({ page }) => {
   expect(band.height).toBeLessThanOrEqual(320);
   expect(Math.round(band.width)).toBe(Math.round((await page.getByRole('region', { name: 'Hotels' }).boundingBox())!.width));
 
-  // Every pin says its rank and the same total its card shows.
+  // Every pin holds its rank and the same total its card shows.
   for (let i = 0; i < 5; i++) {
     const total = (await cards.nth(i).locator('p').filter({ hasText: /^€[\d,.]+$/ }).first().textContent())!.trim();
     await expect(pins.nth(i)).toHaveText(`${i + 1} · ${total}`);
   }
+  // The first choice always shows its price, and no two pins cover each other:
+  // where two labels would, the worse-ranked one shows only its rank.
+  await expect(pins.first()).toHaveAttribute('data-compact', 'false');
+  const overlaps = await pins.evaluateAll((els) => {
+    const r = els.map((el) => el.getBoundingClientRect());
+    const out: string[] = [];
+    for (let a = 0; a < r.length; a++) for (let b = a + 1; b < r.length; b++) if (r[a].left < r[b].right && r[b].left < r[a].right && r[a].top < r[b].bottom && r[b].top < r[a].bottom) out.push(`${a + 1}+${b + 1}`);
+    return out;
+  });
+  expect(overlaps).toEqual([]);
   // All five pins are inside the band after the first fit.
   for (let i = 0; i < 5; i++) {
     const b = (await pins.nth(i).boundingBox())!;
@@ -54,7 +64,7 @@ test('the map over the list', async ({ page }) => {
   await page.screenshot({ path: 'test-results/10-map-band.png' });
 
   // A pin under the pointer puts a border on its card and brings the card into view.
-  await pins.nth(4).hover({ force: true });
+  await pins.nth(4).hover();
   await expect(cards.nth(4)).toHaveAttribute('data-marked', 'hover');
   await expect(cards.nth(4)).toBeInViewport();
   await page.screenshot({ path: 'test-results/11-pin-hover.png' });
@@ -63,7 +73,7 @@ test('the map over the list', async ({ page }) => {
   await expect(pins.nth(3)).toHaveAttribute('data-hover', 'true');
   await expect(cards.nth(4)).not.toHaveAttribute('data-marked', 'hover');
   // A pressed pin stays marked after the pointer leaves, and opens nothing.
-  await pins.nth(1).click({ force: true });
+  await pins.nth(1).click();
   await page.mouse.move(5, 5);
   await expect(cards.nth(1)).toHaveAttribute('data-marked', 'selected');
   await expect(page.getByRole('dialog')).toHaveCount(0);

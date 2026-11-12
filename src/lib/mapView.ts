@@ -114,3 +114,43 @@ export function ringPolygon(centre: MapPoint, km: number, steps = 64): Array<[nu
   }
   return ring;
 }
+
+export type PinBox = { id: string; rank: number | null; x: number; y: number; width: number; height: number };
+export type PinPlace = { dy: number; compact: boolean };
+
+/** A pin drawn small: just its rank, in a circle this wide. */
+export const COMPACT_PX = 28;
+/** Where a label that would cover another is tried instead, in order: just below, just above, then one further each way. */
+export const STACK_OFFSETS = [32, -32, 64, -64] as const;
+
+/**
+ * Where each label goes so that no two cover each other. Seen in the browser
+ * on the first real search (Porto, 12 Nov 2026): "2 · €119" sat entirely
+ * under "3 · €125", and three hotels 10 px apart were one unreadable pile, so
+ * pressing a pin selected the wrong hotel.
+ *
+ * Better ranks are placed first, on their own spot. A label that would touch
+ * one already placed is stacked just below or above it (hotels in one street
+ * read as a stack, and zooming in pulls them apart). Only when no slot is
+ * free does it shrink to its rank alone; the price comes back on hover.
+ * `x`,`y` are the pin's centre on screen, `width` its full label.
+ */
+export function layoutPins(boxes: readonly PinBox[], gap = 2): Map<string, PinPlace> {
+  const order = [...boxes].filter((b) => b.rank !== null).sort((a, b) => a.rank! - b.rank!);
+  const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const out = new Map<string, PinPlace>();
+  const free = (x: number, y: number, w: number, h: number) =>
+    !placed.some((p) => Math.abs(p.x - x) * 2 < p.w + w + gap * 2 && Math.abs(p.y - y) * 2 < p.h + h + gap * 2);
+  for (const b of order) {
+    const dy = [0, ...STACK_OFFSETS].find((d) => free(b.x, b.y + d, b.width, b.height));
+    if (dy !== undefined) {
+      out.set(b.id, { dy, compact: false });
+      placed.push({ x: b.x, y: b.y + dy, w: b.width, h: b.height });
+      continue;
+    }
+    const small = [0, ...STACK_OFFSETS].find((d) => free(b.x, b.y + d, COMPACT_PX, b.height)) ?? 0;
+    out.set(b.id, { dy: small, compact: true });
+    placed.push({ x: b.x, y: b.y + small, w: COMPACT_PX, h: b.height });
+  }
+  return out;
+}
