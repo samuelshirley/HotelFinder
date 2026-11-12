@@ -1,0 +1,38 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+vio,C,1,READ,"Home: widget prefilled with the last search (Lisbon, Mar 12 - 15, 2 adults)",,,yes,0
+vio,C,2,CLICK,Destination field,,,yes,1
+vio,C,3,CLICK,Clear (x),,,yes,2
+vio,C,4,TYPE,"""Barcelona airport""",U: destination text,,yes,3
+vio,C,5,READ,"6 suggestions: B&B Barcelona Airport Hotel (Property); ""Barcelona (BLA-General Jose Antonio Anzoategui Intl.), Barcelona, Anzoategui, Venezuela"" (Airport); Airhostel Barcelona Airport 24h; Four Points by Sheraton Barcelona Airport; Salles Hotel Ciutat del Prat Barcelona Airport; Aerohotel Barcelona Airport 24h. BCN El Prat is NOT offered.","G: the only ""Airport"" row is in Venezuela",,yes,3
+vio,C,6,CLICK,"The ""Airport"" row (Barcelona BLA, Venezuela)","U: wrong place, easy to pick when scanning for the word Airport",,yes,4
+vio,C,7,CLICK,Previous month,,,yes,5
+vio,C,8,CLICK,Previous month,,,yes,6
+vio,C,9,CLICK,Previous month,,,yes,7
+vio,C,10,CLICK,Previous month (Nov/Dec 2026),,,yes,8
+vio,C,11,CLICK,Fri 20 Nov,U: check-in,,yes,9
+vio,C,12,CLICK,Sat 21 Nov,U: check-out,,yes,10
+vio,C,13,CLICK,Apply - 1 night,,,yes,11
+vio,C,14,CLICK,Search,U: submits search,,yes,12
+vio,C,15,WAIT,Results load,,,yes,12
+vio,C,16,READ,"Results for Barcelona / Lecheria, VENEZUELA: Grand Hotel Victoria EUR129, apartments EUR35, EUR48",G: wrong country; user must notice from the map,,yes,12
+vio,C,17,CLICK,Destination field in the results bar,,,yes,13
+vio,C,18,TYPE,"select all + delete + ""Barcelona El Prat"" -> text appended to the old value, suggestions show Venezuela again",,,"no (logged, not counted)",13
+vio,C,19,CLICK,Clear (x),,,yes,14
+vio,C,20,TYPE,"""BCN""",U: destination text,,yes,15
+vio,C,21,READ,Suggestions: Barcelona (City); Barcelona (BCN-Barcelona Intl.) (Airport); Travelodge BCN Cornella; ...,,,yes,15
+vio,C,22,CLICK,"""Barcelona (BCN-Barcelona Intl.)""; calendar keeps 20 - 21 Nov",U: place,,yes,16
+vio,C,23,CLICK,"""Search - 1 night""",U: submits search,,yes,17
+vio,C,24,WAIT,Results load,,first_results,yes,17
+vio,C,25,CLICK,"Sort -> ""Lowest price""",U: priority = cheap,,yes,18
+vio,C,26,WAIT,Reload,,,yes,18
+vio,C,27,READ,"Banner ""Your results include home rentals. Exclude hostels"". Cheapest: Casa Barcelo Camp Nou EUR45 (L'Hospitalet, by the football stadium, not the airport); Mucho Maxia Hostel Rural Urba EUR52; Hostal Parada. No km on cards.","G: cheapest-first ignores ""near the airport""",,yes,18
+vio,C,28,CLICK,"Sort -> ""Distance""",U: priority = near,,yes,19
+vio,C,29,WAIT,Reload,,,yes,19
+vio,C,30,READ,"Sleep&Fly EUR247 (El Prat); INNSiDE Aeropuerto EUR162 behind ""Unlock"" (sign-in); Centre Esplai Albergue EUR76 (vio rate, was EUR104); BAH Barcelona Airport Hotel EUR134 ""Unlock"". Still no km on cards.",G: user combines cheap + near by eye,filtered_results,yes,19
+vio,C,31,CLICK,"""View deal"" on Centre Esplai Albergue (vio rate; NEW TAB)",U: choice,,yes,20
+vio,C,32,READ,"Property page: ""Your selection: vio EUR76, free cancellation, book now pay later, breakfast""; Agoda EUR76; Expedia EUR104",,hotel_page,yes,20
+vio,C,33,CLICK,View rooms,,,yes,21
+vio,C,34,READ,"""Book on Vio"": room list, ""Your selection"" tag on the clicked rate, ""Freeze deal"" option",,,yes,21
+vio,C,35,CLICK,Book,U: rate,,yes,22
+vio,C,36,WAIT,"""Checking availability..."" then checkout",,,yes,22
+vio,C,37,READ,"secure.vio.com checkout: 15-minute price timer; Nov 20 - 21, Comfort Room with Garden View, breakfast, free cancellation before Nov 17; EUR66.21 + VAT EUR5.91 + city tax EUR3.52 at property = EUR75.63; Who's checking in (first, last, email, phone +34); special requests; Pay later on Nov 14 (default, ""Most popular"") or Pay now; card fields. No nationality field.",G: total EUR75.63; single page,checkout,yes,22

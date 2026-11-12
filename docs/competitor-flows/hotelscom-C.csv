@@ -1,0 +1,29 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+hotelscom,C,1,READ,"Home: carousel ""Pet-friendly accommodations in Lisbon"" (from history); widget prefilled Fri 12 - Mon 15 Mar, 2 people",G: stale dates from previous search,,yes,0
+hotelscom,C,2,CLICK,Destination field,,,yes,1
+hotelscom,C,3,TYPE,"""Barcelona airport""",U: destination text,,yes,2
+hotelscom,C,4,READ,"7 suggestions: Barcelona (BCN - El Prat), Spain [airport]; Barcelona Airport Hotel; Barcelona (BCN - all airports); Sleep & Fly; Salles Hotel Ciutat del Prat Barcelona Airport; Aeroport train station; Aerohotel",G: correct airport is first,,yes,2
+hotelscom,C,5,CLICK,"""Barcelona (BCN - El Prat), Spain""; calendar opens on Mar/Apr 2027",U: place,,yes,3
+hotelscom,C,6,CLICK,Previous month,,,yes,4
+hotelscom,C,7,CLICK,Previous month,,,yes,5
+hotelscom,C,8,CLICK,Previous month,,,yes,6
+hotelscom,C,9,CLICK,Previous month (now Nov/Dec 2026),,,yes,7
+hotelscom,C,10,CLICK,Fri 20 Nov,"U: check-in (""next Friday"" resolved by the user)",,yes,8
+hotelscom,C,11,CLICK,Sat 21 Nov,U: check-out,,yes,9
+hotelscom,C,12,READ,"Widget: ""Fri 20 Nov - Sat 21 Nov"", ""2 people, 1 room"" (kept from last search)",,,yes,9
+hotelscom,C,13,CLICK,Look for,U: submits search,,yes,10
+hotelscom,C,14,WAIT,Results load,,first_results,yes,10
+hotelscom,C,15,CLICK,Dismiss login popover (Esc),,,yes,11
+hotelscom,C,16,READ,"""More than 300 accommodations""; every card shows ""x km from El Prat (BCN)"": Barcelona Airport Hotel 1.7 km EUR166 member; Centre Esplai Hostel 1.5 km EUR96; INNSIDE by Melia 1.3 km EUR178; Salles 2.6 km EUR157",G: distance to the airport on every card,,yes,11
+hotelscom,C,17,CLICK,Sort dropdown,,,yes,12
+hotelscom,C,18,READ,"Options include ""Distance from the airport"" and ""Price (increasing)""",,,yes,12
+hotelscom,C,19,CLICK,"""Price (increasing)""",U: priority = cheap,,yes,13
+hotelscom,C,20,WAIT,Results reload,,,yes,13
+hotelscom,C,21,READ,Cheapest: Hotel El Castell 5.4 km EUR71 member / EUR78 (7.8); SG Marina 54 Apartments 4.2 km EUR74; SG Costa BCN Apartments 5.1 km EUR74; Royal Marina Gardens 4.1 km EUR76,G: cheapest-first drops the near-airport hotels; the user trades off by eye,filtered_results,yes,13
+hotelscom,C,22,CLICK,"""Hotel El Castell"" (NEW TAB)",U: choice,,yes,14
+hotelscom,C,23,READ,"Hotel page; sponsored cards for Hotel Arts Barcelona, ME Barcelona, Melia Sitges at the top",G: upsell ads on the hotel page,hotel_page,yes,14
+hotelscom,C,24,CLICK,Choose room,,,yes,15
+hotelscom,C,25,READ,"Room list with member prices and ""Book at a non-member price"" links",,,yes,15
+hotelscom,C,26,CLICK,"""Book at a non-member price"" (cheapest room)",U: rate,,yes,16
+hotelscom,C,27,WAIT,Checkout loads,,,yes,16
+hotelscom,C,28,READ,Checkout: identity + card form; Total EUR78.48 (card said EUR71),G: total,checkout,yes,16

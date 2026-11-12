@@ -1,0 +1,37 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+hotelscom,A,1,READ,"hotels.com redirects to es.hoteles.com; cookie banner ""Privacy first, adventure second"" (More settings / Reject All / Accept)",G: must choose before using the page,,yes,0
+hotelscom,A,2,CLICK,Reject All,U: consent choice,,yes,1
+hotelscom,A,3,READ,"Search widget: ""Where are you going?"" (empty) | dates PREFILLED Fri 13 Nov - Mon 16 Nov (next weekend, 3 nights) | ""2 people, 1 room"" | checkbox ""I travel for business"" | button ""Look for""",G: 2 of 3 fields already filled with guesses,,yes,1
+hotelscom,A,4,CLICK,Destination field,,,yes,2
+hotelscom,A,5,TYPE,"""Annecy""",U: destination text,,yes,3
+hotelscom,A,6,READ,"7 suggestions: Annecy (Haute-Savoie, France); Old town of Annecy; Lake Annecy; Annecy-le-Vieux; Annecy (NCY) airport; 2 train stations",G: candidate places with region and country,,yes,3
+hotelscom,A,7,CLICK,"""Annecy, Haute-Savoie, France""; calendar auto-opens (Nov/Dec; Exact dates / +-1 / +-2 / +-3 / +-7 days)",U: place,,yes,4
+hotelscom,A,8,CLICK,Wed 2 Dec (tester mis-tap; Tue 1 and Wed 2 are adjacent small targets),,,"no (logged, not counted)",4
+hotelscom,A,9,CLICK,Tue 1 Dec,U: check-in,,yes,5
+hotelscom,A,10,CLICK,Sun 6 Dec,"U: check-out (field reads ""Tue 1 Dec - Sun 6 Dec"")",,yes,6
+hotelscom,A,11,CLICK,"Travellers field ""2 people, 1 room""",,,yes,7
+hotelscom,A,12,READ,"Room 1: Adults 2 (-/+), Minors 0 ""From 0 to 17"" (-/+), ""Add another room"", ""Close""",G: party controls; no pet field,,yes,7
+hotelscom,A,13,CLICK,Adults minus -> 1,U: 1 adult,,yes,8
+hotelscom,A,14,CLICK,Close,,,yes,9
+hotelscom,A,15,CLICK,Look for,U: submits search,,yes,10
+hotelscom,A,16,WAIT,Results load (~4 s),,first_results,yes,10
+hotelscom,A,17,READ,"Login popover ""Save instantly with member pricing"" covers the sort control; ""254 accommodations""; ""The amount we receive affects our ranking.""; sort ""Recommendations for you""; left filter column","G: 254 results, unsorted for intent; ranking disclosed as commission-influenced",,yes,10
+hotelscom,A,18,CLICK,Dismiss popover (Esc),,,yes,11
+hotelscom,A,19,CLICK,Sort dropdown,,,yes,12
+hotelscom,A,20,READ,7 sort options: Recommended option for you; Price (increasing); Price (decreasing); Recommendations for the best deals; Distance from the city centre; Guest ratings + our selection; Accommodation rating,"G: one key per sort; no ""central AND well rated""",,yes,12
+hotelscom,A,21,CLICK,"""Distance from the city centre""",U: priority 1 = central,,yes,13
+hotelscom,A,22,SCROLL,"Left filter column down to ""Guest reviews""",,,yes,14
+hotelscom,A,23,CLICK,"""Excellent (9 or more) (89)""","U: priority 2 = well rated, as a hard cut",,yes,15
+hotelscom,A,24,SCROLL,Back to top of results,,,yes,16
+hotelscom,A,25,READ,90 accommodations. 1 Splendid Hotel Lac d'Annecy 0.2 km 9.2 EUR925/5n; 2 The Court of 6 0.4 km 9.2 EUR853; 3 The Pelican 0.5 km 9.4 EUR1076; 4 Hotel La Chapelle 1 km 10 EUR1191,"G: km from centre, rating, 5-night total on each card; user still has to weigh them",filtered_results,yes,16
+hotelscom,A,26,CLICK,"""The Court of 6"" (opens a NEW TAB)",U: choice,,yes,17
+hotelscom,A,27,READ,"Hotel page: photos, information, reviews, ""Choose room""",,hotel_page,yes,17
+hotelscom,A,28,CLICK,Choose room,,,yes,18
+hotelscom,A,29,READ,"4 room types. Each: cancellation radios (Non-refundable +EUR0 / Fully refundable before 29 Nov, book now pay later +EUR94 / Fully refundable +EUR94) and extras (No extras / Buffet breakfast +EUR27 a night); ""No charge will be made yet""",G: up to 4 x 3 x 2 combinations to read,,yes,18
+hotelscom,A,30,CLICK,"""Fully refundable before November 29th - Book now, pay later"" radio (Standard room)",U: rate,,yes,19
+hotelscom,A,31,SCROLL,Down to the Reserve button,,,yes,20
+hotelscom,A,32,CLICK,Reserve,,,yes,21
+hotelscom,A,33,READ,"Modal ""Your payment options"": Pay at the accommodation EUR947 / Pay now EUR947",G: second payment-timing choice,,yes,21
+hotelscom,A,34,CLICK,Pay now,U: payment timing,,yes,22
+hotelscom,A,35,WAIT,Checkout loads,,,yes,22
+hotelscom,A,36,READ,"Checkout: Who checks in (Name, Last name, Email, Country code +34, Phone, pre-ticked marketing box ""Uncheck this box if you do not want...""); Payment (card / PayPal / Google Pay / Apple Pay); REQUIRED ""Protect your trip"" insurance choice (EUR11.63 a night or Without insurance); Price: 5 nights EUR853.34 + taxes EUR85.34 + local tax EUR8.50 = EUR947.18. No nationality field.",G: total EUR947.18; U-to-come: 5 identity fields + card + insurance choice,checkout,yes,22

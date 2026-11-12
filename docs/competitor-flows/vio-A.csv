@@ -1,0 +1,26 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+vio,A,1,READ,"Home: ""Book like an insider""; one-line widget ""Where are you going?"" | Nov 11 | Nov 12 | 2 adults | search icon. Dates PREFILLED tonight -> tomorrow, 2 adults. App-store and Trustpilot ratings; ""Continue your search"".",G: 3 of 4 fields filled with guesses,,yes,0
+vio,A,2,CLICK,Destination field,,,yes,1
+vio,A,3,TYPE,"""Annecy""",U: destination text,,yes,2
+vio,A,4,READ,"6 suggestions, each typed: Annecy, France (City); Annecy Old Town (Area); Le Pelican (Property); Moxy Annecy (Property); Novotel Annecy Centre (Property); Aparthotel Adagio Annecy Centre (Property)",G: candidates labelled City / Area / Property,,yes,2
+vio,A,5,CLICK,"""Annecy, France - City""; two-month calendar auto-opens, footer ""Wed, Nov 11 - Thu, Nov 12 - Apply - 1 night""",U: place,,yes,3
+vio,A,6,CLICK,Tue 1 Dec,U: check-in,,yes,4
+vio,A,7,CLICK,"Sun 6 Dec (footer ""Tue, Dec 01 - Sun, Dec 06 - Search - 5 nights"")",U: check-out,,yes,5
+vio,A,8,CLICK,Guests field,,,yes,6
+vio,A,9,READ,"""Configure rooms"": ""Optimize for best price"" (default) / ""Configure rooms manually""; Adults 2; Children 0; button ""Search - 2 guests""",G: rooms are optimised for you by default,,yes,6
+vio,A,10,CLICK,Adults minus -> 1,U: 1 adult,,yes,7
+vio,A,11,CLICK,"""Search - 1 guest""",U: submits search,,yes,8
+vio,A,12,WAIT,Results load (list + map),,first_results,yes,8
+vio,A,13,READ,"Sort ""Best match"", ""Why results appear this way""; 17 filter chips (All filters, Price, Free cancellation, Pay later, 4 to 5-star, 8.0+ rating, Pool, Pet Friendly, Beach/Coast, Amenities, Meal plans, Review score, Traveler experience, Property type, Hotel star class, Neighborhood, Property brand); no result count; an inline survey card in the list",G: no count; distance not printed on cards,,yes,8
+vio,A,14,CLICK,Sort select,,,yes,9
+vio,A,15,READ,6 options: Best match; Lowest price; Top reviewed; Distance; Hotel star class low-high; high-low,G: one key per sort,,yes,9
+vio,A,16,CLICK,"""Distance""",U: priority 1 = central,,yes,10
+vio,A,17,WAIT,Reload,,,yes,10
+vio,A,18,CLICK,"""8.0+ rating"" chip","U: priority 2 = well rated, as a hard cut",,yes,11
+vio,A,19,WAIT,Reload,,,yes,11
+vio,A,20,READ,"Top: ""Le N 10 - Apartment of 200 sqm..."" Old Town 8.2 EUR329 a night (Expedia); ""Le Loft d'Annecy - Vision Luxe"" 9.x EUR594 behind ""Unlock"" (sign-in); ""Charming studio in the heart of the old town"" EUR162 (Airbnb). Apartments, not hotels; no km on the cards.",G: nightly price + source logo,filtered_results,yes,11
+vio,A,21,CLICK,"""Le N 10"" title (NEW TAB, vio property page)",U: choice,,yes,12
+vio,A,22,READ,"""Available deals"": one deal, Expedia, free cancellation, pay online, EUR329 a night; ""Sign in to see the best prices""",,hotel_page,yes,12
+vio,A,23,CLICK,View deal (NEW TAB: vio.com/ProviderRedirect),U: hand-off,,yes,13
+vio,A,24,WAIT,Redirect,,,yes,13
+vio,A,25,READ,"Lands on expedia.es SEARCH RESULTS for Annecy (not the property, not checkout), with Expedia's own cookie banner and sign-in prompt; the property is the first card at EUR1,547 total. Checkout continues on Expedia (same platform as hotels.com: Choose room -> Reserve -> payment modal -> checkout, about 5 more interactions; not walked).",G: user is now on another site and must start the room choice again,partner_handoff,yes,13

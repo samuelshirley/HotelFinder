@@ -1,0 +1,8 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+booking,B,1,READ,"Home (user already signed in on this browser): hero is a Black Friday flight promo. Widget: ""Search in your own words"" (placeholder ""Family-friendly apartments in Paris that allo[w pets]"") | ""Check-in date - Check-out date"" (EMPTY, not prefilled) | ""2 adults - 0 children - 1 room"" | Search; checkbox ""I'm traveling for work""",G: the destination field is a natural-language box,,yes,0
+booking,B,2,CLICK,"""Search in your own words"" box (dates and occupancy collapse to icons)",,,yes,1
+booking,B,3,TYPE,"""Lisbon with my wife and the dog, nice but not crazy expensive, 3 nights in March""",U: whole brief in one line,,yes,2
+booking,B,4,READ,"Dropdown: 1st ""Marche aux fleurs Cours Saleya - Pet friendly, Nice, France"" (wrong city); 2nd the sentence with ""Search with AI""",G: AI option is not the default row,,yes,2
+booking,B,5,CLICK,"""Search with AI"" row",U: submits,,yes,3
+booking,B,6,WAIT,Results load,,first_results,yes,3
+booking,B,7,READ,"""Lisbon: 779 properties found""; ""Pet friendly"" filter ticked; flexible ""3 nights in March 2027"" understood; 2 adults; the date picker auto-opens asking for exact dates; cards say ""Select dates"" instead of a price; ""nice but not crazy expensive"" NOT applied (no price or rating filter); sort ""Our top picks""","G: place, pet, month, nights parsed; budget and quality dropped; no prices yet",,yes,3

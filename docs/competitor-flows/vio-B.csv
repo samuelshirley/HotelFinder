@@ -1,0 +1,36 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+vio,B,1,READ,"Home: widget prefilled with the LAST search (Annecy, Dec 01 - Dec 06, 1 adult)",G: stale values,,yes,0
+vio,B,2,CLICK,Destination field,,,yes,1
+vio,B,3,TYPE,"""Lisbon"" -> field now reads ""LisbonAnnecy"" (old text not cleared on focus)",,,yes,2
+vio,B,4,CLICK,Clear (x) in the field,,,yes,3
+vio,B,5,TYPE,"""Lisbon""",U: destination text,,yes,4
+vio,B,6,READ,"6 suggestions: Lisbon, Portugal (City); Lisbon City Centre (Area); Lisbon (LIS - Humberto Delgado) (Airport); Baixa (Area); Star Inn Lisbon Airport (Property); Alfama (Area). Only Portugal.",,,yes,4
+vio,B,7,CLICK,"""Lisbon - City""; calendar opens on Dec/Jan",U: place,,yes,5
+vio,B,8,CLICK,Next month,,,yes,6
+vio,B,9,CLICK,Next month (Feb/Mar 2027),,,yes,7
+vio,B,10,CLICK,Fri 12 Mar,U: check-in,,yes,8
+vio,B,11,CLICK,Mon 15 Mar,U: check-out,,yes,9
+vio,B,12,READ,"Footer ""Fri, Mar 12 - Mon, Mar 15 - Apply - 3 nights""",,,yes,9
+vio,B,13,CLICK,Apply - 3 nights,,,yes,10
+vio,B,14,CLICK,Guests field,,,yes,11
+vio,B,15,CLICK,Adults plus -> 2,U: 2 adults,,yes,12
+vio,B,16,CLICK,"""Apply - 2 guests""",,,yes,13
+vio,B,17,READ,No pet field in the widget,G: dog cannot be stated yet,,yes,13
+vio,B,18,CLICK,Search,U: submits search,,yes,14
+vio,B,19,WAIT,Results load,,first_results,yes,14
+vio,B,20,CLICK,"""Pet Friendly"" chip (visible in the chip row)",U: pet constraint,,yes,15
+vio,B,21,WAIT,Reload,,,yes,15
+vio,B,22,CLICK,"""Price"" chip",,,yes,16
+vio,B,23,READ,"""Nightly price - For all rooms, including taxes and fees""; histogram; Min EUR10, Max EUR424+",,,yes,16
+vio,B,24,CLICK,Maximum box,,,yes,17
+vio,B,25,TYPE,"""180""",U: budget cap EUR180 a night,,yes,18
+vio,B,26,CLICK,Apply,,,yes,19
+vio,B,27,WAIT,Reload,,,yes,19
+vio,B,28,CLICK,"""8.0+ rating"" chip","U: ""nice"" as a hard cut",,yes,20
+vio,B,29,WAIT,Reload,,,yes,20
+vio,B,30,READ,"Chips ""Up to EUR180"", ""Pet Friendly"", ""8.0+ rating"". Top: Costa do Castelo 9.x EUR124 (Airbnb); Saint Paul, Third Floor 9.3 EUR156 (Expedia); Casa do Sol - Av da Liberdade EUR165 (Airbnb). Mostly apartments. No compare feature.",G: shortlist; comparison is manual,filtered_results,yes,20
+vio,B,31,CLICK,"""Costa do Castelo"" title -> opens airbnb.es search page in a new tab (leaves vio; URL carries adults=2 and dates, NOT the pet)",U: choice,,yes,21
+vio,B,32,READ,"Airbnb search page (another site, pet constraint lost)",G: dead end for the comparison,,yes,21
+vio,B,33,CLICK,"""Saint Paul, Third Floor"" title (NEW TAB, vio property page)",U: choice 2,,yes,22
+vio,B,34,READ,"""3rd floor with no lift""; ""Pet Friendly""; FAQ ""Are pets allowed at the property? Yes""; one deal, Expedia, EUR156 a night. Comparing = switching tabs by hand.","G: pet policy, one rate",hotel_page,yes,22
+vio,B,35,READ,"""View deal"" goes to Expedia exactly as in Flow A (not re-walked)",,partner_handoff,yes,22

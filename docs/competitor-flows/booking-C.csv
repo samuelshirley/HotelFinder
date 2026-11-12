@@ -1,0 +1,8 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+booking,C,1,READ,Home widget as in Flow B,,,yes,0
+booking,C,2,CLICK,"""Search in your own words"" box",,,yes,1
+booking,C,3,TYPE,"""cheap hotel near Barcelona airport next Friday for 2""",U: whole brief in one line,,yes,2
+booking,C,4,READ,"Dropdown: Barcelona; Downtown Barcelona; Barcelona-El Prat Airport; Barcelona Province; Barceloneta; 6th row the sentence with ""Search with AI""",G: AI option is last,,yes,2
+booking,C,5,CLICK,"""Search with AI"" row",U: submits,,yes,3
+booking,C,6,WAIT,Results load,,first_results,yes,3
+booking,C,7,READ,"""Barcelona-El Prat Airport: 540 properties found""; dest_type=airport; filters ""Hotels"" + cheapest price band; 20 - 21 Nov (""next Friday"" = 20th), 2 adults; cards: Sleep&Fly ""400 m from Barcelona-El Prat Airport"" 7.7; Hotel Blauet 3.3 km 7.7; Ibis Budget Viladecans 5 km 7.8; sort ""Our top picks""","G: everything parsed, priced results in 2 interactions; still 540 to weigh",filtered_results,yes,3

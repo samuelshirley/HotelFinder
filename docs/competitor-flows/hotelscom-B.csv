@@ -1,0 +1,43 @@
+site,flow,step,action,element_or_text,info_gained_G_or_given_U,milestone,counted,elapsed_interactions
+hotelscom,B,1,READ,"Home: widget remembers the last search (dates Tue 1 - Sun 6 Dec, ""1 person, 1 room""); ""Recently viewed: The Court of 6""",G: stale values from the previous search,,yes,0
+hotelscom,B,2,CLICK,Destination field,,,yes,1
+hotelscom,B,3,TYPE,"""Lisbon""",U: destination text,,yes,2
+hotelscom,B,4,READ,"7 suggestions: Lisboa (""Lisbon Municipality""); Lisbon (LIS - Humberto Delgado) airport; Lisbon centre; Old town of Lisbon; Baixa; Lisbon region; a metro station. Only Portugal.",G: place candidates; no US Lisbons offered,,yes,2
+hotelscom,B,5,CLICK,"""Lisboa, Lisbon District, Portugal""; calendar auto-opens on Dec/Jan (last search)",U: place,,yes,3
+hotelscom,B,6,CLICK,Next month,,,yes,4
+hotelscom,B,7,CLICK,Next month (now Feb/Mar 2027),,,yes,5
+hotelscom,B,8,CLICK,Fri 12 Mar,U: check-in,,yes,6
+hotelscom,B,9,CLICK,Mon 15 Mar,U: check-out,,yes,7
+hotelscom,B,10,CLICK,Travellers field,,,yes,8
+hotelscom,B,11,CLICK,Adults plus -> 2,U: 2 adults,,yes,9
+hotelscom,B,12,CLICK,Close,,,yes,10
+hotelscom,B,13,READ,No pet field anywhere in the widget,G: the dog cannot be stated yet,,yes,10
+hotelscom,B,14,CLICK,Look for,U: submits search,,yes,11
+hotelscom,B,15,WAIT,Results load,,first_results,yes,11
+hotelscom,B,16,CLICK,Dismiss login popover (Esc),,,yes,12
+hotelscom,B,17,READ,"""More than 300 accommodations""; sort ""Recommendations for you""; ""Recent filters: Excellent (9 or more)"" carried over from the Annecy search",G: unsorted; filter history leaks between searches,,yes,12
+hotelscom,B,18,SCROLL,"Filter column down to ""Accommodation facilities""",,,yes,13
+hotelscom,B,19,READ,"Facilities shows 5 (Gym, Wifi, Pool, Spa, Hot tub) + ""See more""; pets is hidden",G: pet filter not visible,,yes,13
+hotelscom,B,20,CLICK,"""See more"" under Accommodation facilities",,,yes,14
+hotelscom,B,21,CLICK,"""Pets are welcome (215)""",U: pet constraint,,yes,15
+hotelscom,B,22,WAIT,Results reload,,,yes,15
+hotelscom,B,23,SCROLL,"Back up to ""Price per night"" (Minimum EUR30 / Maximum EUR350+)",,,yes,16
+hotelscom,B,24,CLICK,Maximum price box (first attempt),,,"no (logged, not counted)",16
+hotelscom,B,25,TYPE,"""180"" + Enter (first attempt) -> page applied ""Min. EUR175"" instead of a maximum",,,"no (logged, not counted)",16
+hotelscom,B,26,CLICK,"Remove the wrong ""Min. EUR175"" chip",,,"no (logged, not counted)",16
+hotelscom,B,27,CLICK,Maximum price box,,,yes,17
+hotelscom,B,28,TYPE,"select all, ""180"", Tab",U: budget cap EUR180 a night,,yes,18
+hotelscom,B,29,READ,"Chips ""Less than EUR180"", ""Pets are welcome""; 114 accommodations. First three cards are labelled ""Advertisement"" and none of the three shows a pet tag on the card",G: 114 still to weigh; ads on top,filtered_results,yes,18
+hotelscom,B,30,CLICK,"""Compare accommodations"" toggle",,,yes,19
+hotelscom,B,31,READ,"""Select Compare for each accommodation""; tray ""Select at least two more accommodations""",,,yes,19
+hotelscom,B,32,CLICK,"Compare checkbox: NH Lisboa Campo Grande (8.8, EUR352/3n, ad)",U: candidate 1,,yes,20
+hotelscom,B,33,CLICK,"Compare checkbox: Numa Lisbon Rato (9.2, member EUR329/3n, ad)",U: candidate 2,,yes,21
+hotelscom,B,34,CLICK,Compare (tray),,,yes,22
+hotelscom,B,35,READ,Compare modal: stars; area + distance to Baixa (4.3 km vs 1.7 km); rating; price; ticks for Breakfast / Parking / Wifi / Air conditioning. No pet policy or pet fee shown.,"G: side-by-side, but not on the constraint that matters (the dog)",,yes,22
+hotelscom,B,36,CLICK,"""See"" on Numa Lisbon Rato (NEW TAB)",U: choice,,yes,23
+hotelscom,B,37,READ,"Hotel page: ""Pets allowed (1 total)*"", ""Pets must be supervised""",G: pet policy finally visible,hotel_page,yes,23
+hotelscom,B,38,SCROLL,To room list,,,yes,24
+hotelscom,B,39,READ,"3 room cards; primary button ""Log in to see this price"" (member EUR329); secondary link ""Book now at a non-member price""; cancellation and breakfast radios",G: headline price needs an account,,yes,24
+hotelscom,B,40,CLICK,"""Book now at a non-member price"" (Standard Room)",U: rate,,yes,25
+hotelscom,B,41,WAIT,Checkout loads,,,yes,25
+hotelscom,B,42,READ,"Checkout: same identity + card form; Total EUR363.00 (headline was EUR329), EUR339.00 today, EUR24.00 at the property. No field to declare the pet, only a ""special or accessibility requests"" link.",G: price rose EUR34 vs the card,checkout,yes,25
