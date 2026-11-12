@@ -12,8 +12,7 @@ import { askJev } from './index';
  *
  * Each case is a message a user would type and the decision it must produce.
  * A failure here means the catalogue's wording or the settle threshold needs
- * work. As of 2026-11-11 this has NOT been run: the build session was not
- * permitted to call api.typesafe.ai.
+ * work. Run live on 2026-11-12 (46 cases): docs/jev-expansion.md has the result.
  */
 const live = process.env.LIVE_JEV === '1';
 
@@ -43,7 +42,8 @@ const CASES: Array<[string, string]> = [
   ['somewhere close and nice', 'defer'],
   ['nice but not crazy expensive', 'defer'],
   ['cheap, near the station', 'defer'],
-  ['close to the old town please', 'defer'],
+  // Since 2026-11-11 a named place to be close to is settled in code (route.ts `near`); run live 2026-11-12: wants_location 0.95, names_place 0.93.
+  ['close to the old town please', 'near'],
   ['not the second one', 'actions:exclude_property'],
   ['show me some other options', 'actions:more_options'],
   ['tell me more about the yotel', 'ui'],
