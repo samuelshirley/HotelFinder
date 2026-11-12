@@ -20,7 +20,8 @@ goes to `runAgent`. A free-text first message goes to `scanIntent`.
 - **Its own words are shown only when it changed nothing**, stored as chat
   kind `ai`, and only if they pass `guards.ts`: no number of two or more
   digits that was not in what it was shown, no claimed change or booking, at
-  most 600 characters. A failed guard gives the fixed "could not work that
+  most 600 characters, and the model must have stopped with `end_turn` (any
+  other stop reason means the words were cut off). A failed guard gives the fixed "could not work that
   out" line and is counted in the turn's `result_meta.guards`.
 - **Budgets.** At most 4 model calls a turn, 500 output tokens each. A reply
   made only of changes ends the turn with one call. A rejected change is told
@@ -35,7 +36,8 @@ goes to `runAgent`. A free-text first message goes to `scanIntent`.
 - **Spend.** `server/spend.ts`: 25 cents per search and 5 dollars overall per
   24 hours (`AI_SESSION_CAP_CENTS`, `AI_DAILY_CAP_CENTS`). Over a cap the model
   is not called. Every call, failures included, is a `usage_events` row with
-  `meta.purpose` `agent` or `scan`.
+  `meta.purpose` `agent` or `scan`, and `meta.stop_reason` when the call
+  answered. The turn's `result_meta.stop_reasons` lists one per model call.
 
 ## Model
 
@@ -68,3 +70,12 @@ accepted; call limit raised; prompt escaping removed; SDK imported outside the
 module; model id written outside the registry; pets requirement dropped;
 session cap removed; global cap removed. One survivor, a redundant condition
 in `loop.ts`, was deleted.
+
+## Cut-off reply (2026-11-12)
+
+Seen live: a reply ending "No hotels are showing on screen y" was stored and
+shown. The stop reason was read from the SDK and thrown away, so the cause of
+that turn cannot be recovered. Now recorded per call, and the `incomplete`
+guard withholds any reply that did not end with `end_turn`. Mutations killed:
+guard removed; loop passing a literal `end_turn`; loop never recording the
+stop reason; ledger dropping `stop_reason`.

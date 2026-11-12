@@ -94,7 +94,7 @@ describe('the agent: what the router did not settle', () => {
     expect((await last(session.id)).kind).toBe('line'); // not the model's words
     expect(turn.resultMeta).toMatchObject({ by: 'agent', deferred: 'no_reading', model_calls: 1, applied: 1, effect: 'refetch' });
     expect(await rawQuery("select model, input_tokens, output_tokens, cost_microcents::int as cost, success, meta from usage_events where provider = 'anthropic'")).toEqual([
-      { model: MODEL, input_tokens: 1200, output_tokens: 60, cost: 150000, success: true, meta: { purpose: 'agent' } },
+      { model: MODEL, input_tokens: 1200, output_tokens: 60, cost: 150000, success: true, meta: { purpose: 'agent', stop_reason: 'end_turn' } },
     ]);
   });
 
@@ -276,7 +276,7 @@ describe('the first message: one forced extraction, then the form asks only for 
       ['line', 'From your message: 11–13 Dec, 2 nights · 2 adults · up to €120 a night · pets allowed.'],
       ['form_question', 'What matters most? Pick any, or say it in your own words.'],
     ]);
-    expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'scan' } }]);
+    expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'scan', stop_reason: 'end_turn' } }]);
   });
 
   it('what the model returns is checked: past dates, a length that contradicts the dates and unknown must-haves are dropped and asked for', async () => {
@@ -375,7 +375,7 @@ describe('"what matters most?" answered in words', () => {
     expect(stay).toMatchObject({ nearPlaceId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo', nearLabel: 'Ribeira' });
     expect(supplier.searches[0].where).toMatchObject({ radiusM: 5000 });
     expect((await listMessages(session.id)).map((r) => r.content)).toContain('Ranked for low price and being close to Ribeira.');
-    expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'priorities' } }]);
+    expect(await rawQuery("select meta from usage_events where provider = 'anthropic'")).toEqual([{ meta: { purpose: 'priorities', stop_reason: 'end_turn' } }]);
   });
 
   it('a place search that finds only hotels is not a place to be near: the search runs, and says so', async () => {

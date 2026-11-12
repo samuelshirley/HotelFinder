@@ -4,7 +4,12 @@
  * sure such a reply does not state a number the server did not give it, and
  * does not claim something happened.
  */
-export type Guard = 'empty' | 'ungrounded_number' | 'claims_action' | 'too_long';
+/**
+ * `incomplete`: the model stopped for any reason but finishing its reply
+ * (`max_tokens`, `refusal`, a pause, or no reason at all). Its words are cut
+ * off mid-sentence, so they are never shown.
+ */
+export type Guard = 'empty' | 'incomplete' | 'ungrounded_number' | 'claims_action' | 'too_long';
 
 const MAX_CHARS = 600;
 
@@ -25,11 +30,13 @@ export function tidy(text: string): string {
 
 /**
  * `grounding` is everything the model was shown this turn: the search, the
- * hotels on screen, tool results and the user's own message.
+ * hotels on screen, tool results and the user's own message. `stopReason` is
+ * why the reply that produced `text` ended.
  */
-export function checkReply(text: string, grounding: string): Guard[] {
+export function checkReply(text: string, grounding: string, stopReason: string | null): Guard[] {
   const guards: Guard[] = [];
   if (!text) return ['empty'];
+  if (stopReason !== 'end_turn') guards.push('incomplete');
   if (text.length > MAX_CHARS) guards.push('too_long');
   const known = new Set(numbers(grounding));
   if (numbers(text).some((n) => !known.has(n))) guards.push('ungrounded_number');

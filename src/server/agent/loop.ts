@@ -55,6 +55,8 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
 
   const result: AgentResult = { actions: [], rejected: [], open: null, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
   let modelText = '';
+  /** Why the reply whose text may be shown ended. */
+  let stopReason: string | null = null;
 
   for (let call = 0; call < MAX_MODEL_CALLS; call++) {
     const reply = await deps.callModel({ model: deps.model, system: SYSTEM, messages, tools: TOOL_DEFS, maxTokens: MAX_TOKENS });
@@ -65,6 +67,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
     }
     const uses = reply.content.filter((b): b is Extract<Block, { type: 'tool_use' }> => b.type === 'tool_use');
     modelText = reply.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join(' ');
+    stopReason = reply.stopReason;
     if (uses.length === 0) break;
 
     const outputs: ToolResult[] = [];
@@ -151,7 +154,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
 
   if (!result.failure) {
     const text = tidy(modelText);
-    result.guards = checkReply(text, grounding);
+    result.guards = checkReply(text, grounding, stopReason);
     result.text = result.guards.length === 0 ? text : '';
   }
   return result;

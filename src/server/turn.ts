@@ -450,7 +450,7 @@ async function agentTurn(args: {
     },
   );
   const spent = await logModelCalls(session, 'agent', agent.replies);
-  const meta = { ...args.trace, by: 'agent' as const, ...spent, tools: agent.toolTrace, guards: agent.guards, failure: agent.failure };
+  const meta = { ...args.trace, by: 'agent' as const, ...spent, tools: agent.toolTrace, guards: agent.guards, stop_reasons: agent.replies.map((r) => (r.ok ? r.stopReason : null)), failure: agent.failure };
 
   if (agent.failure) {
     // A refused request (bad key, no workspace, unknown model) will be refused again: do not ask for a retry.

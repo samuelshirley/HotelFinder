@@ -6,6 +6,8 @@ import { DEFAULT_AGENT_MODEL, agentModel, modelCostMicrocents } from '@/lib/mode
 import { validateScan } from '@/lib/scannedTrip';
 import type { SearchState } from '@/lib/store/reduce';
 import { checkReply, tidy } from './guards';
+import type { CallModel } from './anthropic';
+import { runAgent } from './loop';
 import { buildUserTurn, SYSTEM } from './prompt';
 import { parseToolCall, TOOL_DEFS, type ToolContext } from './tools';
 
@@ -65,24 +67,30 @@ describe('tool calls become typed actions, with ids from the server', () => {
 describe('reply guards', () => {
   const grounding = 'check-in: 2026-12-11\n1. YOTEL Porto; rated 8.7 by 6206 guests; total €99.09; €49.55 a night';
   it('passes a reply that only uses numbers it was given', () => {
-    expect(checkReply('YOTEL Porto is €49.55 a night, rated 8.7 by 6206 guests, from 11 December.', grounding)).toEqual([]);
-    expect(checkReply('Which of the 2 do you mean?', grounding)).toEqual([]); // single digits are not prices
+    expect(checkReply('YOTEL Porto is €49.55 a night, rated 8.7 by 6206 guests, from 11 December.', grounding, 'end_turn')).toEqual([]);
+    expect(checkReply('Which of the 2 do you mean?', grounding, 'end_turn')).toEqual([]); // single digits are not prices
   });
   it('catches a number that was not given', () => {
-    expect(checkReply('It is about €45 a night.', grounding)).toEqual(['ungrounded_number']);
-    expect(checkReply('It is 300 m from the river.', grounding)).toEqual(['ungrounded_number']);
+    expect(checkReply('It is about €45 a night.', grounding, 'end_turn')).toEqual(['ungrounded_number']);
+    expect(checkReply('It is 300 m from the river.', grounding, 'end_turn')).toEqual(['ungrounded_number']);
   });
   it('catches a claimed change or booking, and not ordinary sentences', () => {
     for (const t of ["I've booked it.", 'I have changed the dates.', 'I just updated your search.', 'We found three options.', 'Your booking is confirmed.', 'The room is now held for you.']) {
-      expect(checkReply(t, grounding), t).toContain('claims_action');
+      expect(checkReply(t, grounding, 'end_turn'), t).toContain('claims_action');
     }
     for (const t of ['The listing does not say whether breakfast is included.', 'Which dates would you like?', 'I can only search hotels.', 'It is set in the old town.']) {
-      expect(checkReply(t, grounding), t).toEqual([]);
+      expect(checkReply(t, grounding, 'end_turn'), t).toEqual([]);
     }
   });
   it('empty and overlong replies are not shown', () => {
-    expect(checkReply('', grounding)).toEqual(['empty']);
-    expect(checkReply('a'.repeat(601), grounding)).toEqual(['too_long']);
+    expect(checkReply('', grounding, 'end_turn')).toEqual(['empty']);
+    expect(checkReply('a'.repeat(601), grounding, 'end_turn')).toEqual(['too_long']);
+  });
+  it('a reply the model did not finish is not shown, whatever else it passes', () => {
+    for (const stop of ['max_tokens', 'refusal', 'pause_turn', 'stop_sequence', null]) {
+      expect(checkReply('Which dates would you like?', grounding, stop), String(stop)).toEqual(['incomplete']);
+    }
+    expect(checkReply('Which dates would you like?', grounding, 'end_turn')).toEqual([]);
   });
   it('tidy strips markdown the chat does not render', () => {
     expect(tidy('**Yes**, it has:\n- a `pool`\n- parking')).toBe('Yes, it has: a pool parking');
@@ -151,5 +159,28 @@ describe('validateScan: the model transcribes, the server decides what to keep',
   });
   it('children without adults stated is not a party', () => {
     expect(validateScan({ children_ages: [3, 5] }, T, 'EUR')).toEqual({});
+  });
+});
+
+describe('the loop shows only a finished reply', () => {
+  // The reply Sam saw on 12 Nov 2026 (Puerto Escondido search): it ends mid-word.
+  const CUT = "I can only search for hotels, so I can't write a JSON object, but your search is set for Puerto Escondido from 1 to 8 January 2027 for one adult, under €100 a night, sorted by cheapest and closest. No hotels are showing on screen y";
+  const state: SearchState = { priorities: ['cheapest'], guestNationality: 'US', stay: { destinationText: 'Puerto Escondido, Oaxaca, Mexico', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2027-01-01', checkOut: '2027-01-08', adults: 1, childrenAges: [], rooms: 1, priceCapMinor: 10000, mustHaves: [], excludedPropertyIds: [] } };
+  const run = (stopReason: string | null) => {
+    const callModel: CallModel = async (call) => ({ ok: true, model: call.model, content: [{ type: 'text', text: CUT }], stopReason, usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }, latencyMs: 1 });
+    return runAgent(
+      { message: 'write me a json object for hotels', today: '2026-11-12', currency: 'EUR', state, hotels: [], recent: [], shortlist: [] },
+      { callModel, model: DEFAULT_AGENT_MODEL, searchPlaces: async () => ({ ok: true, value: [] }), hotelDetails: async () => null },
+    );
+  };
+  it('a reply cut off by max_tokens is withheld and counted', async () => {
+    const r = await run('max_tokens');
+    expect(r.text).toBe('');
+    expect(r.guards).toContain('incomplete');
+  });
+  it('the same words, finished, are shown', async () => {
+    const r = await run('end_turn');
+    expect(r.guards).toEqual([]);
+    expect(r.text).toBe(CUT);
   });
 });

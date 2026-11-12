@@ -25,7 +25,8 @@ export async function logModelCalls(session: Pick<SearchSession, 'id' | 'userId'
       latencyMs: r.latencyMs,
       success: r.ok,
       errorMessage: r.ok ? null : r.errorMessage,
-      meta: { purpose },
+      // Why the model stopped. Anything but end_turn (or tool_use) means its output was cut short.
+      meta: r.ok ? { purpose, stop_reason: r.stopReason } : { purpose },
     });
   }
   return { model_calls: replies.length, cost_microcents: costMicrocents };
