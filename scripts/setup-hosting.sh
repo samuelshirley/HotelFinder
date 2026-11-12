@@ -70,7 +70,14 @@ put() { # name value — production and preview, sensitive, overwriting
 }
 put DATABASE_URL "$DATABASE_URL"
 put AUTH_SECRET "$AUTH_SECRET"
-for k in JEV_API_KEY LITE_API_KEY ANTHROPIC_API_KEY RESEND_API_KEY NEXT_PUBLIC_GOOGLE_MAPS_API_KEY; do
+# /hotels/admin: who may open it (comma-separated). Read from .env, or asked once and saved there.
+ADMIN_EMAILS="$(envval ADMIN_EMAILS .env)"
+if [ -z "$ADMIN_EMAILS" ]; then
+  read -r -p "Email(s) allowed to open /hotels/admin: " ADMIN_EMAILS
+  printf 'ADMIN_EMAILS=%s\n' "$ADMIN_EMAILS" >> .env
+fi
+put ADMIN_EMAILS "$ADMIN_EMAILS"
+for k in JEV_API_KEY LITE_API_KEY ANTHROPIC_API_KEY ANTHROPIC_ADMIN_KEY RESEND_API_KEY NEXT_PUBLIC_GOOGLE_MAPS_API_KEY; do
   put "$k" "$(envval "$k" .env)"
 done
 

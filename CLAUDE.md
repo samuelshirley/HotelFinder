@@ -99,7 +99,7 @@ api/session/[id]/property/[propertyId]  api/session/[id]/turn
 api/session/[id]/turns  api/auth/verify (sign in with a code outside checkout)
 ```
 
-Pages: `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
+Pages (all under `/hotels`): `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
 search; `ADMIN_EMAILS` only, sign-in form otherwise, 404 to non-admins):
 `docs/usage.md`.
 
@@ -147,7 +147,9 @@ Neon URL kept in .env.neon so dev stays on embedded Postgres)
 
 Neon agent skill in `.claude/skills/neon/` (pinned in `skills-lock.json`;
 `npx neon skills status` / `update -y`) and the Neon MCP server in
-`.mcp.json` (OAuth: URL only, sign-in on first use, no key in the repo).
+`.mcp.json` (OAuth: URL only, sign-in on first use, no key in the repo), and
+the Playwright MCP (`@playwright/mcp`): drive the real app with it first when
+building or diagnosing e2e work.
 Do not run `neon link`/`checkout`: they pull `DATABASE_URL` into `.env`,
 which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
