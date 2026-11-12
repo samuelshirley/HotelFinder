@@ -21,7 +21,8 @@ type Props = {
   /** Bumped when a hotel should be brought into view (a card was opened, or Penny marked one). */
   focus: { id: string; n: number } | null;
   busy: boolean;
-  onHover: (id: string | null) => void;
+  /** The pointer came onto a pin, or left it. Leaving names the pin, so it cannot clear a hover that has since moved to a card. */
+  onHover: (id: string, on: boolean) => void;
   onSelect: (id: string) => void;
   /** A named place on the map was picked: becomes a chat message. */
   onMeasureFrom: (name: string) => void;
@@ -139,10 +140,10 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         tip.textContent = pin.miss ?? pin.name;
         el.appendChild(tip);
       }
-      el.addEventListener('mouseenter', () => handlers.current.onHover(pin.id));
-      el.addEventListener('mouseleave', () => handlers.current.onHover(null));
-      el.addEventListener('focus', () => handlers.current.onHover(pin.id));
-      el.addEventListener('blur', () => handlers.current.onHover(null));
+      el.addEventListener('mouseenter', () => handlers.current.onHover(pin.id, true));
+      el.addEventListener('mouseleave', () => handlers.current.onHover(pin.id, false));
+      el.addEventListener('focus', () => handlers.current.onHover(pin.id, true));
+      el.addEventListener('blur', () => handlers.current.onHover(pin.id, false));
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         handlers.current.onSelect(pin.id);

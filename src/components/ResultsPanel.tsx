@@ -30,9 +30,14 @@ export type MapLink = {
   hovered: string | null;
   selected: string | null;
   focus: { id: string; n: number } | null;
-  onHover: (id: string | null) => void;
-  /** The pointer is on a pin: mark its card and bring it into view. */
-  onPinHover: (id: string | null) => void;
+  /**
+   * The pointer came onto a card (or left it). A leave names what was left: React
+   * reports the card's enter BEFORE the browser reports the pin's leave, so a
+   * leave that simply cleared the hover wiped out the card just entered.
+   */
+  onHover: (id: string, on: boolean) => void;
+  /** The same for a pin, which also brings its card into view. */
+  onPinHover: (id: string, on: boolean) => void;
   /** A pin was pressed: mark its card and bring it into view. */
   onSelect: (id: string) => void;
   onMeasureFrom: (name: string) => void;
@@ -385,7 +390,7 @@ function Card({
   booking: string | null;
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
-  onHover: (id: string | null) => void;
+  onHover: (id: string, on: boolean) => void;
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
@@ -405,8 +410,8 @@ function Card({
       data-open={open ? 'true' : undefined}
       data-near-miss={isNearMiss(row) ? 'true' : undefined}
       data-marked={marked ?? undefined}
-      onMouseEnter={() => onHover(property.id)}
-      onMouseLeave={() => onHover(null)}
+      onMouseEnter={() => onHover(property.id, true)}
+      onMouseLeave={() => onHover(property.id, false)}
     >
       <div className={styles.card} onClick={onCard}>
         {property.photo ? (

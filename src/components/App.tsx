@@ -168,6 +168,8 @@ export function App() {
     setMapOpen(open);
     store(MAP_KEY, open ? 'open' : 'closed');
   }, []);
+  /** A leave clears the hover only if it is still on what was left (see MapLink.onHover). */
+  const hover = useCallback((id: string, on: boolean) => setHovered((h) => (on ? id : h === id ? null : h)), []);
   const cardIntoView = (propertyId: string) =>
     requestAnimationFrame(() => document.getElementById(`hotel-${propertyId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   /** Mark a hotel on the map and in the list: a pin was pressed, a card was opened, or Penny pointed at it. */
@@ -511,10 +513,10 @@ export function App() {
                   hovered,
                   selected,
                   focus,
-                  onHover: setHovered,
-                  onPinHover: (id) => {
-                    setHovered(id);
-                    if (id) cardIntoView(id);
+                  onHover: hover,
+                  onPinHover: (id, on) => {
+                    hover(id, on);
+                    if (on) cardIntoView(id);
                   },
                   onSelect: markHotel,
                   // A place picked on the map is a message like any other: Penny looks it up and says what changed.
