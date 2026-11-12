@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
+import { isMemberOnlyPrice, marginFor, OFFER_TTL_MS } from '@/lib/pricing';
 import { splitParty } from '@/server/finder';
 import { insertOffers, listDetailOffers, type Offer } from '@/server/repos/offers';
 import { getProperty } from '@/server/repos/properties';
@@ -27,7 +27,7 @@ export async function hotelRates(args: {
   const { session, stay, propertyId, supplier, now } = args;
   const audience = audienceFor(session);
   const held = await listDetailOffers(session.id, stay.id, propertyId, audience, now);
-  if (held.length > 0) return { ok: true, offers: sorted(held), fetched: false };
+  if (held.length > 0) return { ok: true, offers: shown(held, audience), fetched: false };
 
   const property = await getProperty(propertyId);
   if (!property) return { ok: false, error: 'property_not_found' };
@@ -70,7 +70,15 @@ export async function hotelRates(args: {
         detailOnly: true,
       })),
   );
-  return { ok: true, offers: sorted(rows), fetched: true };
+  return { ok: true, offers: shown(rows, audience), fetched: true };
 }
 
-const sorted = (rows: Offer[]) => [...rows].sort((a, b) => a.totalMinor - b.totalMinor || a.id.localeCompare(b.id));
+/**
+ * Cheapest first, and for an anonymous visitor never a rate under the hotel's
+ * public price: the same rule the finder ranks by (lib/pricing.ts). Without it
+ * the detail view of any hotel showed the member rates the shortlist hid.
+ */
+const shown = (rows: Offer[], audience: 'public' | 'member') =>
+  rows
+    .filter((o) => !isMemberOnlyPrice(o, audience))
+    .sort((a, b) => a.totalMinor - b.totalMinor || a.id.localeCompare(b.id));

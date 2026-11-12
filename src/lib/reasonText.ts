@@ -1,4 +1,5 @@
-import { formatMoney } from '@/lib/replies';
+import { isMustHave } from '@/lib/amenities';
+import { formatMoney, MUST_HAVE_LABEL } from '@/lib/replies';
 
 /**
  * The words for a machine-readable ranking reason. The finder decides why a
@@ -52,9 +53,39 @@ export function reasonText(reason: ReasonLike | null, ctx: { currency: string; h
       if (rating !== null && rating !== 0) parts.push(`rated ${Math.abs(rating)} ${rating > 0 ? 'higher' : 'lower'}`);
       return parts.length ? `Than the first: ${parts.join(', ')}` : '';
     }
+    case 'near_miss':
+      return missText(reason.misses, ctx.currency);
     default:
       return '';
   }
+}
+
+/** What a near-miss misses, from the finder's own list (finder/rank.ts `Miss`). */
+export function missText(misses: unknown, currency: string): string {
+  const parts = (Array.isArray(misses) ? misses : []).flatMap((m): string[] => {
+    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown };
+    switch (miss.kind) {
+      case 'over_price_cap': {
+        const over = num(miss.over_by_minor);
+        return [over === null ? 'over your price cap' : `${formatMoney(over, currency)} a night over your cap`];
+      }
+      case 'missing_must_have': {
+        const words = (v: unknown) => (Array.isArray(v) ? v : []).filter(isMustHave).map((k) => MUST_HAVE_LABEL[k]);
+        const either = (list: string[]) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list.at(-1)}` : list[0]);
+        const lacking = words(miss.must);
+        const unknown = words(miss.unknown);
+        return [
+          ...(lacking.length ? [`no ${either(lacking)}`] : []),
+          ...(unknown.length ? [`the listing does not say if it has ${either(unknown)}`] : []),
+        ];
+      }
+      case 'member_price':
+        return ['its rate is a member price, not shown before you sign in'];
+      default:
+        return [];
+    }
+  });
+  return parts.length ? `Misses: ${parts.join('; ')}` : '';
 }
 
 function fromWhere(reason: ReasonLike): string {

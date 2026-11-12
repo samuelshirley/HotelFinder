@@ -56,3 +56,38 @@ hotel, ranking mixing public and member offers).
 Walking time (straight-line only). Static content cache beyond the amenity
 facts. Near-miss suggestions when nothing is eligible (the outcome carries
 the rejection counts; the chat does not word them yet).
+
+## Never a list of one (2026-11-12)
+
+Reproduced on the live app: an anonymous Puerto Escondido search, no cap, no
+must-haves, listed one hotel, "1 of 11 hotels fit". The other ten were cut by
+the public-price rule (their rate is under the hotel's public price). So the
+cheaper hotels were the hidden ones, and Penny then told the user the €209
+hotel was the only one on screen.
+
+Now, when fewer than `MIN_SHOWN` (5) fit, `rankStay` returns `nearMisses`:
+the rejected hotels (never one the user set aside), fewest misses first, then
+the same order as the shortlist, each with a typed list of what it misses
+(`over_price_cap` with the amount over, `missing_must_have` split into known
+lacking and unknown, `member_price`). The finder stores them as finder rows with
+reason `near_miss`; the panel shows them under a divider.
+
+- **A member-price near-miss holds no offer** (`offer_id` null) and no number
+  derived from one. The schema check `shortlist_finder_rows_sourced` allows a
+  finder row without an offer only for that reason. So the price cannot reach
+  an anonymous visitor by any route: view, answers, agent context, checkout.
+- **The same rule now guards rooms & rates and checkout** (`isMemberOnlyPrice`
+  in `lib/pricing.ts`). Before this, an anonymous visitor's rooms and rates
+  listed rates under the public price; the recorded Porto search holds two.
+- **Answers about "the cheapest", "do they all…"** range over hotels that fit,
+  over everything only when none fit. A question about one hotel works for any
+  card on screen.
+
+Mutation checks: 15, 14 caught. The survivor is Penny's pick skipping
+near-miss rows, which is unreachable (she picks at 8 fits, filling stops at 5)
+and kept as a backstop.
+
+Open: the hidden hotels could instead be shown *at* their public price (the
+margin raised to meet it), which is allowed and earns more. That needs the
+offer's price to be the price booked, so it is a supplier/checkout change, not
+a ranking one. Not built.

@@ -196,11 +196,14 @@ describe('a chat turn on a running search', () => {
 
     expect(turn.status).toBe('done');
     // An anonymous visitor is quoted the public margin: only one hotel is under €70 a night.
-    expect(turn.finalText).toBe('Capped at €70 a night. 1 of 20 hotels fit.');
+    expect(turn.finalText).toBe('Capped at €70 a night. 1 of 20 hotels fit. Under it, the 4 closest misses are listed, each saying what it misses.');
     expect(turn.resultMeta).toMatchObject({ by: 'router', intent: 'price_cap', applied: 1, effect: 'rerank', finder: 'ok', model_calls: 0 });
     expect(events.map((e) => e.type)).toEqual(['received', 'working', 'done']);
     expect(supplier.searches).toHaveLength(1); // still only the first search
-    expect(await shortlistNames(session.id)).toEqual(['YOTEL Porto']);
+    // The one that fits, then the four closest misses under the divider.
+    const listed = await shortlistNames(session.id);
+    expect(listed[0]).toBe('YOTEL Porto');
+    expect(listed).toHaveLength(5);
 
     const usage = await rawQuery<{ provider: string; cost_microcents: string; success: boolean; input_tokens: number }>('select provider, cost_microcents, success, input_tokens from usage_events');
     expect(usage).toEqual([{ provider: 'jev', cost_microcents: 2184, success: true, input_tokens: 520 }]);

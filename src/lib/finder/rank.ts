@@ -1,4 +1,5 @@
 import { AMENITIES, type Amenity, type MustHave } from '@/lib/amenities';
+import { isMemberOnlyPrice } from '@/lib/pricing';
 import { haversineKm, medianPoint, nightsBetween, type LatLng } from './geo';
 
 /**
@@ -64,6 +65,34 @@ export type RankInput = {
   audience: 'public' | 'member';
   excludedPropertyIds?: readonly string[];
   size?: number;
+  /** When fewer hotels than this fit, the nearest misses fill the list up to it. */
+  minShown?: number;
+};
+
+/**
+ * Never a list of one: when fewer than this many hotels fit, the ones that
+ * miss by the least are shown under them, each saying what it misses, so the
+ * user can see what loosening a constraint would buy.
+ */
+export const MIN_SHOWN = 5;
+
+/**
+ * One constraint a near-miss fails. `member_price` carries no number: that
+ * price may not be shown to an anonymous visitor in any form.
+ */
+export type Miss =
+  | { kind: 'over_price_cap'; over_by_minor: number }
+  /** `must`: known to be lacking. `unknown`: the supplier sent no amenity list, so it cannot be checked. */
+  | { kind: 'missing_must_have'; must: MustHave[]; unknown: MustHave[] }
+  | { kind: 'member_price' };
+
+export type NearMiss = {
+  candidate: Candidate;
+  /** Continues after the shortlist's ranks. */
+  rank: number;
+  misses: Miss[];
+  km: number | null;
+  perNightMinor: number;
 };
 
 export type RejectionReason = 'over_price_cap' | 'missing_must_have' | 'below_public_price' | 'excluded_by_user';
@@ -98,6 +127,8 @@ export type Ranked = {
 
 export type RankResult = {
   shortlist: Ranked[];
+  /** Shown under the shortlist when it is shorter than `minShown`: fewest misses first, then the same order. Never a hotel the user set aside. */
+  nearMisses: NearMiss[];
   /** Every eligible candidate in order: the shortlist is its head. */
   ordered: Ranked[];
   eligible: number;
@@ -275,38 +306,47 @@ export function rankStay(input: RankInput): RankResult {
   const selected = canonicalPriorities(input.priorities);
 
   const eligible: Scored[] = [];
+  const missed: Array<Scored & { misses: Miss[] }> = [];
   for (const c of input.candidates) {
     if (excluded.has(c.propertyId)) {
       rejected.excluded_by_user += 1;
       continue;
     }
-    if (input.audience === 'public' && c.suggestedSellingMinor !== null && c.totalMinor < c.suggestedSellingMinor) {
-      rejected.below_public_price += 1;
-      continue;
-    }
     const perNightMinor = Math.ceil(c.totalMinor / nights);
-    if (input.priceCapMinor !== null && perNightMinor > input.priceCapMinor) {
-      rejected.over_price_cap += 1;
-      continue;
+    const misses: Miss[] = [];
+    if (isMemberOnlyPrice(c, input.audience)) {
+      misses.push({ kind: 'member_price' });
     }
-    if (!input.mustHaves.every((m) => meetsMustHave(c, m))) {
-      rejected.missing_must_have += 1;
-      if (c.amenities === null && input.mustHaves.some((m) => (AMENITIES as readonly string[]).includes(m))) uncheckable += 1;
-      continue;
+    if (input.priceCapMinor !== null && perNightMinor > input.priceCapMinor) {
+      misses.push({ kind: 'over_price_cap', over_by_minor: perNightMinor - input.priceCapMinor });
+    }
+    const lacking = input.mustHaves.filter((m) => !meetsMustHave(c, m));
+    if (lacking.length > 0) {
+      const isUnknown = (m: MustHave) => c.amenities === null && (AMENITIES as readonly string[]).includes(m);
+      misses.push({ kind: 'missing_must_have', must: lacking.filter((m) => !isUnknown(m)), unknown: lacking.filter(isUnknown) });
     }
     // Rounded to 100 m HERE, before ranking: the order is decided on the same
     // number the user is shown. Ranking on the exact distance put a dearer,
     // worse-rated hotel first for being 20 m closer while both read "0.5 km".
-    eligible.push({ c, km: centre && c.location ? round1(haversineKm(centre, c.location)) : null, perNightMinor });
+    const scored = { c, km: centre && c.location ? round1(haversineKm(centre, c.location)) : null, perNightMinor };
+    if (misses.length === 0) {
+      eligible.push(scored);
+      continue;
+    }
+    // Counted once, by the first constraint it fails, in this order.
+    const first = misses[0].kind;
+    if (first === 'member_price') rejected.below_public_price += 1;
+    else if (first === 'over_price_cap') rejected.over_price_cap += 1;
+    else {
+      rejected.missing_must_have += 1;
+      if (misses[0].kind === 'missing_must_have' && misses[0].unknown.length > 0) uncheckable += 1;
+    }
+    missed.push({ ...scored, misses });
   }
 
-  const order =
-    selected.length === 0
-      ? balancedOrder(eligible)
-      : selected.length === 1
-        ? compareBy(ORDER[selected[0]])
-        : mixedOrder(eligible, selected);
-  eligible.sort(order);
+  const orderFor = (pool: Scored[]) =>
+    selected.length === 0 ? balancedOrder(pool) : selected.length === 1 ? compareBy(ORDER[selected[0]]) : mixedOrder(pool, selected);
+  eligible.sort(orderFor(eligible));
 
   const top = eligible[0];
   const ordered: Ranked[] = eligible.map((s, i) => ({
@@ -325,8 +365,16 @@ export function rankStay(input: RankInput): RankResult {
           },
   }));
 
+  const shortlist = ordered.slice(0, input.size ?? 5);
+  const missOrder = orderFor(missed);
+  missed.sort((a, b) => a.misses.length - b.misses.length || missOrder(a, b));
+  const nearMisses: NearMiss[] = missed
+    .slice(0, Math.max(0, (input.minShown ?? MIN_SHOWN) - shortlist.length))
+    .map((s, i) => ({ candidate: s.c, rank: shortlist.length + i + 1, misses: s.misses, km: s.km, perNightMinor: s.perNightMinor }));
+
   return {
-    shortlist: ordered.slice(0, input.size ?? 5),
+    shortlist,
+    nearMisses,
     ordered,
     eligible: eligible.length,
     rejected,

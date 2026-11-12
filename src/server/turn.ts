@@ -377,6 +377,7 @@ function hotelFacts(r: ShortlistRow): HotelFacts {
   const listed = (r.property.content as { amenities?: unknown } | null)?.amenities;
   const until = (r.offer?.cancellation as { freeCancellationUntil?: unknown } | null)?.freeCancellationUntil;
   return {
+    fits: r.entry.reason?.kind !== 'near_miss',
     propertyId: r.property.id,
     name: r.property.name,
     stars: r.property.stars,

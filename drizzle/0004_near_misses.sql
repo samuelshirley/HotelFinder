@@ -1,0 +1,2 @@
+ALTER TABLE "shortlist_entries" DROP CONSTRAINT "shortlist_finder_rows_sourced";--> statement-breakpoint
+ALTER TABLE "shortlist_entries" ADD CONSTRAINT "shortlist_finder_rows_sourced" CHECK ("shortlist_entries"."source" = 'user_named' or ("shortlist_entries"."reason" is not null and ("shortlist_entries"."offer_id" is not null or "shortlist_entries"."reason" @> '{"kind":"near_miss","misses":[{"kind":"member_price"}]}'::jsonb)));

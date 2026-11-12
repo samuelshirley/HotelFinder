@@ -4,7 +4,7 @@ import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenit
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
 import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
-import { replaceFinderShortlist } from '@/server/repos/finderShortlist';
+import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
 import { upsertProperty } from '@/server/repos/properties';
 import { audienceFor, getSession, getStay } from '@/server/repos/sessions';
@@ -26,6 +26,8 @@ export type FinderOutcome =
       kind: 'ok';
       fetched: boolean;
       shortlisted: number;
+      /** Hotels shown under the shortlist that miss a constraint (rank.ts MIN_SHOWN). */
+      nearMisses: number;
       eligible: number;
       rejected: RankResult['rejected'];
       uncheckable: number;
@@ -194,19 +196,34 @@ export async function runFinder(args: {
   await replaceFinderShortlist(
     sessionId,
     stayId,
-    result.shortlist.map((row) => ({
+    result.shortlist.map((row): FinderEntry => ({
       propertyId: row.candidate.propertyId,
       offerId: row.candidate.offerId,
       rank: row.rank,
       // The reason, plus the two facts every card shows.
       reason: { ...row.reason, distance_km: row.km, per_night_minor: row.perNightMinor },
-    })),
+    })).concat(
+      result.nearMisses.map((row): FinderEntry => {
+        // A member price never reaches an anonymous visitor: the row holds no
+        // offer and no number derived from one (the schema allows this case only).
+        const memberOnly = row.misses.some((m) => m.kind === 'member_price');
+        return {
+          propertyId: row.candidate.propertyId,
+          offerId: memberOnly ? null : row.candidate.offerId,
+          rank: row.rank,
+          reason: memberOnly
+            ? { kind: 'near_miss', misses: row.misses, distance_km: row.km }
+            : { kind: 'near_miss', misses: row.misses, distance_km: row.km, per_night_minor: row.perNightMinor },
+        };
+      }),
+    ),
   );
 
   return {
     kind: 'ok',
     fetched,
     shortlisted: result.shortlist.length,
+    nearMisses: result.nearMisses.length,
     eligible: result.eligible,
     rejected: result.rejected,
     uncheckable: result.uncheckable,

@@ -351,10 +351,13 @@ export const shortlistEntries = pgTable(
   },
   (t) => ({
     byStay: index('shortlist_entries_stay_idx').on(t.sessionId, t.stayId, t.rank),
-    /** A finder row without a priced offer and a reason cannot exist. */
+    /**
+     * A finder row has a reason, and a priced offer unless it is a near-miss
+     * whose only price is a member price an anonymous visitor may not see.
+     */
     finderRowsAreSourced: check(
       'shortlist_finder_rows_sourced',
-      sql`${t.source} = 'user_named' or (${t.offerId} is not null and ${t.reason} is not null)`,
+      sql`${t.source} = 'user_named' or (${t.reason} is not null and (${t.offerId} is not null or ${t.reason} @> '{"kind":"near_miss","misses":[{"kind":"member_price"}]}'::jsonb))`,
     ),
   }),
 );

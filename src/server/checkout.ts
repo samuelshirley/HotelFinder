@@ -9,6 +9,7 @@ import { createPrebooked, getBooking, transitionBooking, type Booking } from '@/
 import { appendMessage } from '@/server/repos/chat';
 import { getOffer } from '@/server/repos/offers';
 import { getProperty } from '@/server/repos/properties';
+import { isMemberOnlyPrice } from '@/lib/pricing';
 import { audienceFor, getStay, type SearchSession } from '@/server/repos/sessions';
 
 /**
@@ -30,7 +31,8 @@ export type StartError = 'property_not_found' | 'rate_gone' | 'supplier_unavaila
 export async function startCheckout(args: { session: SearchSession; offerId: string; supplier: SupplierAdapter }): Promise<{ ok: true; booking: Booking } | { ok: false; error: StartError }> {
   const { session, supplier } = args;
   const offer = await getOffer(args.offerId, session.id, audienceFor(session));
-  if (!offer) return { ok: false, error: 'property_not_found' };
+  // A member price is never sold to an anonymous visitor, even by its id.
+  if (!offer || isMemberOnlyPrice(offer, audienceFor(session))) return { ok: false, error: 'property_not_found' };
   const [stay, property] = await Promise.all([getStay(offer.stayId, session.id), getProperty(offer.propertyId)]);
   if (!stay || !property) return { ok: false, error: 'property_not_found' };
 

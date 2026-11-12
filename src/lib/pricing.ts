@@ -20,3 +20,15 @@ export function marginFor(audience: 'public' | 'member', env: Record<string, str
 
 /** How long a fetched rate may be ranked and shown before it is fetched again. It is always re-checked before payment. */
 export const OFFER_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * True when an offer may not be shown to this audience: an anonymous visitor
+ * is never quoted under the hotel's suggested public price. The finder ranks
+ * by this rule and the detail view's rates are filtered by it.
+ */
+export function isMemberOnlyPrice(
+  offer: { totalMinor: number; suggestedSellingMinor: number | null },
+  audience: 'public' | 'member',
+): boolean {
+  return audience === 'public' && offer.suggestedSellingMinor !== null && offer.totalMinor < offer.suggestedSellingMinor;
+}

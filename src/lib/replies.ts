@@ -129,7 +129,7 @@ function actionLine(action: ResolvedAction, state: SearchState, currency: string
 }
 
 export type OutcomeForReply =
-  | { kind: 'ok'; shortlisted: number; eligible: number; rejected: Record<string, number>; uncheckable: number; amenityFactsMissing: boolean }
+  | { kind: 'ok'; shortlisted: number; nearMisses?: number; eligible: number; rejected: Record<string, number>; uncheckable: number; amenityFactsMissing: boolean }
   | { kind: 'no_availability' | 'needs_place' | 'needs_nationality' | 'not_found' }
   | { kind: 'supplier_error'; error: { retryable: boolean } };
 
@@ -138,7 +138,8 @@ export function outcomeLine(outcome: OutcomeForReply | null): string {
   switch (outcome.kind) {
     case 'ok': {
       const considered = outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0);
-      if (outcome.eligible > 0) return `${outcome.eligible} of ${considered} hotels fit.`;
+      const near = nearMissLine(outcome.nearMisses ?? 0, outcome.eligible);
+      if (outcome.eligible > 0) return `${outcome.eligible} of ${considered} hotels fit.${near}`;
       const why: string[] = [];
       if (outcome.rejected.over_price_cap) why.push(`${outcome.rejected.over_price_cap} are over the price cap`);
       if (outcome.rejected.missing_must_have) {
@@ -150,7 +151,7 @@ export function outcomeLine(outcome: OutcomeForReply | null): string {
       }
       if (outcome.rejected.excluded_by_user) why.push(`${outcome.rejected.excluded_by_user} you set aside`);
       if (outcome.rejected.below_public_price) why.push(`${outcome.rejected.below_public_price} have a member price only`);
-      return `None of ${considered} hotels fit${why.length ? `: ${why.join(', ')}` : ''}.`;
+      return `None of ${considered} hotels fit${why.length ? `: ${why.join(', ')}` : ''}.${near}`;
     }
     case 'no_availability':
       return 'No rooms came back for these dates. Send the message again or change the dates.';
@@ -161,6 +162,15 @@ export function outcomeLine(outcome: OutcomeForReply | null): string {
     case 'not_found':
       return '';
   }
+}
+
+/** Said when the list is topped up with hotels that miss something (finder/rank.ts MIN_SHOWN). */
+export function nearMissLine(nearMisses: number, eligible: number): string {
+  if (nearMisses <= 0) return '';
+  const what = nearMisses === 1 ? 'the closest miss is' : `the ${nearMisses} closest misses are`;
+  return eligible > 0
+    ? ` Under ${eligible === 1 ? 'it' : 'them'}, ${what} listed, each saying what it misses.`
+    : ` ${what.charAt(0).toUpperCase()}${what.slice(1)} listed, each saying what it misses.`;
 }
 
 /** The whole reply for a set of applied actions and what the finder then found. */

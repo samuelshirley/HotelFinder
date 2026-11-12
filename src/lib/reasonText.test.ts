@@ -36,3 +36,24 @@ describe('reason wording', () => {
     expect(formatKm(1)).toBe('1.0 km');
   });
 });
+
+describe('near-miss words', () => {
+  const say = (misses: unknown[]) => reasonText({ kind: 'near_miss', misses }, { currency: 'EUR', hasMustHaves: true });
+  it('says each miss, from the finder\'s list only', () => {
+    expect(say([{ kind: 'over_price_cap', over_by_minor: 1230 }])).toBe('Misses: €12.30 a night over your cap');
+    expect(say([{ kind: 'missing_must_have', must: ['parking', 'pool'], unknown: [] }])).toBe('Misses: no parking or a pool');
+    expect(say([{ kind: 'missing_must_have', must: ['breakfast_included'], unknown: ['pets_allowed'] }])).toBe(
+      'Misses: no breakfast included; the listing does not say if it has pets allowed',
+    );
+    expect(say([{ kind: 'member_price' }, { kind: 'over_price_cap', over_by_minor: 500 }])).toBe(
+      'Misses: its rate is a member price, not shown before you sign in; €5 a night over your cap',
+    );
+  });
+  it('a member-price miss never says a number', () => {
+    expect(say([{ kind: 'member_price' }])).not.toMatch(/\d/);
+  });
+  it('anything it does not know says nothing rather than guessing', () => {
+    expect(say([{ kind: 'mystery' }])).toBe('');
+    expect(say([{ kind: 'missing_must_have', must: ['not_a_must'], unknown: [] }])).toBe('');
+  });
+});

@@ -6,7 +6,8 @@ import { shortlistEntries } from '@/server/db/schema';
 
 export type FinderEntry = {
   propertyId: string;
-  offerId: string;
+  /** null only for a near-miss whose price is member-only (schema check `shortlist_finder_rows_sourced`). */
+  offerId: string | null;
   rank: number;
   reason: { kind: string } & Record<string, unknown>;
 };

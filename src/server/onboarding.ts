@@ -7,7 +7,7 @@ import { placeName } from '@/lib/finder/searchPlan';
 import { inferNationality } from '@/lib/nationality';
 import type { PriorityReading } from '@/lib/priorityReading';
 import { reduce } from '@/lib/store/reduce';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, nearLabel, outcomeLine, prioritiesLabel, prioritiesLine } from '@/lib/replies';
+import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, nearLabel, nearMissLine, outcomeLine, prioritiesLabel, prioritiesLine } from '@/lib/replies';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import { MAX_NIGHTS } from '@/lib/store/reduce';
 import { dispatchActions, resolveDestination, toSearchState } from '@/server/dispatch';
@@ -286,7 +286,10 @@ const kmOf = (reason: unknown): number | null => {
 async function sayPennysPick(session: SearchSession, stay: Stay, outcome: FinderOutcome | null) {
   if (outcome?.kind !== 'ok') return;
   const rows = (await listShortlist(session.id, stay.id, audienceFor(session)))
-    .filter((r) => r.entry.source === 'finder' && r.offer)
+    // Penny names a hotel that fits, never one shown only to fill the list.
+    // Unreachable today (she picks at PICK_MIN_FITS = 8 fits; near-misses appear
+    // below MIN_SHOWN = 5), so no test exercises it: it is a backstop.
+    .filter((r) => r.entry.source === 'finder' && r.offer && r.entry.reason?.kind !== 'near_miss')
     .map((r) => ({
       propertyId: r.property.id,
       supplierHotelId: r.property.supplierHotelId,
@@ -311,7 +314,8 @@ async function sayPennysPick(session: SearchSession, stay: Stay, outcome: Finder
 export function firstSearchLine(outcome: FinderOutcome | null): string {
   if (outcome?.kind === 'ok' && outcome.eligible > 0) {
     const considered = outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0);
-    return `${outcome.eligible} of ${considered} hotels fit. The best ${outcome.shortlisted} are listed, each with the reason it is there.`;
+    const best = outcome.shortlisted === 1 ? 'It is listed first with the reason it fits.' : `The best ${outcome.shortlisted} are listed, each with the reason it is there.`;
+    return `${outcome.eligible} of ${considered} hotels fit. ${best}${nearMissLine(outcome.nearMisses, outcome.eligible)}`;
   }
   return outcomeLine(outcome);
 }

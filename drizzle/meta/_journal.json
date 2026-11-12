@@ -29,6 +29,13 @@
       "when": 1794427679754,
       "tag": "0003_detail_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794476869862,
+      "tag": "0004_near_misses",
+      "breakpoints": true
     }
   ]
 }

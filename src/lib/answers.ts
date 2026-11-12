@@ -15,6 +15,8 @@ import type { AnswerPlan, FactAsk } from '@/lib/router/route';
 
 /** One hotel on screen, as the offer and property rows describe it. null = the row is silent. */
 export type HotelFacts = {
+  /** false = shown under the divider because it misses a constraint (finder/rank.ts). Absent = fits. */
+  fits?: boolean;
   propertyId: string;
   name: string;
   stars: number | null;
@@ -171,12 +173,16 @@ function rankValue(superlative: Superlative, winner: HotelFacts, best: number, c
  * (the hotel is no longer on screen; "the cheapest" is a tie, so there is no
  * single hotel to read the fact from). Null sends the message to the agent.
  */
-export function buildAnswer(plan: AnswerPlan, hotels: readonly HotelFacts[], ctx: AnswerContext): Answer | null {
+export function buildAnswer(plan: AnswerPlan, listed: readonly HotelFacts[], ctx: AnswerContext): Answer | null {
+  // "The cheapest", "do they all…": over the hotels that fit, not the ones
+  // shown under the divider to fill the list. Over everything only when none fit.
+  const fitting = listed.filter((h) => h.fits !== false);
+  const hotels = fitting.length > 0 ? fitting : listed;
   switch (plan.about) {
     case 'search':
       return { kind: 'search', field: plan.field, search: ctx.search };
     case 'hotel': {
-      const h = hotels.find((x) => x.propertyId === plan.propertyId);
+      const h = listed.find((x) => x.propertyId === plan.propertyId);
       return h ? hotelAnswer(h, plan, ctx) : null;
     }
     case 'hotel_by_rank': {

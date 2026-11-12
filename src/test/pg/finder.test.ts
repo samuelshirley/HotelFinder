@@ -41,6 +41,7 @@ describe('the stay finder', () => {
       kind: 'ok',
       fetched: true,
       shortlisted: 5,
+      nearMisses: 0,
       eligible: 20,
       rejected: { over_price_cap: 0, missing_must_have: 0, below_public_price: 0, excluded_by_user: 0 },
       uncheckable: 0,
@@ -120,6 +121,71 @@ describe('the stay finder', () => {
       expect(row.offer?.audience).toBe('public');
       if (row.offer?.suggestedSellingMinor != null) expect(row.offer.totalMinor).toBeGreaterThanOrEqual(row.offer.suggestedSellingMinor);
     }
+  });
+
+  it('fewer than five fit: the list is filled to five with the closest misses, each saying what it misses', async () => {
+    const ids = await porto('anonymous');
+    await updateStay(ids.stayId, ids.sessionId, { priceCapMinor: 6500 });
+    const outcome = await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
+    expect(outcome).toMatchObject({ kind: 'ok', shortlisted: 1, nearMisses: 4, eligible: 1 });
+    const list = await listShortlist(ids.sessionId, ids.stayId, 'public');
+    expect(list.map((r) => r.entry.rank)).toEqual([1, 2, 3, 4, 5]);
+    expect(list[0].entry.reason?.kind).toBe('cheapest_meeting_all_musts');
+    for (const row of list.slice(1)) {
+      expect(row.entry.reason).toMatchObject({ kind: 'near_miss', misses: [{ kind: 'over_price_cap' }] });
+      // The miss is true, and its number is the real distance over the cap.
+      const perNight = Math.ceil(row.offer!.totalMinor / 2);
+      expect(perNight).toBeGreaterThan(6500);
+      expect((row.entry.reason as unknown as { misses: Array<{ over_by_minor: number }> }).misses[0].over_by_minor).toBe(perNight - 6500);
+    }
+  });
+
+  it('nothing fits: five closest misses are still listed', async () => {
+    const ids = await porto('anonymous');
+    await updateStay(ids.stayId, ids.sessionId, { priceCapMinor: 1000 });
+    const outcome = await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
+    expect(outcome).toMatchObject({ kind: 'ok', shortlisted: 0, nearMisses: 5, eligible: 0 });
+    expect(await listShortlist(ids.sessionId, ids.stayId, 'public')).toHaveLength(5);
+  });
+
+  it('a near-miss whose rate is a member price holds no offer and no number from one', async () => {
+    const ids = await porto('anonymous');
+    await updateStay(ids.stayId, ids.sessionId, { priceCapMinor: 7000 });
+    await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
+    const list = await listShortlist(ids.sessionId, ids.stayId, 'public');
+    const member = list.filter((r) => (r.entry.reason as { misses?: Array<{ kind: string }> } | null)?.misses?.some((m) => m.kind === 'member_price'));
+    expect(member.length).toBeGreaterThan(0);
+    const hidden = await rawQuery<{ total_minor: number }>(
+      `select total_minor from offers where session_id = $1 and property_id = any($2) and total_minor < suggested_selling_minor`,
+      [ids.sessionId, member.map((r) => r.property.id)],
+    );
+    expect(hidden.length).toBeGreaterThan(0);
+    for (const row of member) {
+      expect(row.offer).toBeNull();
+      expect(row.entry.offerId).toBeNull();
+      expect(row.entry.reason).not.toHaveProperty('per_night_minor');
+      const json = JSON.stringify(row);
+      for (const { total_minor } of hidden) {
+        expect(json).not.toContain(String(total_minor));
+        expect(json).not.toContain(String(Math.ceil(total_minor / 2)));
+      }
+    }
+  });
+
+  it('the schema refuses a finder row without an offer unless it is a member-price near-miss', async () => {
+    const ids = await porto('anonymous');
+    await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
+    const [{ property_id }] = await rawQuery<{ property_id: string }>(`select property_id from shortlist_entries where session_id = $1 limit 1`, [ids.sessionId]);
+    const insert = (reason: unknown) =>
+      rawQuery(`insert into shortlist_entries (session_id, stay_id, property_id, rank, source, reason) values ($1, $2, $3, 99, 'finder', $4)`, [
+        ids.sessionId,
+        ids.stayId,
+        property_id,
+        JSON.stringify(reason),
+      ]);
+    await expect(insert({ kind: 'near_miss', misses: [{ kind: 'over_price_cap', over_by_minor: 100 }] })).rejects.toThrow(/shortlist_finder_rows_sourced/);
+    await expect(insert({ kind: 'cheapest_meeting_all_musts' })).rejects.toThrow(/shortlist_finder_rows_sourced/);
+    await expect(insert({ kind: 'near_miss', misses: [{ kind: 'member_price' }] })).resolves.toBeDefined();
   });
 
   it('signing in mid-search fetches member prices; the public quotes are not what a member is ranked on', async () => {

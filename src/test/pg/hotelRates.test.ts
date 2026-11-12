@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('@/server/db/client', async () => (await import('./harness')).clientModule());
 
-import { resetDb } from './harness';
+import { rawQuery, resetDb } from './harness';
 import { RECORDED_AT, recordedSupplier } from './recordedSupplier';
 import { startCheckout } from '@/server/checkout';
 import { hotelRates } from '@/server/hotelRates';
@@ -63,5 +63,24 @@ describe("a hotel's rooms and rates", () => {
     const sup = { ...t.recorded.supplier, recheckRate: async () => ({ ok: false as const, error: { kind: 'supplier' as const, status: 400, code: 1, message: 'x', retryable: false } }) };
     // The offer is found and re-checked (the recorded supplier refuses the re-check, which is the point reached).
     expect(await startCheckout({ session: t.session, offerId: r.offers[0].id, supplier: sup })).toEqual({ ok: false, error: 'rate_gone' });
+  });
+
+  it('an anonymous visitor never sees a rate under the hotel\'s public price, in any hotel\'s rooms and rates, nor can buy one by its id', async () => {
+    const t = await searched();
+    const later = new Date(RECORDED_AT.getTime() + 60_000);
+    const props = await rawQuery<{ id: string }>('select distinct property_id as id from offers where session_id = $1', [t.session.id]);
+    let hidden = 0;
+    for (const { id } of props) {
+      const r = await hotelRates({ session: t.session, stay: t.stay, propertyId: id, supplier: t.recorded.supplier, now: later });
+      if (!r.ok) throw new Error(r.error);
+      for (const o of r.offers) if (o.suggestedSellingMinor !== null) expect(o.totalMinor).toBeGreaterThanOrEqual(o.suggestedSellingMinor);
+    }
+    // The recorded search holds such rates, so the rule above was tested, not vacuous.
+    const below = await rawQuery<{ id: string }>('select id from offers where session_id = $1 and total_minor < suggested_selling_minor', [t.session.id]);
+    hidden = below.length;
+    expect(hidden).toBeGreaterThan(0);
+    for (const { id } of below) {
+      expect(await startCheckout({ session: t.session, offerId: id, supplier: t.recorded.supplier })).toEqual({ ok: false, error: 'property_not_found' });
+    }
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AMENITIES } from '@/lib/amenities';
 import { haversineKm, medianPoint, nightsBetween } from './geo';
-import { CANONICAL_PRIORITIES, dominates, meetsMustHave, rankStay, type Candidate, type PriorityKey } from './rank';
+import { CANONICAL_PRIORITIES, dominates, meetsMustHave, MIN_SHOWN, rankStay, type Candidate, type PriorityKey } from './rank';
 
 /** Every set of priorities: none, each alone, every pair, all three. */
 const SUBSETS: PriorityKey[][] = [0, 1, 2, 3, 4, 5, 6, 7].map((mask) => CANONICAL_PRIORITIES.filter((_, i) => mask & (1 << i)));
@@ -267,5 +267,74 @@ describe('geo', () => {
     expect(medianPoint([{ latitude: 1, longitude: 10 }, { latitude: 3, longitude: 30 }, { latitude: 100, longitude: 20 }])).toEqual({ latitude: 3, longitude: 20 });
     expect(nightsBetween('2026-12-11', '2026-12-13')).toBe(2);
     expect(nightsBetween('2026-03-28', '2026-03-30')).toBe(2); // across a DST change in Europe
+  });
+});
+
+describe('never a list of one: near-misses fill the list to MIN_SHOWN', () => {
+  const MUSTS = ['parking', 'pets_allowed', 'free_cancellation', 'breakfast_included'] as const;
+  it('over 2000 random searches with caps, must-haves, set-asides and anonymous visitors', () => {
+    const rand = mulberry32(20261112);
+    let filled = 0;
+    for (let round = 0; round < 2000; round++) {
+      const candidates = randomCandidates(rand, 1 + Math.floor(rand() * 14));
+      const mustHaves = MUSTS.filter(() => rand() < 0.25);
+      const priceCapMinor = rand() < 0.5 ? [3000, 4500, 6000, 9000][Math.floor(rand() * 4)] : null;
+      const audience = rand() < 0.5 ? ('public' as const) : ('member' as const);
+      const excludedPropertyIds = candidates.filter(() => rand() < 0.15).map((c) => c.propertyId);
+      const priorities = SUBSETS[Math.floor(rand() * SUBSETS.length)];
+      const r = rankStay({ ...base, candidates, mustHaves: [...mustHaves], priceCapMinor, audience, excludedPropertyIds, priorities });
+
+      const shown = [...r.shortlist, ...r.nearMisses];
+      const available = candidates.length - excludedPropertyIds.length;
+      expect(shown).toHaveLength(Math.min(available, Math.max(MIN_SHOWN, r.shortlist.length)));
+      if (r.shortlist.length >= MIN_SHOWN) expect(r.nearMisses).toEqual([]);
+      if (r.nearMisses.length) filled += 1;
+      // Ranks run on from the shortlist without a gap.
+      expect(shown.map((x) => x.rank)).toEqual(shown.map((_, i) => i + 1));
+      // The totals are the rejections, counted once each.
+      expect(r.eligible + Object.values(r.rejected).reduce((a, b) => a + b, 0)).toBe(candidates.length);
+
+      const nights = nightsBetween(base.checkIn, base.checkOut);
+      let previous = 0;
+      for (const n of r.nearMisses) {
+        const c = n.candidate;
+        expect(excludedPropertyIds).not.toContain(c.propertyId);
+        expect(n.misses.length).toBeGreaterThan(0);
+        expect(n.misses.length).toBeGreaterThanOrEqual(previous);
+        previous = n.misses.length;
+        // Oracle: every miss is true, written from the raw candidate, not the ranker's predicates.
+        const perNight = Math.ceil(c.totalMinor / nights);
+        const member = audience === 'public' && c.suggestedSellingMinor !== null && c.totalMinor < c.suggestedSellingMinor;
+        expect(n.misses.some((m) => m.kind === 'member_price')).toBe(member);
+        const over = n.misses.find((m) => m.kind === 'over_price_cap');
+        expect(over ? over.over_by_minor : 0).toBe(priceCapMinor !== null && perNight > priceCapMinor ? perNight - priceCapMinor : 0);
+        const has = (m: (typeof MUSTS)[number]) =>
+          m === 'free_cancellation' ? c.refundable : m === 'breakfast_included' ? /breakfast/i.test(c.boardName ?? '') : (c.amenities ?? []).includes(m);
+        const lacking = mustHaves.filter((m) => !has(m));
+        const mh = n.misses.find((m) => m.kind === 'missing_must_have');
+        expect(mh ? [...mh.must, ...mh.unknown].sort() : []).toEqual([...lacking].sort());
+        // No hotel that fits is ever shown as a miss.
+        expect(r.shortlist.map((s) => s.candidate.propertyId)).not.toContain(c.propertyId);
+      }
+    }
+    expect(filled).toBeGreaterThan(500);
+  });
+
+  it('the Puerto Escondido case: one hotel fits, the rest are member-only, and four of them are listed', () => {
+    const candidates = randomCandidates(mulberry32(7), 11).map((c, i) => ({
+      ...c,
+      totalMinor: 100_000 + i * 1000,
+      suggestedSellingMinor: i === 0 ? null : 200_000,
+    }));
+    const r = rankStay({ ...base, candidates, audience: 'public', priorities: ['cheapest', 'closest'] });
+    expect(r.shortlist).toHaveLength(1);
+    expect(r.rejected.below_public_price).toBe(10);
+    expect(r.nearMisses).toHaveLength(4);
+    for (const n of r.nearMisses) expect(n.misses).toEqual([{ kind: 'member_price' }]);
+  });
+
+  it('minShown is a setting: 0 turns the filling off', () => {
+    const candidates = randomCandidates(mulberry32(3), 8);
+    expect(rankStay({ ...base, candidates, priorities: [], priceCapMinor: 1, minShown: 0 }).nearMisses).toEqual([]);
   });
 });

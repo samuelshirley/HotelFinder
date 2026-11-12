@@ -82,6 +82,9 @@
 .cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .cardItem { background: var(--tp-surface); border: 1px solid var(--tp-neutral-900); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 150px; }
 .cardItem[data-open='true'] { border-color: var(--tp-accent-700); }
+.cardItem[data-near-miss='true'] .why { color: var(--tp-muted); }
+.divider { display: flex; align-items: center; gap: 12px; margin: 6px 0 -2px; color: var(--tp-muted); font-size: 12px; }
+.divider::before, .divider::after { content: ''; flex: 1; border-top: 1px solid var(--tp-border); }
 .card { display: grid; grid-template-columns: 160px minmax(0, 1fr) 200px; cursor: pointer; }
 .card:hover .cardBody h3 { color: var(--tp-accent-300); }
 .priceCol { padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 2px; border-left: 1px solid var(--tp-neutral-900); }

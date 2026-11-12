@@ -3,7 +3,7 @@
 import { isMustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import type { PriorityKey } from '@/lib/finder/rank';
@@ -17,6 +17,9 @@ import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
 
 type Row = SessionView['shortlist'][number];
+
+/** Shown only to fill the list to five: it fails a constraint, and its card says which (finder/rank.ts). */
+const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kind?: unknown } | null)?.kind === 'near_miss';
 
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
@@ -92,9 +95,14 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         <p className={styles.empty}>{session.status === 'onboarding' ? 'Answer the questions in the chat to search.' : 'Nothing on the shortlist. The last message in the chat says why.'}</p>
       ) : (
         <ol className={styles.cards} aria-busy={working !== null} data-working={working ? 'true' : undefined}>
-          {shortlist.map((row) => (
+          {shortlist.map((row, i) => (
+            <Fragment key={row.entryId}>
+              {isNearMiss(row) && !shortlist.slice(0, i).some(isNearMiss) && (
+                <li className={styles.divider} role="separator" aria-label="Hotels that miss something you asked for">
+                  <span>{shortlist.some((r) => r.source === 'finder' && !isNearMiss(r)) ? 'Close, but each misses something you asked for' : 'Nothing fits everything. These miss the least'}</span>
+                </li>
+              )}
             <Card
-              key={row.entryId}
               view={view}
               row={row}
               nights={nights}
@@ -105,6 +113,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onBook={onBook}
               booking={booking}
             />
+            </Fragment>
           ))}
         </ol>
       )}
@@ -310,7 +319,9 @@ function Card({
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
-  const why = offer ? reasonText(reason, { currency: offer.currency, hasMustHaves }) : 'You asked about this one; it has no price for these dates yet';
+  const why = reason
+    ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves })
+    : 'You asked about this one; it has no price for these dates yet';
   // The card body opens the hotel too; its own buttons keep their own jobs.
   const onCard = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, a, details')) return;
@@ -318,7 +329,7 @@ function Card({
     else onOpen(property.id);
   };
   return (
-    <li id={`hotel-${property.id}`} className={styles.cardItem} data-open={open ? 'true' : undefined}>
+    <li id={`hotel-${property.id}`} className={styles.cardItem} data-open={open ? 'true' : undefined} data-near-miss={isNearMiss(row) ? 'true' : undefined}>
       <div className={styles.card} onClick={onCard}>
         {property.photo ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -344,6 +355,15 @@ function Card({
             </p>
           )}
         </div>
+        {!offer && (
+          <div className={styles.priceCol}>
+            <div className={styles.cardActions}>
+              <button className={styles.secondary} aria-expanded={open} onClick={() => (open ? onClose() : onOpen(property.id))}>
+                {open ? 'Collapse ▲' : 'Details'}
+              </button>
+            </div>
+          </div>
+        )}
         {offer && (
           <div className={styles.priceCol}>
             <p className={styles.price}>{formatMoney(offer.totalMinor, offer.currency)}</p>
