@@ -161,7 +161,8 @@ The ones most easily broken:
 ## Working rules
 
 - Commit finished, scoped work after `tsc --noEmit` and the unit tests pass.
-  Run the unit tests after every code change. Sam pushes and merges.
+  Run the unit tests after every code change. Claude may push to `main`
+  (repo: github.com/samuelshirley/HotelFinder, public); Sam merges PRs.
 - Reproduce, never guess. If it cannot be reproduced, say so.
 - Supplier payloads in tests are recorded from the sandbox, never hand-written.
 - Mutation-check every new guard test.
