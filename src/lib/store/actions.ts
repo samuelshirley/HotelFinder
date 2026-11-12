@@ -29,6 +29,12 @@ export const actionSchema = z.discriminatedUnion('type', [
    * No producer can author coordinates.
    */
   z.object({ type: z.literal('set_near'), placeId: z.string().min(1).max(400) }).strict(),
+  /**
+   * "Search around here": the middle of the user's own map. Only the map
+   * control sends it, through the edit route. No model tool and no router path
+   * can produce it (mapPointGuard), so a model still never authors coordinates.
+   */
+  z.object({ type: z.literal('set_near_point'), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).strict(),
   /** Measure "close" from the destination again. */
   z.object({ type: z.literal('clear_near') }).strict(),
   /** Per night for the whole party, minor units. null removes the cap. */
@@ -71,6 +77,11 @@ export type ResolvedDestination = ResolvedPoint & { kind: 'area' | 'point'; coun
  * replaced by the supplier's point for it. Built only in dispatch.
  */
 export type ResolvedAction =
-  | Exclude<Action, { type: 'set_near' } | { type: 'set_destination' }>
+  | Exclude<Action, { type: 'set_near' } | { type: 'set_near_point' } | { type: 'set_destination' }>
   | { type: 'set_near'; near: ResolvedPoint }
   | { type: 'set_destination'; placeId: string; destinationText: string; point: ResolvedDestination | null };
+
+/** What a point picked on the map is called, on the chip and in Penny's line. */
+export const MAP_POINT_LABEL = 'the spot on your map';
+/** A stand-in place id for a map point: never sent to the supplier, only compared ("is this the same spot?"). ~10 m. */
+export const mapPointId = (latitude: number, longitude: number) => `map:${latitude.toFixed(4)},${longitude.toFixed(4)}`;

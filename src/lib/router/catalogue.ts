@@ -18,6 +18,7 @@ export const INTENTS = [
   'more',
   'open',
   'book',
+  'map',
   'greeting_or_thanks',
   'ask_hotels',
   'ask_search',
@@ -65,6 +66,7 @@ export const QUESTIONS = {
       more: 'Wants to see other hotels than the ones listed.',
       open: 'Wants to look at or hear more about one of the listed hotels in general, without asking for one particular fact.',
       book: 'Wants to book or reserve one of the listed hotels.',
+      map: 'Wants the map itself shown or hidden, or wants to see where one of the listed hotels is on the map. Changes nothing about the search.',
       greeting_or_thanks: 'Only a greeting, thanks or goodbye.',
       ask_hotels:
         'Asks for a fact the listing holds about the listed hotels, one of them or all of them: the price, what is paid at the hotel, cancellation, breakfast, the room, the guest rating, the stars, the distance, whether it has a facility such as parking or a pool, or which of them is cheapest, closest or best rated. Asking is not requiring: "does it have parking?" belongs here, "it needs parking" does not.',

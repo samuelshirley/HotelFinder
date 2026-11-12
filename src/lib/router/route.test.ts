@@ -130,6 +130,18 @@ describe('settled messages become typed actions', () => {
     });
   });
 
+  it('the map: shown, folded away, or one hotel marked on it; never a write', () => {
+    expect(route('show me the map', readings('map'))).toEqual({ kind: 'ui', intent: 'map', hint: { map: 'show' } });
+    expect(route('hide the map', readings('map'))).toEqual({ kind: 'ui', intent: 'map', hint: { map: 'hide' } });
+    expect(route("i don't need the map", readings('map'))).toEqual({ kind: 'ui', intent: 'map', hint: { map: 'hide' } });
+    expect(route('where is the second one on the map', readings('map'))).toEqual({ kind: 'ui', intent: 'map', hint: { focus: { propertyId: P(2) } } });
+  });
+
+  it('a place named in a map message is not "be close to it"', () => {
+    const r = readings('map', { wantsLocation: 0.95, namesPlace: 0.95 });
+    expect(route('show the yotel on the map', r)).toEqual({ kind: 'ui', intent: 'map', hint: { focus: { propertyId: P(1) } } });
+  });
+
   it('opening and booking are UI hints, never a write', () => {
     expect(route('tell me about the first', readings('open'))).toEqual({
       kind: 'ui',

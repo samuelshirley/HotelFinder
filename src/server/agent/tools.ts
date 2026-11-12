@@ -40,6 +40,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'show_others', description: 'Set aside everything on screen and show the next best.', input_schema: obj({}) },
   { name: 'bring_back_all', description: 'Undo every set-aside.', input_schema: obj({}) },
   { name: 'open_hotel', description: 'Open one hotel in the panel on the right.', input_schema: obj({ position }) },
+  { name: 'show_map', description: 'Show or fold away the map above the hotel list. Changes nothing about the search.', input_schema: obj({ visible: { type: 'boolean' } }) },
+  { name: 'mark_on_map', description: 'Show the map and mark one on-screen hotel on it, for "where is the second one?".', input_schema: obj({ position }) },
 ];
 
 const pos = z.number().int().min(1);
@@ -60,6 +62,8 @@ const INPUT = {
   show_others: z.object({}).strict(),
   bring_back_all: z.object({}).strict(),
   open_hotel: z.object({ position: pos }).strict(),
+  show_map: z.object({ visible: z.boolean() }).strict(),
+  mark_on_map: z.object({ position: pos }).strict(),
 } as const;
 export type ToolName = keyof typeof INPUT;
 export const isToolName = (name: string): name is ToolName => name in INPUT;
@@ -82,6 +86,8 @@ export type ParsedCall =
   | { kind: 'hotel_details'; propertyId: string; position: number }
   | { kind: 'actions'; actions: Action[] }
   | { kind: 'open'; propertyId: string }
+  | { kind: 'map'; visible: boolean }
+  | { kind: 'focus'; propertyId: string }
   | { kind: 'invalid'; reason: string };
 
 /** Pure: a tool call → what it means, or why it means nothing. Ids come from the context, never from the model. */
@@ -104,6 +110,13 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       const p = (parsed.data as { position: number }).position;
       const propertyId = at(p);
       return propertyId ? { kind: 'open', propertyId } : none(p);
+    }
+    case 'show_map':
+      return { kind: 'map', visible: (parsed.data as { visible: boolean }).visible };
+    case 'mark_on_map': {
+      const p = (parsed.data as { position: number }).position;
+      const propertyId = at(p);
+      return propertyId ? { kind: 'focus', propertyId } : none(p);
     }
     case 'set_destination': {
       const place = ctx.placeRefs.get((parsed.data as { place_ref: string }).place_ref.toUpperCase());

@@ -37,6 +37,10 @@ export type AgentResult = {
   rejected: Rejection[];
   /** A hotel to open in the panel. */
   open: string | null;
+  /** A hotel to mark on the map. */
+  focus: string | null;
+  /** The map shown or folded away. */
+  map: 'show' | 'hide' | null;
   /** The model's own reply, already guarded. '' when there is none to show. */
   text: string;
   guards: Guard[];
@@ -53,7 +57,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
   let grounding = first;
   let working = input.state;
 
-  const result: AgentResult = { actions: [], rejected: [], open: null, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
+  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
   let modelText = '';
   /** Why the reply whose text may be shown ended. */
   let stopReason: string | null = null;
@@ -123,6 +127,14 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
         case 'open':
           result.open = parsed.propertyId;
           answer('opened');
+          break;
+        case 'map':
+          result.map = parsed.visible ? 'show' : 'hide';
+          answer(parsed.visible ? 'shown' : 'hidden');
+          break;
+        case 'focus':
+          result.focus = parsed.propertyId;
+          answer('marked');
           break;
         case 'actions': {
           const notes: string[] = [];

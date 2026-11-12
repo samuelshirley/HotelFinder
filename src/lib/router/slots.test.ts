@@ -105,3 +105,14 @@ describe('nights', () => {
     expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
   });
 });
+
+describe('the map intent: away, or on show', () => {
+  it.each(['hide the map', 'close the map please', 'get rid of the map', "I don't need the map", 'no map', 'turn off the map'])('%s → hidden', async (m) => {
+    const { wantsMapHidden } = await import('./slots');
+    expect(wantsMapHidden(m)).toBe(true);
+  });
+  it.each(['show the map', 'map please', 'can I see them on a map', 'bring the map back'])('%s → shown', async (m) => {
+    const { wantsMapHidden } = await import('./slots');
+    expect(wantsMapHidden(m)).toBe(false);
+  });
+});

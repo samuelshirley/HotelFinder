@@ -324,6 +324,11 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     }
     case 'ui': {
       const hint = decision.hint;
+      if ('map' in hint) return { text: hint.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...trace, intent: decision.intent, ui: { map: hint.map }, model_calls: 0 } };
+      if ('focus' in hint) {
+        const marked = shortlist.find((r) => r.propertyId === hint.focus.propertyId);
+        return { text: `${marked?.name ?? 'That hotel'} is marked on the map.`, meta: { ...trace, intent: decision.intent, ui: { focus: hint.focus }, model_calls: 0 } };
+      }
       const row = shortlist.find((r) => r.propertyId === ('open' in hint ? hint.open.propertyId : hint.book.propertyId));
       const text =
         'book' in hint
@@ -470,7 +475,7 @@ async function agentTurn(args: {
         rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
         effect: dispatched.effect,
         finder: dispatched.finder?.kind ?? null,
-        ...(agent.open ? { ui: { open: { propertyId: agent.open } } } : {}),
+        ...(agentUi(agent) ? { ui: agentUi(agent) } : {}),
       },
     };
   }
@@ -478,9 +483,23 @@ async function agentTurn(args: {
     const row = rows.find((r) => r.property.id === agent.open);
     return { text: `${row?.property.name ?? 'That hotel'} is open.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
   }
+  if (agent.focus) {
+    const row = rows.find((r) => r.property.id === agent.focus);
+    return { text: `${row?.property.name ?? 'That hotel'} is marked on the map.`, meta: { ...meta, ui: agentUi(agent) } };
+  }
+  if (agent.map) return { text: agent.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...meta, ui: agentUi(agent) } };
   if (agent.text) return { text: agent.text, kind: 'ai', meta };
   if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };
   return { text: FIXED_LINES.cannot_yet, meta };
+}
+
+/** What the agent asked the screen to do, in the shape the client reads off the last message. */
+function agentUi(agent: { open: string | null; focus: string | null; map: 'show' | 'hide' | null }): Record<string, unknown> | null {
+  const ui: Record<string, unknown> = {};
+  if (agent.open) ui.open = { propertyId: agent.open };
+  if (agent.focus) ui.focus = { propertyId: agent.focus };
+  if (agent.map) ui.map = agent.map;
+  return Object.keys(ui).length ? ui : null;
 }
 
 /** Where the shortlist's distances were measured from: a named place, a point destination, else the middle of the results. */

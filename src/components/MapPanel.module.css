@@ -1,0 +1,33 @@
+.wrap { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--tp-bg); overflow: hidden; }
+.canvas { position: absolute; inset: 0; }
+.failed { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; color: var(--tp-muted); font-size: 13px; }
+
+/* Rank and price, always shown: the rank joins the pin to its card. */
+.pin { height: 28px; padding: 0 10px; border: 0; border-radius: 14px; background: var(--tp-primary); color: #161826; font: 700 13px/28px var(--font); white-space: nowrap; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px #161826; cursor: pointer; }
+.pin[data-hover='true'] { background: var(--tp-primary-hover); }
+.pin[data-selected='true'] { background: var(--tp-accent-300); box-shadow: 0 0 0 2px #161826, 0 0 0 4px var(--tp-accent-300); }
+.pin:focus-visible { outline: 2px solid var(--tp-text); outline-offset: 3px; }
+
+/* A near-miss: hollow, no rank. What it misses shows on hover or focus. */
+.miss { width: 18px; height: 18px; padding: 0; border: 1.5px solid var(--tp-muted); border-radius: 50%; background: rgba(22, 24, 38, 0.6); cursor: pointer; }
+.miss[data-hover='true'], .miss[data-selected='true'] { border-color: var(--tp-text); background: var(--tp-surface); }
+.missTip { display: none; position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); max-width: 240px; width: max-content; padding: 3px 8px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-text); font: 400 12px/1.35 var(--font); text-align: left; }
+.miss[data-hover='true'] .missTip, .miss[data-selected='true'] .missTip, .miss:focus-visible .missTip { display: block; }
+
+/* Where distance is measured from: not round and not violet, so it is never read as a hotel. */
+.anchor { width: 14px; height: 14px; background: var(--tp-text); box-shadow: 0 0 0 2px #161826; rotate: 45deg; pointer-events: none; }
+.anchorLabel { position: absolute; left: 50%; top: 50%; rotate: -45deg; translate: 12px -50%; transform-origin: left center; padding: 2px 8px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-text); font: 400 12px/1.35 var(--font); white-space: nowrap; }
+.ringLabel { padding: 1px 7px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-muted); font: 400 12px/1.35 var(--font); white-space: nowrap; pointer-events: none; }
+
+.chips { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; z-index: 4; }
+.chip { padding: 6px 12px; border: 1px solid var(--tp-border-strong); border-radius: 999px; background: var(--tp-surface); color: var(--tp-text); font: 500 13px/1.3 var(--font); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip:hover:not(:disabled) { border-color: var(--tp-primary); color: var(--tp-accent-300); }
+.popup { position: absolute; z-index: 5; transform: translate(-50%, calc(-100% - 10px)); }
+
+/* MapLibre's own controls, in the app's colours. */
+.wrap :global(.maplibregl-ctrl-group) { background: var(--tp-surface); border: 1px solid var(--tp-border); box-shadow: none; }
+.wrap :global(.maplibregl-ctrl-group button + button) { border-top: 1px solid var(--tp-border); }
+.wrap :global(.maplibregl-ctrl-group button .maplibregl-ctrl-icon) { filter: invert(0.9); }
+.wrap :global(.maplibregl-ctrl-attrib) { background: rgba(35, 37, 50, 0.85); color: var(--tp-muted); font-size: 11px; }
+.wrap :global(.maplibregl-ctrl-attrib a) { color: var(--tp-muted); }
+.wrap :global(.maplibregl-ctrl-attrib-button) { filter: invert(0.9); }

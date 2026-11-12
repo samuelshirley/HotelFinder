@@ -1,7 +1,7 @@
 import type { MustHave } from '@/lib/amenities';
 import { haversineKm, nightsBetween, type LatLng } from '@/lib/finder/geo';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
-import type { Action, ResolvedAction, ResolvedPoint } from './actions';
+import { MAP_POINT_LABEL, mapPointId, type Action, type ResolvedAction, type ResolvedPoint } from './actions';
 
 /** The part of a search an action can change. A plain value: no database, no clock. */
 export type SearchState = {
@@ -159,6 +159,9 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
 export function previewReduce(state: SearchState, action: Action, today: string): Reduced {
   if (action.type === 'set_near') {
     return state.stay.near?.placeId === action.placeId ? { ok: false, rejection: 'no_change' } : { ok: true, state, effect: 'refetch' };
+  }
+  if (action.type === 'set_near_point') {
+    return reduce(state, { type: 'set_near', near: { placeId: mapPointId(action.latitude, action.longitude), label: MAP_POINT_LABEL, latitude: action.latitude, longitude: action.longitude } }, today);
   }
   if (action.type === 'set_destination') return reduce(state, { ...action, point: null }, today);
   return reduce(state, action, today);

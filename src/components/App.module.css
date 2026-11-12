@@ -167,3 +167,33 @@
 .pickButton:hover { background: var(--tp-primary-muted); }
 .choiceRow { display: flex; flex-wrap: wrap; gap: 8px; }
 .choiceRow .pickButton { margin-top: 8px; }
+
+/*
+ * Layout C (docs/design/map.md): the search header, the map band, then the
+ * list. Only the list scrolls, so the wheel over the map zooms the map. When
+ * the hotels column is 1000px or wider the map stands beside the list instead.
+ */
+.results[data-layout='map'] { overflow: hidden; padding: 0; }
+.resultsLayout { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
+.resultsLayout .summary { position: static; margin: 0; padding: 16px 20px 12px; }
+.resultsLayout[data-map='closed'] { grid-template-rows: auto minmax(0, 1fr); }
+.resultsLayout[data-map='closed'] .summary > * { width: 100%; max-width: 960px; margin-inline: auto; }
+.summaryRight { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mapBand { height: clamp(200px, 32vh, 320px); min-height: 0; border-bottom: 1px solid var(--tp-neutral-900); }
+.mapLoading { height: 100%; display: grid; place-items: center; color: var(--tp-muted); font-size: 13px; }
+.listScroll { overflow-y: auto; min-height: 0; padding: 14px 20px 40px; container-type: inline-size; }
+.listScroll > .cards, .listScroll > .empty { max-width: 960px; margin-inline: auto; }
+.resultsLayout .cardItem { scroll-margin-top: 8px; }
+/* Its pin is under the pointer, or was pressed: the card wears a border so it can be found in the list. */
+.cardItem[data-marked='hover'] { border-color: var(--tp-primary-hover); box-shadow: 0 0 0 1px var(--tp-primary-hover); }
+.cardItem[data-marked='selected'] { border-color: var(--tp-accent-300); box-shadow: 0 0 0 2px var(--tp-accent-300); }
+@container (min-width: 1000px) {
+  .resultsLayout[data-map='open'] { grid-template-columns: minmax(0, 600px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .resultsLayout[data-map='open'] .summary { grid-column: 1 / -1; }
+  .resultsLayout[data-map='open'] .listScroll { grid-column: 1; grid-row: 2; }
+  .resultsLayout[data-map='open'] .mapBand { grid-column: 2; grid-row: 2; height: auto; border-bottom: 0; border-left: 1px solid var(--tp-neutral-900); }
+}
+@media (max-width: 900px) {
+  .results[data-layout='map'] { margin-top: 48px; height: calc(100dvh - 48px); }
+  .listScroll { padding: 12px 14px 32px; }
+}

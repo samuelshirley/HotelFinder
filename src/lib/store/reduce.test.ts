@@ -197,3 +197,29 @@ describe('action shapes', () => {
     expect(actionSchema.safeParse({ type: 'set_nationality', code: 'PT' }).success).toBe(true);
   });
 });
+
+describe('a point picked on the map ("Search around here")', () => {
+  it('previews as a new place to be near: a new search around it', async () => {
+    const { previewReduce } = await import('./reduce');
+    const { MAP_POINT_LABEL, mapPointId } = await import('./actions');
+    const r = previewReduce(state({ destPoint: { latitude: 41.15, longitude: -8.61 } }), { type: 'set_near_point', latitude: 41.1408, longitude: -8.613 }, TODAY);
+    if (!r.ok) throw new Error(r.rejection);
+    expect(r.effect).toBe('refetch');
+    expect(r.state.stay.near).toEqual({ placeId: mapPointId(41.1408, -8.613), label: MAP_POINT_LABEL, latitude: 41.1408, longitude: -8.613 });
+  });
+
+  it('the same spot twice changes nothing; a spot in another city is refused like any place that far', async () => {
+    const { previewReduce } = await import('./reduce');
+    const { mapPointId } = await import('./actions');
+    const near = { placeId: mapPointId(41.1408, -8.613), label: 'x', latitude: 41.1408, longitude: -8.613 };
+    expect(previewReduce(state({ near }), { type: 'set_near_point', latitude: 41.14081, longitude: -8.61301 }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    expect(previewReduce(state({ destPoint: { latitude: 41.15, longitude: -8.61 } }), { type: 'set_near_point', latitude: 38.72, longitude: -9.14 }, TODAY)).toEqual({ ok: false, rejection: 'near_too_far' });
+  });
+
+  it('the action schema bounds the point to the globe and takes nothing else', async () => {
+    const { actionSchema } = await import('./actions');
+    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6 }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 91, longitude: 0 }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6, label: 'Lisbon' }).success).toBe(false);
+  });
+});
