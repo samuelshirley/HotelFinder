@@ -28,8 +28,8 @@ a second supplier, a native app. Full design, decisions and open questions:
 Next.js 14 (App Router, React 18) · TypeScript · Neon Postgres via `postgres`
 + Drizzle · Zod · NextAuth v5 (email OTP, no passwords) · Resend · Anthropic
 SDK (Haiku 5.5, ids in one registry) · **Jev** (typed-decision server, asked
-first on every message) · **LiteAPI** (the only supplier) · Google Maps/Places
-(paid) · Vitest, PGlite, Playwright · Vercel.
+first on every message) · **LiteAPI** (the only supplier) · MapLibre + OpenFreeMap
+tiles (no key; `docs/design/map.md`) · Vitest, PGlite, Playwright · Vercel.
 
 ## Who does what
 
@@ -62,7 +62,7 @@ scripts/jev-live.sh      # ask the real Jev 36 messages (never yet run)
 ```
 src/
   app/            page.tsx + api/ (each route: one Zod payload)
-  components/     App, ChatPanel, FormControl, ResultsPanel, DetailSheet, api.ts
+  components/     App, ChatPanel, FormControl, ResultsPanel, MapPanel, DetailSheet, api.ts
   lib/            PURE logic, unit-tested
     store/        actions (closed Zod union), reducers, fingerprint
     router/       catalogue (Jev's questions), slots (code extracts values), route
@@ -70,6 +70,7 @@ src/
     replies.ts    fixed lines for changes and answers made without a model
     answers.ts    a question about what is on screen → typed values from the rows
     reasonText.ts words for a ranking reason
+    mapView.ts    the map's pure half: pins, label layout, camera frame, ring
     errors.ts     every error code and its copy
     amenities.ts pricing.ts money.ts bookingStates.ts pgErrors.ts
   server/
@@ -125,14 +126,16 @@ in one place) · `errorCopyGuard` (every error code has copy; no
 empty catch) · `basePathGuard` (no root path in a fetch, href, src or
 navigation; `<Link>` exempt, never wrapped in withBase) · `meterGuard` (only
 five server files call out, each writes the usage ledger; every supplier op
-priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `devDatabase` (migrations build exactly the schema). Mutation
+priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `mapPointGuard` (a map
+point enters only from the map: `docs/design/map.md`) · `devDatabase` (migrations build exactly the schema). Mutation
 logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 
 ### Agent tools (`src/server/agent/tools.ts`)
 
 resolve_place, hotel_details (lookups) · set_destination, set_dates,
 set_guests, set_price_cap, set_priority, require, stop_requiring, set_aside,
-show_others, bring_back_all (each becomes typed actions) · open_hotel.
+show_others, bring_back_all (each becomes typed actions) · open_hotel,
+show_map, mark_on_map (the screen only).
 The agent names a hotel by position and a place by a ref from this turn's
 lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
@@ -155,7 +158,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin
+search, book, admin, map
 
 ## Lockdown invariants (load-bearing)
 
