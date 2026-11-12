@@ -30,6 +30,13 @@ const BARE_ROOT_PATH = [
   /\b(href|src|action|formAction)=\s*\{?\s*[`'"]\/(?!\/)/,
 ];
 
+/**
+ * next/link's <Link> prefixes basePath itself, so a root path there is right,
+ * and wrapping it in withBase would prefix it twice (/hotels/hotels/…).
+ */
+const isLink = (line: string) => /<Link\b/.test(line);
+const DOUBLE_PREFIX = /<Link\b[^>]*\bhref=\{\s*withBase\(/;
+
 describe('every browser-side URL is under BASE_PATH', () => {
   it('next.config.mjs serves the app at BASE_PATH', () => {
     const config = readFileSync(path.join(ROOT, 'next.config.mjs'), 'utf8');
@@ -48,7 +55,8 @@ describe('every browser-side URL is under BASE_PATH', () => {
         readFileSync(file, 'utf8')
           .split('\n')
           .forEach((line, i) => {
-            if (BARE_ROOT_PATH.some((re) => re.test(line))) offenders.push(`${path.relative(ROOT, file)}:${i + 1}: ${line.trim()}`);
+            const bare = BARE_ROOT_PATH.some((re) => re.test(line)) && !isLink(line);
+            if (bare || DOUBLE_PREFIX.test(line)) offenders.push(`${path.relative(ROOT, file)}:${i + 1}: ${line.trim()}`);
           });
       }
     }

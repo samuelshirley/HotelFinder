@@ -29,6 +29,8 @@ export default defineConfig({
       ...(process.env.E2E_JEV === '1' ? {} : { JEV_API_KEY: '' }),
       // Sign-in codes are shown on the page, never emailed: a test run must not send real email.
       RESEND_API_KEY: '',
+      // The admin spec signs in as this address; any other is not an admin (e2e/admin.spec.ts).
+      ADMIN_EMAILS: 'admin@e2e.test',
     },
   },
 });

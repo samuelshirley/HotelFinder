@@ -96,8 +96,12 @@ docs/             every "why"
 ```
 api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  api/session/[id]/form
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
-api/session/[id]/turns
+api/session/[id]/turns  api/auth/verify (sign in with a code outside checkout)
 ```
+
+Pages: `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
+search; `ADMIN_EMAILS` only, sign-in form otherwise, 404 to non-admins):
+`docs/usage.md`.
 
 ### Schema (18 tables in `src/server/db/schema.ts`)
 
@@ -111,7 +115,7 @@ userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas
 ### Repos (`src/server/repos/`)
 
 sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
-ONLY), usage, preferences, bookings, appMeta, rateLimit
+ONLY), usage, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit
 
 ### Guard tests
 
@@ -119,7 +123,9 @@ ONLY), usage, preferences, bookings, appMeta, rateLimit
 `shortlistSourceGuard` · `agentBoundaryGuard` (SDK, key and model ids each
 in one place) · `errorCopyGuard` (every error code has copy; no
 empty catch) · `basePathGuard` (no root path in a fetch, href, src or
-navigation; next.config's basePath equals BASE_PATH) · `devDatabase` (migrations build exactly the schema). Mutation
+navigation; `<Link>` exempt, never wrapped in withBase) · `meterGuard` (only
+four server files call out, each writes the usage ledger; every supplier op
+priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `devDatabase` (migrations build exactly the schema). Mutation
 logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 
 ### Agent tools (`src/server/agent/tools.ts`)
@@ -147,7 +153,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search
+search, book, admin
 
 ## Lockdown invariants (load-bearing)
 
