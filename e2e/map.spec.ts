@@ -170,7 +170,9 @@ test('the map over the list', async ({ page }) => {
   await expect(measure).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Conversation' }).getByText(`Stay close to ${place}`, { exact: true })).toBeVisible();
   // Jev is off in this run, so the agent answers if it can be reached; either way the turn ends and says something.
-  await expect(page.getByLabel('Message')).toBeEnabled({ timeout: 90_000 });
+  const chat = page.getByRole('region', { name: 'Conversation' });
+  await expect(chat.getByText(/^(Reading|Working|Queued behind your last message)…$/)).toHaveCount(0, { timeout: 90_000 });
+  console.log('Penny, after "Stay close to', place, '":', await chat.locator('p').last().textContent());
   await page.screenshot({ path: 'test-results/16-measured.png' });
 
   expect(errors).toEqual([]);
