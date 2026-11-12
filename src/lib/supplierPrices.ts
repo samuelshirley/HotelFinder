@@ -3,11 +3,10 @@
  * (docs.liteapi.travel/reference/api-pricing-usage-costs, 2026-11-12):
  *
  * - Place endpoints (place search, location lookup): $0.01 per request.
- * - The core booking flow (rates → prebook → book) and booking management: free,
- *   "assuming a reasonable look-to-book ratio".
- * - Static hotel content (`/data/hotels`, `/data/hotel`): the page's "Other API
- *   Endpoints" section was not readable when this was written, so these are
- *   `unpriced`: never shown as free, never guessed. docs/usage.md.
+ * - Everything else is free under the Terms of Service: the booking flow
+ *   (rates → prebook → book), booking management, and hotel content
+ *   (`/data/hotels`, `/data/hotel`), "subject to a 5000:1 search-to-book
+ *   ratio and fair usage" (re-read in full 2026-11-12). docs/usage.md.
  *
  * Sandbox (`sand_`) calls are not billed; the ledger still records the list
  * price, with `meta.sandbox`, so cost-per-search is what production would pay.
@@ -33,8 +32,8 @@ export const LITEAPI_PRICES: Record<SupplierOp, OpPrice> = {
   book: { pricing: 'free' },
   booking: { pricing: 'free' },
   cancel: { pricing: 'free' },
-  facts: { pricing: 'unpriced' },
-  content: { pricing: 'unpriced' },
+  facts: { pricing: 'free' },
+  content: { pricing: 'free' },
 };
 
 export function supplierCall(op: SupplierOp): { costMicrocents: number; pricing: OpPrice['pricing'] } {
