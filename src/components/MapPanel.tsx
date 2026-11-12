@@ -241,7 +241,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
 
   return (
     <div className={styles.wrap} data-testid="map" data-ready={ready ? 'true' : 'false'} onKeyDown={(e) => e.key === 'Escape' && setPicked(null)}>
-      <div ref={box} className={styles.canvas} role="region" aria-label="Map of the hotels on the list" />
+      <div ref={box} className={styles.canvas} role="region" aria-label="Map" />
       {failed && <p className={styles.failed}>The map could not start in this browser. The list below has every hotel.</p>}
       {(moved || away) && !failed && (
         <div className={styles.chips}>
