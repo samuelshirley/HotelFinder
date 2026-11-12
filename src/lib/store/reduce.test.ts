@@ -220,6 +220,12 @@ describe('a point picked on the map ("Search around here")', () => {
     const { actionSchema } = await import('./actions');
     expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6 }).success).toBe(true);
     expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 91, longitude: 0 }).success).toBe(false);
-    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6, label: 'Lisbon' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6, placeId: 'x' }).success).toBe(false);
+    // A named place pressed on the map carries its name, and nothing longer than a name.
+    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6, label: 'Campanhã' }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_near_point', latitude: 41.1, longitude: -8.6, label: 'x'.repeat(81) }).success).toBe(false);
+    const { previewReduce } = await import('./reduce');
+    const r = previewReduce(state(), { type: 'set_near_point', latitude: 41.1, longitude: -8.6, label: 'Campanhã' }, TODAY);
+    expect(r.ok && r.state.stay.near?.label).toBe('Campanhã');
   });
 });

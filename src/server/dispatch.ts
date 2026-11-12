@@ -3,7 +3,7 @@ import 'server-only';
 import { isMustHave, type MustHave } from '@/lib/amenities';
 import { canonicalPriorities } from '@/lib/finder/rank';
 import { destinationKind } from '@/lib/finder/searchPlan';
-import { MAP_POINT_LABEL, mapPointId, type Action, type ResolvedAction } from '@/lib/store/actions';
+import { mapPointNear, type Action, type ResolvedAction } from '@/lib/store/actions';
 import { reduceAll, type Applied, type Effect, type SearchState } from '@/lib/store/reduce';
 import { runFinder, type FinderOutcome } from '@/server/finder';
 import { updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -78,7 +78,7 @@ export async function dispatchActions(args: {
       resolved.push({ type: 'set_near', near: { placeId, label: name, latitude, longitude } });
     } else if (action.type === 'set_near_point') {
       // The user's own map point: nothing to look up. It becomes the same resolved action a named place does.
-      resolved.push({ type: 'set_near', near: { placeId: mapPointId(action.latitude, action.longitude), label: MAP_POINT_LABEL, latitude: action.latitude, longitude: action.longitude } });
+      resolved.push({ type: 'set_near', near: mapPointNear(action) });
     } else if (action.type === 'set_destination') {
       resolved.push({ ...action, point: await resolveDestination(supplier, action.placeId, action.destinationText) });
     } else {

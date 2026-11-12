@@ -519,8 +519,6 @@ export function App() {
                     if (on) cardIntoView(id);
                   },
                   onSelect: markHotel,
-                  // A place picked on the map is a message like any other: Penny looks it up and says what changed.
-                  onMeasureFrom: (name) => void onSend(`Stay close to ${name}`),
                 }}
               />
             ) : (

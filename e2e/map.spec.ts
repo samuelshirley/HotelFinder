@@ -151,7 +151,7 @@ test('the map over the list', async ({ page }) => {
   expect(book.x).toBeGreaterThan(name.x + name.width - 1);
   await page.screenshot({ path: 'test-results/14-wide-side-by-side.png' });
 
-  // A named place on the map: pressing its name offers to measure from it, and taking the offer is a chat message.
+  // A named place on the map: pressing its name offers to measure from it.
   const measure = page.getByTestId('map').getByRole('button', { name: /^Measure from / });
   const area = (await page.getByTestId('map').boundingBox())!;
   search: for (let y = area.y + 60; y < area.y + area.height - 60; y += 40) {
@@ -165,14 +165,13 @@ test('the map over the list', async ({ page }) => {
   await expect(measure).toBeVisible();
   const place = (await measure.textContent())!.replace(/^Measure from /, '');
   await page.screenshot({ path: 'test-results/15-measure-from.png' });
-  // Pressing empty map puts the offer away.
+  // Taking the offer measures from that spot under that name: Penny says so, the chip names it, the map marks it.
   await measure.click();
   await expect(measure).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Conversation' }).getByText(`Stay close to ${place}`, { exact: true })).toBeVisible();
-  // Jev is off in this run, so the agent answers if it can be reached; either way the turn ends and says something.
   const chat = page.getByRole('region', { name: 'Conversation' });
-  await expect(chat.getByText(/^(Reading|Working|Queued behind your last message)…$/)).toHaveCount(0, { timeout: 90_000 });
-  console.log('Penny, after "Stay close to', place, '":', await chat.locator('p').last().textContent());
+  await expect(chat.getByText(`Close to ${place}.`, { exact: false })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: `Near ${place} ✕` })).toBeVisible();
+  await expect(page.getByTestId('map').locator('[data-anchor]')).toContainText(place);
   await page.screenshot({ path: 'test-results/16-measured.png' });
 
   expect(errors).toEqual([]);

@@ -41,7 +41,7 @@ describe('a map point comes only from the map', () => {
     // getPlace() takes a supplier place id. A `map:` id would be a lookup of nothing.
     const dispatch = readFileSync(path.join(SRC, 'server/dispatch.ts'), 'utf8');
     const branch = dispatch.slice(dispatch.indexOf("action.type === 'set_near_point'"), dispatch.indexOf("action.type === 'set_destination'"));
-    expect(branch).toContain('mapPointId(');
+    expect(branch).toContain('mapPointNear(');
     expect(branch).not.toContain('getPlace');
   });
 });

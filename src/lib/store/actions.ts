@@ -30,11 +30,20 @@ export const actionSchema = z.discriminatedUnion('type', [
    */
   z.object({ type: z.literal('set_near'), placeId: z.string().min(1).max(400) }).strict(),
   /**
-   * "Search around here": the middle of the user's own map. Only the map
-   * control sends it, through the edit route. No model tool and no router path
-   * can produce it (mapPointGuard), so a model still never authors coordinates.
+   * A point the user picked on their own map: "Search around here" (the middle
+   * of the map, no label) or a named place they pressed (its name as the map
+   * prints it). Only the map control sends it, through the edit route. No model
+   * tool and no router path can produce it (mapPointGuard), so a model still
+   * never authors coordinates.
    */
-  z.object({ type: z.literal('set_near_point'), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).strict(),
+  z
+    .object({
+      type: z.literal('set_near_point'),
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      label: z.string().trim().min(1).max(80).optional(),
+    })
+    .strict(),
   /** Measure "close" from the destination again. */
   z.object({ type: z.literal('clear_near') }).strict(),
   /** Per night for the whole party, minor units. null removes the cap. */
@@ -85,3 +94,8 @@ export type ResolvedAction =
 export const MAP_POINT_LABEL = 'the spot on your map';
 /** A stand-in place id for a map point: never sent to the supplier, only compared ("is this the same spot?"). ~10 m. */
 export const mapPointId = (latitude: number, longitude: number) => `map:${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+
+/** A map point as the place to be near: the same resolved value a looked-up place becomes. */
+export function mapPointNear(action: { latitude: number; longitude: number; label?: string }): ResolvedPoint {
+  return { placeId: mapPointId(action.latitude, action.longitude), label: action.label ?? MAP_POINT_LABEL, latitude: action.latitude, longitude: action.longitude };
+}

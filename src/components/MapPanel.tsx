@@ -24,8 +24,8 @@ type Props = {
   /** The pointer came onto a pin, or left it. Leaving names the pin, so it cannot clear a hover that has since moved to a card. */
   onHover: (id: string, on: boolean) => void;
   onSelect: (id: string) => void;
-  /** A named place on the map was picked: becomes a chat message. */
-  onMeasureFrom: (name: string) => void;
+  /** A named place on the map was pressed, then its offer taken: measure from that point, under that name. */
+  onMeasureFrom: (name: string, point: MapPoint) => void;
   /** "Search around here": the middle of the map as it stands. */
   onSearchHere: (point: MapPoint) => void;
 };
@@ -80,7 +80,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   const [moved, setMoved] = useState(false);
   /** …and far enough that searching around the new middle means something. */
   const [away, setAway] = useState(false);
-  const [picked, setPicked] = useState<{ x: number; y: number; name: string } | null>(null);
+  const [picked, setPicked] = useState<{ x: number; y: number; name: string; point: MapPoint } | null>(null);
 
   // Start the map once.
   useEffect(() => {
@@ -128,7 +128,10 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         m.on('click', (e) => {
           // A named place under the pointer: offer to measure from it.
           const named = m.queryRenderedFeatures(e.point).find((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1);
-          setPicked(named ? { x: e.point.x, y: e.point.y, name: String(named.properties['name:latin'] ?? named.properties.name).trim() } : null);
+          if (!named) return setPicked(null);
+          // A point feature (a venue, a station) has its own spot; a label along a line or over an area is where it was pressed.
+          const spot = named.geometry.type === 'Point' ? { latitude: named.geometry.coordinates[1], longitude: named.geometry.coordinates[0] } : { latitude: e.lngLat.lat, longitude: e.lngLat.lng };
+          setPicked({ x: e.point.x, y: e.point.y, name: String(named.properties['name:latin'] ?? named.properties.name).trim().slice(0, 80), point: spot });
         });
         observer = new ResizeObserver(() => {
           // A resize moves the camera's frame, synchronously; it is not the user steering.
@@ -325,7 +328,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
             disabled={busy}
             onClick={() => {
               setPicked(null);
-              onMeasureFrom(picked.name);
+              onMeasureFrom(picked.name, picked.point);
             }}
           >
             Measure from {picked.name}

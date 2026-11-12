@@ -40,7 +40,6 @@ export type MapLink = {
   onPinHover: (id: string, on: boolean) => void;
   /** A pin was pressed: mark its card and bring it into view. */
   onSelect: (id: string) => void;
-  onMeasureFrom: (name: string) => void;
 };
 
 /** Shown only to fill the list to five: it fails a constraint, and its card says which (finder/rank.ts). */
@@ -96,6 +95,9 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
   }
   const nights = Math.max(1, nightsBetween(stay.checkIn, stay.checkOut));
   const musts = stay.mustHaves.filter(isMustHave);
+  // A point picked on the map: be close to it, and closeness joins what "best" means (as a place named in the chat does).
+  const nearPoint = (point: { latitude: number; longitude: number; label?: string }) =>
+    onEdit([{ type: 'set_near_point', ...point }, { type: 'set_priorities', priorities: [...new Set([...(session.priorities ?? []), 'closest' as const])] }]);
   // The map is offered once there is something to put on it.
   const canMap = pins.length > 0;
   const mapShown = canMap && map.open;
@@ -152,8 +154,8 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
             busy={busy}
             onHover={map.onPinHover}
             onSelect={map.onSelect}
-            onMeasureFrom={map.onMeasureFrom}
-            onSearchHere={(point) => onEdit([{ type: 'set_near_point', ...point }, { type: 'set_priorities', priorities: [...new Set([...(session.priorities ?? []), 'closest' as const])] }])}
+            onMeasureFrom={(label, point) => nearPoint({ ...point, label })}
+            onSearchHere={nearPoint}
           />
         </div>
       )}
