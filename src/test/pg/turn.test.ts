@@ -323,6 +323,32 @@ describe('a chat turn on a running search', () => {
     expect((await listTurns(session.id)).map((t) => t.status)).toEqual(['done', 'done']);
   });
 
+  it('a message queued behind a turn that used up the time is told so, not left queued for nobody', async () => {
+    const { session, supplier } = await onboarded();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let t = 0;
+    const slow = { ...deps(supplier.supplier, jevSays('price_cap')), deadline: 280_000, clock: () => t };
+    const realAsk = slow.askJev;
+    slow.askJev = async (input) => {
+      if (input.message === 'under 70 a night') await gate;
+      return realAsk(input);
+    };
+    const first = say(session, 'under 70 a night', slow, 'k1');
+    await new Promise((r) => setTimeout(r, 30));
+    await say(session, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')), 'k2');
+    t = 250_000; // the first turn took 250 s
+    release();
+    const done = await first;
+    expect(done.turn.status).toBe('done'); // the first turn itself finished
+    const turns = await listTurns(session.id);
+    expect(turns.map((x) => [x.status, x.errorCode])).toEqual([['done', null], ['error', 'turn_timeout']]);
+    expect((await lastLine(session.id)).meta).toEqual({ code: 'turn_timeout' });
+    // The session is free again: the next message runs.
+    const next = await say((await getSession(session.id))!, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')), 'k3');
+    expect(next.turn.status).toBe('done');
+  });
+
   it('a crash inside a turn is recorded, shown as an error row, and frees the session', async () => {
     const { session, supplier } = await onboarded();
     const broken = deps(supplier.supplier, jevSays('price_cap'));

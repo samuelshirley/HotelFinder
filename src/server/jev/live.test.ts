@@ -74,6 +74,13 @@ const CASES: Array<[string, string]> = [
   ['what dates did I pick?', 'answer:search'],
   ['how many are we?', 'answer:search'],
   ['what is my budget?', 'answer:search'],
+  // The map (docs/design/map.md): shown, folded away, or one hotel marked. Added 2026-11-12.
+  ['hide the map', 'ui:map:hide'],
+  ['can you get rid of the map', 'ui:map:hide'],
+  ['show me the map', 'ui:map:show'],
+  ['can I see them on a map?', 'ui:map:show'],
+  ['where is the second one on the map?', 'ui:focus'],
+  ['show the yotel on the map', 'ui:focus'],
   // Asking is not requiring, and requiring is not asking.
   ['it has to have parking', 'actions:add_must_have'],
   // No listing field answers these: the agent's.
@@ -109,7 +116,11 @@ describe.runIf(live)('Jev, live', () => {
         ? `actions:${decision.actions[0].type}`
         : decision.kind === 'answer'
           ? ['answer', decision.plan.about, ...('fact' in decision.plan ? [decision.plan.fact] : [])].join(':')
-          : decision.kind;
+          : decision.kind === 'ui' && 'map' in decision.hint
+            ? `ui:map:${decision.hint.map}`
+            : decision.kind === 'ui' && 'focus' in decision.hint
+              ? 'ui:focus'
+              : decision.kind;
     expect(got).toBe(expected);
   }, 20_000);
 });

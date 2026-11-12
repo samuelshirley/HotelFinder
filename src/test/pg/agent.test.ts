@@ -81,6 +81,171 @@ const last = async (sessionId: string) => (await listMessages(sessionId)).filter
 const stayOf = async (sessionId: string) => (await listStays(sessionId))[0];
 const names = async (sessionId: string) => (await listShortlist(sessionId, (await stayOf(sessionId)).id, 'public')).map((r) => r.property.name);
 
+describe('staged confirmation: a yes that costs no model call (lib/stagedPlan.ts)', () => {
+  const ASK = [{ text: 'Do you mean the weekend after, Friday to Sunday?' }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }, { tool: 'hold_for_confirmation', input: {} }];
+  /** A Jev that must not be asked. */
+  const noJev = (supplier: TurnDeps['supplier'], callModel: CallModel): TurnDeps => ({ ...deps(supplier, callModel), askJev: async () => { throw new Error('Jev was asked'); } });
+  const NEVER: CallModel = async () => { throw new Error('the model was called'); };
+
+  it('the agent asks: the change is staged on the turn, not applied, and the question is shown', async () => {
+    const { session, supplier } = await onboarded();
+    const m = scripted(ASK);
+    const turn = await say(session, 'the weekend after maybe', deps(supplier.supplier, m.callModel));
+    expect(m.calls).toHaveLength(1);
+    expect(turn.finalText).toBe('Do you mean the weekend after, Friday to Sunday?');
+    expect((await last(session.id)).kind).toBe('ai');
+    expect(turn.resultMeta).toMatchObject({ staged: 1, stagedPlan: { actions: [{ type: 'set_dates', checkIn: '2026-12-18', checkOut: '2026-12-20' }] } });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11', checkOut: '2026-12-13' });
+    expect(supplier.searches).toHaveLength(1);
+    // The stage stays on the server: the chat row the browser reads carries none of it.
+    expect((await last(session.id)).meta).toBeNull();
+  });
+
+  it('"yup" applies it through the normal path: no Jev, no model, the server\'s line', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
+    const yes = await say((await getSession(session.id))!, 'yup', noJev(supplier.supplier, NEVER));
+    expect(yes.status).toBe('done');
+    expect(yes.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(yes.resultMeta).toMatchObject({ by: 'staged', answer: 'yes', applied: 1, effect: 'refetch', model_calls: 0 });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-18', checkOut: '2026-12-20' });
+    expect(await rawQuery("select count(*)::int as n from usage_events where provider = 'anthropic'")).toEqual([{ n: 1 }]); // the question, not the yes
+  });
+
+  it('"no" drops it: nothing changes, nothing is called', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
+    const no = await say((await getSession(session.id))!, 'no thanks', noJev(supplier.supplier, NEVER));
+    expect(no.finalText).toBe('Left as it was.');
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11' });
+    // And a later yes has nothing to say yes to: it is an ordinary message again.
+    const m = scripted([{ text: 'Yes to what? Tell me what to change.' }]);
+    const later = await say((await getSession(session.id))!, 'yes', deps(supplier.supplier, m.callModel));
+    expect(m.calls).toHaveLength(1);
+    expect(later.resultMeta).toMatchObject({ by: 'agent' });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11' });
+  });
+
+  it('a yes after the search changed under the question is not applied, and says why', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
+    // A chip edit in between (not a chat turn): three adults now.
+    const { dispatchActions } = await import('@/server/dispatch');
+    await dispatchActions({ session: (await getSession(session.id))!, stay: await stayOf(session.id), actions: [{ type: 'set_guests', adults: 3, childrenAges: [], rooms: 1 }], supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
+    const yes = await say((await getSession(session.id))!, 'yes', noJev(supplier.supplier, NEVER));
+    expect(yes.finalText).toBe('The search has changed since I asked, so I have not applied that. Say what you want and I will do it.');
+    expect(yes.resultMeta).toMatchObject({ by: 'staged', stage: 'search_changed' });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11', adults: 3 });
+  });
+
+  it('a yes long after the question is not applied', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
+    const late = { ...noJev(supplier.supplier, NEVER), now: () => new Date(RECORDED_AT.getTime() + 16 * 60 * 1000) };
+    const yes = await say((await getSession(session.id))!, 'ok', late);
+    expect(yes.resultMeta).toMatchObject({ by: 'staged', stage: 'too_old' });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11' });
+  });
+
+  it('"yes but under 100" is a new request, not a yes: the normal path, and the stage is gone', async () => {
+    const { session, supplier } = await onboarded();
+    await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
+    const m = scripted([{ tool: 'set_price_cap', input: { per_night: 100 } }]);
+    const turn = await say((await getSession(session.id))!, 'yes but under 100', deps(supplier.supplier, m.callModel));
+    expect(m.calls).toHaveLength(1);
+    expect(turn.resultMeta).toMatchObject({ by: 'agent' });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11', priceCapMinor: 10000 }); // the dates were NOT applied
+    const yes = await say((await getSession(session.id))!, 'yes', deps(supplier.supplier, scripted([{ text: 'Tell me what to change.' }]).callModel));
+    expect(yes.resultMeta).toMatchObject({ by: 'agent' });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11' });
+  });
+
+  it('a question that fails the reply guards is replaced by the fixed one; the stage still stands', async () => {
+    const { session, supplier } = await onboarded();
+    const m = scripted([{ text: 'That would be 9999 euros, shall I?' }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }, { tool: 'hold_for_confirmation', input: {} }]);
+    const turn = await say(session, 'the weekend after maybe', deps(supplier.supplier, m.callModel));
+    expect(turn.finalText).toBe('Shall I go ahead with that?');
+    expect((await last(session.id)).kind).toBe('line');
+    expect(turn.resultMeta).toMatchObject({ staged: 1, guards: ['ungrounded_number'] });
+  });
+
+  it('hold_for_confirmation with nothing queued holds nothing: the question is just a question', async () => {
+    const { session, supplier } = await onboarded();
+    const m = scripted([{ text: 'Which weekend do you mean?' }, { tool: 'hold_for_confirmation', input: {} }]);
+    const turn = await say(session, 'another weekend', deps(supplier.supplier, m.callModel));
+    expect(turn.finalText).toBe('Which weekend do you mean?');
+    expect(turn.resultMeta).not.toHaveProperty('stagedPlan');
+  });
+});
+
+describe('a request the app cannot serve yet', () => {
+  it('is stored for the builders, with the session it came from, and answered with the fixed line', async () => {
+    const { session, supplier } = await onboarded();
+    const m = scripted([{ text: 'I will let them know!' }, { tool: 'submit_idea', input: { request: 'book a flight to Porto with the hotel' } }]);
+    const turn = await say(session, 'can you book my flight too?', deps(supplier.supplier, m.callModel));
+    expect(m.calls).toHaveLength(1);
+    expect(turn.finalText).toBe('I cannot do that yet. I have passed it on to the people who build this.');
+    expect((await last(session.id)).kind).toBe('line'); // the server's words, not the model's
+    expect(await rawQuery('select text, session_id from ideas')).toEqual([{ text: 'book a flight to Porto with the hotel', session_id: session.id }]);
+  });
+
+  it('an empty or essay-length request is refused back to the model and nothing is stored', async () => {
+    const { session, supplier } = await onboarded();
+    const m = scripted([{ tool: 'submit_idea', input: { request: 'x'.repeat(201) } }], [{ text: 'I only search hotels.' }]);
+    await say(session, 'do my taxes', deps(supplier.supplier, m.callModel));
+    expect(await rawQuery('select 1 from ideas')).toHaveLength(0);
+  });
+});
+
+describe('the turn stops itself before the platform does (lib/turnBudget.ts)', () => {
+  /** A clock the test moves: each model call "takes" this long. */
+  const timed = (m: ReturnType<typeof scripted>, perCallMs: number) => {
+    let t = 1_000_000;
+    const callModel: CallModel = async (call) => {
+      const reply = await m.callModel(call);
+      t += perCallMs;
+      return reply;
+    };
+    return { callModel, clock: () => t, deadline: 1_000_000 + 280_000 };
+  };
+
+  it('no room for another model call: it is not made, and what was queued is not applied', async () => {
+    const { session, supplier } = await onboarded();
+    const before = await stayOf(session.id);
+    // The first call looks a place up AND queues new dates; it takes 250 s, so a second call cannot fit.
+    const m = scripted([{ tool: 'resolve_place', input: { query: 'Lisbon' } }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);
+    const t = timed(m, 250_000);
+    const turn = await say(session, 'lisbon the weekend after', { ...deps(supplier.supplier, t.callModel), clock: t.clock, deadline: t.deadline });
+    expect(m.calls).toHaveLength(1);
+    expect(turn.status).toBe('done');
+    expect(turn.finalText).toBe('That took too long, so I stopped before changing anything. Send it again.');
+    expect(turn.resultMeta).toMatchObject({ timed_out: 'model', dropped_actions: 1, model_calls: 1 });
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: before.checkIn, checkOut: before.checkOut });
+    // The call that was made is still on the ledger: time ran out, the money was still spent.
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(1);
+  });
+
+  it('room for the model but not for the search that would follow: the change is dropped, and said so', async () => {
+    const { session, supplier } = await onboarded();
+    const searches = supplier.searches.length;
+    const m = scripted([{ tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);
+    const t = timed(m, 230_000); // 50 s left: under the 60 s a re-search may take
+    const turn = await say(session, 'the weekend after', { ...deps(supplier.supplier, t.callModel), clock: t.clock, deadline: t.deadline });
+    expect(turn.finalText).toBe('That took too long, so I stopped before changing anything. Send it again.');
+    expect(turn.resultMeta).toMatchObject({ timed_out: 'dispatch', dropped_actions: 1 });
+    expect(supplier.searches).toHaveLength(searches);
+    expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-11' });
+  });
+
+  it('with time in hand nothing changes: the same turn applies', async () => {
+    const { session, supplier } = await onboarded();
+    const m = scripted([{ tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);
+    const t = timed(m, 3_000);
+    const turn = await say(session, 'the weekend after', { ...deps(supplier.supplier, t.callModel), clock: t.clock, deadline: t.deadline });
+    expect(turn.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+  });
+});
+
 describe('the agent: what the router did not settle', () => {
   it('the map through the agent: one call, the fixed line, and the screen told what to do', async () => {
     const { session, supplier } = await onboarded();

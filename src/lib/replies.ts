@@ -195,6 +195,11 @@ export const FIXED_LINES = {
   agent_not_configured: 'That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.',
   ai_budget: 'This search has used its allowance for typed requests today. The buttons and filters still work.',
   which_place: 'Which city or area?',
+  confirm: 'Shall I go ahead with that?',
+  stage_dropped: 'Left as it was.',
+  stage_lapsed: 'The search has changed since I asked, so I have not applied that. Say what you want and I will do it.',
+  out_of_time: 'That took too long, so I stopped before changing anything. Send it again.',
+  idea_noted: 'I cannot do that yet. I have passed it on to the people who build this.',
   map_shown: 'The map is showing.',
   map_hidden: 'The map is folded away. Say "show the map" to bring it back.',
 } as const;

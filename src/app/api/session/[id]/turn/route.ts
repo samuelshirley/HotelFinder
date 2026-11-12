@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { agentModel } from '@/lib/models';
 import { callAnthropic } from '@/server/agent';
 import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
+import { TURN_BUDGET_MS } from '@/lib/turnBudget';
+import { chatBreaker } from '@/server/breakers';
 import { askJev, jevCostMicrocents } from '@/server/jev';
 import { getSupplier } from '@/server/supplier';
 import { runTurn, type TurnEvent } from '@/server/turn';
@@ -33,6 +35,14 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   if (session instanceof NextResponse) return session;
   const limited = await rateLimit('turn', 30);
   if (limited) return limited;
+  // Before the turn record and before any paid call. Fails closed (server/breakers.ts).
+  const breaker = await chatBreaker(new Date());
+  if (breaker.open) {
+    console.error('[turn] breaker open:', breaker.reason);
+    return errorResponse('circuit_open', 503);
+  }
+  // The platform kills this function at maxDuration; the turn stops itself first and says so (lib/turnBudget.ts).
+  const deadline = Date.now() + TURN_BUDGET_MS;
   const today = resolveToday(parsed.data.today, new Date());
   if (!today) return errorResponse('bad_date', 400);
 
@@ -60,6 +70,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
           model: agentModel(),
           now: () => new Date(),
           today,
+          deadline,
         },
         emit: send,
       })

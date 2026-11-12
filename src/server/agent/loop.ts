@@ -29,6 +29,8 @@ export type AgentDeps = {
   searchPlaces: (query: string) => Promise<SupplierResult<Place[]>>;
   /** The hotel's own listing as plain text, or null when it could not be read. */
   hotelDetails: (propertyId: string) => Promise<string | null>;
+  /** True when there is no longer room for one more model call (lib/turnBudget.ts). */
+  outOfTime?: () => boolean;
 };
 
 export type AgentResult = {
@@ -41,6 +43,12 @@ export type AgentResult = {
   focus: string | null;
   /** The map shown or folded away. */
   map: 'show' | 'hide' | null;
+  /** The agent asked a yes/no question about the changes it queued: stage them, do not apply them (lib/stagedPlan.ts). */
+  hold: boolean;
+  /** A request the app cannot serve yet, for the builders. The caller stores it. */
+  idea: string | null;
+  /** The turn ran out of time before the model could be asked (again). Nothing queued may be applied. */
+  outOfTime: boolean;
   /** The model's own reply, already guarded. '' when there is none to show. */
   text: string;
   guards: Guard[];
@@ -57,12 +65,16 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
   let grounding = first;
   let working = input.state;
 
-  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
+  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, hold: false, idea: null, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
   let modelText = '';
   /** Why the reply whose text may be shown ended. */
   let stopReason: string | null = null;
 
   for (let call = 0; call < MAX_MODEL_CALLS; call++) {
+    if (deps.outOfTime?.()) {
+      result.outOfTime = true;
+      break;
+    }
     const reply = await deps.callModel({ model: deps.model, system: SYSTEM, messages, tools: TOOL_DEFS, maxTokens: MAX_TOKENS });
     result.replies.push(reply);
     if (!reply.ok) {
@@ -128,6 +140,14 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
           result.open = parsed.propertyId;
           answer('opened');
           break;
+        case 'hold':
+          result.hold = true;
+          answer('held until they say yes');
+          break;
+        case 'idea':
+          result.idea = parsed.text;
+          answer('recorded');
+          break;
         case 'map':
           result.map = parsed.visible ? 'show' : 'hide';
           answer(parsed.visible ? 'shown' : 'hidden');
@@ -156,6 +176,8 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
       }
     }
     messages.push({ role: 'assistant', content: reply.content }, { role: 'user', content: outputs });
+    // Changes held for a yes: the question the model wrote beside them is the reply (guarded below like any other).
+    if (result.hold && !lookedUp) break;
     // Only changes were asked for: the app reports them, so there is nothing more to ask the model.
     if (!lookedUp) {
       modelText = '';
