@@ -13,3 +13,6 @@ test-results/
 .data/
 next-env.d.ts
 .claude/worktrees/
+.vercel
+.env*
+!.env.example

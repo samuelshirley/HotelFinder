@@ -10,6 +10,7 @@
 #
 # Both CLIs open a browser to sign in the first time.
 set -euo pipefail
+trap 'echo "setup-hosting.sh FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 cd "$(dirname "$0")/.."
 
 TEAM=samuelshirleys-projects
@@ -20,11 +21,12 @@ REGION=aws-us-east-1
 VERCEL="npx -y vercel@latest"
 NEON="npx -y neonctl@latest"
 
-envval() { grep -E "^$1=" "$2" 2>/dev/null | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"; }
+envval() { grep -E "^$1=" "$2" 2>/dev/null | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" || true; }
 
 # --- Neon ---------------------------------------------------------------
-$NEON me >/dev/null 2>&1 || $NEON auth
+# Neon CLI is only needed to create the project; with .env.neon already set, skip it.
 if [ -z "$(envval DATABASE_URL .env.neon)" ]; then
+  $NEON me >/dev/null 2>&1 || $NEON auth
   id="$($NEON projects list --output json | node -e '
     const d=JSON.parse(require("fs").readFileSync(0,"utf8"));
     const p=(d.projects||d).find(p=>p.name===process.argv[1]); process.stdout.write(p?p.id:"")' "$PROJECT")"
@@ -50,8 +52,14 @@ $VERCEL project ls --scope "$TEAM" 2>/dev/null | grep -qw "$PROJECT" \
 $VERCEL link --yes --scope "$TEAM" --project "$PROJECT"
 $VERCEL git connect "$REPO" --yes --scope "$TEAM" || true   # already connected → non-zero; fine
 
+# A generated secret is kept in .env.neon so a re-run does not rotate it
+# (which would sign every user out).
 AUTH_SECRET="$(envval AUTH_SECRET .env)"
-[ -n "$AUTH_SECRET" ] || AUTH_SECRET="$(openssl rand -base64 32)"
+[ -n "$AUTH_SECRET" ] || AUTH_SECRET="$(envval AUTH_SECRET .env.neon)"
+if [ -z "$AUTH_SECRET" ]; then
+  AUTH_SECRET="$(openssl rand -base64 32)"
+  printf 'AUTH_SECRET=%s\n' "$AUTH_SECRET" >> .env.neon
+fi
 
 put() { # name value — production and preview, sensitive, overwriting
   [ -n "$2" ] || { echo "skip $1 (empty)"; return; }
