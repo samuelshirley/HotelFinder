@@ -200,6 +200,11 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       const el = document.createElement('div');
       el.className = styles.anchor;
       el.dataset.anchor = 'true';
+      // The diamond is a child: the map positions the marker with a transform on the element itself,
+      // and a rotation on that same element moved it 145 px off its point (seen in the browser).
+      const diamond = document.createElement('span');
+      diamond.className = styles.anchorMark;
+      el.appendChild(diamond);
       const label = document.createElement('span');
       label.className = styles.anchorLabel;
       label.textContent = anchor.label;

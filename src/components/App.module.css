@@ -188,7 +188,7 @@
 .cardItem[data-marked='hover'] { border-color: var(--tp-primary-hover); box-shadow: 0 0 0 1px var(--tp-primary-hover); }
 .cardItem[data-marked='selected'] { border-color: var(--tp-accent-300); box-shadow: 0 0 0 2px var(--tp-accent-300); }
 @container (min-width: 1000px) {
-  .resultsLayout[data-map='open'] { grid-template-columns: minmax(0, 600px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .resultsLayout[data-map='open'] { grid-template-columns: minmax(0, 640px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .resultsLayout[data-map='open'] .summary { grid-column: 1 / -1; }
   .resultsLayout[data-map='open'] .listScroll { grid-column: 1; grid-row: 2; }
   .resultsLayout[data-map='open'] .mapBand { grid-column: 2; grid-row: 2; height: auto; border-bottom: 0; border-left: 1px solid var(--tp-neutral-900); }

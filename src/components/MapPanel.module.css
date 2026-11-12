@@ -18,8 +18,9 @@
 .miss[data-hover='true'] .missTip, .miss[data-selected='true'] .missTip, .miss:focus-visible .missTip { display: block; }
 
 /* Where distance is measured from: not round and not violet, so it is never read as a hotel. */
-.anchor { width: 14px; height: 14px; background: var(--tp-text); box-shadow: 0 0 0 2px #161826; rotate: 45deg; pointer-events: none; }
-.anchorLabel { position: absolute; left: 50%; top: 50%; rotate: -45deg; translate: 12px -50%; transform-origin: left center; padding: 2px 8px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-text); font: 400 12px/1.35 var(--font); white-space: nowrap; }
+.anchor { width: 14px; height: 14px; pointer-events: none; }
+.anchorMark { position: absolute; inset: 0; background: var(--tp-text); box-shadow: 0 0 0 2px #161826; rotate: 45deg; }
+.anchorLabel { position: absolute; left: calc(100% + 10px); top: 50%; translate: 0 -50%; padding: 2px 8px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-text); font: 400 12px/1.35 var(--font); white-space: nowrap; }
 .ringLabel { padding: 1px 7px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-muted); font: 400 12px/1.35 var(--font); white-space: nowrap; pointer-events: none; }
 
 .chips { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; z-index: 4; }

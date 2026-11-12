@@ -115,6 +115,13 @@ test('the map over the list', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Change what matters most' })).toHaveText(/Close to the spot on your map/);
   // The place distance is measured from is on the map now, and the camera went to the new search.
   await expect(map.locator('[data-anchor]')).toBeVisible();
+  // …at its point, inside the band (it once sat 145 px below it, clipped out of sight).
+  await expect.poll(async () => {
+    const a = (await map.locator('[data-anchor]').boundingBox())!;
+    const now = (await map.boundingBox())!;
+    return a.x >= now.x && a.x + a.width <= now.x + now.width && a.y >= now.y && a.y + a.height <= now.y + now.height;
+  }, { timeout: 10_000 }).toBe(true);
+  await expect(map.locator('[data-anchor]')).toContainText('the spot on your map');
   await expect(map.getByRole('button', { name: 'Search around here' })).toHaveCount(0);
   await expect(pins.first()).toBeVisible();
   await page.screenshot({ path: 'test-results/13-around-the-spot.png' });
@@ -138,6 +145,10 @@ test('the map over the list', async ({ page }) => {
   expect(wideMap.x).toBeGreaterThanOrEqual(wideCard.x + wideCard.width);
   expect(wideMap.height).toBeGreaterThan(500);
   expect(wideCard.width).toBeGreaterThanOrEqual(560);
+  // The card is the same three-column card as in the band layout: its price sits to the right of its name.
+  const name = (await cards.first().getByRole('heading', { level: 3 }).boundingBox())!;
+  const book = (await cards.first().getByRole('button', { name: 'Book' }).boundingBox())!;
+  expect(book.x).toBeGreaterThan(name.x + name.width - 1);
   await page.screenshot({ path: 'test-results/14-wide-side-by-side.png' });
 
   expect(errors).toEqual([]);
