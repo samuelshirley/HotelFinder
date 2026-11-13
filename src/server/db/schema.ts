@@ -183,6 +183,12 @@ export const stays = pgTable(
     /** Per night, in the session currency's minor units. */
     priceCapMinor: integer('price_cap_minor'),
     mustHaves: jsonb('must_haves').$type<string[]>().notNull().default([]),
+    /** The filters (lib/filters.ts). null / [] = any. A listing silent on one misses it, and says so. */
+    minStars: integer('min_stars'),
+    minRating: doublePrecision('min_rating'),
+    propertyTypes: jsonb('property_types').$type<string[]>().notNull().default([]),
+    /** The supplier's chain names, exactly as listed. */
+    chains: jsonb('chains').$type<string[]>().notNull().default([]),
     /** Hotels the user said no to for this stay. The finder never brings them back. */
     excludedPropertyIds: jsonb('excluded_property_ids').$type<string[]>().notNull().default([]),
     createdAt: ts('created_at').notNull().defaultNow(),

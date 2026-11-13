@@ -47,8 +47,8 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1794568139010,
-      "tag": "0006_bookings_requests_and_hotel_fees",
+      "when": 1794569496881,
+      "tag": "0006_vio_parity",
       "breakpoints": true
     }
   ]

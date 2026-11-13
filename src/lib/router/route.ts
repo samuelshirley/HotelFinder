@@ -4,7 +4,7 @@ import type { PriorityKey } from '@/lib/finder/rank';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import { HOTEL_FACTS, SEARCH_FIELDS, SUPERLATIVES, type HotelFact, type Intent, type SearchField, type Superlative, type Tier } from './catalogue';
-import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget, wantsMapHidden } from './slots';
+import { addDays, extractGuests, extractMinRating, extractMinStars, extractNightsShift, extractPriceCap, extractPropertyTypes, extractTarget, wantsMapHidden } from './slots';
 
 /**
  * Turn Jev's label choices plus the message into typed actions, or defer.
@@ -41,6 +41,8 @@ export type Readings = {
   superlative: ChoiceReading<string> | null;
   /** Which part of the search is asked about. */
   searchField: ChoiceReading<string> | null;
+  /** Which filter is set or dropped. Absent in readings made before filters existed. */
+  filterKind?: ChoiceReading<string> | null;
 };
 
 /**
@@ -246,6 +248,34 @@ export function routeMessage(input: {
       if (readings.removing >= SETTLE.noulYes) return { kind: 'actions', intent, actions: [{ type: 'remove_must_have', mustHave: key }] };
       if (readings.removing <= SETTLE.noulNo) return { kind: 'actions', intent, actions: [{ type: 'add_must_have', mustHave: key }] };
       return defer('slot_ambiguous');
+    }
+
+    case 'filter': {
+      if (!settles(readings.filterKind ?? null, min)) return defer('slot_ambiguous');
+      const kind = readings.filterKind!.choice;
+      // A brand has to be matched to the chains in the results: the agent has them.
+      if (kind === 'brand') return defer('intent_for_agent');
+      const removing = decided(readings.removing);
+      if (removing === null) return defer('slot_ambiguous');
+      if (kind === 'stars') {
+        if (removing) return { kind: 'actions', intent, actions: [{ type: 'set_min_stars', stars: null }] };
+        const stars = extractMinStars(message);
+        return stars === null ? defer('slot_missing') : { kind: 'actions', intent, actions: [{ type: 'set_min_stars', stars }] };
+      }
+      if (kind === 'rating') {
+        if (removing) return { kind: 'actions', intent, actions: [{ type: 'set_min_rating', rating: null }] };
+        const rating = extractMinRating(message);
+        return rating === null ? defer('slot_missing') : { kind: 'actions', intent, actions: [{ type: 'set_min_rating', rating }] };
+      }
+      if (kind === 'property_type') {
+        // "No apartments" means every other kind: the agent works out which.
+        if (removing) return defer('slot_ambiguous');
+        const types = extractPropertyTypes(message);
+        if (types === null) return defer('slot_missing');
+        const next = addsToCurrent(message) ? [...new Set([...state.stay.filters.propertyTypes, ...types])] : types;
+        return { kind: 'actions', intent, actions: [{ type: 'set_property_types', types: next }] };
+      }
+      return defer('slot_missing');
     }
 
     case 'guests': {

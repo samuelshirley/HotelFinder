@@ -52,8 +52,9 @@ const addCountries = process.argv.includes('--add-countries');
 const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
 const addCheckoutExtras = process.argv.includes('--add-checkout-extras');
+const addHotelTypes = process.argv.includes('--add-hotel-types');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -153,6 +154,18 @@ if (addCheckoutExtras) {
   }
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added the checkout-extras fixtures');
+  process.exit(0);
+}
+
+if (addHotelTypes) {
+  // The supplier's property kinds (id → name), which liteapi/propertyTypes.ts is
+  // checked against, and one page of Porto's static list where apartments,
+  // hostels and guest houses sit beside hotels. Offset 300: the first pages are
+  // almost all hotels, and the 20 in rates-city-porto.json are all type 204.
+  await capture('hotel-types', 'GET', `${DATA}/data/hotelTypes`);
+  await capture('hotels-static-porto-mixed', 'GET', `${DATA}/data/hotels?countryCode=PT&cityName=Porto&limit=25&offset=300`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added hotel-types.json, hotels-static-porto-mixed.json');
   process.exit(0);
 }
 

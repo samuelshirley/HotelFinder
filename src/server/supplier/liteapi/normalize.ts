@@ -2,6 +2,7 @@ import type { z } from 'zod';
 
 import { sumMoney, toMoney, type Money } from '@/lib/money';
 import { amenitiesFromFacilityIds } from './amenities';
+import { chainName, propertyTypeFromId } from './propertyTypes';
 import type {
   CancellationPolicy,
   CancelResult,
@@ -168,7 +169,12 @@ export function normalizePlaceDetails(placeId: string, body: z.infer<typeof plac
 }
 
 export function normalizeStaticFacts(body: z.infer<typeof hotelListResponse>): StaticFacts[] {
-  return body.data.map((h) => ({ supplierHotelId: h.id, amenities: amenitiesFromFacilityIds(h.facilityIds ?? []) }));
+  return body.data.map((h) => ({
+    supplierHotelId: h.id,
+    amenities: amenitiesFromFacilityIds(h.facilityIds ?? []),
+    propertyType: propertyTypeFromId(h.hotelTypeId),
+    chain: chainName(h.chain),
+  }));
 }
 
 export function normalizeDetails(body: z.infer<typeof hotelDetailsResponse>): PropertyDetails {

@@ -123,7 +123,17 @@ export const placeDetailsResponse = z
 
 export const hotelListResponse = z
   .object({
-    data: z.array(z.object({ id: z.string().min(1), facilityIds: z.array(z.number().int()).nullish() }).passthrough()),
+    data: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          facilityIds: z.array(z.number().int()).nullish(),
+          // Facts for the filters (docs/finder.md). A malformed one is unknown, never a failed search.
+          hotelTypeId: z.number().int().nullish().catch(null),
+          chain: z.string().nullish().catch(null),
+        })
+        .passthrough(),
+    ),
   })
   .passthrough();
 

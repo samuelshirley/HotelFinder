@@ -101,7 +101,7 @@ describe('askJev', () => {
     const body = JSON.parse(seen!.init.body as string);
     expect(body.model).toBe('jev-latest');
     expect(body.state).toEqual({ search: { destination: 'Porto' }, user_message: 'under 120 a night' });
-    expect(Object.keys(body.questions).sort()).toEqual(['amenity', 'fact', 'intent', 'multi_intent', 'names_place', 'removing', 'search_field', 'superlative', 'tier', 'wants_location', 'wants_price', 'wants_quality']);
+    expect(Object.keys(body.questions).sort()).toEqual(['amenity', 'fact', 'filter_kind', 'intent', 'multi_intent', 'names_place', 'removing', 'search_field', 'superlative', 'tier', 'wants_location', 'wants_price', 'wants_quality']);
     expect(body.questions.tier.type).toBe('choice');
     expect(body.questions.multi_intent.type).toBe('noul');
     expect(outcome).toMatchObject({

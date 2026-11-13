@@ -138,7 +138,8 @@ logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`, `docs/deploy.md`.
 ### Agent tools (`src/server/agent/tools.ts`)
 
 resolve_place, hotel_details (lookups) · set_destination, set_dates,
-set_guests, set_price_cap, set_priority, require, stop_requiring, set_aside,
+set_guests, set_price_cap, set_priority, require, stop_requiring,
+set_min_stars, set_min_rating, set_property_types, set_brands, set_aside,
 show_others, bring_back_all (each becomes typed actions) · open_hotel,
 show_map, mark_on_map (the screen only) · hold_for_confirmation (stage the
 queued changes for a yes) · submit_idea.
@@ -166,7 +167,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map
+search, book, admin, map, filters
 
 ## Lockdown invariants (load-bearing)
 

@@ -9,6 +9,7 @@ import { runAgent, type AgentResult } from './loop';
 import type { HotelOnScreen } from './prompt';
 import { readPriorities } from './priorities';
 import { scanIntent } from './scan';
+import { NO_FILTERS } from '@/lib/filters';
 
 /**
  * The agent and the intent scan against the REAL model. Skipped unless
@@ -24,7 +25,7 @@ const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const state: SearchState = {
   priorities: ['cheapest'],
   guestNationality: 'ES',
-  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
+  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], filters: NO_FILTERS, excludedPropertyIds: [] },
 };
 const hotel = (position: number, name: string, totalMinor: number, rating: number): HotelOnScreen => ({
   position, name, stars: 3, rating, reviewCount: 6206, totalMinor, perNightMinor: totalMinor / 2, payAtPropertyMinor: 1200, roomName: 'Double Room', boardName: 'Room Only', refundable: false, freeCancellationUntil: null, reason: position === 1 ? 'Cheapest available' : '',

@@ -16,11 +16,11 @@ export const maxDuration = 60;
 
 /**
  * The results header's chips, edited in place: where, when, who (and the
- * pet), what "best" means, where "close" is measured from, and the
- * nationality used for rates. Typed actions through the one dispatch path; no
+ * pet), what "best" means, where "close" is measured from, the
+ * nationality used for rates, and the filters (stars, rating, kind, brand). Typed actions through the one dispatch path; no
  * model. The rest of a search is changed in the chat.
  */
-const EDITABLE = ['set_destination', 'set_dates', 'set_guests', 'add_must_have', 'remove_must_have', 'set_nationality', 'set_priorities', 'set_near', 'set_near_point', 'clear_near'] as const;
+const EDITABLE = ['set_destination', 'set_dates', 'set_guests', 'add_must_have', 'remove_must_have', 'set_nationality', 'set_priorities', 'set_near', 'set_near_point', 'clear_near', 'set_min_stars', 'set_min_rating', 'set_property_types', 'set_chains'] as const;
 const editAction = actionSchema.refine((a) => (EDITABLE as readonly string[]).includes(a.type), 'not editable here');
 /** One chip's change: at most a few actions (Who = the party plus the pet). */
 const payload = z.object({ actions: z.array(editAction).min(1).max(3), today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();

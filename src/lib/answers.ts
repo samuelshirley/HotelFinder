@@ -1,4 +1,5 @@
 import type { Amenity, MustHave } from '@/lib/amenities';
+import type { StayFilters } from '@/lib/filters';
 import { includesBreakfast, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
 import type { SearchField, Superlative } from '@/lib/router/catalogue';
 import type { AnswerPlan, FactAsk } from '@/lib/router/route';
@@ -49,6 +50,8 @@ export type AnswerContext = {
     rooms: number;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
+    /** Star class, rating, kind of place, brand. Absent = none set. */
+    filters?: StayFilters;
     /** null = not asked; [] = no preference. */
     priorities: PriorityKey[] | null;
     /** Where "close" is measured from, in words. */

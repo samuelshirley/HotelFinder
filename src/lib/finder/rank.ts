@@ -1,4 +1,5 @@
 import { AMENITIES, type Amenity, type MustHave } from '@/lib/amenities';
+import { knownRating, knownStars, NO_FILTERS, type ListedPropertyType, type PropertyType, type StayFilters } from '@/lib/filters';
 import { isMemberOnlyPrice } from '@/lib/pricing';
 import { haversineKm, medianPoint, nightsBetween, type LatLng } from './geo';
 
@@ -45,6 +46,10 @@ export type Candidate = {
   refundable: boolean;
   /** The supplier's board name for the first room, e.g. "Room Only". */
   boardName: string | null;
+  /** What kind of place the listing says it is. null or absent = it does not say. */
+  propertyType?: ListedPropertyType | null;
+  /** The supplier's chain name. null or absent = the listing names none. */
+  chain?: string | null;
 };
 
 export type RankInput = {
@@ -64,6 +69,8 @@ export type RankInput = {
   /** Anonymous visitors may not be shown a price under the hotel's public price. */
   audience: 'public' | 'member';
   excludedPropertyIds?: readonly string[];
+  /** Star class, rating, kind of place, brand (lib/filters.ts). Absent = none. */
+  filters?: StayFilters;
   size?: number;
   /** When fewer hotels than this fit, the nearest misses fill the list up to it. */
   minShown?: number;
@@ -84,7 +91,32 @@ export type Miss =
   | { kind: 'over_price_cap'; over_by_minor: number }
   /** `must`: known to be lacking. `unknown`: the supplier sent no amenity list, so it cannot be checked. */
   | { kind: 'missing_must_have'; must: MustHave[]; unknown: MustHave[] }
-  | { kind: 'member_price' };
+  | { kind: 'member_price' }
+  /** The filters (lib/filters.ts). The listed value is null when the listing does not say: unknown, not failing. */
+  | { kind: 'below_stars'; min: number; stars: number | null }
+  | { kind: 'below_rating'; min: number; rating: number | null }
+  | { kind: 'not_property_type'; wanted: PropertyType[]; listed: ListedPropertyType | null }
+  | { kind: 'not_chain'; wanted: string[]; listed: string | null };
+
+const FILTER_MISSES: ReadonlyArray<Miss['kind']> = ['below_stars', 'below_rating', 'not_property_type', 'not_chain'];
+
+/** What a candidate misses of the filters, in the order the filters are listed. A silent listing misses, with its value null. */
+export function filterMisses(c: Candidate, f: StayFilters): Miss[] {
+  const out: Miss[] = [];
+  const stars = knownStars(c.stars);
+  if (f.minStars !== null && (stars === null || stars < f.minStars)) out.push({ kind: 'below_stars', min: f.minStars, stars });
+  const rating = knownRating(c.rating);
+  if (f.minRating !== null && (rating === null || rating < f.minRating)) out.push({ kind: 'below_rating', min: f.minRating, rating });
+  const type = c.propertyType ?? null;
+  if (f.propertyTypes.length > 0 && (type === null || !(f.propertyTypes as readonly string[]).includes(type))) {
+    out.push({ kind: 'not_property_type', wanted: [...f.propertyTypes], listed: type });
+  }
+  const chain = c.chain ?? null;
+  if (f.chains.length > 0 && (chain === null || !f.chains.some((w) => w.toLowerCase() === chain.toLowerCase()))) {
+    out.push({ kind: 'not_chain', wanted: [...f.chains], listed: chain });
+  }
+  return out;
+}
 
 export type NearMiss = {
   candidate: Candidate;
@@ -95,7 +127,7 @@ export type NearMiss = {
   perNightMinor: number;
 };
 
-export type RejectionReason = 'over_price_cap' | 'missing_must_have' | 'below_public_price' | 'excluded_by_user';
+export type RejectionReason = 'over_price_cap' | 'missing_must_have' | 'filtered_out' | 'below_public_price' | 'excluded_by_user';
 
 export type Reason =
   | { kind: 'cheapest_meeting_all_musts' }
@@ -135,6 +167,8 @@ export type RankResult = {
   rejected: Record<RejectionReason, number>;
   /** Which must-haves could not be checked for at least one hotel (amenities unknown). */
   uncheckable: number;
+  /** Hotels left out by a filter only because their listing does not hold the field (no star class, no type, no chain). */
+  filterUnknown: number;
   distanceFrom: DistanceFrom | null;
   distanceLabel: string | null;
 };
@@ -291,10 +325,13 @@ export function rankStay(input: RankInput): RankResult {
   const rejected: Record<RejectionReason, number> = {
     over_price_cap: 0,
     missing_must_have: 0,
+    filtered_out: 0,
     below_public_price: 0,
     excluded_by_user: 0,
   };
   let uncheckable = 0;
+  let filterUnknown = 0;
+  const filters = input.filters ?? NO_FILTERS;
 
   // Distances are measured from the place the user named, else from the
   // destination's own map point, else (no point known) from the middle of
@@ -325,6 +362,9 @@ export function rankStay(input: RankInput): RankResult {
       const isUnknown = (m: MustHave) => c.amenities === null && (AMENITIES as readonly string[]).includes(m);
       misses.push({ kind: 'missing_must_have', must: lacking.filter((m) => !isUnknown(m)), unknown: lacking.filter(isUnknown) });
     }
+    const filtered = filterMisses(c, filters);
+    misses.push(...filtered);
+    if (filtered.length > 0 && filtered.every(isSilent)) filterUnknown += 1;
     // Rounded to 100 m HERE, before ranking: the order is decided on the same
     // number the user is shown. Ranking on the exact distance put a dearer,
     // worse-rated hotel first for being 20 m closer while both read "0.5 km".
@@ -337,6 +377,7 @@ export function rankStay(input: RankInput): RankResult {
     const first = misses[0].kind;
     if (first === 'member_price') rejected.below_public_price += 1;
     else if (first === 'over_price_cap') rejected.over_price_cap += 1;
+    else if (FILTER_MISSES.includes(first)) rejected.filtered_out += 1;
     else {
       rejected.missing_must_have += 1;
       if (misses[0].kind === 'missing_must_have' && misses[0].unknown.length > 0) uncheckable += 1;
@@ -379,9 +420,25 @@ export function rankStay(input: RankInput): RankResult {
     eligible: eligible.length,
     rejected,
     uncheckable,
+    filterUnknown,
     distanceFrom,
     distanceLabel: distanceFrom === 'search_centre' ? null : distanceLabel,
   };
+}
+
+/** A filter missed only because the listing does not hold the field. */
+function isSilent(m: Miss): boolean {
+  switch (m.kind) {
+    case 'below_stars':
+      return m.stars === null;
+    case 'below_rating':
+      return m.rating === null;
+    case 'not_property_type':
+    case 'not_chain':
+      return m.listed === null;
+    default:
+      return false;
+  }
 }
 
 /** True when `a` is at least as good as `b` on all four metrics and better on one. */

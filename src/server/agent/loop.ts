@@ -59,7 +59,7 @@ export type AgentResult = {
 
 export async function runAgent(input: AgentInput & { shortlist: ToolContext['shortlist'] }, deps: AgentDeps): Promise<AgentResult> {
   // The agent only ever runs on a search that is already running (onboarding uses the scan).
-  const ctx: ToolContext = { currency: input.currency, shortlist: input.shortlist, placeRefs: new Map(), searchTown: placeName(input.state.stay.destinationText) };
+  const ctx: ToolContext = { currency: input.currency, shortlist: input.shortlist, placeRefs: new Map(), searchTown: placeName(input.state.stay.destinationText), chains: input.brands ?? [] };
   const first = buildUserTurn(input);
   const messages: Turn[] = [{ role: 'user', content: first }];
   let grounding = first;

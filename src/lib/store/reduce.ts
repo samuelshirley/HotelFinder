@@ -1,4 +1,5 @@
 import type { MustHave } from '@/lib/amenities';
+import { PROPERTY_TYPES, type StayFilters } from '@/lib/filters';
 import { haversineKm, nightsBetween, type LatLng } from '@/lib/finder/geo';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 import { mapPointNear, type Action, type ResolvedAction, type ResolvedPoint } from './actions';
@@ -24,6 +25,8 @@ export type SearchState = {
     rooms: number;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
+    /** Star class, rating, kind of place, brand (lib/filters.ts). Types kept in PROPERTY_TYPES order, chains sorted. */
+    filters: StayFilters;
     excludedPropertyIds: string[];
   };
 };
@@ -64,6 +67,8 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
     effect,
   });
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  // A filter only narrows what is held: a re-rank, never a new search.
+  const withFilters = (patch: Partial<StayFilters>) => withStay({ filters: { ...stay.filters, ...patch } }, 'rerank');
 
   switch (action.type) {
     case 'set_priorities': {
@@ -94,6 +99,26 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
     case 'remove_must_have':
       if (!stay.mustHaves.includes(action.mustHave)) return { ok: false, rejection: 'no_change' };
       return withStay({ mustHaves: stay.mustHaves.filter((m) => m !== action.mustHave) }, 'rerank');
+
+    case 'set_min_stars':
+      if (stay.filters.minStars === action.stars) return { ok: false, rejection: 'no_change' };
+      return withFilters({ minStars: action.stars });
+
+    case 'set_min_rating':
+      if (stay.filters.minRating === action.rating) return { ok: false, rejection: 'no_change' };
+      return withFilters({ minRating: action.rating });
+
+    case 'set_property_types': {
+      const next = PROPERTY_TYPES.filter((t) => action.types.includes(t));
+      if (same(next, stay.filters.propertyTypes)) return { ok: false, rejection: 'no_change' };
+      return withFilters({ propertyTypes: next });
+    }
+
+    case 'set_chains': {
+      const next = [...new Set(action.chains.map((c) => c.trim()))].sort();
+      if (same(next, stay.filters.chains)) return { ok: false, rejection: 'no_change' };
+      return withFilters({ chains: next });
+    }
 
     case 'set_guests': {
       if (action.rooms > action.adults) return { ok: false, rejection: 'more_rooms_than_adults' };
@@ -203,5 +228,9 @@ export function fingerprint(state: SearchState): string {
     s.priceCapMinor,
     [...s.mustHaves].sort(),
     [...s.excludedPropertyIds].sort(),
+    s.filters.minStars,
+    s.filters.minRating,
+    s.filters.propertyTypes,
+    [...s.filters.chains].sort(),
   ]);
 }

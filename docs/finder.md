@@ -91,3 +91,59 @@ Open: the hidden hotels could instead be shown *at* their public price (the
 margin raised to meet it), which is allowed and earns more. That needs the
 offer's price to be the price booked, so it is a supplier/checkout change, not
 a ranking one. Not built.
+
+## Filters (2026-11-13)
+
+Vio-parity filter chips beside the price cap and the must-haves: **star
+class** (3+, 4+, 5), **guest rating** (7+, 8+, 9+), **kind of place** and
+**brand**. Each is a typed action (`set_min_stars`, `set_min_rating`,
+`set_property_types`, `set_chains`) with a pure reducer (a re-rank, never a
+new search), four columns on `stays`, a hard constraint in `rankStay`, a chip
+in the results header, an agent tool, and (stars, rating, kind) a Jev intent.
+Code: `lib/filters.ts`, `filterMisses` in `finder/rank.ts`.
+
+**What the supplier data holds**, checked before building
+(`liteapi/__fixtures__/`, plus a read of the sandbox's Porto, Lisbon and
+Barcelona lists on 2026-11-13, 1,000 hotels each):
+
+| Filter | Field | Notes |
+|---|---|---|
+| Stars | `stars` on the rates response | `0` is "not rated" (110 of 1,000 in Porto), read as unknown |
+| Rating | `rating` on the rates response | out of 10 |
+| Kind | `hotelTypeId` on `/data/hotels` (the static facts call) | id → name from `/data/hotelTypes`, recorded as `hotel-types.json`. Seen: apartments 578, hotels 185, guest houses 129, hostels 39, B&Bs 28, aparthotels 23, holiday homes/villas 13 (Porto) |
+| Brand | `chain` on `/data/hotels` | `"Not Available"` on 850 of 1,000 in Porto: read as "names no brand", not as "independent" |
+| Neighbourhood | none | **Not built.** The listing has a street address, a postcode and a city, no district. A postcode is not a neighbourhood a person would name, and guessing one from it would be authoring. "Close to" a named place (`set_near`, ranked by distance) is the honest way to ask for an area; the agent offers it. |
+
+The kind ids are mapped in `liteapi/propertyTypes.ts` (seven kinds; a test
+checks every mapped id's name against the recording). Any other id is
+`other`: known, but not a kind offered.
+
+**A listing silent on the field is never dropped silently.** It misses the
+filter with its value null; the card says "the listing does not give a star
+class" / "does not say what kind of place it is" / "names no brand", and when
+nothing fits the chat line says how many a filter left out and for how many
+the listing was silent (`filterUnknown`). Without static facts (the call
+failed) every hotel misses a kind or brand filter that way (PGlite test).
+
+**The chips offer only what the held listings carry**: the kind and brand
+editors list values among the hotels the finder ranks over, with counts, and
+say how many name none. A brand from the chat goes through `set_brands`, which
+maps what the user said onto one of those chain names (exact, or the one chain
+whose name holds it as whole words); the action carries the supplier's
+spelling, never the model's.
+
+Measured with Jev live (2026-11-13): the six new filter cases read intent
+`filter` at 0.99–1.0 with the right `filter_kind` at 1.0, except "any star
+rating is fine" (intent 0.61, `removing` 0.17), which defers. The 46 earlier
+cases still pass (53 of 53). The added intent and question cost about 220
+input tokens a message (2,510 against 2,290).
+
+Mutation checks: 5, all caught (a kind id moved to another kind; "Not
+Available" read as a brand; an unknown star class passing the filter; the
+model's brand spelling passed through; the hotel-type mapping not matching the
+recording).
+
+Open for Sam: whether to offer the 7 kinds, or fewer (Vio shows hotel /
+apartment / hostel / B&B); whether unrated (`0`) hotels should pass a star
+filter; brands are offered from the current results only, so a brand absent
+from them cannot be picked from the chip.

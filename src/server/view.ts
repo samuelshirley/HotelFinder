@@ -1,7 +1,9 @@
 import 'server-only';
 
+import { filterOptions, readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
+import { listLiveOffersForRanking } from '@/server/repos/offers';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
 
@@ -10,13 +12,16 @@ import { listShortlist } from '@/server/repos/shortlist';
  * Prices, fees and cancellation terms come from offer rows and nowhere else.
  * Supplier ids and internal trace data are not included.
  */
-export async function buildSessionView(session: SearchSession) {
+export async function buildSessionView(session: SearchSession, now: Date = new Date()) {
   const audience = audienceFor(session);
   const stay = (await listStays(session.id))[0] ?? null;
-  const [messages, shortlist] = await Promise.all([
+  const [messages, shortlist, held] = await Promise.all([
     listMessages(session.id),
     stay ? listShortlist(session.id, stay.id, audience) : Promise.resolve([]),
+    // What the type and brand editors may offer: the hotels the finder ranks over.
+    stay ? listLiveOffersForRanking(session.id, stay.id, audience, now) : Promise.resolve([]),
   ]);
+  const heldHotels = new Map(held.map((r) => [r.property.id, r.property]));
 
   return {
     session: {
@@ -51,6 +56,8 @@ export async function buildSessionView(session: SearchSession) {
       rooms: stay.rooms,
       priceCapMinor: stay.priceCapMinor,
       mustHaves: stay.mustHaves,
+      filters: stayFilters(stay),
+      filterOptions: filterOptions([...heldHotels.values()].map((p) => ({ propertyType: readPropertyType(p.content), chain: readChain(p.content) }))),
       excludedCount: stay.excludedPropertyIds.length,
       /** Where "close" is measured from, in words. */
       nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }),

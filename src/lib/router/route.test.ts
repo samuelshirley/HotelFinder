@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SearchState } from '@/lib/store/reduce';
 import type { Intent } from './catalogue';
 import { routeMessage, type Readings, type ShortlistRow } from './route';
+import { NO_FILTERS } from '@/lib/filters';
 
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const shortlist: ShortlistRow[] = [
@@ -23,6 +24,7 @@ const state: SearchState = {
     rooms: 1,
     priceCapMinor: null,
     mustHaves: [],
+    filters: NO_FILTERS,
     excludedPropertyIds: [],
   },
 };
@@ -336,5 +338,35 @@ describe('an intent under the bar settles when its own detail question agrees (l
   it('a requirement is never rescued: "takes dogs" read as must-have would change the search', () => {
     expect(route('does the yotel take dogs?', readings('must_have', { intent: at('must_have', 0.75, 0.3), amenity: at('pets_allowed', 1, 0.99), fact: at('facility', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
     expect(route('not the yotel', readings('exclude', { intent: at('exclude', 0.8, 0.5) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+  });
+});
+
+describe('filters: Jev picks the kind, code reads the value (lib/filters.ts)', () => {
+  const filter = (kind: string, over: Partial<Readings> = {}) => readings('filter', { filterKind: sure(kind), ...over });
+
+  it('a star class and a guest rating, set and dropped', () => {
+    expect(route('only 4 stars or more', filter('stars'))).toEqual({ kind: 'actions', intent: 'filter', actions: [{ type: 'set_min_stars', stars: 4 }] });
+    expect(route('any star rating is fine', filter('stars', { removing: 0.95 }))).toMatchObject({ actions: [{ type: 'set_min_stars', stars: null }] });
+    expect(route('rated 8.5 or above', filter('rating'))).toMatchObject({ actions: [{ type: 'set_min_rating', rating: 8.5 }] });
+    expect(route('forget the rating filter', filter('rating', { removing: 0.97 }))).toMatchObject({ actions: [{ type: 'set_min_rating', rating: null }] });
+  });
+
+  it('kinds of place, replacing the set or adding to it', () => {
+    expect(route('apartments only', filter('property_type'))).toMatchObject({ actions: [{ type: 'set_property_types', types: ['apartment'] }] });
+    const withHostels: SearchState = { ...state, stay: { ...state.stay, filters: { ...NO_FILTERS, propertyTypes: ['hostel'] } } };
+    expect(routeMessage({ message: 'guest houses too', readings: filter('property_type'), state: withHostels, currency: 'EUR', shortlist })).toMatchObject({
+      actions: [{ type: 'set_property_types', types: ['hostel', 'guest_house'] }],
+    });
+  });
+
+  it('defers what code cannot read for certain', () => {
+    expect(route('only Hilton', filter('brand'))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    expect(route('no apartments', filter('property_type', { removing: 0.95 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('somewhere fancy', filter('stars'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('3 or 4 stars', filter('stars'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('only 4 stars', filter('stars', { removing: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('only 4 stars', readings('filter', { filterKind: { choice: 'stars', top: 0.6, margin: 0.3 } }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('only 4 stars', readings('filter', { filterKind: null }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('only 4 stars', filter('none'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
   });
 });

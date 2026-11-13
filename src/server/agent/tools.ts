@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { isInsideTown } from '@/lib/placePick';
 
 import { MUST_HAVES } from '@/lib/amenities';
+import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
 import type { Action } from '@/lib/store/actions';
@@ -36,6 +37,10 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'clear_near', description: 'Measure "close" from the destination again.', input_schema: obj({}) },
   { name: 'require', description: 'Only show hotels that have this.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
   { name: 'stop_requiring', description: 'Drop a requirement added earlier.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
+  { name: 'set_min_stars', description: 'Only show hotels of at least this star class ("4 star or better" is 4, "five-star" is 5). null removes it. A hotel whose listing gives no star class is shown under the others, saying so.', input_schema: obj({ stars: { type: ['integer', 'null'], minimum: 1, maximum: 5 } }) },
+  { name: 'set_min_rating', description: 'Only show hotels with at least this guest rating out of 10, in steps of 0.5 ("rated 8 or more" is 8). null removes it.', input_schema: obj({ rating: { type: ['number', 'null'], minimum: 1, maximum: 10, multipleOf: 0.5 } }) },
+  { name: 'set_property_types', description: 'Only show these kinds of place, as the WHOLE set (it replaces the current one). [] = any kind.', input_schema: obj({ types: { type: 'array', items: { type: 'string', enum: [...PROPERTY_TYPES] }, uniqueItems: true, maxItems: PROPERTY_TYPES.length } }) },
+  { name: 'set_brands', description: 'Only show hotels of these brands, as the WHOLE set. Each must be one of the brands in <search> "brands in these results", written as the user said it. [] = any brand.', input_schema: obj({ brands: { type: 'array', items: { type: 'string' }, uniqueItems: true, maxItems: MAX_CHAINS } }) },
   { name: 'set_aside', description: 'Remove hotels the user does not want from the list.', input_schema: obj({ positions: { type: 'array', items: position, minItems: 1, maxItems: 10 } }) },
   { name: 'show_others', description: 'Set aside everything on screen and show the next best.', input_schema: obj({}) },
   { name: 'bring_back_all', description: 'Undo every set-aside.', input_schema: obj({}) },
@@ -60,6 +65,10 @@ const INPUT = {
   clear_near: z.object({}).strict(),
   require: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
   stop_requiring: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
+  set_min_stars: z.object({ stars: z.number().int().min(1).max(5).nullable() }).strict(),
+  set_min_rating: z.object({ rating: z.number().min(1).max(10).multipleOf(0.5).nullable() }).strict(),
+  set_property_types: z.object({ types: z.array(z.enum(PROPERTY_TYPES)).max(PROPERTY_TYPES.length).refine((t) => new Set(t).size === t.length) }).strict(),
+  set_brands: z.object({ brands: z.array(z.string().trim().min(1).max(120)).max(MAX_CHAINS) }).strict(),
   set_aside: z.object({ positions: z.array(pos).min(1).max(10) }).strict(),
   show_others: z.object({}).strict(),
   bring_back_all: z.object({}).strict(),
@@ -80,7 +89,25 @@ export type ToolContext = {
   placeRefs: Map<string, { placeId: string; label: string; types?: string[] }>;
   /** The town of the running search: a place inside it is somewhere to be close to, never a new destination. */
   searchTown?: string;
+  /** The supplier's chain names among the hotels held for this search. A brand the user names must be one of these. */
+  chains?: string[];
 };
+
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * A brand as the user said it → the supplier's own chain name, or null.
+ * The same name, or the one chain whose name holds it as whole words
+ * ("Hilton" → "Hilton Hotels & Resorts"). Two candidates is no answer.
+ */
+export function matchChain(said: string, chains: readonly string[]): string | null {
+  const want = fold(said);
+  if (!want) return null;
+  const exact = chains.filter((c) => fold(c) === want);
+  if (exact.length === 1) return exact[0];
+  const within = chains.filter((c) => ` ${fold(c)} `.includes(` ${want} `));
+  return within.length === 1 ? within[0] : null;
+}
 
 /** "Manor Road, Austin, TX, USA" is in Austin; "Ribeira, Lisbon, Portugal" is not in Porto. */
 const inTown = (label: string, town: string) => label.toLowerCase().split(/,\s*/).slice(1).some((part) => part === town.toLowerCase());
@@ -164,6 +191,22 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       return { kind: 'actions', actions: [{ type: 'add_must_have', mustHave: (parsed.data as { must_have: (typeof MUST_HAVES)[number] }).must_have }] };
     case 'stop_requiring':
       return { kind: 'actions', actions: [{ type: 'remove_must_have', mustHave: (parsed.data as { must_have: (typeof MUST_HAVES)[number] }).must_have }] };
+    case 'set_min_stars':
+      return { kind: 'actions', actions: [{ type: 'set_min_stars', stars: (parsed.data as { stars: number | null }).stars }] };
+    case 'set_min_rating':
+      return { kind: 'actions', actions: [{ type: 'set_min_rating', rating: (parsed.data as { rating: number | null }).rating }] };
+    case 'set_property_types':
+      return { kind: 'actions', actions: [{ type: 'set_property_types', types: (parsed.data as { types: Array<(typeof PROPERTY_TYPES)[number]> }).types }] };
+    case 'set_brands': {
+      // The chain name sent on is the supplier's own, from the held listings; never the model's spelling.
+      const chains: string[] = [];
+      for (const said of (parsed.data as { brands: string[] }).brands) {
+        const chain = matchChain(said, ctx.chains ?? []);
+        if (!chain) return { kind: 'invalid', reason: `no hotel in these results is listed under the brand "${said.slice(0, 60)}"` };
+        if (!chains.includes(chain)) chains.push(chain);
+      }
+      return { kind: 'actions', actions: [{ type: 'set_chains', chains }] };
+    }
     case 'set_aside': {
       const actions: Action[] = [];
       for (const p of new Set((parsed.data as { positions: number[] }).positions)) {

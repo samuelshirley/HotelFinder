@@ -1,0 +1,212 @@
+{
+  "data": [
+    {
+      "id": 0,
+      "name": "Not Available"
+    },
+    {
+      "id": 201,
+      "name": "Apartments"
+    },
+    {
+      "id": 203,
+      "name": "Hostels"
+    },
+    {
+      "id": 204,
+      "name": "Hotels"
+    },
+    {
+      "id": 205,
+      "name": "Motels"
+    },
+    {
+      "id": 206,
+      "name": "Resorts"
+    },
+    {
+      "id": 207,
+      "name": "Residences"
+    },
+    {
+      "id": 208,
+      "name": "Bed and breakfasts"
+    },
+    {
+      "id": 209,
+      "name": "Ryokans"
+    },
+    {
+      "id": 210,
+      "name": "Farm stays"
+    },
+    {
+      "id": 212,
+      "name": "Holiday parks"
+    },
+    {
+      "id": 213,
+      "name": "Villas"
+    },
+    {
+      "id": 214,
+      "name": "Campsites"
+    },
+    {
+      "id": 215,
+      "name": "Boats"
+    },
+    {
+      "id": 216,
+      "name": "Guest houses"
+    },
+    {
+      "id": 218,
+      "name": "Inns"
+    },
+    {
+      "id": 219,
+      "name": "Aparthotels"
+    },
+    {
+      "id": 220,
+      "name": "Holiday homes"
+    },
+    {
+      "id": 221,
+      "name": "Lodges"
+    },
+    {
+      "id": 222,
+      "name": "Homestays"
+    },
+    {
+      "id": 223,
+      "name": "Country houses"
+    },
+    {
+      "id": 224,
+      "name": "Luxury tents"
+    },
+    {
+      "id": 225,
+      "name": "Capsule hotels"
+    },
+    {
+      "id": 226,
+      "name": "Love hotels"
+    },
+    {
+      "id": 227,
+      "name": "Riads"
+    },
+    {
+      "id": 228,
+      "name": "Chalets"
+    },
+    {
+      "id": 229,
+      "name": "Condos"
+    },
+    {
+      "id": 230,
+      "name": "Cottages"
+    },
+    {
+      "id": 231,
+      "name": "Economy hotels"
+    },
+    {
+      "id": 232,
+      "name": "Gites"
+    },
+    {
+      "id": 233,
+      "name": "Health resorts"
+    },
+    {
+      "id": 234,
+      "name": "Cruises"
+    },
+    {
+      "id": 235,
+      "name": "Student accommodation"
+    },
+    {
+      "id": 243,
+      "name": "Tree house property"
+    },
+    {
+      "id": 247,
+      "name": "Pension"
+    },
+    {
+      "id": 250,
+      "name": "Private vacation home"
+    },
+    {
+      "id": 251,
+      "name": "Pousada"
+    },
+    {
+      "id": 252,
+      "name": "Country house"
+    },
+    {
+      "id": 254,
+      "name": "Campsite"
+    },
+    {
+      "id": 257,
+      "name": "Cabin"
+    },
+    {
+      "id": 258,
+      "name": "Holiday park"
+    },
+    {
+      "id": 262,
+      "name": "Affittacamere"
+    },
+    {
+      "id": 264,
+      "name": "Hostel/Backpacker accommodation"
+    },
+    {
+      "id": 265,
+      "name": "Houseboat"
+    },
+    {
+      "id": 268,
+      "name": "Ranch"
+    },
+    {
+      "id": 271,
+      "name": "Agritourism property"
+    },
+    {
+      "id": 272,
+      "name": "Mobile home"
+    },
+    {
+      "id": 273,
+      "name": "Safari/Tentalow"
+    },
+    {
+      "id": 274,
+      "name": "All-inclusive property"
+    },
+    {
+      "id": 276,
+      "name": "Castle"
+    },
+    {
+      "id": 277,
+      "name": "property"
+    },
+    {
+      "id": 278,
+      "name": "Palace"
+    }
+  ]
+}
