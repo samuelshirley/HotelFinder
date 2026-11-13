@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { errorCopy } from '@/lib/errors';
 import type { SessionView } from '@/server/view';
 import { ApiError, sendSignInCode, verifySignInCode } from './api';
+import { useLocale } from './i18n';
 import styles from './SignInSheet.module.css';
 
 /**
@@ -13,6 +14,7 @@ import styles from './SignInSheet.module.css';
  * server and comes back with the sign-in, so the sheet closes onto prices.
  */
 export function SignInSheet({ sessionId, onClose, onSignedIn }: { sessionId: string; onClose: () => void; onSignedIn: (view: SessionView | null) => void }) {
+  const { locale, t } = useLocale();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -37,7 +39,7 @@ export function SignInSheet({ sessionId, onClose, onSignedIn }: { sessionId: str
     try {
       await fn();
     } catch (err) {
-      setError(errorCopy(err instanceof ApiError ? err.code : 'server_error'));
+      setError(errorCopy(err instanceof ApiError ? err.code : 'server_error', locale));
     } finally {
       setBusy(false);
     }
@@ -63,41 +65,41 @@ export function SignInSheet({ sessionId, onClose, onSignedIn }: { sessionId: str
         }}
       >
         <div className={styles.head}>
-          <h2 id="sign-in-title">Sign in to see member prices</h2>
-          <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
+          <h2 id="sign-in-title">{t.ui.signInTitle}</h2>
+          <button type="button" className={styles.close} aria-label={t.ui.close} onClick={onClose}>
             ×
           </button>
         </div>
         {step === 'email' ? (
           <>
-            <p className={styles.note}>We email you a 6-digit code. No password.</p>
+            <p className={styles.note}>{t.ui.signInNote}</p>
             <label className={styles.field}>
-              Email
+              {t.ui.emailLabel}
               <input ref={field} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
           </>
         ) : (
           <>
             <p className={styles.note}>
-              Code sent to {email}.{' '}
+              {t.ui.codeSentTo(email)}{' '}
               <button type="button" className={styles.link} onClick={() => (setStep('email'), setCode(''), setDevCode(null))}>
-                Change
+                {t.ui.changeEmail}
               </button>
             </p>
             <label className={styles.field}>
-              6-digit code
+              {t.ui.codeLabel}
               <input ref={field} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
             </label>
           </>
         )}
-        {devCode && <p className={styles.note}>Dev mailbox: {devCode}</p>}
+        {devCode && <p className={styles.note}>{t.ui.devMailbox(devCode)}</p>}
         {error && (
           <p role="alert" className={styles.error}>
             {error}
           </p>
         )}
         <button type="submit" className={styles.submit} disabled={busy}>
-          {busy ? (step === 'email' ? 'Sending…' : 'Signing in…') : step === 'email' ? 'Send code' : 'Sign in'}
+          {busy ? (step === 'email' ? t.ui.sendingCode : t.ui.signingIn) : step === 'email' ? t.ui.sendCode : t.ui.signIn}
         </button>
       </form>
     </dialog>

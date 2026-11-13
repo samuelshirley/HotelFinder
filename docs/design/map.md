@@ -20,7 +20,9 @@ Trips | hotels | chat is unchanged. Inside the hotels column:
 
 ## Tiles
 
-MapLibre GL JS drawing OpenFreeMap's `dark` style (`lib/mapStyle.ts`). No key, no account, no bill.
+MapLibre GL JS drawing OpenFreeMap's `positron` style (`lib/mapStyle.ts`), light grey; `dark` until
+13 Nov 2026, when Sam found it too dark to read. No key, no account, no bill. The distance ring's
+dashed line is the accent purple so it shows on the light map.
 OpenFreeMap's terms offer the public instance as-is; that URL is the one thing to change if it goes.
 The library is loaded on the client only, and only while the map is open.
 
@@ -45,6 +47,12 @@ are laid out best rank first. One that would touch another is stacked 32 px belo
 64); only when no slot is free does it shrink to its rank alone, and the price returns on hover.
 A stacked label is up to 64 px from its hotel; zooming in pulls the stack apart. The best rank is
 always drawn on top and always on its own spot.
+
+Two gaps, found by `e2e/map.spec` failing on live data (13 Nov 2026), closed in `layoutPins`:
+a moved label must stay inside the map (stacked 64 px below a hotel near the bottom edge, it hung
+5 px past it), and a rank alone that still covers a pin steps aside, left then right, far enough
+to clear a full label (pins 4 and 5 on almost one spot overlapped). A label on its own hotel's spot
+is never moved for the edge: where the hotel is on screen is the camera's business.
 
 ## List and map
 
@@ -104,3 +112,22 @@ a named place.
 Not done: the detail slide-out still opens over the map (the designer's note: it should cover the
 list only). Not checked: a narrow (phone-width) window with the map open, keyboard-only use of the
 pins, and a screen reader.
+
+## With the full list open (2026-11-13)
+
+"Show all N hotels" (`docs/finder.md`) adds the page on screen to the map: the top picks stay, and
+the page's hotels are drawn as ranked pins with their totals (`pinsFor` treats a `full_list` row like
+any ranked row). The ring still measures the top picks only.
+
+**The camera frames the page, not the city** (`fitPoints(pins, anchor, frame)`). Measured in
+`e2e/full-list.spec.ts` on Porto (13 Nov 2026), framing the picks, the anchor and the page: the two
+airport picks set the frame, and ranks 7–14 were one pile of compact rank circles under rank 3 (37
+overlapping pairs). Framing the page alone: 8 of 14 labels show their price, 12 overlapping pairs
+remain among central hotels under ~200 m apart, which zooming in separates. The page's own order of
+placement (best rank first) is unchanged. Closing the list frames the picks again. As before, once
+the user has moved the camera, a new frame is offered (Recentre), not forced. `data-frame` on the
+map says which it is framing.
+
+Found while here, not caused by this change: `e2e/map.spec.ts` fails on today's sandbox data at
+"all five pins are inside the band" (a stacked label ends about 6 px below the band). Reproduced on the
+untouched main branch.

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { SearchRequest, SupplierMeterEvent } from '../types';
 import { createLiteApiAdapter } from './adapter';
-import { replay, type Loose } from './fixtures';
+import { fixture, manifest, replay, type Loose } from './fixtures';
 import type { FetchLike } from './http';
 
 const KEY = 'sand_test-key-never-real';
@@ -92,6 +92,29 @@ describe('searchAvailability', () => {
     const { supplier, events } = adapter(fetchImpl);
     expect(await supplier.searchAvailability(PORTO)).toEqual({ ok: true, value: { properties: [], offers: [] } });
     expect(events[0]).toMatchObject({ success: true, meta: { hotels: 0, offers: 0 } });
+  });
+
+  it('prices in the currency asked for: every total, fee and penalty comes back in it, converted by the supplier', async () => {
+    const { fetchImpl, calls } = replay('rates-city-porto-usd');
+    const { supplier } = adapter(fetchImpl);
+    const result = await supplier.searchAvailability({ ...PORTO, currency: 'USD' });
+    expect(calls[0].body).toMatchObject({ currency: 'USD' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.offers).toHaveLength(20);
+    for (const o of result.value.offers) {
+      expect(o.total.currency).toBe('USD');
+      expect(o.payAtProperty.currency).toBe('USD');
+      expect(o.hasForeignCurrencyFees).toBe(false);
+      for (const f of o.fees) expect(f.amount.currency).toBe('USD');
+      for (const p of o.cancellation.penalties) expect(p.amount.currency).toBe('USD');
+    }
+  });
+
+  it('an unknown currency is not refused: the supplier says "no availability" (why only recorded codes are sent)', async () => {
+    const { fetchImpl } = replay('rates-currency-unknown');
+    const { supplier } = adapter(fetchImpl);
+    expect(await supplier.searchAvailability({ ...PORTO, currency: 'XQZ' })).toEqual({ ok: true, value: { properties: [], offers: [] } });
   });
 
   it('a supplier validation error is a failure with its code and is not retryable', async () => {
@@ -241,6 +264,31 @@ describe('places and static content', () => {
   });
 });
 
+describe('the language for place names and hotel text', () => {
+  const inSpanish = (fetchImpl: FetchLike) => createLiteApiAdapter({ apiKey: KEY, fetchImpl, now: () => NOW, language: 'es' });
+
+  it('asks for places, a place and a hotel in it (measured on the sandbox: "Londres", Spanish descriptions)', async () => {
+    const places = replay('places-porto-ribeira');
+    await inSpanish(places.fetchImpl).searchPlaces('Oporto');
+    expect(places.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/places?textQuery=Oporto&language=es');
+    const place = replay('place-annecy');
+    await inSpanish(place.fetchImpl).getPlace('abc');
+    expect(place.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/places/abc?language=es');
+    const hotel = replay('hotel-details');
+    await inSpanish(hotel.fetchImpl).getStaticContent('lp76a2a');
+    expect(hotel.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp76a2a&language=es');
+  });
+
+  it('never on rates or facts, and English is the supplier default: no parameter', async () => {
+    const search = replay('rates-city-porto');
+    await inSpanish(search.fetchImpl).searchAvailability(PORTO);
+    expect(search.calls[0].url).not.toContain('language');
+    const english = replay('hotel-details');
+    await createLiteApiAdapter({ apiKey: KEY, fetchImpl: english.fetchImpl, now: () => NOW, language: 'en' }).getStaticContent('lp76a2a');
+    expect(english.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp76a2a');
+  });
+});
+
 describe('recheckRate, book, getBooking, cancel', () => {
   it('prebooks with the payment SDK and returns the price to compare', async () => {
     const { fetchImpl, calls } = replay('prebook-payment-sdk');
@@ -256,6 +304,34 @@ describe('recheckRate, book, getBooking, cancel', () => {
     expect(events[0].provider).toBe('liteapi:prebook');
     // The client secret is for the payment form and must not reach the ledger.
     expect(JSON.stringify(events)).not.toContain('REDACTED_AT_CAPTURE');
+  });
+
+  it('a two-room prebook says which rooms it holds and for whom, in occupancy order; a rate that does not say leaves them unknown', async () => {
+    const { supplier } = adapter(replay('prebook-mixed-rooms').fetchImpl);
+    const result = await supplier.recheckRate('opaque');
+    expect(result.ok && result.value.rooms).toEqual([
+      { name: 'Vincci Room', boardName: 'Room Only', adults: 2, childrenAges: [] },
+      { name: 'Vincci Room Uso Individual', boardName: 'Room Only', adults: 1, childrenAges: [] },
+    ]);
+    const one = await adapter(replay('prebook-payment-sdk').fetchImpl).supplier.recheckRate('opaque');
+    expect(one.ok && one.value.rooms).toHaveLength(1);
+    // One rate without its party: none of the rooms are claimed (derived in memory; the file is untouched).
+    const half = replay('prebook-mixed-rooms', (body) => {
+      delete (body.data.roomTypes[0].rates[1] as unknown as Record<string, unknown>).adultCount;
+    });
+    const unknown = await adapter(half.fetchImpl).supplier.recheckRate('opaque');
+    expect(unknown.ok && unknown.value.rooms).toEqual([]);
+  });
+
+  it('two different rooms book as ONE booking: the recorded sandbox booking of a two-room offer', async () => {
+    const { fetchImpl, calls } = replay('book-mixed-rooms');
+    const { supplier } = adapter(fetchImpl);
+    const a = { firstName: 'Fixture', lastName: 'Guest1', email: 'guest1@fixture.hotelfinder.invalid' };
+    const b = { firstName: 'Fixture', lastName: 'Guest2', email: 'guest2@fixture.hotelfinder.invalid' };
+    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder: a, guests: [a, b], payment: 'sandbox_test' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toMatchObject({ guests: [{ occupancyNumber: 1, ...a }, { occupancyNumber: 2, ...b }] });
+    expect(result).toMatchObject({ ok: true, value: { status: 'confirmed', supplierBookingId: 'hMt2HdnXq', total: { amountMinor: 36346, currency: 'EUR' } } });
   });
 
   it('an offer the supplier no longer knows is a supplier error', async () => {
@@ -289,6 +365,40 @@ describe('recheckRate, book, getBooking, cancel', () => {
     });
     expect(result.ok && result.value).toMatchObject({ supplierBookingId: 'yzAvfyYq5', status: 'confirmed' });
     expect(events[0]).toMatchObject({ provider: 'liteapi:book', success: true, meta: { status: 'CONFIRMED' } });
+  });
+
+  it('a special request goes to the hotel as every room’s remarks, and never into the ledger', async () => {
+    const { fetchImpl, calls } = replay('book-with-remarks');
+    const { supplier, events } = adapter(fetchImpl);
+    const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+    const request = 'A quiet room on a high floor, if possible.';
+    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder, holder], payment: 'transaction_id', specialRequest: request });
+    expect(result).toMatchObject({ ok: true, value: { status: 'confirmed' } });
+    expect((calls[0].body as { guests: unknown[] }).guests).toEqual([
+      { occupancyNumber: 1, ...holder, remarks: request },
+      { occupancyNumber: 2, ...holder, remarks: request },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('quiet room');
+  });
+
+  it('no special request sends no remarks at all', async () => {
+    for (const specialRequest of [undefined, null, '']) {
+      const { fetchImpl, calls } = replay('book-confirmed');
+      const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+      await adapter(fetchImpl).supplier.book({ prebookId: 'p', transactionId: 't', holder, guests: [holder], payment: 'transaction_id', specialRequest });
+      expect((calls[0].body as { guests: object[] }).guests[0]).not.toHaveProperty('remarks');
+    }
+  });
+
+  it('the sandbox keeps a request sent in guests[].remarks: the booking read back carries it', () => {
+    const sent = (manifest.files['book-with-remarks.json'].request as { guests: Array<{ remarks: string }> }).guests[0].remarks;
+    expect(sent.length).toBeGreaterThan(0);
+    const booked = fixture('book-with-remarks').data;
+    const readBack = fixture('booking-get-with-remarks').data;
+    expect(String(booked.status)).toBe('CONFIRMED');
+    expect(String(readBack.remarks)).toBe(sent);
+    expect(String(readBack.bookedRooms[0].guests[0].remarks)).toBe(sent);
+    expect(String(fixture('booking-cancel-with-remarks').data.status)).toBe('CANCELLED');
   });
 
   it('a test payment books with the sandbox card method, and only with a sandbox key', async () => {

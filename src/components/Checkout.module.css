@@ -66,6 +66,7 @@
 .facts dt { font-size: 12px; color: var(--tp-muted); }
 .facts dd { font-size: 15px; }
 .confirmBox { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--tp-border); }
+.freeze h2 { font-size: 16px; font-weight: 600; }
 
 @media (max-width: 600px) {
   .names, .wallets { grid-template-columns: 1fr; }
@@ -75,3 +76,10 @@
   .single { padding: 32px var(--gutter); }
   .row > button { flex: 1 1 auto; }
 }
+.form textarea { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--tp-border); background: var(--tp-surface-muted); color: inherit; font: inherit; resize: vertical; }
+.form textarea[aria-invalid='true'] { border-color: #e5747a; }
+.request { min-height: 72px; }
+.requestText { white-space: pre-wrap; overflow-wrap: anywhere; }
+.atHotel dd ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.atHotel dd li { display: flex; justify-content: flex-end; gap: 8px; }
+.atHotel { color: var(--tp-muted); font-size: 13px; }

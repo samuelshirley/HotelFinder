@@ -14,6 +14,8 @@
 .shell[data-sidebar='closed'] .sidebar { visibility: hidden; padding: 0; border: 0; }
 /* The brand sits on the shared top bar: its line is centred on the chat title and the hotels heading. */
 .brand { font-weight: 600; font-size: 15px; min-height: var(--bar-h); display: flex; align-items: center; padding: 0 8px; white-space: nowrap; flex: none; }
+.language { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--tp-subtle); padding: 0 8px 10px; }
+.language select { font: inherit; color: var(--tp-text, inherit); background: transparent; border: 1px solid var(--tp-border, currentColor); border-radius: 6px; padding: 2px 4px; }
 .newTrip { text-align: left; background: transparent; border: 1px solid var(--tp-border); border-radius: 8px; padding: 8px 10px; color: var(--tp-text); }
 .newTrip:hover:not(:disabled) { border-color: var(--tp-primary); color: var(--tp-accent-300); }
 .sideHeading { font-size: 12px; font-weight: 500; color: var(--tp-subtle); padding: 16px 8px 4px; }
@@ -217,6 +219,19 @@
 .listScroll { overflow-y: auto; min-height: 0; padding: 14px var(--gutter) 40px; container-type: inline-size; }
 .listScroll > .cards, .listScroll > .empty { max-width: 960px; margin-inline: auto; }
 .resultsLayout .cardItem { scroll-margin-top: 8px; }
+/* "Show all N hotels" (lib/fullList.ts): under the top picks, compact cards a page at a time. */
+.fullList { max-width: 960px; margin: 20px auto 0; display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 8px; }
+.fullList > button { align-self: center; }
+.fullListHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fullListHead h3 { font-size: 15px; font-weight: 600; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 4px; }
+.cardItem[data-compact='true'] .card { grid-template-columns: minmax(0, 1fr) 200px; }
+.cardItem[data-compact='true'] .price { font-size: 17px; }
+.cardItem[data-compact='true'] .priceCol .cardActions { flex-direction: row; }
+.cardItem[data-compact='true'] .priceCol .cardActions > button { flex: 1; padding-inline: 8px; }
+@container (max-width: 560px) {
+  .cardItem[data-compact='true'] .card { grid-template-columns: 1fr; }
+}
 /* Its pin is under the pointer, or was pressed: the card wears a border so it can be found in the list. */
 .cardItem[data-marked='hover'] { border-color: var(--tp-primary-hover); box-shadow: 0 0 0 1px var(--tp-primary-hover); }
 .cardItem[data-marked='selected'] { border-color: var(--tp-accent-300); box-shadow: 0 0 0 2px var(--tp-accent-300); }
@@ -252,3 +267,13 @@
   .messages, .shell[data-panel='open'] .messages { padding: 8px var(--gutter) 12px; }
   .composer, .shell[data-panel='open'] .composer { padding: 0 var(--gutter) 12px; }
 }
+
+/* Saved hotels (the heart): docs/saved.md */
+.heart { flex: none; background: transparent; border: 0; border-radius: 999px; padding: 2px 6px; font-size: 18px; line-height: 1; color: var(--tp-subtle); cursor: pointer; }
+.heart:hover { background: var(--tp-surface-muted); color: var(--tp-text); }
+.heart[aria-pressed='true'] { color: var(--tp-accent-300); }
+.heart:disabled { opacity: 0.5; cursor: default; }
+.cardTitle { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.savedItem { display: flex; align-items: flex-start; gap: 2px; }
+.savedItem > :first-child { flex: 1; min-width: 0; }
+.savedPrice { font-size: 12px; color: var(--tp-subtle); }

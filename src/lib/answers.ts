@@ -1,4 +1,5 @@
 import type { Amenity, MustHave } from '@/lib/amenities';
+import type { StayFilters } from '@/lib/filters';
 import { includesBreakfast, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
 import type { SearchField, Superlative } from '@/lib/router/catalogue';
 import type { AnswerPlan, FactAsk } from '@/lib/router/route';
@@ -46,9 +47,11 @@ export type AnswerContext = {
     checkOut: string;
     adults: number;
     childrenAges: number[];
-    rooms: number;
+    rooms: number | null;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
+    /** Star class, rating, kind of place, brand. Absent = none set. */
+    filters?: StayFilters;
     /** null = not asked; [] = no preference. */
     priorities: PriorityKey[] | null;
     /** Where "close" is measured from, in words. */
@@ -84,7 +87,7 @@ function deadline(iso: string | null): string | null {
 }
 
 /** One fact about one hotel, or `not_held` when its row does not say. */
-export function hotelAnswer(h: HotelFacts, ask: FactAsk, ctx: AnswerContext): Answer {
+export function hotelAnswer(h: HotelFacts, ask: FactAsk, ctx: Pick<AnswerContext, 'nights' | 'distanceFrom' | 'distanceLabel'>): Answer {
   const notHeld: Answer = { kind: 'not_held', name: h.name, ask };
   switch (ask.fact) {
     case 'price':

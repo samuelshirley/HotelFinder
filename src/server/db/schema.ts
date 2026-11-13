@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { HotelCharge } from '@/lib/checkout';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import {
   bigint,
@@ -180,10 +181,21 @@ export const stays = pgTable(
     adults: integer('adults').notNull().default(2),
     /** One age per child: the supplier prices children by age. */
     childrenAges: jsonb('children_ages').$type<number[]>().notNull().default([]),
-    rooms: integer('rooms').notNull().default(1),
+    /**
+     * The number of rooms the user asked for. null = they did not say: the
+     * finder prices the sensible splits of the party and shows each hotel's
+     * cheapest (lib/finder/rooms.ts, docs/finder.md "Room splits").
+     */
+    rooms: integer('rooms'),
     /** Per night, in the session currency's minor units. */
     priceCapMinor: integer('price_cap_minor'),
     mustHaves: jsonb('must_haves').$type<string[]>().notNull().default([]),
+    /** The filters (lib/filters.ts). null / [] = any. A listing silent on one misses it, and says so. */
+    minStars: integer('min_stars'),
+    minRating: doublePrecision('min_rating'),
+    propertyTypes: jsonb('property_types').$type<string[]>().notNull().default([]),
+    /** The supplier's chain names, exactly as listed. */
+    chains: jsonb('chains').$type<string[]>().notNull().default([]),
     /** Hotels the user said no to for this stay. The finder never brings them back. */
     excludedPropertyIds: jsonb('excluded_property_ids').$type<string[]>().notNull().default([]),
     createdAt: ts('created_at').notNull().defaultNow(),
@@ -319,8 +331,15 @@ export const offers = pgTable(
     /** Charges the supplier marks `included: false` (city tax at the desk). */
     payAtPropertyMinor: integer('pay_at_property_minor').notNull().default(0),
     taxesAndFees: jsonb('taxes_and_fees').$type<unknown[]>(),
+    /** What the price is for, in words: one room's name, or every room's ("2 rooms: Double + Twin"). */
     roomName: text('room_name'),
     boardName: text('board_name'),
+    /**
+     * One entry per room, in occupancy order: the rooms the supplier priced
+     * and who sleeps in each. Checkout books exactly these (re-checked first).
+     * null on rows written before room splits.
+     */
+    rooms: jsonb('rooms').$type<Array<{ name: string; boardName: string | null; adults: number; childrenAges: number[] }>>(),
     refundableTag: text('refundable_tag'),
     cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
     fetchedAt: ts('fetched_at').notNull(),
@@ -391,6 +410,11 @@ export const userPreferences = pgTable('user_preferences', {
  * answers a repeated book for one prebook with a second confirmed booking
  * (recorded: __fixtures__/book-same-prebook-again.json), so the call is made
  * only by whoever moved the row paid → booking, and never retried from there.
+ *
+ * Deal Freeze (docs/deal-freeze.md) books the free-cancellation rate before
+ * anyone pays: `freezing` is its book claim, `frozen` the held booking,
+ * `keeping` the claim before its payment, `releasing` the claim before its
+ * cancel.
  */
 export const BOOKING_STATUSES = [
   'prebooked',
@@ -400,6 +424,10 @@ export const BOOKING_STATUSES = [
   'confirmed',
   'failed',
   'cancelled',
+  'freezing',
+  'frozen',
+  'keeping',
+  'releasing',
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const bookingStatus = pgEnum('booking_status', BOOKING_STATUSES);
@@ -438,6 +466,18 @@ export const bookings = pgTable(
     childrenAges: jsonb('children_ages').$type<number[]>(),
     rooms: integer('rooms'),
     payAtPropertyMinor: integer('pay_at_property_minor'),
+    /**
+     * The charges the offer marks not included, each in its own currency, as
+     * the supplier names them: what the guest pays at the hotel. Null on rows
+     * written before it was kept.
+     */
+    payAtPropertyFees: jsonb('pay_at_property_fees').$type<HotelCharge[]>(),
+    /**
+     * The guest's special request, as typed at checkout (cleaned, at most 500
+     * characters). Sent to the supplier with book as each room's `remarks`; the
+     * hotel may not honour it. Data, never instructions.
+     */
+    specialRequest: text('special_request'),
     /** The cancellation terms the supplier confirmed at prebook (normalized CancellationPolicy). */
     cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
     /** Who the room is booked for, as typed at checkout. */
@@ -451,12 +491,21 @@ export const bookings = pgTable(
     failureCode: text('failure_code'),
     refundMinor: integer('refund_minor'),
     cancelFeeMinor: integer('cancel_fee_minor'),
+    /** Deal Freeze: the hold is released at this instant unless kept; before the free-cancellation deadline. */
+    frozenUntil: ts('frozen_until'),
+    /** Deal Freeze: when the reminder is due, and when an email for it actually went out (null: never sent). */
+    freezeReminderDueAt: ts('freeze_reminder_due_at'),
+    freezeReminderSentAt: ts('freeze_reminder_sent_at'),
+    /** Deal Freeze: who released the hold, `guest` or `expiry`. Null when not released. */
+    releasedBy: text('released_by'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => ({
     onePerPrebook: uniqueIndex('bookings_supplier_prebook_idx').on(t.supplier, t.prebookId),
     byUser: index('bookings_user_idx').on(t.userId),
+    /** The freeze sweep: frozen rows whose hold has ended. */
+    byFreeze: index('bookings_freeze_idx').on(t.status, t.frozenUntil),
   }),
 );
 
@@ -521,3 +570,29 @@ export const ideas = pgTable('ideas', {
   text: text('text').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
+
+/**
+ * Hotels a visitor saved (the heart). Owned like a search: by the account, or
+ * before sign-in by the signed anonymous cookie, and handed to the account at
+ * sign-in. No price is stored here: the last price found is read from the
+ * visitor's own offer rows, with the date it was fetched (docs/saved.md).
+ */
+export const savedHotels = pgTable(
+  'saved_hotels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Null while anonymous; set when the visitor signs in. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    /** The signed anonymous cookie id it was saved under. Kept after sign-in, like a search's. */
+    anonId: text('anon_id'),
+    propertyId: uuid('property_id').notNull().references(() => properties.id),
+    /** The search it was saved from, to open again. */
+    sessionId: uuid('session_id').references(() => searchSessions.id, { onDelete: 'set null' }),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    oncePerAccount: uniqueIndex('saved_hotels_user_property_idx').on(t.userId, t.propertyId).where(sql`${t.userId} is not null`),
+    oncePerVisitor: uniqueIndex('saved_hotels_anon_property_idx').on(t.anonId, t.propertyId).where(sql`${t.userId} is null`),
+    hasOwner: check('saved_hotels_has_owner', sql`${t.userId} is not null or ${t.anonId} is not null`),
+  }),
+);

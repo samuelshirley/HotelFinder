@@ -27,6 +27,17 @@ export type OfferMustHave = (typeof OFFER_MUST_HAVES)[number];
 export const MUST_HAVES = [...AMENITIES, ...OFFER_MUST_HAVES] as const;
 export type MustHave = (typeof MUST_HAVES)[number];
 
+/**
+ * The amenities a property row lists, from its stored `content.amenities`
+ * (server/finder.ts writes it). No array = the supplier sent no facility
+ * list: null, unknown, never "none".
+ */
+export function listedAmenities(content: Record<string, unknown> | null | undefined): Amenity[] | null {
+  const raw = content?.amenities;
+  if (!Array.isArray(raw)) return null;
+  return raw.filter((a): a is Amenity => (AMENITIES as readonly string[]).includes(a as string));
+}
+
 export function isMustHave(value: string): value is MustHave {
   return (MUST_HAVES as readonly string[]).includes(value);
 }

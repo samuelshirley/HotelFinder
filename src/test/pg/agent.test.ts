@@ -264,6 +264,52 @@ describe('the agent: what the router did not settle', () => {
     expect(await names(session.id)).toEqual(before);
   });
 
+  it('the full list through the agent: one call, the line counted from the rows, nothing set aside', async () => {
+    const { session, supplier } = await onboarded();
+    const before = await names(session.id);
+    const all = scripted([{ tool: 'show_all_hotels', input: {} }]);
+    const turn = await say(session, 'can you just list everything you found', deps(supplier.supplier, all.callModel));
+    expect(all.calls).toHaveLength(1);
+    expect(turn.finalText).toBe('All 18 hotels that fit are listed under the top picks, in the same order.');
+    expect((await last(session.id)).meta).toEqual({ ui: { all: 'show' } });
+    expect((await last(session.id)).kind).toBe('line');
+    expect(await names(session.id)).toEqual(before);
+    expect((await stayOf(session.id)).excludedPropertyIds).toEqual([]);
+
+    // With a change in the same reply: the change is applied and reported, and the list still opens.
+    const both = scripted([{ tool: 'require', input: { must_have: 'pets_allowed' } }, { tool: 'show_all_hotels', input: {} }]);
+    await say((await getSession(session.id))!, 'only ones that take dogs, and show me all of them', deps(supplier.supplier, both.callModel));
+    expect((await stayOf(session.id)).mustHaves).toEqual(['pets_allowed']);
+    expect((await last(session.id)).meta).toEqual({ ui: { all: 'show' } });
+  });
+
+  it('"save the second one": saved through the heart\'s path, the server\'s line, and the saved list told to show; "show my saved" lists names only', async () => {
+    const { session, supplier } = await onboarded();
+    const before = await names(session.id);
+    const none = scripted([{ tool: 'show_saved', input: {} }]);
+    expect((await say(session, 'what did I save?', deps(supplier.supplier, none.callModel))).finalText).toBe('You have not saved any hotels yet. Press the heart on one to keep it.');
+
+    const save = scripted([{ text: 'Saved it for you!' }, { tool: 'save_hotel', input: { position: 2 } }]);
+    const turn = await say((await getSession(session.id))!, 'save the second one', deps(supplier.supplier, save.callModel));
+    expect(save.calls).toHaveLength(1);
+    expect(turn.finalText).toBe(`${before[1]} is saved. Your saved hotels are listed beside your trips.`);
+    expect((await last(session.id)).kind).toBe('line'); // not the model's words
+    expect((await last(session.id)).meta).toEqual({ ui: { saved: 'show' } });
+    expect(await rawQuery<{ anon_id: string; session_id: string }>('select anon_id, session_id from saved_hotels')).toEqual([{ anon_id: 'anon-1', session_id: session.id }]);
+    expect(await names(session.id)).toEqual(before); // the search is untouched
+    expect(supplier.searches).toHaveLength(1);
+
+    const list = scripted([{ tool: 'show_saved', input: {} }]);
+    const listed = await say((await getSession(session.id))!, 'show my saved hotels', deps(supplier.supplier, list.callModel));
+    expect(listed.finalText).toBe(`You have saved one hotel: ${before[1]}. They are listed beside your trips.`);
+    expect(listed.finalText).not.toMatch(/€|\d{2,}/); // no price in the chat line
+
+    // A position that is not on screen saves nothing; the model is told, and may answer.
+    const wrong = scripted([{ tool: 'save_hotel', input: { position: 9 } }], [{ text: 'There is no ninth hotel on screen.' }]);
+    await say((await getSession(session.id))!, 'save the ninth', deps(supplier.supplier, wrong.callModel));
+    expect(await rawQuery('select 1 from saved_hotels')).toHaveLength(1);
+  });
+
   it('new dates in prose become one typed action; the reply is the server\'s, and the call is on the ledger', async () => {
     const { session, supplier } = await onboarded();
     const m = scripted([{ text: 'Sure, I have changed your dates!' }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);
@@ -451,7 +497,7 @@ describe('the first message: one forced extraction, then the form asks only for 
     expect(await listStays(sessionId)).toEqual([]); // nothing exists until the user picks the place
 
     await pick(sessionId, supplier.supplier);
-    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, rooms: 1, priceCapMinor: 12000, mustHaves: ['pets_allowed'], placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo' });
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, rooms: null, priceCapMinor: 12000, mustHaves: ['pets_allowed'], placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo' });
     const rows = (await listMessages(sessionId)).slice(-3).map((r) => [r.kind, r.content]);
     expect(rows).toEqual([
       ['form_answer', 'Ribeira, Porto, Portugal'],
@@ -615,7 +661,8 @@ describe('the first screen: one box, three pills', () => {
     expect(r).toEqual({ ok: true });
     expect(model.calls).toHaveLength(0);
     expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: [] });
-    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 2, rooms: 1 });
+    // Rooms not said: null, the finder's to choose (a couple: one room, one search).
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 2, rooms: null });
     expect(supplier.searches).toHaveLength(1);
     // One bubble, the user's: no form-style echo of the place, no "From your message" line.
     expect((await listMessages(sessionId)).map((x) => [x.role, x.kind, x.content])).toEqual([

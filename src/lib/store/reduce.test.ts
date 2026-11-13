@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { actionSchema, type ResolvedAction } from './actions';
 import { fingerprint, NEAR_MAX_KM, reduce, reduceAll, type SearchState } from './reduce';
+import { NO_FILTERS } from '@/lib/filters';
 
 const TODAY = '2026-11-11';
 const P1 = 'a0000000-0000-4000-8000-000000000001';
@@ -11,6 +12,7 @@ const RIBEIRA = { placeId: 'place-ribeira', label: 'Ribeira', latitude: 41.1408,
 const state = (over: Partial<SearchState['stay']> = {}, top: Partial<SearchState> = {}): SearchState => ({
   priorities: null,
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Porto',
     placeId: 'place-porto',
@@ -25,6 +27,7 @@ const state = (over: Partial<SearchState['stay']> = {}, top: Partial<SearchState
     rooms: 1,
     priceCapMinor: null,
     mustHaves: [],
+    filters: NO_FILTERS,
     excludedPropertyIds: [],
     ...over,
   },
@@ -50,6 +53,7 @@ describe('which changes need a new search and which only a re-rank', () => {
     [{ type: 'set_dates', checkIn: '2026-12-11', checkOut: '2026-12-14' }, 'refetch'],
     [{ type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon', point: null }, 'refetch'],
     [{ type: 'set_nationality', code: 'PT' }, 'refetch'],
+    [{ type: 'set_currency', code: 'USD' }, 'refetch'],
   ])('%j → %s', (action, effect) => {
     expect(ok(state(), action).effect).toBe(effect);
   });
@@ -93,6 +97,15 @@ describe('reducers', () => {
       ok: false,
       rejection: 'more_rooms_than_adults',
     });
+  });
+
+  it('rooms left to us (null) are a search of their own: from a number to null and back is a refetch each way', () => {
+    const auto = ok(state(), { type: 'set_guests', adults: 4, childrenAges: [], rooms: null });
+    expect(auto).toMatchObject({ effect: 'refetch', state: { stay: { adults: 4, rooms: null } } });
+    expect(reduce(auto.state, { type: 'set_guests', adults: 4, childrenAges: [], rooms: null }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    expect(ok(auto.state, { type: 'set_guests', adults: 4, childrenAges: [], rooms: 2 })).toMatchObject({ effect: 'refetch', state: { stay: { rooms: 2 } } });
+    expect(actionSchema.safeParse({ type: 'set_guests', adults: 2, childrenAges: [], rooms: null }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_guests', adults: 2, childrenAges: [] }).success).toBe(false);
   });
 
   it('a new destination clears what was set aside for the old one', () => {
@@ -170,6 +183,30 @@ describe('reducers', () => {
     expect(fingerprint(state({}, { priorities: [] }))).not.toBe(fingerprint(state()));
     expect(fingerprint(state({}, { priorities: ['nicest', 'cheapest'] }))).toBe(fingerprint(state({}, { priorities: ['cheapest', 'nicest'] })));
     expect(fingerprint(state({ near: RIBEIRA }))).not.toBe(fingerprint(state()));
+    // A change staged in euros must not be applied after the prices moved to dollars.
+    expect(fingerprint(state({}, { currency: 'USD' }))).not.toBe(fingerprint(state()));
+  });
+});
+
+describe('the currency prices are quoted in', () => {
+  it('a new currency is a new search, and the same one is no change', () => {
+    const r = ok(state(), { type: 'set_currency', code: 'USD' });
+    expect(r.state.currency).toBe('USD');
+    expect(r.effect).toBe('refetch');
+    expect(reduce(state(), { type: 'set_currency', code: 'EUR' }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+  });
+
+  it('drops a price cap, which was in the old currency: nothing is converted', () => {
+    const r = ok(state({ priceCapMinor: 12000 }), { type: 'set_currency', code: 'GBP' });
+    expect(r.state.stay.priceCapMinor).toBeNull();
+    expect(r.state.stay).toEqual({ ...state().stay, priceCapMinor: null });
+  });
+
+  it('takes only a code the supplier prices in', () => {
+    expect(actionSchema.safeParse({ type: 'set_currency', code: 'USD' }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_currency', code: 'usd' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_currency', code: 'XQZ' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_currency', code: 'USD', rate: 1.1 }).success).toBe(false);
   });
 });
 

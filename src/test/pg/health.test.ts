@@ -42,7 +42,8 @@ describe('the health check', () => {
     await migrate(db, { migrationsFolder: migrationsUpTo('0004_near_misses') });
     const before = await schemaDrift();
     expect(before.missingColumns).toContain('usage_events.anon_id');
-    expect(before.missingTables).toEqual([]);
+    // saved_hotels came later (0006); everything else existed at 0004.
+    expect(before.missingTables).toEqual(['saved_hotels']);
     expect(before.pendingMigrations).toBe(journal.entries.length - 5);
 
     // The query that failed in production fails here the same way.
@@ -58,7 +59,7 @@ describe('the health check', () => {
   it('knows every table schema.ts declares', async () => {
     const { expectedColumns } = await import('@/server/repos/health');
     const tables = new Set(expectedColumns().map((c) => c.table));
-    expect(tables.size).toBe(18);
+    expect(tables.size).toBe(19);
     expect(expectedColumns()).toContainEqual({ table: 'usage_events', column: 'anon_id' });
   });
 });

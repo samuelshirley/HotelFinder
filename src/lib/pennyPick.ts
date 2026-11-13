@@ -1,3 +1,5 @@
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
 import { formatMoney } from '@/lib/replies';
 
 /**
@@ -37,23 +39,23 @@ export function sameApple(paid: PickRow, own: PickRow): boolean {
   return true;
 }
 
-function why(r: PickRow, rows: PickRow[]): string {
+function why(r: PickRow, rows: PickRow[], locale: Locale): string {
+  const p = copy(locale).penny;
   const cheapest = Math.min(...rows.slice(0, 3).map((x) => x.totalMinor));
-  const price = r.totalMinor === cheapest ? 'the cheapest of the top three' : `${formatMoney(r.totalMinor - cheapest, r.currency)} more than the cheapest of the top three`;
-  return r.rating !== null ? `rated ${r.rating}, ${price}` : price;
+  const price = r.totalMinor === cheapest ? p.cheapestOfTopThree : p.moreThanCheapest(formatMoney(r.totalMinor - cheapest, r.currency, locale));
+  return r.rating !== null ? p.ratedThen(r.rating, price) : price;
 }
 
-export function pennyPick(rows: PickRow[], eligible: number, sponsored: ReadonlySet<string>): PennyPick | null {
+export function pennyPick(rows: PickRow[], eligible: number, sponsored: ReadonlySet<string>, locale: Locale = 'en'): PennyPick | null {
   if (eligible < PICK_MIN_FITS || rows.length < 2) return null;
   const own = ownPick(rows);
   const paid = rows.find((r) => r !== own && sponsored.has(r.supplierHotelId) && sameApple(r, own));
   const chosen = paid ?? own;
-  return { propertyId: chosen.propertyId, name: chosen.name, sponsored: Boolean(paid) || sponsored.has(chosen.supplierHotelId), why: why(chosen, rows) };
+  return { propertyId: chosen.propertyId, name: chosen.name, sponsored: Boolean(paid) || sponsored.has(chosen.supplierHotelId), why: why(chosen, rows, locale) };
 }
 
 /** Penny's line. A paid pick says so in the words too, not only in the tag. */
-export function pennyLine(eligible: number, pick: PennyPick): string {
-  return pick.sponsored
-    ? `${eligible} hotels fit, so here is a nudge. Sponsored: ${pick.name}, ${pick.why}. Which of these appeals to you?`
-    : `${eligible} hotels fit, so here is a nudge: I like ${pick.name}, ${pick.why}. Which of these appeals to you?`;
+export function pennyLine(eligible: number, pick: PennyPick, locale: Locale = 'en'): string {
+  const p = copy(locale).penny;
+  return (pick.sponsored ? p.nudgeSponsored : p.nudge)(eligible, pick.name, pick.why);
 }

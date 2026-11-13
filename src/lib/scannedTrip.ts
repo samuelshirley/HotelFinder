@@ -15,7 +15,8 @@ export type ScannedTrip = {
   destination?: string;
   checkIn?: string;
   checkOut?: string;
-  guests?: { adults: number; childrenAges: number[]; rooms: number };
+  /** rooms null: the message did not say, so the finder prices the cheapest split. */
+  guests?: { adults: number; childrenAges: number[]; rooms: number | null };
   priceCapMinor?: number;
   mustHaves?: MustHave[];
   /** What "best" means, when the message said: a set, canonical order. */
@@ -78,8 +79,9 @@ export function validateScan(raw: unknown, today: string, currency: string): Sca
   const adults = int(r.adults, 1, 12);
   if (adults !== null) {
     const ages = r.children_ages ?? [];
-    const rooms = r.rooms == null ? 1 : int(r.rooms, 1, 6);
-    if (ages.length <= 8 && ages.every((a) => int(a, 0, 17) !== null) && rooms !== null && rooms <= adults) {
+    const rooms = r.rooms == null ? null : int(r.rooms, 1, 6);
+    const roomsOk = r.rooms == null || (rooms !== null && rooms <= adults);
+    if (ages.length <= 8 && ages.every((a) => int(a, 0, 17) !== null) && roomsOk) {
       out.guests = { adults, childrenAges: ages, rooms };
     }
   }

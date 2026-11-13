@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import styles from './SlideOut.module.css';
+import { useLocale } from './i18n';
 
 /**
  * Variant B of the `detail` flag: a panel from the right, over the chat and
@@ -10,6 +11,7 @@ import styles from './SlideOut.module.css';
  * stays inside while open, and returns to whatever opened it.
  */
 export function SlideOut({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const { t } = useLocale();
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
 
@@ -48,7 +50,7 @@ export function SlideOut({ title, onClose, children }: { title: string; onClose:
       <div ref={panel} className={styles.panel} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
         <header className={styles.bar}>
           <span className={styles.title}>{title}</span>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+          <button type="button" className={styles.close} onClick={onClose} aria-label={t.ui.close}>
             ✕
           </button>
         </header>

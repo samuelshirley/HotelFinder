@@ -1,14 +1,19 @@
 import 'server-only';
 
 import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenities';
+import { readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
-import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
+import { cheapestPerHotel, occupanciesFor, roomsLabel, roomsOf } from '@/lib/finder/rooms';
+import { MIN_HOTELS, planSearch, type SearchWhere } from '@/lib/finder/searchPlan';
+import { FULL_LIST_KIND } from '@/lib/fullList';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
 import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
 import { setPropertyPets, upsertProperty, type Property } from '@/server/repos/properties';
 import { audienceFor, getSession, getStay } from '@/server/repos/sessions';
-import type { SupplierAdapter, SupplierError } from '@/server/supplier';
+import type { SearchResult, SupplierAdapter, SupplierError, SupplierResult } from '@/server/supplier';
+
+export { splitParty } from '@/lib/finder/rooms';
 
 /**
  * The stay finder: fetch (only when needed) → hard constraints → rank →
@@ -31,17 +36,32 @@ export type FinderOutcome =
       eligible: number;
       rejected: RankResult['rejected'];
       uncheckable: number;
+      /** Left out by a filter only because the listing does not hold that field. */
+      filterUnknown: number;
       distanceFrom: RankResult['distanceFrom'];
       distanceLabel: RankResult['distanceLabel'];
       /** Radius searches only: true when the first radius held too few hotels and one wider search was made. */
       widened: boolean;
       /** True when the supplier's amenity facts could not be fetched, so must-haves were unverifiable. */
       amenityFactsMissing: boolean;
+      /** Room splits priced for this fetch (1 when the user fixed the rooms); 0 when nothing was fetched. */
+      splits: number;
     }
   | { kind: 'needs_place' | 'needs_nationality' | 'not_found' }
   /** The supplier had nothing for these dates. Retryable; nothing is stored. */
   | { kind: 'no_availability' }
   | { kind: 'supplier_error'; error: SupplierError };
+
+/**
+ * How many hotels one search asks the supplier for. Measured on the sandbox
+ * 2026-11-13 (Porto, 2 adults): 30 → 29 hotels in 3.5 s (97 KB); 200 → 166 in
+ * 4.6 s (546 KB); 500 → 326 in 4.4 s. Raising it to 200 left a signed-out
+ * search with 3 of 170 hotels fitting (11 of 29 at 30): most of the extra
+ * hotels only have rates under the hotel's public price, which an anonymous
+ * session never sees (docs/architecture.md decision 6). It stays at 30 until
+ * that is settled.
+ */
+export const MAX_HOTELS = 30;
 
 export async function runFinder(args: {
   sessionId: string;
@@ -62,6 +82,7 @@ export async function runFinder(args: {
   let fetched = false;
   let widened = false;
   let amenityFactsMissing = false;
+  let splits = 0;
   const plan = planSearch({
     destinationText: stay.destinationText,
     placeId: stay.placeId,
@@ -78,21 +99,25 @@ export async function runFinder(args: {
     if (!session.guestNationality) return { kind: 'needs_nationality' };
     const marginPct = marginFor(audience, args.env);
 
-    const rooms = Math.max(1, stay.rooms);
     const request = {
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
-      occupancies: splitParty(stay.adults, stay.childrenAges, rooms),
       currency: session.currency,
       guestNationality: session.guestNationality,
       marginPct,
-      maxHotels: 30,
+      maxHotels: MAX_HOTELS,
       maxRatesPerHotel: 1,
     };
-    let search = await supplier.searchAvailability({ ...request, where: plan.where });
-    // Too few hotels in the first radius: one wider search, never more.
+    // One search per room split: the user's rooms when they said, else each
+    // sensible split of the party (lib/finder/rooms.ts), side by side.
+    const parties = occupanciesFor(stay);
+    splits = parties.length;
+    const searchAll = async (where: SearchWhere) =>
+      mergeSearches(await Promise.all(parties.map((occupancies) => supplier.searchAvailability({ ...request, occupancies, where }))));
+    let search = await searchAll(plan.where);
+    // Too few hotels in the first radius: one wider search per split, never more.
     if (plan.kind === 'radius' && search.ok && search.value.properties.length < MIN_HOTELS) {
-      const wider = await supplier.searchAvailability({ ...request, where: plan.wider });
+      const wider = await searchAll(plan.wider);
       widened = true;
       if (wider.ok && wider.value.properties.length > search.value.properties.length) search = wider;
     }
@@ -101,11 +126,11 @@ export async function runFinder(args: {
 
     const facts = await supplier.getStaticFacts(search.value.properties.map((p) => p.supplierHotelId));
     amenityFactsMissing = !facts.ok;
-    const amenities = new Map<string, Amenity[]>(facts.ok ? facts.value.map((f) => [f.supplierHotelId, f.amenities]) : []);
+    const known = new Map(facts.ok ? facts.value.map((f) => [f.supplierHotelId, f]) : []);
 
     const propertyIds = new Map<string, string>();
     for (const p of search.value.properties) {
-      const known = amenities.get(p.supplierHotelId);
+      const fact = known.get(p.supplierHotelId);
       const row = await upsertProperty({
         supplier: p.supplier,
         supplierHotelId: p.supplierHotelId,
@@ -118,9 +143,12 @@ export async function runFinder(args: {
         mainPhoto: p.mainPhoto,
         address: p.address,
         // The facility list can say yes; its silence is not a no (docs/supplier.md, "Pets").
-        petsAllowed: known?.includes('pets_allowed') ? true : null,
+        petsAllowed: fact?.amenities.includes('pets_allowed') ? true : null,
         // `amenities` absent = unknown. An empty array = known to have none.
-        content: known ? { amenities: known } : {},
+        // `propertyType` and `chain` absent = the listing does not say (the filters read them).
+        content: fact
+          ? { amenities: fact.amenities, ...(fact.propertyType ? { propertyType: fact.propertyType } : {}), ...(fact.chain ? { chain: fact.chain } : {}) }
+          : {},
       });
       propertyIds.set(p.supplierHotelId, row.id);
     }
@@ -144,8 +172,9 @@ export async function runFinder(args: {
             suggestedSellingMinor: o.suggestedSelling?.currency === o.total.currency ? o.suggestedSelling.amountMinor : null,
             payAtPropertyMinor: o.payAtProperty.amountMinor,
             taxesAndFees: o.fees,
-            roomName: o.rooms[0]?.name ?? null,
+            roomName: roomsLabel(o.rooms),
             boardName: o.rooms[0]?.boardName ?? null,
+            rooms: o.rooms,
             refundableTag: o.cancellation.tag,
             cancellation: o.cancellation,
             fetchedAt: now,
@@ -158,19 +187,26 @@ export async function runFinder(args: {
     held = await listLiveOffersForRanking(sessionId, stayId, audience, now);
   }
 
-  // One candidate per hotel: its cheapest live offer.
-  const cheapest = new Map<string, (typeof held)[number]>();
-  for (const row of held) {
-    const current = cheapest.get(row.property.id);
-    if (!current || row.offer.totalMinor < current.offer.totalMinor) cheapest.set(row.property.id, row);
-  }
+  // One candidate per hotel: its cheapest live offer, across every room split priced.
+  const byId = new Map(held.map((row) => [row.offer.id, row]));
+  const cheapest = cheapestPerHotel(
+    held.map(({ offer }) => ({
+      id: offer.id,
+      propertyId: offer.propertyId,
+      totalMinor: offer.totalMinor,
+      payAtPropertyMinor: offer.payAtPropertyMinor,
+      suggestedSellingMinor: offer.suggestedSellingMinor,
+      rooms: roomsOf(offer.rooms)?.length ?? 1,
+    })),
+    audience,
+  ).map((o) => byId.get(o.id)!);
   const mustHaves = stay.mustHaves.filter(isMustHave) as MustHave[];
   // Pets are the one must-have the bulk facility list gets wrong both ways:
   // confirm them from each hotel's own listing before ranking on them.
   const petsChecked = mustHaves.includes('pets_allowed')
-    ? await confirmPets(supplier, [...cheapest.values()].map((r) => r.property))
+    ? await confirmPets(supplier, cheapest.map((r) => r.property))
     : new Map<string, Amenity[] | null>();
-  const candidates: Candidate[] = [...cheapest.values()].map(({ offer, property }) => ({
+  const candidates: Candidate[] = cheapest.map(({ offer, property }) => ({
     offerId: offer.id,
     propertyId: property.id,
     name: property.name,
@@ -186,6 +222,8 @@ export async function runFinder(args: {
     amenities: petsChecked.has(property.id) ? petsChecked.get(property.id)! : readAmenities(property.content),
     refundable: offer.refundableTag === 'RFN',
     boardName: offer.boardName,
+    propertyType: readPropertyType(property.content),
+    chain: readChain(property.content),
   }));
 
   const result = rankStay({
@@ -198,6 +236,7 @@ export async function runFinder(args: {
     near: plan?.target ?? null,
     audience,
     excludedPropertyIds: stay.excludedPropertyIds,
+    filters: stayFilters(stay),
   });
 
   await replaceFinderShortlist(
@@ -210,6 +249,16 @@ export async function runFinder(args: {
       // The reason, plus the two facts every card shows.
       reason: { ...row.reason, distance_km: row.km, per_night_minor: row.perNightMinor },
     })).concat(
+      // Every other hotel that fits, in the same order, for "Show all N hotels"
+      // (lib/fullList.ts). Eligible only: no constraint missed, no member price
+      // for an anonymous visitor. There are near-misses only when fewer than
+      // five fit, so the two never share a rank.
+      result.ordered.slice(result.shortlist.length).map((row): FinderEntry => ({
+        propertyId: row.candidate.propertyId,
+        offerId: row.candidate.offerId,
+        rank: row.rank,
+        reason: { kind: FULL_LIST_KIND, distance_km: row.km, per_night_minor: row.perNightMinor },
+      })),
       result.nearMisses.map((row): FinderEntry => {
         // A member price never reaches an anonymous visitor: the row holds no
         // offer and no number derived from one (the schema allows this case only).
@@ -234,10 +283,12 @@ export async function runFinder(args: {
     eligible: result.eligible,
     rejected: result.rejected,
     uncheckable: result.uncheckable,
+    filterUnknown: result.filterUnknown,
     distanceFrom: result.distanceFrom,
     distanceLabel: result.distanceLabel,
     widened,
     amenityFactsMissing,
+    splits,
   };
 }
 
@@ -270,20 +321,21 @@ async function confirmPets(supplier: SupplierAdapter, props: Property[]): Promis
   return out;
 }
 
+/**
+ * The searches for each room split as one result: every hotel any split
+ * found, every offer. A split that failed is left out; only when all fail is
+ * it a supplier error.
+ */
+function mergeSearches(results: SupplierResult<SearchResult>[]): SupplierResult<SearchResult> {
+  const ok = results.flatMap((r) => (r.ok ? [r.value] : []));
+  if (ok.length === 0) return results[0] as SupplierResult<SearchResult>;
+  const properties = new Map<string, SearchResult['properties'][number]>();
+  for (const v of ok) for (const p of v.properties) if (!properties.has(p.supplierHotelId)) properties.set(p.supplierHotelId, p);
+  return { ok: true, value: { properties: [...properties.values()], offers: ok.flatMap((v) => v.offers) } };
+}
+
 function readAmenities(content: Record<string, unknown> | null): Amenity[] | null {
   const raw = content?.amenities;
   if (!Array.isArray(raw)) return null;
   return raw.filter((a): a is Amenity => (AMENITIES as readonly string[]).includes(a as string));
-}
-
-/**
- * Spread a party over rooms: adults as evenly as possible, children with the
- * first rooms. Every room gets at least one adult.
- */
-export function splitParty(adults: number, childrenAges: number[], rooms: number) {
-  const n = Math.max(1, Math.min(rooms, adults));
-  const out = Array.from({ length: n }, () => ({ adults: 0, childrenAges: [] as number[] }));
-  for (let i = 0; i < adults; i++) out[i % n].adults += 1;
-  childrenAges.forEach((age, i) => out[i % n].childrenAges.push(age));
-  return out;
 }

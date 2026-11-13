@@ -9,6 +9,7 @@ import { layoutPins, fitKeyFor, fitPoints, framePadding, ringPolygon, type MapPi
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
 import styles from './MapPanel.module.css';
+import { useLocale } from './i18n';
 
 type Props = {
   pins: MapPin[];
@@ -16,6 +17,8 @@ type Props = {
   anchor: (MapPoint & { label: string }) | null;
   /** Drawn only when closeness is part of the ranking: every ranked hotel is within this of the anchor. */
   ringKm: number | null;
+  /** With the full list open: the hotels on its page, which the camera frames instead (lib/mapView.ts fitPoints). */
+  frame?: string[] | null;
   hovered: string | null;
   selected: string | null;
   /** Bumped when a hotel should be brought into view (a card was opened, or Penny marked one). */
@@ -41,7 +44,8 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
  * or zooms it is theirs, and a later change offers "Recentre" instead of
  * moving it; a new anchor or a marked hotel still moves it.
  */
-export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
+export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
+  const { locale, t } = useLocale();
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const lib = useRef<typeof import('maplibre-gl') | null>(null);
@@ -62,15 +66,16 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       const at = m.project([k.point.longitude, k.point.latitude]);
       return { id, rank: k.rank, x: at.x, y: at.y, width: k.fullWidth, height: 28 };
     });
-    const places = layoutPins(boxes);
+    const { clientWidth: width, clientHeight: height } = m.getContainer();
+    const places = layoutPins(boxes, { width, height });
     for (const [id, { el, marker }] of markers.current) {
       const place = places.get(id);
       el.dataset.compact = place?.compact ? 'true' : 'false';
       const dx = place?.dx ?? 0;
       const dy = place?.dy ?? 0;
       // Only when it changes: setOffset repositions the marker.
-      const at = marker.getOffset();
-      if (at.x !== dx || at.y !== dy) marker.setOffset([dx, dy]);
+      const now = marker.getOffset();
+      if (now.x !== dx || now.y !== dy) marker.setOffset([dx, dy]);
     }
   };
   const declutterRef = useRef(declutter);
@@ -187,7 +192,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         el.setAttribute('aria-label', `${pin.rank}. ${pin.name}${pin.price ? `, ${pin.price}` : ''}`);
       } else {
         el.className = styles.miss;
-        el.setAttribute('aria-label', `${pin.name}. ${pin.miss ?? 'Misses something you asked for'}`);
+        el.setAttribute('aria-label', `${pin.name}. ${pin.miss ?? t.ui.missesSomething}`);
         const tip = document.createElement('span');
         tip.className = styles.missTip;
         tip.textContent = pin.miss ?? pin.name;
@@ -212,7 +217,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       el.dataset.anchor = 'true';
       // A mark, not a control: without its own role and name MapLibre makes it a "Map marker" button (e2e, 2026-11-13).
       el.setAttribute('role', 'img');
-      el.setAttribute('aria-label', `Distances are measured from ${anchor.label}`);
+      el.setAttribute('aria-label', t.ui.anchorMark(anchor.label));
       // The diamond is a child: the map positions the marker with a transform on the element itself,
       // and a rotation on that same element moved it 145 px off its point (seen in the browser).
       const diamond = document.createElement('span');
@@ -233,21 +238,21 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     else {
       m.addSource('ring', { type: 'geojson', data });
       m.addLayer({ id: 'ring-fill', type: 'fill', source: 'ring', paint: { 'fill-color': '#9184d9', 'fill-opacity': 0.06 } });
-      m.addLayer({ id: 'ring-line', type: 'line', source: 'ring', paint: { 'line-color': '#b2b6ca', 'line-opacity': 0.5, 'line-width': 1, 'line-dasharray': [3, 3] } });
+      m.addLayer({ id: 'ring-line', type: 'line', source: 'ring', paint: { 'line-color': '#5b4fb3', 'line-opacity': 0.7, 'line-width': 1.5, 'line-dasharray': [3, 3] } });
     }
     if (ring && anchor && ringKm) {
       const el = document.createElement('div');
       el.className = styles.ringLabel;
-      el.textContent = formatKm(ringKm);
+      el.textContent = formatKm(ringKm, locale);
       el.setAttribute('role', 'img');
-      el.setAttribute('aria-label', `${formatKm(ringKm)} from ${anchor.label}`);
+      el.setAttribute('aria-label', t.ui.ringMark(formatKm(ringKm, locale), anchor.label));
       extras.current.push(new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat(ring[0] as [number, number]).addTo(m));
     }
 
     // The camera: once per new set of hotels, unless the user has taken it.
-    const key = fitKeyFor(pins, anchor);
+    const key = fitKeyFor(pins, anchor, frame);
     const anchorKey = anchor ? `${anchor.latitude},${anchor.longitude}` : '';
-    const points = fitPoints(pins, anchor);
+    const points = fitPoints(pins, anchor, frame);
     if (key !== lastFit.current.key && points.length > 0) {
       const anchorChanged = anchorKey !== lastFit.current.anchorKey && lastFit.current.key !== '';
       const bounds = new ml.LngLatBounds();
@@ -264,7 +269,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       }
     }
     declutterRef.current();
-  }, [ready, pins, anchor, ringKm]);
+  }, [ready, pins, anchor, ringKm, frame]);
 
   // Hover and selection are styles on pins that already exist.
   useEffect(() => {
@@ -294,7 +299,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   const recentre = () => {
     const m = map.current;
     const ml = lib.current;
-    const points = fitPoints(pins, anchor);
+    const points = fitPoints(pins, anchor, frame);
     if (!m || !ml || points.length === 0) return;
     const bounds = new ml.LngLatBounds();
     for (const p of points) bounds.extend([p.longitude, p.latitude]);
@@ -315,19 +320,19 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   };
 
   return (
-    <div className={styles.wrap} data-testid="map" data-ready={ready ? 'true' : 'false'} onKeyDown={(e) => e.key === 'Escape' && setPicked(null)}>
-      <div ref={box} className={styles.canvas} role="region" aria-label="Map" />
-      {failed && <p className={styles.failed}>The map could not start in this browser. The list below has every hotel.</p>}
+    <div className={styles.wrap} data-testid="map" data-ready={ready ? 'true' : 'false'} data-frame={frame && frame.length ? 'page' : 'all'} onKeyDown={(e) => e.key === 'Escape' && setPicked(null)}>
+      <div ref={box} className={styles.canvas} role="region" aria-label={t.ui.map} />
+      {failed && <p className={styles.failed}>{t.ui.mapFailed}</p>}
       {(moved || away) && !failed && (
         <div className={styles.chips}>
           {away && (
             <button type="button" className={styles.chip} disabled={busy} onClick={searchHere}>
-              Search around here
+              {t.ui.searchAroundHere}
             </button>
           )}
           {moved && (
             <button type="button" className={styles.chip} onClick={recentre}>
-              Recentre
+              {t.ui.recentre}
             </button>
           )}
         </div>
@@ -343,7 +348,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
               onMeasureFrom(picked.name, picked.point);
             }}
           >
-            Measure from {picked.name}
+            {t.ui.measureFrom(picked.name)}
           </button>
         </div>
       )}

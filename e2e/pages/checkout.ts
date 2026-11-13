@@ -11,7 +11,8 @@ export class CheckoutPage {
   stay = () => this.page.getByRole('region', { name: 'Your stay' });
   form = () => this.page.getByRole('region', { name: 'Sign in and pay' });
   receipt = () => this.page.getByRole('region', { name: 'Booking' });
-  total = () => this.dd('Total, taxes in');
+  /** Before paying the stay says "Pay now"; on the receipt, "Total" (Checkout.tsx). */
+  total = () => this.page.locator('dt').filter({ hasText: /^(Pay now|Total), taxes in$/ }).locator('+ dd');
   dd = (term: string) => this.page.locator('dt').filter({ hasText: new RegExp(`^${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }).locator('+ dd');
   email = () => this.page.getByLabel(/^Email\./);
   sendCode = () => this.page.getByRole('button', { name: /^(Send code|Send a new code|Sending…)$/ });

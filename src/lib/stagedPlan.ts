@@ -60,8 +60,15 @@ const YES = new Set([
   'yes', 'y', 'yep', 'yup', 'yeah', 'yea', 'ya', 'yes please', 'yes do', 'yes do it', 'yes go ahead', 'yes thanks', 'yes thank you',
   'ok', 'okay', 'k', 'sure', 'sure thing', 'please', 'please do', 'do it', 'go ahead', 'go for it', 'sounds good', 'that works', 'perfect',
   'correct', 'right', 'exactly', 'absolutely', 'definitely', 'confirm', 'confirmed', 'si', 'sí', 'oui', 'ja',
+  // Spanish (docs/i18n.md).
+  'sí por favor', 'si por favor', 'sí gracias', 'si gracias', 'sí hazlo', 'si hazlo', 'sí adelante', 'si adelante', 'sí claro', 'si claro',
+  'vale', 'vale gracias', 'venga', 'claro', 'claro que sí', 'claro que si', 'de acuerdo', 'adelante', 'hazlo', 'dale', 'perfecto',
+  'correcto', 'exacto', 'por supuesto', 'confirmo', 'confirmado',
 ]);
-const NO = new Set(['no', 'n', 'nope', 'nah', 'no thanks', 'no thank you', "don't", 'dont', 'do not', 'stop', 'cancel', 'never mind', 'nevermind', 'leave it', 'not now']);
+const NO = new Set([
+  'no', 'n', 'nope', 'nah', 'no thanks', 'no thank you', "don't", 'dont', 'do not', 'stop', 'cancel', 'never mind', 'nevermind', 'leave it', 'not now',
+  'no gracias', 'mejor no', 'déjalo', 'dejalo', 'déjalo así', 'dejalo asi', 'cancela', 'cancelar', 'ahora no', 'olvídalo', 'olvidalo', 'no lo hagas', 'para',
+]);
 
 /**
  * A whole message that is nothing but yes. Deliberately a closed list of

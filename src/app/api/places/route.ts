@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { ensureOwner, errorResponse, handled, rateLimit } from '@/server/http';
+import { ensureOwner, errorResponse, handled, rateLimit, requestLocale } from '@/server/http';
 import { placeKindWord } from '@/lib/placePick';
 import { getSupplier } from '@/server/supplier';
 
@@ -19,13 +19,14 @@ export const GET = handled(async (req: Request) => {
   const limited = await rateLimit('places', 60);
   if (limited) return limited;
 
-  const places = await getSupplier('userId' in owner ? { userId: owner.userId } : { anonId: owner.anonId }).searchPlaces(parsed.data.q);
+  const locale = requestLocale();
+  const places = await getSupplier({ ...('userId' in owner ? { userId: owner.userId } : { anonId: owner.anonId }), language: locale }).searchPlaces(parsed.data.q);
   if (!places.ok) return errorResponse('supplier_unavailable', 503);
   // Hotels are never a destination; every row says where and what it is (docs/entry-ux.md §2.2).
   return NextResponse.json({
     places: places.value
       .flatMap((p) => {
-        const kind = placeKindWord(p.types);
+        const kind = placeKindWord(p.types, locale);
         // An empty address is no address: `where` is null, never "" (e2e, 2026-11-13).
         const where = p.address?.trim() || null;
         return kind ? [{ placeId: p.placeId, label: where ? `${p.name}, ${where}` : p.name, name: p.name, where, kind }] : [];

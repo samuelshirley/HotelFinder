@@ -3,6 +3,8 @@ import 'server-only';
 import { toCandidates } from '@/lib/finder/candidates';
 import { rankStay } from '@/lib/finder/rank';
 import { formatKm, reasonText } from '@/lib/reasonText';
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
 import { formatMoney } from '@/lib/replies';
 import { recordedExampleSearch } from '@/server/supplier';
 
@@ -16,7 +18,8 @@ export type Example = { caption: string; name: string; total: string; nightsText
 
 const RECORDED_AT = new Date('2026-11-11T12:00:00Z');
 
-export function exampleCard(): Example | null {
+export function exampleCard(locale: Locale = 'en'): Example | null {
+  const say = copy(locale);
   const search = recordedExampleSearch(RECORDED_AT);
   if (!search) return null;
   const candidates = toCandidates({
@@ -29,14 +32,14 @@ export function exampleCard(): Example | null {
   if (!top) return null;
   const c = top.candidate;
   const photo = search.properties.find((p) => p.supplierHotelId === c.propertyId)?.mainPhoto ?? null;
-  const facts = [c.rating !== null ? String(c.rating) : null, c.stars ? `${c.stars}★` : null, top.km !== null ? `${formatKm(top.km)} from the middle of the results` : null].filter(Boolean).join(' · ');
+  const facts = [c.rating !== null ? String(c.rating) : null, c.stars ? `${c.stars}★` : null, top.km !== null ? say.example.fromMiddle(formatKm(top.km, locale)) : null].filter(Boolean).join(' · ');
   return {
-    caption: 'Example from a real search: Porto, 2 nights, low price and great reviews',
+    caption: say.example.caption,
     name: c.name,
-    total: formatMoney(c.totalMinor, 'EUR'),
-    nightsText: '2 nights',
+    total: formatMoney(c.totalMinor, 'EUR', locale),
+    nightsText: say.words.nights(2),
     facts,
-    reason: reasonText(top.reason, { currency: 'EUR', hasMustHaves: false }),
+    reason: reasonText(top.reason, { currency: 'EUR', hasMustHaves: false, locale }),
     photo,
   };
 }

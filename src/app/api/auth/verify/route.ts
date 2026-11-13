@@ -6,7 +6,8 @@ import { userForVerifiedEmail } from '@/server/auth/user';
 import { dispatchActions } from '@/server/dispatch';
 import { appendMessage } from '@/server/repos/chat';
 import { getSession, listStays } from '@/server/repos/sessions';
-import { errorResponse, handled, rateLimit, resolveToday, signInBrowser } from '@/server/http';
+import { copy } from '@/lib/i18n';
+import { errorResponse, handled, rateLimit, requestLocale, resolveToday, signInBrowser } from '@/server/http';
 import { getSupplier } from '@/server/supplier';
 import { buildSessionView } from '@/server/view';
 
@@ -52,7 +53,7 @@ export const POST = handled(async (req: Request) => {
   if (stay && today && session.status !== 'onboarding') {
     // Member offers are held apart from public ones, so the finder fetches them (lib/pricing.ts).
     await dispatchActions({ session, stay, actions: [], supplier: getSupplier({ sessionId: session.id, userId: user.id }), now, today, alwaysRun: true });
-    await appendMessage({ sessionId: session.id, role: 'assistant', kind: 'line', content: 'Signed in. These are member prices now.' });
+    await appendMessage({ sessionId: session.id, role: 'assistant', kind: 'line', content: copy(requestLocale()).replies.signedInMemberPrices });
   }
   return NextResponse.json({ signedIn: true, view: await buildSessionView((await getSession(session.id))!) });
 });

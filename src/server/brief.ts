@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { canonicalPriorities, PRIORITY_KEYS } from '@/lib/finder/rank';
 import type { ModelId } from '@/lib/models';
 import { mentionsDates, pickPlace, whichOne } from '@/lib/placePick';
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
 import { formatGuests } from '@/lib/replies';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import { MAX_NIGHTS } from '@/lib/store/reduce';
@@ -44,7 +46,8 @@ export const briefSchema = z
       .object({
         adults: z.number().int().min(1).max(12),
         childrenAges: z.array(z.number().int().min(0).max(17)).max(8),
-        rooms: z.number().int().min(1).max(6),
+        /** null = not said: the finder prices the cheapest split of the party. */
+        rooms: z.number().int().min(1).max(6).nullable(),
         pets: z.boolean(),
       })
       .strict()
@@ -76,7 +79,7 @@ export function checkBrief(brief: Brief, today: string): BriefError | null {
     if (!(nights >= 1)) return 'checkout_not_after_checkin';
     if (nights > MAX_NIGHTS) return 'stay_too_long';
   }
-  if (brief.guests && brief.guests.rooms > brief.guests.adults) return 'more_rooms_than_adults';
+  if (brief.guests && brief.guests.rooms !== null && brief.guests.rooms > brief.guests.adults) return 'more_rooms_than_adults';
   return null;
 }
 
@@ -98,7 +101,7 @@ export function mergeBrief(brief: Brief, scanned: ScannedTrip, today: string): {
   }
   trip.guests = brief.guests
     ? { adults: brief.guests.adults, childrenAges: brief.guests.childrenAges, rooms: brief.guests.rooms }
-    : (scanned.guests ?? { adults: 2, childrenAges: [], rooms: 1 });
+    : (scanned.guests ?? { adults: 2, childrenAges: [], rooms: null });
   const musts = new Set([...(scanned.mustHaves ?? []), ...(brief.guests?.pets ? (['pets_allowed'] as const) : [])]);
   if (brief.guests && !brief.guests.pets) musts.delete('pets_allowed');
   if (musts.size) trip.mustHaves = [...musts];
@@ -115,13 +118,16 @@ export async function startFromBrief(args: {
   model: ModelId;
   now: Date;
   today: string;
+  /** The language of every line this writes. English when absent. */
+  locale?: Locale;
 }): Promise<{ ok: true } | { ok: false; error: BriefError }> {
   const { session, brief, supplier, now, today } = args;
+  const L = args.locale ?? 'en';
   const bad = checkBrief(brief, today);
   if (bad) return { ok: false, error: bad };
 
   const text = brief.text.trim();
-  await appendMessage({ sessionId: session.id, role: 'user', kind: 'user', content: text || bubble(brief) });
+  await appendMessage({ sessionId: session.id, role: 'user', kind: 'user', content: text || bubble(brief, L) });
 
   // The words, read once. A bare picked place has none: no model call.
   let scanned: ScannedTrip = {};
@@ -136,14 +142,14 @@ export async function startFromBrief(args: {
   const { trip, priorities, askDates } = mergeBrief(brief, scanned, today);
   await updateSession(session.id, { draft: { ...session.draft, scanned: trip, words: scanned }, priorities });
 
-  const place = brief.place ?? (await findPlace(supplier, scanned.destination ?? text));
+  const place = brief.place ?? (await findPlace(supplier, scanned.destination ?? text, L));
   if (place === 'unavailable') {
-    await appendMessage({ sessionId: session.id, role: 'assistant', kind: 'line', content: 'The place search did not answer. Type the place again.' });
-    await askQuestion(session.id, 'destination');
+    await appendMessage({ sessionId: session.id, role: 'assistant', kind: 'line', content: copy(L).onboarding.placeSearchFailed });
+    await askQuestion(session.id, 'destination', {}, L);
     return { ok: true };
   }
   if (place === null || 'ask' in place) {
-    await askQuestion(session.id, 'destination', place ? place.ask : {});
+    await askQuestion(session.id, 'destination', place ? place.ask : {}, L);
     return { ok: true };
   }
 
@@ -160,7 +166,8 @@ export async function startFromBrief(args: {
     quiet: !text,
     // A place read from the words was the app's pick, not the user's: say so, and invite the
     // correction in the chat (Sam, 2026-11-13: "Annex" silently became Annex, Toronto).
-    readBack: text ? (brief.place ? `Searching ${place.label}.` : placeReadBack(place.label)) : undefined,
+    readBack: text ? (brief.place ? copy(L).replies.searching(place.label) : copy(L).replies.searchingPicked(place.label)) : undefined,
+    locale: L,
     words: scanned,
   });
   // When the nights are missing (askDates), answerForm has just asked for them.
@@ -170,25 +177,20 @@ export async function startFromBrief(args: {
 
 type Found = { placeId: string; label: string } | { ask: ReturnType<typeof whichOne> } | null | 'unavailable';
 
-async function findPlace(supplier: SupplierAdapter, query: string): Promise<Found> {
+async function findPlace(supplier: SupplierAdapter, query: string, locale: Locale): Promise<Found> {
   if (!query.trim()) return null;
   const places = await supplier.searchPlaces(query);
   if (!places.ok) return 'unavailable';
   const label = (p: { name: string; address: string | null }) => (p.address ? `${p.name}, ${p.address}` : p.name);
   const picked = pickPlace(query, places.value);
   if (picked.kind === 'one') return { placeId: picked.place.placeId, label: label(picked.place) };
-  if (picked.kind === 'ask') return { ask: whichOne(picked.places) };
+  if (picked.kind === 'ask') return { ask: whichOne(picked.places, locale) };
   return null;
 }
 
-/** The read-back for a place the app picked from the words. */
-export function placeReadBack(label: string): string {
-  return `Searching ${label}. Not where you meant? Tell me where you want to stay and I will search there instead.`;
-}
-
 /** The user's bubble for a search made with the pills only. */
-function bubble(brief: Brief): string {
+function bubble(brief: Brief, locale: Locale): string {
   const parts = [brief.place?.label ?? ''];
-  if (brief.guests) parts.push(`${formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms)}${brief.guests.pets ? ', with a pet' : ''}`);
+  if (brief.guests) parts.push(`${formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms, locale)}${brief.guests.pets ? copy(locale).words.withPet : ''}`);
   return parts.filter(Boolean).join(' · ');
 }

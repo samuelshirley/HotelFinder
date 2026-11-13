@@ -75,11 +75,66 @@ of the app imports `index.ts` and `types.ts` and nothing else
    Found because the shortlist's only dog-friendly hotel showed "No pets" on
    its own page (docs/testing.md, "How the 2026-11-13 bugs were found").
 
+## Checkout extras (2026-11-13)
+
+Three questions asked of the sandbox before building anything
+(`--add-checkout-extras`: `prebook-checkout-extras`, `prebook-get`,
+`rates-city-porto-payment-types`, `book-with-remarks`,
+`booking-get-with-remarks`, `booking-cancel-with-remarks`). Each answer is
+pinned by a test over the recording (`normalize.test.ts`, "evidence for the
+checkout"; `adapter.test.ts`).
+
+1. **A prebook carries no expiry, so there is no price timer.** No field in
+   the prebook, in the prebook read back (`GET /prebooks/{id}`), or in any
+   earlier prebook recording names an expiry, a hold or a validity window,
+   and the book reference does not state one (it lists a 410 "rate expired"
+   with no time). A countdown would be a number we made up, so none is shown.
+   What stands instead is our own rule, `PRICE_CHECK_TTL_MS` (20 minutes,
+   `server/checkout.ts`): an older check is checked again before anyone pays,
+   and the page says that in words, never as a countdown. `et: 10800` on each
+   hotel in a rates answer (item 7 above) is still undocumented and still
+   unused. If the supplier adds a real expiry, the timer reads it.
+2. **Special requests are supported: `guests[].remarks`.** Sent in the book
+   request, the sandbox kept the text and returned it on the booking (as
+   `remarks`, `bookedRooms[].remarks`, `bookedRooms[].guests[].remarks` and,
+   on the read-back, `specialRemarks`). The reference marks it "not
+   guaranteed". The app: a 500-character box at checkout (Zod at the route,
+   `cleanSpecialRequest` in `lib/checkout.ts`: trimmed, control and invisible
+   characters dropped, never read or matched), kept on `bookings.special_request`,
+   sent with every room on the one book call, shown on the receipt with
+   "requests are not guaranteed". Never in the usage ledger. A top-level
+   `remarks` in the request is not in the schema and was not tried.
+3. **No pay-later and no pay-at-property rate was offered.** 150 room types
+   over 30 Porto hotels: every one `paymentSchedule: "now"` and
+   `paymentTypes: ["NUITEE_PAY"]`; no `PROPERTY_PAY`, no
+   `CREDIT_CARD_SCHEDULED`. The reference says `later` needs scheduled card
+   payments enabled on the account and the guest's card sent through
+   `CREDIT_CARD_SCHEDULED`, which this app never does (card data never
+   reaches our server). So the checkout says "Pay now" for the total and
+   lists, under "Pay at the hotel", the charges the rate marks not included,
+   each named as the supplier names it and in its own currency (kept on
+   `bookings.pay_at_property_fees` at the price check). A `PROPERTY_PAY` rate,
+   if one ever appears, is not handled: what our checkout would charge for it
+   is an open question.
+
+Also in the book reference, not acted on: `clientReference` is documented as
+an idempotency key ("reusing an existing one returns error 4005"). Not tried
+in the sandbox; the claim rule above does not depend on it.
+
 ## Money
 
 `lib/money.ts` turns a supplier decimal into integer minor units, by decimal
 string, for 0-, 2- and 3-decimal currencies. `Math.round(1.005 * 100)` is 100;
 `toMoney(1.005, 'EUR')` is 101, and a test pins both.
+
+## Currency
+
+The session's currency is sent with every rate search, and the supplier
+prices in it: recorded in USD, every total, fee and penalty came back in
+USD. We never convert. An unknown code is not refused; it comes back as
+"no availability" (`rates-currency-unknown.json`), so only the codes in the
+recorded `/data/currencies` list are ever sent (`lib/currencies.ts`). The
+picker: `docs/saved.md`.
 
 ## Fixtures
 
@@ -91,6 +146,12 @@ fails if a fixture is edited, added by hand, or contains a key or a secret.
 
 Schema-drift tests derive a broken variant in memory from a recording; the
 file on disk is never edited.
+
+`--add-hotel-types` (2026-11-13) records `/data/hotelTypes` (the id → name
+list the property-type filter is checked against) and one page of Porto's
+static list at offset 300, where apartments, hostels, B&Bs, guest houses and
+an aparthotel sit beside hotels (the 20 in `rates-city-porto.json` are all
+type 204). See `docs/finder.md`, "Filters".
 
 ## Live check
 
@@ -117,3 +178,29 @@ importing the adapter (alias and relative path).
 - No retry policy. The finder owns retries for search; book is never retried.
 - No cache. Static content and rate caching arrive with the finder (step 4).
 - `getSupplier` builds only LiteAPI. A second supplier adds a branch there.
+
+## 8. Several rooms (2026-11-13, `--add-room-splits`)
+
+- **One search prices one split.** `occupancies` is one entry per room; each
+  offer (`roomTypes[i]`) has one rate per room with its own `name`, adults and
+  children, and `offerRetailRate` is all rooms together. A different split is
+  a different search: the supplier does not compare splits for us.
+- **Different rooms in one offer, one booking.** The supplier itself combines
+  rooms: "Twin Room Classic + Double Room Classic", "Triple Room + Vincci Room"
+  (probed), "Vincci Room + Vincci Room Uso Individual" (recorded). That last
+  offer was prebooked (`prebook-mixed-rooms`: both rates, with name and party)
+  and booked with one guest per `occupancyNumber` as ONE booking, CONFIRMED,
+  price the offer's, then cancelled with a full refund (`book-mixed-rooms`,
+  `booking-get-mixed-rooms`, `booking-cancel-mixed-rooms`). One prebook takes
+  one `offerId`, so rooms from two different offers (or two searches) cannot
+  be put into one booking; the app never tries: a hotel's combination is
+  always one offer.
+- **The sandbox's booking echo is not the booking.** `bookedRooms` named the
+  rooms "Test rate 1/2" with 1 adult each for a 2 + 1 booking. Nothing reads
+  room names or parties from a booking; they come from the prebook.
+- **Prebook says which rooms it holds**, so `RateCheck.rooms` carries them
+  (empty unless every rate says its name and party) and checkout compares.
+- Recorded at the 15% public margin, hotel ids of `rates-city-porto`:
+  `rates-four-adults-one-room` (6 hotels), `rates-four-adults-two-rooms` (20),
+  `rates-family-one-room` (9), `rates-family-two-rooms-split` (20), and
+  `rates-mixed-rooms` (2 + 1 adults, 5 rates a hotel: the offer booked).

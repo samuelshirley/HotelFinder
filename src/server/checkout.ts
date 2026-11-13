@@ -1,6 +1,8 @@
 import 'server-only';
 
 import type { CancellationPolicy, SupplierAdapter } from '@/server/supplier';
+import { cleanSpecialRequest, payAtHotelCharges, type HotelCharge } from '@/lib/checkout';
+import { freezeTerms } from '@/lib/freeze';
 import { formatDates } from '@/lib/replies';
 import { normalizeEmail, verifyCode } from '@/server/auth/otp';
 import { userForVerifiedEmail } from '@/server/auth/user';
@@ -9,8 +11,10 @@ import { createPrebooked, getBooking, transitionBooking, type Booking } from '@/
 import { appendMessage } from '@/server/repos/chat';
 import { getOffer } from '@/server/repos/offers';
 import { getProperty } from '@/server/repos/properties';
+import { roomsLabel, roomsOf, sameOccupancies } from '@/lib/finder/rooms';
 import { isMemberOnlyPrice } from '@/lib/pricing';
 import { audienceFor, getStay, type SearchSession } from '@/server/repos/sessions';
+import { offerFees } from '@/server/view';
 
 /**
  * Booking, in the order money demands:
@@ -38,6 +42,12 @@ export async function startCheckout(args: { session: SearchSession; offerId: str
 
   const check = await supplier.recheckRate(offer.supplierOfferId);
   if (!check.ok) return { ok: false, error: check.error.retryable ? 'supplier_unavailable' : 'rate_gone' };
+  // Exactly the rooms on the card, for the same people: a prebook holding any
+  // other split is not the offer the guest chose, whatever it costs.
+  const shown = roomsOf(offer.rooms);
+  const held = check.value.rooms;
+  if (shown && held.length > 0 && !sameOccupancies(shown, held)) return { ok: false, error: 'rate_gone' };
+  const rooms = held.length > 0 ? held : shown;
 
   const booking = await createPrebooked({
     userId: session.userId,
@@ -52,14 +62,18 @@ export async function startCheckout(args: { session: SearchSession; offerId: str
     quotedTotalMinor: check.value.total.currency === offer.currency ? offer.totalMinor : -1,
     propertyId: property.id,
     hotelName: property.name,
-    roomName: offer.roomName,
+    // The rooms as the supplier holds them now: what the guest pays for and what book books.
+    roomName: (rooms && roomsLabel(rooms)) ?? offer.roomName,
     boardName: offer.boardName,
     checkIn: stay.checkIn,
     checkOut: stay.checkOut,
     adults: stay.adults,
     childrenAges: stay.childrenAges,
-    rooms: stay.rooms,
+    // One guest per room at book: the offer's rooms, which are not the stay's when we chose them.
+    rooms: rooms?.length ?? stay.rooms ?? 1,
     payAtPropertyMinor: offer.payAtPropertyMinor,
+    // Named and in their own currency: the page says what the hotel will ask for, not only a sum.
+    payAtPropertyFees: payAtHotelCharges(offerFees(offer.taxesAndFees)),
     cancellation: (check.value.cancellation ?? offer.cancellation) as Record<string, unknown> | null,
   });
   return { ok: true, booking };
@@ -74,6 +88,8 @@ export type ConfirmInput = {
   firstName: string;
   lastName: string;
   wallet: Wallet;
+  /** The guest's words for the hotel, as typed; cleaned here. Forwarded, never read. */
+  specialRequest?: string | null;
   /** The total the page showed when the wallet was pressed. Must equal the checked price. */
   acceptedTotalMinor: number;
   supplier: SupplierAdapter;
@@ -86,6 +102,7 @@ export type ConfirmError =
   | 'price_changed'
   | 'price_stale'
   | 'name_missing'
+  | 'request_too_long'
   | 'email_invalid'
   | 'code_wrong'
   | 'code_expired'
@@ -98,6 +115,34 @@ export type ConfirmResult = { ok: true; booking: Booking; signedInAs: string | n
 const NAME = /^[\p{L}][\p{L}\p{M}' .-]{0,59}$/u;
 const cleanName = (s: string) => s.trim().replace(/\s+/g, ' ');
 
+/** The guest's names as typed, or null when either is missing or not a name. */
+export function guestNames(input: { firstName: string; lastName: string }): { firstName: string; lastName: string } | null {
+  const firstName = cleanName(input.firstName);
+  const lastName = cleanName(input.lastName);
+  return NAME.test(firstName) && NAME.test(lastName) ? { firstName, lastName } : null;
+}
+
+/**
+ * The account a booking step acts for: the signed-in one, or the one the
+ * email code proves. `signedInAs` is set when the code was spent here, so the
+ * route signs the browser in even when the step then fails.
+ */
+export async function signInGuest(
+  input: { signedInUserId: string | null; email: string; code: string },
+  now: Date,
+): Promise<{ ok: true; userId: string; email: string; signedInAs: string | null } | { ok: false; error: 'email_invalid' | 'code_wrong' | 'code_expired'; signedInAs: string | null }> {
+  if (input.signedInUserId) {
+    const email = normalizeEmail(input.email);
+    return email ? { ok: true, userId: input.signedInUserId, email, signedInAs: null } : { ok: false, error: 'email_invalid', signedInAs: null };
+  }
+  const normalized = normalizeEmail(input.email);
+  if (!normalized) return { ok: false, error: 'email_invalid', signedInAs: null };
+  const verified = await verifyCode(normalized, input.code.trim(), now);
+  if (!verified.ok) return { ok: false, error: verified.error, signedInAs: null };
+  const user = await userForVerifiedEmail(normalized, now);
+  return { ok: true, userId: user.id, email: normalized, signedInAs: user.id };
+}
+
 export async function confirmCheckout(input: ConfirmInput): Promise<ConfirmResult> {
   const { now } = input;
   const booking = await getBooking(input.bookingId);
@@ -106,30 +151,19 @@ export async function confirmCheckout(input: ConfirmInput): Promise<ConfirmResul
   // Only the price the guest saw can be paid: a changed price needs a fresh press.
   if (input.acceptedTotalMinor !== booking.totalMinor) return { ok: false, error: 'price_changed', signedInAs: null };
   if (now.getTime() - booking.createdAt.getTime() > PRICE_CHECK_TTL_MS) return { ok: false, error: 'price_stale', signedInAs: null };
-  const firstName = cleanName(input.firstName);
-  const lastName = cleanName(input.lastName);
-  if (!NAME.test(firstName) || !NAME.test(lastName)) return { ok: false, error: 'name_missing', signedInAs: null };
+  const names = guestNames(input);
+  if (!names) return { ok: false, error: 'name_missing', signedInAs: null };
+  const { firstName, lastName } = names;
+  const request = cleanSpecialRequest(input.specialRequest);
+  if (!request.ok) return { ok: false, error: 'request_too_long', signedInAs: null };
   if (paymentMode() === 'none') return { ok: false, error: 'payment_unavailable', signedInAs: null };
 
   // Sign in first: a wrong code stops here, before any payment.
-  let userId = input.signedInUserId;
-  let email: string;
-  let signedInAs: string | null = null;
-  if (userId) {
-    email = normalizeEmail(input.email) ?? '';
-  } else {
-    const normalized = normalizeEmail(input.email);
-    if (!normalized) return { ok: false, error: 'email_invalid', signedInAs: null };
-    const verified = await verifyCode(normalized, input.code.trim(), now);
-    if (!verified.ok) return { ok: false, error: verified.error, signedInAs: null };
-    const user = await userForVerifiedEmail(normalized, now);
-    userId = user.id;
-    email = normalized;
-    signedInAs = user.id;
-  }
-  if (!email) return { ok: false, error: 'email_invalid', signedInAs };
+  const guest = await signInGuest(input, now);
+  if (!guest.ok) return { ok: false, error: guest.error, signedInAs: guest.signedInAs };
+  const { userId, email, signedInAs } = guest;
 
-  const pending = await transitionBooking(booking.id, 'payment_pending', { userId, holderFirstName: firstName, holderLastName: lastName, holderEmail: email, paidWith: input.wallet });
+  const pending = await transitionBooking(booking.id, 'payment_pending', { userId, holderFirstName: firstName, holderLastName: lastName, holderEmail: email, paidWith: input.wallet, specialRequest: request.value });
   if (!pending) return { ok: false, error: 'booking_not_payable', signedInAs };
   const paid = await takePayment({ wallet: input.wallet, amountMinor: booking.totalMinor, currency: booking.currency });
   if (!paid.ok) {
@@ -138,7 +172,8 @@ export async function confirmCheckout(input: ConfirmInput): Promise<ConfirmResul
   }
   if (!(await transitionBooking(booking.id, 'paid', { testPayment: paid.test }))) return { ok: false, error: 'booking_not_payable', signedInAs };
 
-  const booked = await bookPaid({ booking, guest: { firstName, lastName, email }, test: paid.test, supplier: input.supplier });
+  // The row as it now stands: it carries the request that bookPaid sends.
+  const booked = await bookPaid({ booking: pending, guest: { firstName, lastName, email }, test: paid.test, supplier: input.supplier });
   if (!booked.ok) return { ok: false, error: booked.error, signedInAs };
   const confirmed = booked.booking;
   if (booking.sessionId && booking.checkIn && booking.checkOut) {
@@ -174,6 +209,7 @@ export async function bookPaid(args: {
     holder: guest,
     guests: Array.from({ length: Math.max(1, booking.rooms ?? 1) }, () => guest),
     payment: args.test ? 'sandbox_test' : 'transaction_id',
+    specialRequest: booking.specialRequest,
   });
   if (!result.ok) {
     // A timeout or a dropped connection leaves the outcome unknown: the row stays
@@ -226,6 +262,10 @@ export function bookingView(b: Booking, now: Date) {
     quotedTotalMinor: b.quotedTotalMinor >= 0 ? b.quotedTotalMinor : null,
     priceChanged: b.quotedTotalMinor !== b.totalMinor,
     payAtPropertyMinor: b.payAtPropertyMinor ?? 0,
+    /** Each charge the hotel collects, as the supplier names it. null on bookings made before they were kept. */
+    payAtPropertyFees: (b.payAtPropertyFees ?? null) as HotelCharge[] | null,
+    /** What the guest asked the hotel for. Not guaranteed. */
+    specialRequest: b.specialRequest,
     refundable: cancellation?.refundable ?? null,
     freeCancellationUntil: cancellation?.freeCancellationUntil ?? null,
     checkedAt: b.createdAt.toISOString(),
@@ -239,6 +279,17 @@ export function bookingView(b: Booking, now: Date) {
     refundMinor: b.refundMinor,
     cancelFeeMinor: b.cancelFeeMinor,
     offerId: b.offerId,
+    /** Deal Freeze, before anything is booked: until when this rate could be held, or null when it cannot. */
+    freezeOffer: b.status === 'prebooked' ? freezeOfferOf(b, now) : null,
+    frozenUntil: b.frozenUntil?.toISOString() ?? null,
+    freezeReminderDueAt: b.freezeReminderDueAt?.toISOString() ?? null,
+    freezeReminderSentAt: b.freezeReminderSentAt?.toISOString() ?? null,
+    releasedBy: b.releasedBy,
   };
+}
+
+function freezeOfferOf(b: Booking, now: Date): { until: string; reminderAt: string } | null {
+  const terms = freezeTerms(b.cancellation, now);
+  return terms.ok ? { until: terms.frozenUntil.toISOString(), reminderAt: terms.reminderDueAt.toISOString() } : null;
 }
 export type BookingView = ReturnType<typeof bookingView>;

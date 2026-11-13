@@ -2,13 +2,14 @@
 
 2026-11-11, build step 2. What is here, why, and what the tests prove.
 
-## Tables (18)
+## Tables (19)
 
 Auth: `users`, `accounts`, `sessions`, `verification_tokens`, `email_otp_codes`.
 Store: `search_sessions`, `stays`. Chat: `agent_turns`, `chat_history`.
 Inventory: `properties`, `offers`, `shortlist_entries`. Accounts:
 `user_preferences`, `bookings`. Ledger and switches: `usage_events`,
-`app_meta`, `ip_request_counters`, `ideas`.
+`app_meta`, `ip_request_counters`, `ideas`. Saved hotels: `saved_hotels`
+(`docs/saved.md`).
 
 ## Rules the database enforces itself
 

@@ -125,3 +125,9 @@
   .quad { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .roomSkeleton { animation: none; } }
+.faq { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.faq dt { font-weight: 600; font-size: 14px; }
+.faq dd { margin: 2px 0 0; font-size: 14px; }
+.faq [data-held='false'] dd { color: var(--tp-muted); }
+
+.nameRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }

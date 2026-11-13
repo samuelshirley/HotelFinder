@@ -51,9 +51,13 @@ const addPlaces = process.argv.includes('--add-places');
 const addCountries = process.argv.includes('--add-countries');
 const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
+const addCheckoutExtras = process.argv.includes('--add-checkout-extras');
+const addHotelTypes = process.argv.includes('--add-hotel-types');
+const addCurrencies = process.argv.includes('--add-currencies');
+const addRoomSplits = process.argv.includes('--add-room-splits');
 const addPetDetails = process.argv.includes('--add-pet-details');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addPetDetails
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes || addCurrencies || addRoomSplits || addPetDetails
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -123,6 +127,85 @@ if (addNonrefundableCancel) {
   process.exit(0);
 }
 
+if (addCheckoutExtras) {
+  // The checkout questions (docs/supplier.md, "Checkout extras"): does a prebook
+  // carry an expiry; does a rate say "pay later" or "pay at the property"; does
+  // book keep a guest's special request. One search, one prebook (payment SDK,
+  // as the app asks), the prebook read back, one sandbox booking with a request
+  // in `guests[].remarks`, read back and cancelled.
+  const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const search = await capture('rates-city-porto-payment-types', 'POST', `${DATA}/hotels/rates`, {
+    occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: day(30), checkout: day(32), cityName: 'Porto', countryCode: 'PT', maxRatesPerHotel: 5, limit: 30,
+  });
+  const refundable = search.json.data
+    ?.flatMap((h) => h.roomTypes ?? [])
+    .find((rt) => rt.rates?.every((r) => r.cancellationPolicies?.refundableTag === 'RFN'));
+  if (!refundable) throw new Error('no refundable rate in this search; try again later');
+  const pre = await capture('prebook-checkout-extras', 'POST', `${BOOK}/rates/prebook`, { offerId: refundable.offerId, usePaymentSdk: true });
+  const prebookId = pre.json.data?.prebookId;
+  if (!prebookId) throw new Error('prebook failed; nothing booked');
+  await capture('prebook-get', 'GET', `${BOOK}/prebooks/${encodeURIComponent(prebookId)}`);
+  const guest = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+  const booked = await capture('book-with-remarks', 'POST', `${BOOK}/rates/book`, {
+    prebookId, holder: guest, payment: { method: 'ACC_CREDIT_CARD' },
+    guests: [{ occupancyNumber: 1, ...guest, remarks: 'Fixture request: a quiet room on a high floor, if possible.' }],
+  });
+  const bookingId = booked.json.data?.bookingId;
+  if (bookingId) {
+    await capture('booking-get-with-remarks', 'GET', `${BOOK}/bookings/${bookingId}`);
+    await capture('booking-cancel-with-remarks', 'PUT', `${BOOK}/bookings/${bookingId}`);
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added the checkout-extras fixtures');
+  process.exit(0);
+}
+
+if (addHotelTypes) {
+  // The supplier's property kinds (id → name), which liteapi/propertyTypes.ts is
+  // checked against, and one page of Porto's static list where apartments,
+  // hostels and guest houses sit beside hotels. Offset 300: the first pages are
+  // almost all hotels, and the 20 in rates-city-porto.json are all type 204.
+  await capture('hotel-types', 'GET', `${DATA}/data/hotelTypes`);
+  await capture('hotels-static-porto-mixed', 'GET', `${DATA}/data/hotels?countryCode=PT&cityName=Porto&limit=25&offset=300`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added hotel-types.json, hotels-static-porto-mixed.json');
+  process.exit(0);
+}
+
+if (addRoomSplits) {
+  // Room splits (docs/supplier.md §8): the same 20 Porto hotels and dates as
+  // rates-city-porto, priced for one party asked for as one room and as two,
+  // at the public 15% margin. Then ONE sandbox booking of a two-room offer
+  // whose rooms have different names, booked with one guest per room and
+  // cancelled: what "books exactly the combination shown" rests on.
+  const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
+  const base = { currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13', hotelIds: recorded.data.map((h) => h.hotelId), margin: 15, maxRatesPerHotel: 1, includeHotelData: true };
+  await capture('rates-four-adults-one-room', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 4 }] });
+  await capture('rates-four-adults-two-rooms', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 2 }, { adults: 2 }] });
+  await capture('rates-family-one-room', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 2, children: [4, 9] }] });
+  await capture('rates-family-two-rooms-split', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 1, children: [4] }, { adults: 1, children: [9] }] });
+
+  const mixed = await capture('rates-mixed-rooms', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 2 }, { adults: 1 }], maxRatesPerHotel: 5, includeHotelData: false });
+  const offers = (mixed.json.data ?? []).flatMap((h) => h.roomTypes ?? []);
+  const differs = (rt) => new Set((rt.rates ?? []).map((r) => r.name)).size > 1;
+  const pick = offers.find((rt) => differs(rt) && rt.rates.every((r) => r.cancellationPolicies?.refundableTag === 'RFN')) ?? offers.find(differs);
+  if (!pick) throw new Error('no two-room offer with two different rooms in this search; try again later');
+  const pre = await capture('prebook-mixed-rooms', 'POST', `${BOOK}/rates/prebook`, { offerId: pick.offerId, usePaymentSdk: true });
+  const guest = (n) => ({ firstName: 'Fixture', lastName: `Guest${n}`, email: `guest${n}@fixture.hotelfinder.invalid` });
+  const booked = await capture('book-mixed-rooms', 'POST', `${BOOK}/rates/book`, {
+    prebookId: pre.json.data.prebookId, holder: guest(1), payment: { method: 'ACC_CREDIT_CARD' },
+    guests: [{ occupancyNumber: 1, ...guest(1) }, { occupancyNumber: 2, ...guest(2) }],
+  });
+  const bookingId = booked.json.data?.bookingId;
+  if (bookingId) {
+    await capture('booking-get-mixed-rooms', 'GET', `${BOOK}/bookings/${bookingId}`);
+    await capture('booking-cancel-mixed-rooms', 'PUT', `${BOOK}/bookings/${bookingId}`);
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added room-split fixtures');
+  process.exit(0);
+}
+
 if (addStaticFacts) {
   const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
   const ids = recorded.data.map((h) => h.hotelId).join(',');
@@ -173,6 +256,20 @@ if (addCountries) {
   await capture('countries', 'GET', `${DATA}/data/countries`);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added countries.json');
+  process.exit(0);
+}
+
+if (addCurrencies) {
+  // The currencies the supplier prices in (src/lib/currencies.ts is checked against it), the
+  // same 20 Porto hotels priced in USD (the supplier converts; we never do), and what an
+  // unknown code gets back.
+  await capture('currencies', 'GET', `${DATA}/data/currencies`);
+  const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
+  const sameStay = { occupancies: [{ adults: 2 }], guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13', hotelIds: recorded.data.map((h) => h.hotelId), maxRatesPerHotel: 1, includeHotelData: true };
+  await capture('rates-city-porto-usd', 'POST', `${DATA}/hotels/rates`, { ...sameStay, currency: 'USD' });
+  await capture('rates-currency-unknown', 'POST', `${DATA}/hotels/rates`, { ...sameStay, currency: 'XQZ' });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added currencies.json, rates-city-porto-usd.json, rates-currency-unknown.json');
   process.exit(0);
 }
 

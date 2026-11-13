@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { agentModel } from '@/lib/models';
 import { callAnthropic } from '@/server/agent';
-import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
+import { errorResponse, handled, ownedSession, rateLimit, requestLocale, resolveToday } from '@/server/http';
 import { TURN_BUDGET_MS } from '@/lib/turnBudget';
 import { chatBreaker } from '@/server/breakers';
 import { askJev, jevCostMicrocents } from '@/server/jev';
@@ -45,6 +45,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   const deadline = Date.now() + TURN_BUDGET_MS;
   const today = resolveToday(parsed.data.today, new Date());
   if (!today) return errorResponse('bad_date', 400);
+  const locale = requestLocale();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -63,7 +64,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
         message: parsed.data.message,
         idempotencyKey: parsed.data.idempotencyKey,
         deps: {
-          supplier: getSupplier({ sessionId: session.id, userId: session.userId }),
+          supplier: getSupplier({ sessionId: session.id, userId: session.userId, language: locale }),
           askJev,
           jevCost: jevCostMicrocents,
           callModel: callAnthropic,
@@ -71,6 +72,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
           now: () => new Date(),
           today,
           deadline,
+          locale,
         },
         emit: send,
       })

@@ -15,6 +15,7 @@ import { listMessages } from '@/server/repos/chat';
 import { createSession, getSession, listStays, updateSession } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
 import { listTurns } from '@/server/repos/turns';
+import { dispatchActions } from '@/server/dispatch';
 import { runTurn, type TurnDeps, type TurnEvent } from '@/server/turn';
 import { buildSessionView } from '@/server/view';
 
@@ -295,6 +296,33 @@ describe('a chat turn on a running search', () => {
     expect(supplier.searches).toHaveLength(searches);
     expect(await shortlistNames(session.id)).toEqual(names);
     expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
+  });
+
+  it('"show me all of them" opens the full list: no model, no supplier, nothing set aside', async () => {
+    const { session, supplier } = await onboarded();
+    const names = await shortlistNames(session.id);
+    const searches = supplier.searches.length;
+    const all = await say(session, 'show me all of them', deps(supplier.supplier, jevSays('more')));
+    // An anonymous Porto search: 18 of 20 fit (two are below the public price).
+    expect(all.turn.finalText).toBe('All 18 hotels that fit are listed under the top picks, in the same order.');
+    expect((await lastLine(session.id)).meta).toEqual({ ui: { all: 'show' } });
+    expect(all.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', intent: 'more', full_list: { fits: 5, more: 13 }, model_calls: 0 });
+    expect(supplier.searches).toHaveLength(searches);
+    expect(await shortlistNames(session.id)).toEqual(names);
+    expect((await listStays(session.id))[0].excludedPropertyIds).toEqual([]);
+
+    // "Show me others" still sets these aside and shows the next five.
+    await say(session, 'show me some other options', deps(supplier.supplier, jevSays('more')));
+    expect(await shortlistNames(session.id)).not.toContain(names[0]);
+  });
+
+  it('"show me all of them" with nothing after the picks says so and opens nothing', async () => {
+    const { session, supplier } = await onboarded();
+    const stay = (await listStays(session.id))[0];
+    await dispatchActions({ session, stay, actions: [{ type: 'set_price_cap', perNightMinor: 6500 }], supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
+    const all = await say((await getSession(session.id))!, 'show me all of them', deps(supplier.supplier, jevSays('more')));
+    expect(all.turn.finalText).toBe('That is the only hotel that fits; it is on screen.');
+    expect((await lastLine(session.id)).meta).toBeNull();
   });
 
   it('with no Anthropic key, what the router will not settle says so and changes nothing', async () => {

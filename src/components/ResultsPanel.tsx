@@ -2,26 +2,37 @@
 
 import { isMustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
+import { roomCounts } from '@/lib/finder/rooms';
 import { pinsFor, ringKmFor } from '@/lib/mapView';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
 import dynamic from 'next/dynamic';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
+import { chainsChip, RATING_STEPS, ratingChip, STAR_STEPS, starsChip, typePlural, typesChip, type FilterOptions, type PropertyType, type StayFilters } from '@/lib/filters';
+import { COMMON_CURRENCIES, CURRENCIES, isCurrencyCode } from '@/lib/currencies';
 import type { PriorityKey } from '@/lib/finder/rank';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel } from '@/lib/replies';
+import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel, roomsShown } from '@/lib/replies';
 import type { EditAction } from './api';
 import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import { CardSkeleton, Spinner } from './Spinner';
 import { HotelDetail } from './HotelDetail';
+import { Heart, type SaveLink } from './Heart';
 import type { SessionView } from '@/server/view';
+import type { FullList } from './useFullList';
 import styles from './App.module.css';
+import { useLocale } from './i18n';
+import { INTL, type Locale } from '@/lib/i18n/locale';
 
 type Row = SessionView['shortlist'][number];
 
 // The map library needs a browser (WebGL): it is loaded on the client only, and only when the map is open.
-const MapPanel = dynamic(() => import('./MapPanel').then((m) => m.MapPanel), { ssr: false, loading: () => <p className={styles.mapLoading}>Loading the map…</p> });
+const MapPanel = dynamic(() => import('./MapPanel').then((m) => m.MapPanel), { ssr: false, loading: () => <MapLoading /> });
+function MapLoading() {
+  const { t } = useLocale();
+  return <p className={styles.mapLoading}>{t.ui.loadingMap}</p>;
+}
 
 /** How the map and the list talk to each other; owned by App so Penny can drive it too. */
 export type MapLink = {
@@ -48,17 +59,22 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, onSignIn, booking, onEdit, busy, map }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; onSignIn: () => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, onSignIn, booking, onEdit, busy, map, full, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; onSignIn: () => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList; save: SaveLink }) {
   const { stay, session, shortlist } = view;
+  const { locale, t } = useLocale();
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
+  // With the full list open, the map shows the top picks and the page on screen (docs/design/map.md).
+  const fullRows = full.rows;
   const pins = useMemo(
     () =>
-      pinsFor(shortlist, {
-        money: formatMoney,
-        miss: (row) => reasonText(row.reason as ReasonLike | null, { currency: row.offer?.currency ?? session.currency, hasMustHaves: hasMusts }),
+      pinsFor(fullRows.length ? [...shortlist, ...fullRows] : shortlist, {
+        money: (minor, currency) => formatMoney(minor, currency, locale),
+        miss: (row) => reasonText(row.reason as ReasonLike | null, { currency: row.offer?.currency ?? session.currency, hasMustHaves: hasMusts, locale }),
       }),
-    [shortlist, session.currency, hasMusts],
+    [shortlist, fullRows, session.currency, hasMusts, locale],
   );
+  // ...and the camera frames that page, so twenty hotels in one city are not one pile.
+  const frame = useMemo(() => (fullRows.length ? fullRows.map((r) => r.property.id) : null), [fullRows]);
   const anchor = stay?.anchor ?? null;
   const ringKm = useMemo(
     () => ringKmFor(shortlist, { hasAnchor: anchor !== null, closenessMatters: session.priorities?.includes('closest') ?? false }),
@@ -66,8 +82,8 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
   );
   if (!stay) {
     const p = view.pending;
-    const who = p?.guests ? `${formatGuests(p.guests.adults, p.guests.childrenAges, p.guests.rooms)}${p.pets ? ', with a pet' : ''}` : null;
-    const known = p && [who, p.priorities?.length ? prioritiesLabel(p.priorities, p.nearLabel) : null].filter(Boolean);
+    const who = p?.guests ? `${formatGuests(p.guests.adults, p.guests.childrenAges, p.guests.rooms, locale)}${p.pets ? t.ui.withPet : ''}` : null;
+    const known = p && [who, p.priorities?.length ? prioritiesLabel(p.priorities, p.nearLabel, locale) : null].filter(Boolean);
     // Nights are the last question only when the party and what matters are already known.
     const onlyNightsLeft = Boolean(p?.guests && p.priorities);
     return (
@@ -86,8 +102,8 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         ) : (
           <p>
             {p?.destination
-              ? `The shortlist appears as soon as the nights are set.${onlyNightsLeft ? ' That is the only thing left to ask.' : ''}`
-              : 'Pick the place in the chat and the shortlist starts here.'}
+              ? `${t.ui.shortlistWhenNights}${onlyNightsLeft ? t.ui.onlyThingLeft : ''}`
+              : t.ui.pickPlaceFirst}
           </p>
         )}
       </div>
@@ -110,7 +126,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
             {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
             {canMap && (
               <button className={`${styles.ghost} ${styles.mapToggle}`} aria-pressed={map.open} onClick={map.onToggle}>
-                {map.open ? 'Hide map' : 'Show map'}
+                {map.open ? t.ui.hideMap : t.ui.showMap}
               </button>
             )}
           </span>
@@ -123,23 +139,25 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         <div className={styles.tags}>
           {session.priorities !== null && <PrioritiesChip priorities={session.priorities} near={stay.nearLabel} busy={busy} onEdit={onEdit} />}
           {stay.nearIsNamed && (
-            <button className={styles.chipButton} disabled={busy} onClick={() => onEdit({ type: 'clear_near' })} title="Measure distance from the destination again">
-              Near {stay.nearLabel} ✕
+            <button className={styles.chipButton} disabled={busy} onClick={() => onEdit({ type: 'clear_near' })} title={t.ui.measureFromDestination}>
+              {t.ui.nearChip(stay.nearLabel)}
             </button>
           )}
-          {stay.priceCapMinor !== null && <span className={styles.tag}>Up to {formatMoney(stay.priceCapMinor, session.currency)} a night</span>}
+          {stay.priceCapMinor !== null && <span className={styles.tag}>{t.ui.upToANight(formatMoney(stay.priceCapMinor, session.currency, locale))}</span>}
           {musts.map((m) => (
             <span key={m} className={styles.tag}>
-              {MUST_HAVE_LABEL[m]}
+              {t.replies.mustHave[m]}
             </span>
           ))}
-          {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
+          {stay.excludedCount > 0 && <span className={styles.tag}>{t.ui.setAsideCount(stay.excludedCount)}</span>}
+          <CurrencyChip code={session.currency} capSet={stay.priceCapMinor !== null} busy={busy} onEdit={onEdit} />
         </div>
+        <FilterChips filters={stay.filters} options={stay.filterOptions} busy={busy} onEdit={onEdit} />
         {!session.signedIn && shortlist.length > 0 && (
           <p className={styles.note}>
-            These are public prices.{' '}
+            {t.ui.publicPricesLead}{' '}
             <button type="button" className={styles.inlineLink} onClick={onSignIn}>
-              Sign in for member prices
+              {t.ui.signInForMemberPrices}
             </button>
           </p>
         )}
@@ -155,6 +173,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
             pins={pins}
             anchor={anchor}
             ringKm={ringKm}
+            frame={frame}
             hovered={map.hovered}
             selected={map.selected}
             focus={map.focus}
@@ -168,14 +187,14 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
       )}
       <div className={styles.listScroll}>
       {shortlist.length === 0 ? (
-        <p className={styles.empty}>{session.status === 'onboarding' ? 'Answer the questions in the chat to search.' : 'Nothing on the shortlist. The last message in the chat says why.'}</p>
+        <p className={styles.empty}>{session.status === 'onboarding' ? t.ui.answerToSearch : t.ui.nothingShortlisted}</p>
       ) : (
         <ol className={styles.cards} aria-busy={working !== null} data-working={working ? 'true' : undefined}>
           {shortlist.map((row, i) => (
             <Fragment key={row.entryId}>
               {isNearMiss(row) && !shortlist.slice(0, i).some(isNearMiss) && (
-                <li className={styles.divider} role="separator" aria-label="Hotels that miss something you asked for">
-                  <span>{shortlist.some((r) => r.source === 'finder' && !isNearMiss(r)) ? 'Close, but each misses something you asked for' : 'Nothing fits everything. These miss the least'}</span>
+                <li className={styles.divider} role="separator" aria-label={t.ui.missDivider}>
+                  <span>{shortlist.some((r) => r.source === 'finder' && !isNearMiss(r)) ? t.ui.closeButMisses : t.ui.nothingFits}</span>
                 </li>
               )}
             <Card
@@ -191,19 +210,106 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
+              save={save}
             />
             </Fragment>
           ))}
         </ol>
+      )}
+      {full.more > 0 && (
+        <FullListSection
+          full={full}
+          card={(row) => (
+            <Card
+              key={row.entryId}
+              view={view}
+              row={row}
+              nights={nights}
+              hasMustHaves={musts.length > 0}
+              open={expanded === row.property.id}
+              onOpen={onOpen}
+              onClose={onClose}
+              onBook={onBook}
+              onSignIn={onSignIn}
+              booking={booking}
+              marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
+              onHover={map.onHover}
+              save={save}
+              compact
+            />
+          )}
+        />
       )}
       </div>
     </div>
   );
 }
 
+/**
+ * "Show all N hotels": under the top picks, the rest of the finder's ranked
+ * order, a page at a time, as compact cards that open and book like the others.
+ */
+function FullListSection({ full, card }: { full: FullList; card: (row: Row) => React.ReactNode }) {
+  const { t } = useLocale();
+  const top = () => requestAnimationFrame(() => document.getElementById('full-list')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  const go = (page: number) => {
+    full.goTo(page);
+    top();
+  };
+  if (!full.open) {
+    return (
+      <section id="full-list" className={styles.fullList} aria-label={t.ui.fullList}>
+        <button className={styles.secondary} onClick={full.show}>
+          {t.ui.showAll(full.total)}
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section id="full-list" className={styles.fullList} aria-label={t.ui.fullList} aria-busy={full.loading}>
+      <div className={styles.fullListHead}>
+        <h3>{t.ui.allThatFit(full.total)}</h3>
+        <button className={styles.ghost} onClick={full.hide}>
+          {t.ui.topPicksOnly}
+        </button>
+      </div>
+      <p className={styles.muted}>
+        {full.range ? t.ui.fullRange(full.range.from, full.range.to, full.range.of) : full.loading ? <Spinner label={t.ui.loadingList} /> : null}
+      </p>
+      {full.error && (
+        <p className={styles.errorText} role="alert">
+          {full.error}{' '}
+          <button className={styles.ghost} onClick={full.retry}>
+            {t.ui.tryAgain}
+          </button>
+        </p>
+      )}
+      {full.rows.length > 0 && (
+        <ol className={styles.cards} start={full.range?.from} data-working={full.loading ? 'true' : undefined}>
+          {full.rows.map(card)}
+        </ol>
+      )}
+      {full.pages > 1 && (
+        <nav className={styles.pager} aria-label={t.ui.fullListPages}>
+          <button className={styles.secondary} disabled={full.page <= 1 || full.loading} onClick={() => go(full.page - 1)}>
+            {t.ui.previous}
+          </button>
+          <span className={styles.muted}>
+            {t.ui.pageOf(full.page, full.pages)}
+          </span>
+          <button className={styles.secondary} disabled={full.page >= full.pages || full.loading} onClick={() => go(full.page + 1)}>
+            {t.ui.next}
+          </button>
+        </nav>
+      )}
+    </section>
+  );
+}
+
 /** A header chip that opens an editor in place and applies with one button. */
 function Editable({ label, name, busy, children, onApply, onOpen }: { label: string; name: string; busy: boolean; children: React.ReactNode; onApply: (() => void) | null; onOpen?: () => void }) {
   const [open, setOpen] = useState(false);
+  const { t } = useLocale();
   const chip = useRef<HTMLButtonElement>(null);
   // Escape closes without applying, like Cancel, and hands focus back to the chip.
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -215,19 +321,19 @@ function Editable({ label, name, busy, children, onApply, onOpen }: { label: str
   };
   return (
     <span className={styles.editable}>
-      <button ref={chip} className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={`Change ${name}`} onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
+      <button ref={chip} className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={t.ui.change(name)} onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
         {label} ✎
       </button>
       {open && (
-        <div className={styles.editor} role="dialog" aria-label={`Change ${name}`} onKeyDown={onKeyDown}>
+        <div className={styles.editor} role="dialog" aria-label={t.ui.change(name)} onKeyDown={onKeyDown}>
           {children}
           {onApply && (
             <div className={styles.editorActions}>
               <button className={styles.secondary} onClick={() => setOpen(false)}>
-                Cancel
+                {t.ui.cancel}
               </button>
               <button className={styles.primary} disabled={busy} onClick={() => { setOpen(false); onApply(); }}>
-                Apply
+                {t.ui.apply}
               </button>
             </div>
           )}
@@ -237,11 +343,114 @@ function Editable({ label, name, busy, children, onApply, onOpen }: { label: str
   );
 }
 
+/**
+ * The filters (lib/filters.ts), one chip each, in the Editable pattern above.
+ * The kind and brand editors offer only values the held listings carry, and
+ * say how many hotels name none: those are listed under the fits as not
+ * checked, never dropped without a word.
+ */
+function FilterChips({ filters, options, busy, onEdit }: { filters: StayFilters; options: FilterOptions; busy: boolean; onEdit: OnEdit }) {
+  const types = [...new Set([...options.propertyTypes.map((o) => o.type), ...filters.propertyTypes])];
+  const chains = [...new Set([...options.chains.map((o) => o.chain), ...filters.chains])];
+  const { locale, t } = useLocale();
+  return (
+    <div className={styles.tags} role="group" aria-label={t.ui.filters}>
+      <StepChip
+        name={t.ui.starClass}
+        label={filters.minStars === null ? t.ui.anyStars : starsChip(filters.minStars, locale)}
+        value={filters.minStars}
+        steps={STAR_STEPS}
+        stepLabel={(n) => starsChip(n, locale)}
+        anyLabel={t.ui.anyStarClass}
+        note={t.ui.starsNote}
+        busy={busy}
+        onApply={(stars) => onEdit({ type: 'set_min_stars', stars })}
+      />
+      <StepChip
+        name={t.ui.guestRating}
+        label={filters.minRating === null ? t.ui.anyRating : ratingChip(filters.minRating, locale)}
+        value={filters.minRating}
+        steps={RATING_STEPS}
+        stepLabel={(n) => ratingChip(n, locale)}
+        anyLabel={t.ui.anyGuestRating}
+        note={t.ui.ratingNote}
+        busy={busy}
+        onApply={(rating) => onEdit({ type: 'set_min_rating', rating })}
+      />
+      {(types.length > 1 || filters.propertyTypes.length > 0) && (
+        <PickChip
+          name={t.ui.kindOfPlace}
+          label={filters.propertyTypes.length ? typesChip(filters.propertyTypes, locale) : t.ui.anyKind}
+          choices={types.map((k) => ({ value: k, label: typePlural(k, locale), count: options.propertyTypes.find((o) => o.type === k)?.count ?? 0 }))}
+          picked={filters.propertyTypes}
+          silent={options.silent.propertyType}
+          noneTicked={t.ui.noneTickedKind}
+          silentNote={t.ui.kindSilent}
+          busy={busy}
+          onApply={(picked) => onEdit({ type: 'set_property_types', types: picked as PropertyType[] })}
+        />
+      )}
+      {chains.length > 0 && (
+        <PickChip
+          name={t.ui.brandFilter}
+          label={filters.chains.length ? chainsChip(filters.chains, locale) : t.ui.anyBrand}
+          choices={chains.map((c) => ({ value: c, label: c, count: options.chains.find((o) => o.chain === c)?.count ?? 0 }))}
+          picked={filters.chains}
+          silent={options.silent.chain}
+          noneTicked={t.ui.noneTickedBrand}
+          silentNote={t.ui.brandSilent}
+          busy={busy}
+          onApply={(picked) => onEdit({ type: 'set_chains', chains: picked })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** A minimum: any, or one of a few steps. */
+function StepChip({ name, label, value, steps, stepLabel, anyLabel, note, busy, onApply }: { name: string; label: string; value: number | null; steps: readonly number[]; stepLabel: (n: number) => string; anyLabel: string; note: string; busy: boolean; onApply: (v: number | null) => void }) {
+  const [picked, setPicked] = useState<number | null>(value);
+  useEffect(() => setPicked(value), [value]);
+  return (
+    <Editable label={label} name={name} busy={busy} onApply={() => onApply(picked)}>
+      {[null, ...steps].map((step) => (
+        <label key={step ?? 'any'} className={styles.check}>
+          <input type="radio" name={name} checked={picked === step} onChange={() => setPicked(step)} />
+          {step === null ? anyLabel : stepLabel(step)}
+        </label>
+      ))}
+      <span className={styles.muted}>{note}</span>
+    </Editable>
+  );
+}
+
+/** Any of a set: kinds of place, or brands. None picked = any. */
+function PickChip({ name, label, choices, picked, silent, noneTicked, silentNote, busy, onApply }: { name: string; label: string; choices: Array<{ value: string; label: string; count: number }>; picked: string[]; silent: number; noneTicked: string; silentNote: (n: number) => string; busy: boolean; onApply: (picked: string[]) => void }) {
+  const [sel, setSel] = useState<string[]>(picked);
+  useEffect(() => setSel(picked), [picked]);
+  return (
+    <Editable label={label} name={name} busy={busy} onApply={() => onApply(sel)}>
+      {choices.map((c) => (
+        <label key={c.value} className={styles.check}>
+          <input type="checkbox" checked={sel.includes(c.value)} onChange={(e) => setSel(e.target.checked ? [...sel, c.value] : sel.filter((v) => v !== c.value))} />
+          {c.label}
+          {c.count > 0 && <span className={styles.muted}>{c.count}</span>}
+        </label>
+      ))}
+      <span className={styles.muted}>
+        {noneTicked}
+        {silent > 0 && ` ${silentNote(silent)}`}
+      </span>
+    </Editable>
+  );
+}
+
 /** Where: search again somewhere else. Picking a place applies it. */
 function WhereChip({ label, busy, onEdit }: { label: string; busy: boolean; onEdit: OnEdit }) {
   const [q, setQ] = useState('');
   const [places, setPlaces] = useState<PlaceSuggestion[]>([]);
   const [failed, setFailed] = useState(false);
+  const { t } = useLocale();
   useEffect(() => {
     if (q.trim().length < 2) return setPlaces([]);
     let stale = false;
@@ -252,9 +461,9 @@ function WhereChip({ label, busy, onEdit }: { label: string; busy: boolean; onEd
     };
   }, [q]);
   return (
-    <Editable label={label} name="where" busy={busy} onApply={null}>
-      <input className={styles.editorInput} autoFocus aria-label="New place" placeholder="City, neighbourhood, airport…" value={q} onChange={(e) => setQ(e.target.value)} />
-      {failed && <p className={styles.errorText}>The place search did not answer. Keep typing to try again.</p>}
+    <Editable label={label} name={t.ui.chipName.where} busy={busy} onApply={null}>
+      <input className={styles.editorInput} autoFocus aria-label={t.ui.newPlace} placeholder={t.ui.placePlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
+      {failed && <p className={styles.errorText}>{t.ui.placeSearchFailed}</p>}
       {places.map((p) => (
         <button key={p.placeId} className={styles.placeRow} onClick={() => onEdit({ type: 'set_destination', placeId: p.placeId, destinationText: p.label })}>
           <span>{p.name}</span>
@@ -271,26 +480,28 @@ function WhereChip({ label, busy, onEdit }: { label: string; busy: boolean; onEd
 /** When: the same calendar as the first screen. */
 function WhenChip({ checkIn, checkOut, busy, onEdit }: { checkIn: string; checkOut: string; busy: boolean; onEdit: OnEdit }) {
   const [range, setRange] = useState({ checkIn, checkOut });
+  const { locale, t } = useLocale();
   return (
     // Each opening starts from the search as it is: Cancel or Esc then discards what was picked (e2e, 2026-11-13).
-    <Editable label={formatDates(checkIn, checkOut)} name="when" busy={busy} onOpen={() => setRange({ checkIn, checkOut })} onApply={() => onEdit({ type: 'set_dates', ...range })}>
+    <Editable label={formatDates(checkIn, checkOut, locale)} name={t.ui.chipName.when} busy={busy} onOpen={() => setRange({ checkIn, checkOut })} onApply={() => onEdit({ type: 'set_dates', ...range })}>
       <RangeCalendar value={range} min={todayLocal()} maxNights={30} onChange={setRange} />
-      <span className={styles.muted}>{formatDates(range.checkIn, range.checkOut)}</span>
+      <span className={styles.muted}>{formatDates(range.checkIn, range.checkOut, locale)}</span>
     </Editable>
   );
 }
 
 /** Who: the party, and the pet (a requirement on the hotel). */
-function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: number; childrenAges: number[]; rooms: number; pets: boolean; busy: boolean; onEdit: OnEdit }) {
+function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: number; childrenAges: number[]; rooms: number | null; pets: boolean; busy: boolean; onEdit: OnEdit }) {
   const [g, setG] = useState({ adults, childrenAges, rooms, pets });
-  const step = (label: string, value: number, min: number, max: number, set: (n: number) => void) => (
+  const { locale, t } = useLocale();
+  const step = (label: string, value: number, min: number, max: number, set: (n: number) => void, shown: string | number = value) => (
     <div className={styles.stepper}>
       <span>{label}</span>
-      <button type="button" disabled={value <= min} onClick={() => set(value - 1)} aria-label={`Fewer ${label.toLowerCase()}`}>
+      <button type="button" disabled={value <= min} onClick={() => set(value - 1)} aria-label={t.ui.fewer(label)}>
         −
       </button>
-      <output>{value}</output>
-      <button type="button" disabled={value >= max} onClick={() => set(value + 1)} aria-label={`More ${label.toLowerCase()}`}>
+      <output>{shown}</output>
+      <button type="button" disabled={value >= max} onClick={() => set(value + 1)} aria-label={t.ui.more(label)}>
         +
       </button>
     </div>
@@ -304,12 +515,12 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
     if (actions.length) onEdit(actions);
   };
   return (
-    <Editable label={`${formatGuests(adults, childrenAges, rooms)}${pets ? ' · pet' : ''}`} name="who" busy={busy} onOpen={() => setG({ adults, childrenAges, rooms, pets })} onApply={apply}>
-      {step('Adults', g.adults, 1, 12, (n) => setG({ ...g, adults: n, rooms: Math.min(g.rooms, n) }))}
-      {step('Children', g.childrenAges.length, 0, 8, (n) => setG({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) }))}
+    <Editable label={`${formatGuests(adults, childrenAges, rooms, locale)}${pets ? t.words.pet : ''}`} name={t.ui.chipName.who} busy={busy} onOpen={() => setG({ adults, childrenAges, rooms, pets })} onApply={apply}>
+      {step(t.ui.adults, g.adults, 1, 12, (n) => setG({ ...g, adults: n, rooms: g.rooms === null ? null : Math.min(g.rooms, n) }))}
+      {step(t.ui.children, g.childrenAges.length, 0, 8, (n) => setG({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) }))}
       {g.childrenAges.map((age, i) => (
         <label key={i} className={styles.inlineLabel}>
-          Age of child {i + 1}
+          {t.ui.ageOfChild(i + 1)}
           <select value={age} onChange={(e) => setG({ ...g, childrenAges: g.childrenAges.map((a, j) => (j === i ? Number(e.target.value) : a)) })}>
             {Array.from({ length: 18 }, (_, n) => (
               <option key={n} value={n}>
@@ -319,10 +530,11 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
           </select>
         </label>
       ))}
-      {step('Rooms', g.rooms, 1, Math.min(6, g.adults), (n) => setG({ ...g, rooms: n }))}
+      {/* 0 is "Best price": we price the sensible splits and show each hotel's cheapest. */}
+      {step(t.ui.rooms, g.rooms ?? 0, 0, Math.min(6, g.adults), (n) => setG({ ...g, rooms: n === 0 ? null : n }), roomsShown(g.rooms, locale))}
       <label className={styles.check}>
         <input type="checkbox" checked={g.pets} onChange={(e) => setG({ ...g, pets: e.target.checked })} />
-        Bringing a pet
+        {t.ui.bringingPet}
       </label>
     </Editable>
   );
@@ -332,30 +544,31 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
 function PrioritiesChip({ priorities, near, busy, onEdit }: { priorities: PriorityKey[]; near: string; busy: boolean; onEdit: OnEdit }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<PriorityKey[]>(priorities);
+  const { locale, t } = useLocale();
   const keys: Array<[PriorityKey, string]> = [
-    ['cheapest', 'Low price'],
-    ['nicest', 'Great reviews'],
-    ['closest', `Close to ${near}`],
+    ['cheapest', t.replies.priorityChip.cheapest],
+    ['nicest', t.replies.priorityChip.nicest],
+    ['closest', t.replies.closeTo(near)],
   ];
   if (!open) {
     return (
-      <button className={styles.chipButton} disabled={busy} onClick={() => { setPicked(priorities); setOpen(true); }} aria-label="Change what matters most">
-        {prioritiesLabel(priorities, near)} ✎
+      <button className={styles.chipButton} disabled={busy} onClick={() => { setPicked(priorities); setOpen(true); }} aria-label={t.ui.changeWhatMatters}>
+        {prioritiesLabel(priorities, near, locale)} ✎
       </button>
     );
   }
   return (
-    <span className={styles.chips} role="group" aria-label="What matters most" onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
+    <span className={styles.chips} role="group" aria-label={t.ui.whatMattersMost} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
       {keys.map(([k, label]) => (
         <button key={k} className={styles.chip} aria-pressed={picked.includes(k)} disabled={busy} onClick={() => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]))}>
           {label}
         </button>
       ))}
       <button className={styles.secondary} onClick={() => setOpen(false)}>
-        Cancel
+        {t.ui.cancel}
       </button>
       <button className={styles.primary} disabled={busy} onClick={() => { setOpen(false); onEdit({ type: 'set_priorities', priorities: picked }); }}>
-        Apply
+        {t.ui.apply}
       </button>
     </span>
   );
@@ -366,11 +579,12 @@ const COUNTRIES_BY_NAME = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.n
 
 /** The nationality the rates are for: inferred, never asked, changeable here. */
 function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; onEdit: OnEdit }) {
+  const { t } = useLocale();
   return (
     <label className={styles.note}>
-      Nationality for rates:{' '}
+      {t.ui.nationalityForRates}:{' '}
       <select
-        aria-label="Nationality for rates"
+        aria-label={t.ui.nationalityForRates}
         value={code}
         disabled={busy}
         onChange={(e) => isCountryCode(e.target.value) && onEdit({ type: 'set_nationality', code: e.target.value })}
@@ -385,11 +599,49 @@ function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; 
   );
 }
 
-function cancellationLine(offer: NonNullable<Row['offer']>): string {
-  if (!offer.refundable) return 'Non-refundable';
-  if (!offer.freeCancellationUntil) return 'Refundable; see the hotel for the deadline';
-  const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(offer.freeCancellationUntil));
-  return `Free cancellation until ${when} UTC`;
+/**
+ * The currency prices are quoted in, a chip like the others. A change is a
+ * new search priced by the supplier; nothing on screen is converted. A price
+ * cap was set in the old currency, so it goes, and the editor says so first.
+ */
+/** The currency's name in the screen's language where the browser knows it (Intl), else the list's English name. */
+function currencyName(code: string, english: string, locale: Locale): string {
+  if (locale === 'en') return english;
+  try {
+    return new Intl.DisplayNames([INTL[locale].number], { type: 'currency' }).of(code) ?? english;
+  } catch {
+    return english; // a browser without DisplayNames: the English name still says which currency it is
+  }
+}
+
+function CurrencyChip({ code, capSet, busy, onEdit }: { code: string; capSet: boolean; busy: boolean; onEdit: OnEdit }) {
+  const [picked, setPicked] = useState(code);
+  useEffect(() => setPicked(code), [code]);
+  const common = new Set<string>(COMMON_CURRENCIES);
+  const { locale, t } = useLocale();
+  const option = (c: (typeof CURRENCIES)[number]) => (
+    <option key={c.code} value={c.code}>
+      {c.code} · {currencyName(c.code, c.name, locale)}
+    </option>
+  );
+  return (
+    <Editable label={t.ui.currencyChip(code)} name={t.ui.currencyName} busy={busy} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
+      <select className={styles.editorInput} aria-label={t.ui.currency} value={picked} onChange={(e) => setPicked(e.target.value)}>
+        {COMMON_CURRENCIES.map((c) => option(CURRENCIES.find((x) => x.code === c)!))}
+        <option disabled>──────────</option>
+        {CURRENCIES.filter((c) => !common.has(c.code)).map(option)}
+      </select>
+      <span className={styles.muted}>{t.ui.currencySearchedAgain}</span>
+      {capSet && <span className={styles.muted}>{t.ui.currencyRemovesCap(code)}</span>}
+    </Editable>
+  );
+}
+
+function cancellationLine(offer: NonNullable<Row['offer']>, locale: Locale, t: ReturnType<typeof useLocale>['t']): string {
+  if (!offer.refundable) return t.ui.nonRefundable;
+  if (!offer.freeCancellationUntil) return t.ui.refundableSeeHotel;
+  const when = new Intl.DateTimeFormat(INTL[locale].date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(offer.freeCancellationUntil));
+  return t.ui.freeCancellationUntil(when);
 }
 
 function Card({
@@ -405,6 +657,8 @@ function Card({
   booking,
   marked,
   onHover,
+  compact = false,
+  save,
 }: {
   view: SessionView;
   row: Row;
@@ -419,13 +673,20 @@ function Card({
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
   onHover: (id: string, on: boolean) => void;
+  /** A row of the full list: no photo and no reason line, the facts and the price only. */
+  compact?: boolean;
+  save: SaveLink;
 }) {
   const { property, offer } = row;
+  const { locale, t } = useLocale();
+  // The rooms the price is for, whenever there is a choice of rooms to make: more than one, or we chose them.
+  const stay = view.stay;
+  const showRooms = offer !== null && offer.roomName !== null && (offer.rooms > 1 || (stay !== null && stay.rooms === null && roomCounts(stay.adults, stay.childrenAges).length > 1));
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
   const memberOnly = Boolean((reason as { misses?: Array<{ kind: string }> } | null)?.misses?.some((m) => m.kind === 'member_price'));
   const why = reason
-    ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves })
-    : 'You asked about this one; it has no price for these dates yet';
+    ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves, locale })
+    : t.ui.askedAboutNoPrice;
   // Open, Esc folds it as Collapse does (docs/design/hotel-detail.md). The photo viewer and the
   // header editors take their own Esc first and stop it.
   useEffect(() => {
@@ -447,30 +708,39 @@ function Card({
       data-open={open ? 'true' : undefined}
       data-near-miss={isNearMiss(row) ? 'true' : undefined}
       data-marked={marked ?? undefined}
+      data-compact={compact ? 'true' : undefined}
       onMouseEnter={() => onHover(property.id, true)}
       onMouseLeave={() => onHover(property.id, false)}
     >
       <div className={styles.card} onClick={onCard}>
-        {property.photo ? (
+        {compact ? null : property.photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className={styles.photo} src={property.photo} alt="" loading="lazy" />
         ) : (
           <div className={styles.photo} aria-hidden />
         )}
         <div className={styles.cardBody}>
-          <h3>
-            <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
-          </h3>
+          <div className={styles.cardTitle}>
+            <h3>
+              <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
+            </h3>
+            <Heart propertyId={property.id} name={property.name} link={save} />
+          </div>
           <p className={styles.muted}>
-            {property.rating !== null && <>{property.rating} </>}
-            {property.reviewCount !== null && <>({property.reviewCount.toLocaleString('en')} reviews) </>}
+            {property.rating !== null && <>{property.rating.toLocaleString(INTL[locale].number)} </>}
+            {property.reviewCount !== null && <>{t.ui.reviewsCount(property.reviewCount.toLocaleString(INTL[locale].number))} </>}
             {property.stars ? <>· {property.stars}★ </> : null}
-            {typeof reason?.distance_km === 'number' && <>· {formatKm(reason.distance_km)}</>}
+            {typeof reason?.distance_km === 'number' && <>· {formatKm(reason.distance_km, locale)}</>}
           </p>
           {why && <p className={styles.why}>{why}</p>}
+          {showRooms && (
+            <p className={styles.muted} data-rooms>
+              {offer.roomName}
+            </p>
+          )}
           {offer && (
             <p className={styles.muted}>
-              {cancellationLine(offer)}
+              {cancellationLine(offer, locale, t)}
               {offer.boardName ? ` · ${offer.boardName}` : ''}
             </p>
           )}
@@ -481,35 +751,34 @@ function Card({
               {memberOnly && !view.session.signedIn && (
                 // Sam, 2026-11-13: show these, and let the price be one sign-in away.
                 <button className={styles.book} onClick={onSignIn}>
-                  Sign in to see price
+                  {t.ui.signInToSeePrice}
                 </button>
               )}
               <button className={styles.secondary} aria-expanded={open} onClick={() => (open ? onClose() : onOpen(property.id))}>
-                {open ? 'Collapse ▲' : 'Details'}
+                {open ? t.ui.collapse : t.ui.details}
               </button>
             </div>
           </div>
         )}
         {offer && (
           <div className={styles.priceCol}>
-            <p className={styles.price}>{formatMoney(offer.totalMinor, offer.currency)}</p>
+            <p className={styles.price}>{formatMoney(offer.totalMinor, offer.currency, locale)}</p>
             <p className={styles.muted}>
-              <span className={styles.keep}>total for {nights} night{nights === 1 ? '' : 's'} ·</span>{' '}
-              <span className={styles.keep}>{formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency)} a night</span>
+              {t.ui.totalFor(t.words.nights(nights), formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency, locale))}
             </p>
-            {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>+ {formatMoney(offer.payAtPropertyMinor, offer.currency)} paid at the hotel</p>}
+            {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>{t.ui.paidAtHotel(formatMoney(offer.payAtPropertyMinor, offer.currency, locale))}</p>}
             <div className={styles.cardActions}>
               <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
                 {booking === offer.id ? (
                   <>
-                    <Spinner size={14} /> Checking the price…
+                    <Spinner size={14} /> {t.ui.checkingPrice}
                   </>
                 ) : (
-                  'Book'
+                  t.ui.book
                 )}
               </button>
               <button className={styles.secondary} aria-expanded={open} onClick={() => (open ? onClose() : onOpen(property.id))}>
-                {open ? 'Collapse ▲' : 'Details'}
+                {open ? t.ui.collapse : t.ui.details}
               </button>
             </div>
           </div>
@@ -517,7 +786,7 @@ function Card({
       </div>
       {open && (
         <div className={styles.expandArea}>
-          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} />
+          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} save={save} />
         </div>
       )}
     </li>

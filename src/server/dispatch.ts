@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { isMustHave, type MustHave } from '@/lib/amenities';
+import { stayFilters } from '@/lib/filters';
 import { canonicalPriorities } from '@/lib/finder/rank';
 import { destinationKind } from '@/lib/finder/searchPlan';
 import { mapPointNear, type Action, type ResolvedAction } from '@/lib/store/actions';
@@ -20,6 +21,7 @@ export function toSearchState(session: SearchSession, stay: Stay): SearchState {
   return {
     priorities: session.priorities ? canonicalPriorities(session.priorities) : null,
     guestNationality: session.guestNationality,
+    currency: session.currency,
     stay: {
       destinationText: stay.destinationText,
       placeId: stay.placeId,
@@ -37,6 +39,7 @@ export function toSearchState(session: SearchSession, stay: Stay): SearchState {
       rooms: stay.rooms,
       priceCapMinor: stay.priceCapMinor,
       mustHaves: stay.mustHaves.filter(isMustHave) as MustHave[],
+      filters: stayFilters(stay),
       excludedPropertyIds: stay.excludedPropertyIds,
     },
   };
@@ -92,10 +95,11 @@ export async function dispatchActions(args: {
 
   if (effect !== 'none') {
     const samePriorities = JSON.stringify(state.priorities) === JSON.stringify(before.priorities);
-    if (!samePriorities || state.guestNationality !== before.guestNationality) {
+    if (!samePriorities || state.guestNationality !== before.guestNationality || state.currency !== before.currency) {
       await updateSession(session.id, {
         priorities: state.priorities,
         guestNationality: state.guestNationality,
+        currency: state.currency,
         // A changed nationality came from the user (the chip or a message): it is theirs now.
         ...(state.guestNationality !== before.guestNationality ? { nationalitySource: 'user' as const } : {}),
       });
@@ -118,6 +122,10 @@ export async function dispatchActions(args: {
       rooms: state.stay.rooms,
       priceCapMinor: state.stay.priceCapMinor,
       mustHaves: state.stay.mustHaves,
+      minStars: state.stay.filters.minStars,
+      minRating: state.stay.filters.minRating,
+      propertyTypes: state.stay.filters.propertyTypes,
+      chains: state.stay.filters.chains,
       excludedPropertyIds: state.stay.excludedPropertyIds,
     });
   }

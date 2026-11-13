@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SearchState } from '@/lib/store/reduce';
 import type { Intent } from './catalogue';
 import { routeMessage, type Readings, type ShortlistRow } from './route';
+import { NO_FILTERS } from '@/lib/filters';
 
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const shortlist: ShortlistRow[] = [
@@ -13,6 +14,7 @@ const shortlist: ShortlistRow[] = [
 const state: SearchState = {
   priorities: null,
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Porto',
     placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
@@ -23,6 +25,7 @@ const state: SearchState = {
     rooms: 1,
     priceCapMinor: null,
     mustHaves: [],
+    filters: NO_FILTERS,
     excludedPropertyIds: [],
   },
 };
@@ -43,7 +46,7 @@ const readings = (intent: Intent, over: Partial<Readings> = {}): Readings => ({
   searchField: sure('none'),
   ...over,
 });
-const route = (message: string, r: Readings) => routeMessage({ message, readings: r, state, currency: 'EUR', shortlist });
+const route = (message: string, r: Readings, s: SearchState = state) => routeMessage({ message, readings: r, state: s, currency: 'EUR', shortlist });
 
 describe('settled messages become typed actions', () => {
   it('a price cap, per night, in minor units', () => {
@@ -113,6 +116,12 @@ describe('settled messages become typed actions', () => {
     expect(route('3 adults, 2 rooms', readings('guests'))).toMatchObject({ actions: [{ type: 'set_guests', adults: 3, rooms: 2 }] });
   });
 
+  it('rooms nobody fixed stay ours to choose until the message names a number', () => {
+    const open = { ...state, stay: { ...state.stay, rooms: null } };
+    expect(route('there are four of us', readings('guests'), open)).toMatchObject({ actions: [{ type: 'set_guests', adults: 4, rooms: null }] });
+    expect(route('4 adults, 2 rooms', readings('guests'), open)).toMatchObject({ actions: [{ type: 'set_guests', adults: 4, rooms: 2 }] });
+  });
+
   it('a night more moves the check-out', () => {
     expect(route('one more night', readings('dates_shift'))).toMatchObject({
       actions: [{ type: 'set_dates', checkIn: '2026-12-11', checkOut: '2026-12-14' }],
@@ -128,6 +137,14 @@ describe('settled messages become typed actions', () => {
     expect(route('show me others', readings('more'))).toMatchObject({
       actions: [{ type: 'more_options', propertyIds: [P(1), P(2), P(3)] }],
     });
+    expect(route('show me all the other hotels', readings('more'))).toMatchObject({ kind: 'actions', actions: [{ type: 'more_options' }] });
+  });
+
+  it('"show me all of them" opens the full list and sets nothing aside', () => {
+    expect(route('show me all of them', readings('more'))).toEqual({ kind: 'ui', intent: 'more', hint: { all: 'show' } });
+    expect(route('can I see the full list?', readings('more'))).toEqual({ kind: 'ui', intent: 'more', hint: { all: 'show' } });
+    // With nothing on screen there is no list to widen: the agent's.
+    expect(routeMessage({ message: 'show me all of them', readings: readings('more'), state, currency: 'EUR', shortlist: [] })).toEqual({ kind: 'defer', reason: 'slot_missing' });
   });
 
   it('the map: shown, folded away, or one hotel marked on it; never a write', () => {
@@ -140,6 +157,13 @@ describe('settled messages become typed actions', () => {
   it('a place named in a map message is not "be close to it"', () => {
     const r = readings('map', { wantsLocation: 0.95, namesPlace: 0.95 });
     expect(route('show the yotel on the map', r)).toEqual({ kind: 'ui', intent: 'map', hint: { focus: { propertyId: P(1) } } });
+  });
+
+  it('saving a hotel, or asking for the saved ones, goes to the agent and is never read as booking', () => {
+    expect(route('save the second one', readings('save'))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    expect(route('show my saved hotels', readings('save'))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    // A place in the message does not make it "be close to it".
+    expect(route('save the yotel', readings('save', { wantsLocation: 0.95, namesPlace: 0.95 }))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
   });
 
   it('opening and booking are UI hints, never a write', () => {
@@ -336,5 +360,35 @@ describe('an intent under the bar settles when its own detail question agrees (l
   it('a requirement is never rescued: "takes dogs" read as must-have would change the search', () => {
     expect(route('does the yotel take dogs?', readings('must_have', { intent: at('must_have', 0.75, 0.3), amenity: at('pets_allowed', 1, 0.99), fact: at('facility', 1, 0.99) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
     expect(route('not the yotel', readings('exclude', { intent: at('exclude', 0.8, 0.5) }))).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+  });
+});
+
+describe('filters: Jev picks the kind, code reads the value (lib/filters.ts)', () => {
+  const filter = (kind: string, over: Partial<Readings> = {}) => readings('filter', { filterKind: sure(kind), ...over });
+
+  it('a star class and a guest rating, set and dropped', () => {
+    expect(route('only 4 stars or more', filter('stars'))).toEqual({ kind: 'actions', intent: 'filter', actions: [{ type: 'set_min_stars', stars: 4 }] });
+    expect(route('any star rating is fine', filter('stars', { removing: 0.95 }))).toMatchObject({ actions: [{ type: 'set_min_stars', stars: null }] });
+    expect(route('rated 8.5 or above', filter('rating'))).toMatchObject({ actions: [{ type: 'set_min_rating', rating: 8.5 }] });
+    expect(route('forget the rating filter', filter('rating', { removing: 0.97 }))).toMatchObject({ actions: [{ type: 'set_min_rating', rating: null }] });
+  });
+
+  it('kinds of place, replacing the set or adding to it', () => {
+    expect(route('apartments only', filter('property_type'))).toMatchObject({ actions: [{ type: 'set_property_types', types: ['apartment'] }] });
+    const withHostels: SearchState = { ...state, stay: { ...state.stay, filters: { ...NO_FILTERS, propertyTypes: ['hostel'] } } };
+    expect(routeMessage({ message: 'guest houses too', readings: filter('property_type'), state: withHostels, currency: 'EUR', shortlist })).toMatchObject({
+      actions: [{ type: 'set_property_types', types: ['hostel', 'guest_house'] }],
+    });
+  });
+
+  it('defers what code cannot read for certain', () => {
+    expect(route('only Hilton', filter('brand'))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    expect(route('no apartments', filter('property_type', { removing: 0.95 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('somewhere fancy', filter('stars'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('3 or 4 stars', filter('stars'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('only 4 stars', filter('stars', { removing: 0.5 }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('only 4 stars', readings('filter', { filterKind: { choice: 'stars', top: 0.6, margin: 0.3 } }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('only 4 stars', readings('filter', { filterKind: null }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('only 4 stars', filter('none'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
   });
 });

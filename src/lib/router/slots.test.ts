@@ -106,6 +106,17 @@ describe('nights', () => {
   });
 });
 
+describe('the more intent: the whole list, or the next few instead', () => {
+  it.each(['show me all of them', 'show all the hotels', 'can I see the full list?', 'list every hotel you found', 'the whole list please', 'show me everything'])('%s → the whole list', async (m) => {
+    const { wantsWholeList } = await import('./slots');
+    expect(wantsWholeList(m)).toBe(true);
+  });
+  it.each(['show me others', 'show me some other options', 'different hotels please', 'show me all the other hotels', 'all different ones', 'any more?', 'small hotels'])('%s → the next few instead', async (m) => {
+    const { wantsWholeList } = await import('./slots');
+    expect(wantsWholeList(m)).toBe(false);
+  });
+});
+
 describe('the map intent: away, or on show', () => {
   it.each(['hide the map', 'close the map please', 'get rid of the map', "I don't need the map", 'no map', 'turn off the map'])('%s → hidden', async (m) => {
     const { wantsMapHidden } = await import('./slots');

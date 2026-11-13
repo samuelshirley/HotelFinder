@@ -441,3 +441,10 @@ planned. Two corrections came out of the first run (43 of 46):
 
 These are 46 hand-written messages. The settle rate on real traffic is the
 ledger query described above, and has no data yet.
+
+## The full list (2026-11-13)
+
+The `more` criterion now reads "...or the whole list of every hotel found"; code then reads
+`wantsWholeList` to tell "show me all of them" (opens the full list, `ui.all`) from "show me some
+other options" (`more_options`). `scripts/jev-live.sh` with three new cases: **49 of 49**, the three
+new ones settle to `ui:all` and "show me some other options" still to `more_options`.

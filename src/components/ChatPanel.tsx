@@ -10,6 +10,7 @@ import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
 import { Spinner } from './Spinner';
 import { FormControl } from './FormControl';
+import { useLocale } from './i18n';
 import type { EditAction } from './api';
 import type { Outgoing } from './App';
 import type { PriorityKey } from '@/lib/finder/rank';
@@ -28,6 +29,7 @@ type Props = {
 };
 
 export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onSend, onOpenHotel, onEdit }: Props) {
+  const { locale, t } = useLocale();
   const [draft, setDraft] = useState('');
   const end = useRef<HTMLDivElement>(null);
   const messages = view.messages;
@@ -55,22 +57,22 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
   const placeholder =
     view.session.status === 'onboarding'
       ? field === 'destination'
-        ? 'Type a city or neighbourhood'
+        ? t.ui.placeholderDestination
         : field === 'dates'
-          ? 'Or type it: the second weekend'
+          ? t.ui.placeholderDates
           : field === 'priorities'
-          ? 'Or say it: near the old town, not too pricey'
+          ? t.ui.placeholderPriorities
           : field === 'guests'
-          ? 'Or type it: two adults and a dog'
-          : 'Ask Penny'
-      : 'Ask Penny, or change the search';
+          ? t.ui.placeholderGuests
+          : t.ui.placeholderAsk
+      : t.ui.placeholderChat;
 
   return (
     <>
       <div className={styles.messages}>
         <div className={styles.thread}>
         <Penny first>
-          <p className={`${styles.bubble} ${styles.assistant}`}>{PENNY_HELLO}</p>
+          <p className={`${styles.bubble} ${styles.assistant}`}>{t.penny.hello}</p>
         </Penny>
         {messages.map((m, i) => {
           // Penny's face and name on the first of each run of her messages.
@@ -78,7 +80,7 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
           if (m.kind === 'error') {
             return (
               <Penny key={m.id} first={first}>
-                <p className={`${styles.bubble} ${styles.assistant} ${styles.errorBubble}`}>{errorCopy((m.meta as { code?: string } | null)?.code)}</p>
+                <p className={`${styles.bubble} ${styles.assistant} ${styles.errorBubble}`}>{errorCopy((m.meta as { code?: string } | null)?.code, locale)}</p>
               </Penny>
             );
           }
@@ -109,11 +111,11 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
           return (
             <Penny key={m.id} first={first}>
               <div className={`${styles.bubble} ${styles.assistant}`}>
-                {pick?.sponsored && <span className={styles.sponsored}>Sponsored</span>}
+                {pick?.sponsored && <span className={styles.sponsored}>{t.ui.sponsored}</span>}
                 <p>{m.content}</p>
                 {pick && pickName && (
                   <button type="button" className={styles.pickButton} onClick={() => onOpenHotel(pick.propertyId)}>
-                    Open {pickName}
+                    {t.ui.openHotel(pickName)}
                   </button>
                 )}
                 {latest && ui?.nearChoices && (
@@ -133,7 +135,7 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
                 )}
                 {latest && ui?.onlyClosest && (
                   <button type="button" className={styles.pickButton} disabled={busy !== null} onClick={() => onEdit({ type: 'set_priorities', priorities: ['closest'] })}>
-                    Closeness only
+                    {t.ui.closenessOnly}
                   </button>
                 )}
               </div>
@@ -148,9 +150,9 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
             {m.state === 'failed' && (
               // Plain text, not an alert: the error that made it fail is already announced once.
               <p className={styles.notSent}>
-                Not sent.{' '}
+                {t.ui.notSent}{' '}
                 <button type="button" className={styles.retry} onClick={() => onRetry(m.key)}>
-                  Retry
+                  {t.ui.retrySend}
                 </button>
               </p>
             )}
@@ -166,7 +168,7 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
         {busy === 'form' && (
           <Penny first={last?.role !== 'assistant'}>
             <p className={`${styles.bubble} ${styles.assistant}`}>
-              <Spinner label={field === 'destination' ? 'Looking up the place…' : 'One moment…'} />
+              <Spinner label={field === 'destination' ? t.ui.lookingUpPlace : t.ui.oneMoment} />
             </p>
           </Penny>
         )}
@@ -179,22 +181,20 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={placeholder}
-          aria-label="Message"
+          aria-label={t.ui.message}
           maxLength={1000}
           // Never locked once loaded: every question also takes a typed answer, and a
           // disabled field drops the phone keyboard (docs/testing.md, "dead ends").
           disabled={busy === 'boot'}
         />
         <button type="submit" className={styles.primary} disabled={!draft.trim() || busy === 'boot'}>
-          Send
+          {t.ui.send}
         </button>
         </div>
       </form>
     </>
   );
 }
-
-export const PENNY_HELLO = "Hi, I'm Penny. I'll ask only what I need, then show you the few hotels worth your time.";
 
 /** One of Penny's messages: her photo and name on the first of a run, the same indent for the rest. */
 export function Penny({ first, children }: { first: boolean; children: React.ReactNode }) {

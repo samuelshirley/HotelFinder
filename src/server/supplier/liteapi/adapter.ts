@@ -58,6 +58,13 @@ export type LiteApiDeps = {
   /** Called once per supplier call. A failing meter is reported, never thrown into the call. */
   meter?: (event: SupplierMeterEvent) => Promise<void> | void;
   onMeterError?: (err: unknown) => void;
+  /**
+   * The language for place names and hotel text (ISO 639-1, e.g. "es"). Measured on
+   * the sandbox (2026-11-13): /data/places and /data/hotel take `language`; the
+   * facility names stay English either way, so amenity matching is unaffected.
+   * Absent or "en": no parameter, the supplier's default.
+   */
+  language?: string;
 };
 
 /** LiteAPI sandbox keys start `sand_`; nothing booked with one is real. */
@@ -65,6 +72,8 @@ export const isSandboxKey = (key: string) => key.startsWith('sand_');
 
 export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
   const now = deps.now ?? (() => new Date());
+  const lang = deps.language && deps.language !== 'en' ? `language=${encodeURIComponent(deps.language)}` : null;
+  const withLang = (url: string) => (lang ? `${url}${url.includes('?') ? '&' : '?'}${lang}` : url);
   const onMeterError = deps.onMeterError ?? ((err) => console.error('[liteapi] usage meter failed', err));
 
   async function record(event: SupplierMeterEvent) {
@@ -172,7 +181,7 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
       return run({
         op: 'places',
         method: 'GET',
-        url: `${DATA}/data/places?textQuery=${encodeURIComponent(query)}`,
+        url: withLang(`${DATA}/data/places?textQuery=${encodeURIComponent(query)}`),
         timeoutMs: TIMEOUTS.places,
         schema: placesResponse,
         normalize: normalizePlaces,
@@ -184,7 +193,7 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
       return run({
         op: 'place',
         method: 'GET',
-        url: `${DATA}/data/places/${encodeURIComponent(placeId)}`,
+        url: withLang(`${DATA}/data/places/${encodeURIComponent(placeId)}`),
         timeoutMs: TIMEOUTS.places,
         schema: placeDetailsResponse,
         normalize: (body) => normalizePlaceDetails(placeId, body),
@@ -239,7 +248,7 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
       return run({
         op: 'content',
         method: 'GET',
-        url: `${DATA}/data/hotel?hotelId=${encodeURIComponent(supplierHotelId)}`,
+        url: withLang(`${DATA}/data/hotel?hotelId=${encodeURIComponent(supplierHotelId)}`),
         timeoutMs: TIMEOUTS.content,
         schema: hotelDetailsResponse,
         normalize: normalizeDetails,
@@ -277,7 +286,10 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
           // The guest paid the supplier's own form, and this id says so; or, in
           // the sandbox only, a test payment. Card data never passes through here.
           payment: request.payment === 'transaction_id' ? { method: 'TRANSACTION_ID', transactionId: request.transactionId } : { method: 'ACC_CREDIT_CARD' },
-          guests: request.guests.map((g, i) => ({ occupancyNumber: i + 1, ...g })),
+          // A special request is per room at the supplier (`guests[].remarks`,
+          // kept and read back in the sandbox: book-with-remarks.json). The
+          // guest typed one for the stay, so every room carries it.
+          guests: request.guests.map((g, i) => ({ occupancyNumber: i + 1, ...g, ...(request.specialRequest ? { remarks: request.specialRequest } : {}) })),
         },
         timeoutMs: TIMEOUTS.book,
         schema: bookingResponse,
