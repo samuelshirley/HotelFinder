@@ -51,8 +51,9 @@ const addPlaces = process.argv.includes('--add-places');
 const addCountries = process.argv.includes('--add-countries');
 const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
+const addCheckoutExtras = process.argv.includes('--add-checkout-extras');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -119,6 +120,39 @@ if (addNonrefundableCancel) {
   await capture('booking-cancel-with-charges', 'PUT', `${BOOK}/bookings/${booked.json.data.bookingId}`);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added prebook-nonrefundable.json, book-nonrefundable.json, booking-cancel-with-charges.json');
+  process.exit(0);
+}
+
+if (addCheckoutExtras) {
+  // The checkout questions (docs/supplier.md, "Checkout extras"): does a prebook
+  // carry an expiry; does a rate say "pay later" or "pay at the property"; does
+  // book keep a guest's special request. One search, one prebook (payment SDK,
+  // as the app asks), the prebook read back, one sandbox booking with a request
+  // in `guests[].remarks`, read back and cancelled.
+  const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const search = await capture('rates-city-porto-payment-types', 'POST', `${DATA}/hotels/rates`, {
+    occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: day(30), checkout: day(32), cityName: 'Porto', countryCode: 'PT', maxRatesPerHotel: 5, limit: 30,
+  });
+  const refundable = search.json.data
+    ?.flatMap((h) => h.roomTypes ?? [])
+    .find((rt) => rt.rates?.every((r) => r.cancellationPolicies?.refundableTag === 'RFN'));
+  if (!refundable) throw new Error('no refundable rate in this search; try again later');
+  const pre = await capture('prebook-checkout-extras', 'POST', `${BOOK}/rates/prebook`, { offerId: refundable.offerId, usePaymentSdk: true });
+  const prebookId = pre.json.data?.prebookId;
+  if (!prebookId) throw new Error('prebook failed; nothing booked');
+  await capture('prebook-get', 'GET', `${BOOK}/prebooks/${encodeURIComponent(prebookId)}`);
+  const guest = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+  const booked = await capture('book-with-remarks', 'POST', `${BOOK}/rates/book`, {
+    prebookId, holder: guest, payment: { method: 'ACC_CREDIT_CARD' },
+    guests: [{ occupancyNumber: 1, ...guest, remarks: 'Fixture request: a quiet room on a high floor, if possible.' }],
+  });
+  const bookingId = booked.json.data?.bookingId;
+  if (bookingId) {
+    await capture('booking-get-with-remarks', 'GET', `${BOOK}/bookings/${bookingId}`);
+    await capture('booking-cancel-with-remarks', 'PUT', `${BOOK}/bookings/${bookingId}`);
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added the checkout-extras fixtures');
   process.exit(0);
 }
 

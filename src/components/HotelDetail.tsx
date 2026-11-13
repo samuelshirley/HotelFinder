@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { errorCopy } from '@/lib/errors';
 import { curateFacilities, goodToKnow, ratingWord } from '@/lib/facilities';
+import { hotelFaq, type FaqEntry } from '@/lib/hotelFaq';
 import { formatKm } from '@/lib/reasonText';
 import { formatMoney } from '@/lib/replies';
 import type { SessionView } from '@/server/view';
@@ -126,6 +127,21 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose }: Props
       <Rates rates={rates} error={ratesError} onRetry={fetchRates} selected={selected} rooms={details?.rooms ?? []} onChoose={choose} />
 
       {details && <GoodToKnow text={details.importantInformation} />}
+      {/* Only once the listing is loaded: before that, "the listing does not say" would not be true. */}
+      {details && (
+        <Faq
+          entries={hotelFaq({
+            propertyId,
+            name,
+            rate: selected,
+            amenities: details.amenities,
+            checkInFrom: details.checkInFrom,
+            checkOutUntil: details.checkOutUntil,
+            nights,
+            currency: view.session.currency,
+          })}
+        />
+      )}
       {details && details.allFacilities.length > 0 && <Amenities details={details} />}
       {details?.description && <About text={details.description} />}
       {details?.address && (
@@ -523,6 +539,31 @@ function GoodToKnow({ text }: { text: string | null }) {
           <p key={i}>{p}</p>
         ))}
       </details>
+    </section>
+  );
+}
+
+/** The questions the chat answers without a model, answered from the same rows (lib/hotelFaq.ts). */
+function Faq({ entries }: { entries: FaqEntry[] }) {
+  const [all, setAll] = useState(false);
+  const FIRST = 8;
+  return (
+    <section className={styles.section} aria-label="Questions about this hotel">
+      <h3>Questions about this hotel</h3>
+      <dl className={styles.faq}>
+        {(all ? entries : entries.slice(0, FIRST)).map((e) => (
+          <div key={e.id} data-held={e.held}>
+            <dt>{e.question}</dt>
+            <dd>{e.answer}</dd>
+          </div>
+        ))}
+      </dl>
+      {entries.length > FIRST && (
+        <button type="button" className={styles.link} onClick={() => setAll((a) => !a)}>
+          {all ? 'Show fewer questions' : `Show all ${entries.length} questions`}
+        </button>
+      )}
+      <p className={styles.small}>Answered from the hotel&apos;s listing and this rate. Ask in the chat for anything else.</p>
     </section>
   );
 }

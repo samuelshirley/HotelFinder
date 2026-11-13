@@ -609,6 +609,106 @@
       "bytes": 144,
       "redactedFields": [],
       "sha256": "421886107242c238152dde9bf597d8fe296153d9aac817a7f1a3f31bc8269ebb"
+    },
+    "rates-city-porto-payment-types.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-13",
+        "checkout": "2026-12-15",
+        "cityName": "Porto",
+        "countryCode": "PT",
+        "maxRatesPerHotel": 5,
+        "limit": 30
+      },
+      "status": 200,
+      "latencyMs": 3427,
+      "bytes": 455075,
+      "redactedFields": [],
+      "sha256": "1a50ccae8b8c39ebd43dc05da9c496d0749a3ecab3dd1b8cde21479cc7158f94"
+    },
+    "prebook-checkout-extras.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/prebook",
+      "request": {
+        "offerId": "AwJ2MQAAAABq-EDHz8QUUaEXMQVQFo_m64qWgXCCNbJNJ_VQvMLvyk-uk7bmLH3TRdB4EPaW55pTT19cjVvWdPc8m2S29T0uFm2nuizx5h317Brqig8c8ktLgaiMkyq5pehMsSaDIqwHLHx9vQZ5BTwxCnID46LRtUYGwIL7LaIQjd5T26qYe7xlbh73gnAyYJQgoaVqV-8nzMUH_qAmAPj5-9gxy9dyzkBaB-vv82sm1w7YXQTdo1HpqUGHe1QaStCsUJvZVLiPFVLDCx7VuKoFQRUVUtYzvuRJClXLfPizhSmGUl76FV-QNk1VVsbeSzxm4TXhyPpbABasIA3RCQGCOM3au4j3GnAOokswUPk9WUlPn8b2u0FxmYUKE8azfMJZ2vkeiVUWqxT91p5cR9r_JaqaOOXeqCr_rB__YbYe0mvVur7GAie-pn8F2lXmjV3_Eya4Yfv-rp1eoSrb2i6YXPUKVYrcEAPeLkEYOh_ctFy6NsLWXBlujmvPxEzSqLZN2fM0AsfApUesUaSifDBwGoF7ciW5-AWhXO9nkxxqhNkIP6jtryD6sBjYBgOUk-WzbxL-I-IJzY-yRFZsDp-zGm5BdG8rI0iYpI97HKxNTSgfbXKdxstrXQpTuxVIEmUCKZAoetJqiA5mAaFm4DYcZAqNKMeIL32rgR8Ps3c8by89SZLotLgL80FXOeahHrrD_FhW-8etmoOL5o58hnTiPD3bvXuFhpLgYKoG8QTO0JeeFpAV_ulvDOoT61RRE1wtEfpeVFQ2D2FADrZ0bn-Tt0ZGsd35eJI8uWmXMlJSFqu5QqE3B6nf_DwuI7QSr2gDrD8S2bhc6ZVPUCsN0kZbLTx0D0ueIXqu1gONDWz6dXiZwEB0x75aqwXtiPPTZ9CA5wzo3zsAsRSOBd0wQkM2EIrG2d5Kku_3OrqhaWCUpUy3sHtl9dP_iK3M8UbSP7OidoVM0At8HrTwDLY5KkvrFTmsjFKF_z7jdgObgI9pTt3MdwzYs5jvjZYJSz8KS5j88EFfa_N1SU4unNpcvDLliDOXx2aAoK1SfQ3vA66WeGGHpq9w5zr0639ES3SjyI1duBYFC9yg6E3-cAdVnX8J9H2Ppjsabd3BVg==",
+        "usePaymentSdk": true
+      },
+      "status": 200,
+      "latencyMs": 1152,
+      "bytes": 3106,
+      "redactedFields": [
+        "secretKey"
+      ],
+      "sha256": "af72438ad7f0a9c21a2afb1b98b849d3dff0ad4a608c4381d6c09b10e185ac53"
+    },
+    "prebook-get.json": {
+      "method": "GET",
+      "url": "https://book.liteapi.travel/v3.0/prebooks/h3nXKqEIY",
+      "request": null,
+      "status": 200,
+      "latencyMs": 450,
+      "bytes": 2836,
+      "redactedFields": [
+        "secretKey"
+      ],
+      "sha256": "53ffca7cb8b7aff99e2e11956f112f9ddc2689464f94cd475eeb55f65e2fe970"
+    },
+    "book-with-remarks.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/book",
+      "request": {
+        "prebookId": "h3nXKqEIY",
+        "holder": {
+          "firstName": "Fixture",
+          "lastName": "Guest",
+          "email": "guest@fixture.hotelfinder.invalid"
+        },
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Fixture",
+            "lastName": "Guest",
+            "email": "guest@fixture.hotelfinder.invalid",
+            "remarks": "Fixture request: a quiet room on a high floor, if possible."
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3567,
+      "bytes": 4403,
+      "redactedFields": [],
+      "sha256": "2c54ec78b95d1d6b27b83367dd172e8f5478883b2e5bd8f9f6b6f9119d0a0304"
+    },
+    "booking-get-with-remarks.json": {
+      "method": "GET",
+      "url": "https://book.liteapi.travel/v3.0/bookings/6Oo8sSzlt",
+      "request": null,
+      "status": 200,
+      "latencyMs": 274,
+      "bytes": 4223,
+      "redactedFields": [],
+      "sha256": "44d8af6f2d1ba5f52b8ac64ebdfb53645e7dcb749f954031d865f0b3b8e87dce"
+    },
+    "booking-cancel-with-remarks.json": {
+      "method": "PUT",
+      "url": "https://book.liteapi.travel/v3.0/bookings/6Oo8sSzlt",
+      "request": null,
+      "status": 200,
+      "latencyMs": 189,
+      "bytes": 131,
+      "redactedFields": [],
+      "sha256": "bd97deb39859734760e41c84a2d9b1af4221781de953be367626cfd03334e9b5"
     }
   }
 }

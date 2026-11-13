@@ -19,6 +19,7 @@ pick up from the first unfinished step.
 | 9b | Map over the list (MapLibre + OpenFreeMap), linked to the cards, two gestures, Penny's map tools (`docs/design/map.md`) | built 2026-11-12; verified in a real browser (`e2e/map.spec.ts`) |
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
+| 12b | Checkout extras: pay now / at the hotel by named charge, special request to the hotel (`guests[].remarks`) and on the receipt, hotel-page FAQ from the chat's answer templates. No price timer: the prebook has no expiry (`docs/supplier.md`, "Checkout extras") | built 2026-11-13; verified in a real browser against the sandbox (`e2e/checkout.spec.ts`) |
 | 11 | Cost measurement | not started |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then

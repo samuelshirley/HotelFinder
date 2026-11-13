@@ -103,7 +103,7 @@ export const startCheckout = (sessionId: string, offerId: string) =>
 export const loadBooking = (id: string) => request<BookingPage>(`/api/booking/${id}`);
 export const confirmBooking = (
   id: string,
-  body: { email: string; code: string; firstName: string; lastName: string; wallet: Wallet; acceptedTotalMinor: number },
+  body: { email: string; code: string; firstName: string; lastName: string; wallet: Wallet; acceptedTotalMinor: number; specialRequest?: string },
 ) => request<{ booking: BookingView }>(`/api/booking/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) });
 export const cancelBookingApi = (id: string) => request<{ booking: BookingView }>(`/api/booking/${id}/cancel`, { method: 'POST', body: '{}' });
 export type BookingSummary = { id: string; status: string; hotelName: string | null; checkIn: string | null; checkOut: string | null };

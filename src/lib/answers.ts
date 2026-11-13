@@ -84,7 +84,7 @@ function deadline(iso: string | null): string | null {
 }
 
 /** One fact about one hotel, or `not_held` when its row does not say. */
-export function hotelAnswer(h: HotelFacts, ask: FactAsk, ctx: AnswerContext): Answer {
+export function hotelAnswer(h: HotelFacts, ask: FactAsk, ctx: Pick<AnswerContext, 'nights' | 'distanceFrom' | 'distanceLabel'>): Answer {
   const notHeld: Answer = { kind: 'not_held', name: h.name, ask };
   switch (ask.fact) {
     case 'price':

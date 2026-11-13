@@ -3,6 +3,7 @@
 import { withBase } from '@/lib/basePath';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { SPECIAL_REQUEST_MAX } from '@/lib/checkout';
 import { errorCopy } from '@/lib/errors';
 import { formatGuests, formatMoney } from '@/lib/replies';
 import {
@@ -96,15 +97,13 @@ function Stay({ b, children }: { b: BookingView; children?: React.ReactNode }) {
       {(b.roomName || b.boardName) && <span className={styles.muted}>{[b.roomName, b.boardName ?? 'Room only'].filter(Boolean).join(' · ')}</span>}
       <dl className={styles.money}>
         <div>
-          <dt>Total, taxes in</dt>
+          {/* Every rate the sandbox has offered is paid in full now (docs/supplier.md, "Checkout extras"). */}
+          <dt>{b.status === 'prebooked' ? 'Pay now, taxes in' : 'Total, taxes in'}</dt>
           <dd>
             <strong>{formatMoney(b.totalMinor, b.currency)}</strong>
           </dd>
         </div>
-        <div className={styles.small}>
-          <dt>Paid at the hotel</dt>
-          <dd>{b.payAtPropertyMinor > 0 ? formatMoney(b.payAtPropertyMinor, b.currency) : 'Nothing listed'}</dd>
-        </div>
+        <AtHotel b={b} />
         <div className={styles.small}>
           <dt>Cancellation</dt>
           <dd>{cancellationText(b)}</dd>
@@ -112,6 +111,44 @@ function Stay({ b, children }: { b: BookingView; children?: React.ReactNode }) {
       </dl>
       {children}
     </section>
+  );
+}
+
+/**
+ * What the hotel charges on top of the total: the charges the rate marks not
+ * included, each as the supplier names it and in its own currency. Display
+ * only; nothing here is paid through us.
+ */
+function AtHotel({ b }: { b: BookingView }) {
+  const charges = b.payAtPropertyFees;
+  // A booking from before the charges were kept: only the sum is known.
+  if (charges === null)
+    return (
+      <div className={styles.small}>
+        <dt>Pay at the hotel</dt>
+        <dd>{b.payAtPropertyMinor > 0 ? formatMoney(b.payAtPropertyMinor, b.currency) : 'Nothing listed'}</dd>
+      </div>
+    );
+  if (charges.length === 0)
+    return (
+      <div className={styles.small}>
+        <dt>Pay at the hotel</dt>
+        <dd>Nothing listed</dd>
+      </div>
+    );
+  return (
+    <div className={styles.atHotel} role="group" aria-label="Pay at the hotel">
+      <dt>Pay at the hotel, not in the total</dt>
+      <dd>
+        <ul>
+          {charges.map((c, i) => (
+            <li key={i}>
+              <span>{c.description}</span> <span>{formatMoney(c.amountMinor, c.currency)}</span>
+            </li>
+          ))}
+        </ul>
+      </dd>
+    </div>
   );
 }
 
@@ -124,13 +161,22 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
   const [first, setFirst] = useState(page.lastHolder?.firstName ?? '');
   const [last, setLast] = useState(page.lastHolder?.lastName ?? '');
-  const [error, setError] = useState<{ code: string; field?: 'email' | 'code' | 'name' | 'pay' } | null>(null);
+  const [request, setRequest] = useState('');
+  const [error, setError] = useState<{ code: string; field?: 'email' | 'code' | 'name' | 'request' | 'pay' } | null>(null);
   const [sending, setSending] = useState(false);
   const [sheet, setSheet] = useState<Wallet | null>(null);
   const [rechecking, setRechecking] = useState(false);
 
-  const fieldOf = (c: string): 'email' | 'code' | 'name' | 'pay' =>
-    c === 'email_invalid' || c === 'too_many_codes' || c === 'email_unavailable' ? 'email' : c === 'code_wrong' || c === 'code_expired' ? 'code' : c === 'name_missing' ? 'name' : 'pay';
+  const fieldOf = (c: string): 'email' | 'code' | 'name' | 'request' | 'pay' =>
+    c === 'email_invalid' || c === 'too_many_codes' || c === 'email_unavailable'
+      ? 'email'
+      : c === 'code_wrong' || c === 'code_expired'
+        ? 'code'
+        : c === 'name_missing'
+          ? 'name'
+          : c === 'request_too_long'
+            ? 'request'
+            : 'pay';
 
   const send = async () => {
     setSending(true);
@@ -148,10 +194,11 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
   };
 
   /** What the press needs before the wallet sheet opens; the server checks it all again. */
-  const ready = (): { code: string; field: 'email' | 'code' | 'name' } | null => {
+  const ready = (): { code: string; field: 'email' | 'code' | 'name' | 'request' } | null => {
     if (!signedIn && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return { code: 'email_invalid', field: 'email' };
     if (!signedIn && !/^\d{6}$/.test(code.trim())) return { code: codeSentTo ? 'code_wrong' : 'code_expired', field: 'code' };
     if (!first.trim() || !last.trim()) return { code: 'name_missing', field: 'name' };
+    if (request.length > SPECIAL_REQUEST_MAX) return { code: 'request_too_long', field: 'request' };
     return null;
   };
   const press = (wallet: Wallet) => {
@@ -162,7 +209,7 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
 
   const authorize = async (wallet: Wallet): Promise<boolean> => {
     try {
-      const r = await confirmBooking(b.id, { email: signedIn ? page.me!.email : email.trim(), code: code.trim(), firstName: first, lastName: last, wallet, acceptedTotalMinor: b.totalMinor });
+      const r = await confirmBooking(b.id, { email: signedIn ? page.me!.email : email.trim(), code: code.trim(), firstName: first, lastName: last, wallet, acceptedTotalMinor: b.totalMinor, ...(request.trim() ? { specialRequest: request } : {}) });
       onDone({ ...page, booking: r.booking, me: page.me ?? { email: email.trim() } });
       return true;
     } catch (err) {
@@ -272,6 +319,25 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
           </label>
         </div>
         {error?.field === 'name' && <p className={styles.error}>{errorCopy(error.code)}</p>}
+
+        <div className={styles.field}>
+          <label htmlFor="special-request">Special requests (optional)</label>
+          <textarea
+            id="special-request"
+            className={styles.request}
+            rows={3}
+            maxLength={SPECIAL_REQUEST_MAX}
+            placeholder="A quiet room, a late arrival, a cot…"
+            value={request}
+            onChange={(e) => setRequest(e.target.value)}
+            aria-describedby="special-request-note"
+            aria-invalid={error?.field === 'request'}
+          />
+          <p id="special-request-note" className={styles.muted}>
+            Sent to the hotel with your booking. Requests are not guaranteed. · {request.length}/{SPECIAL_REQUEST_MAX}
+          </p>
+          {error?.field === 'request' && <p className={styles.error}>{errorCopy(error.code)}</p>}
+        </div>
 
         {page.payment === 'test' ? (
           <>
@@ -415,6 +481,13 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
                   <dd>
                     {b.holder.firstName} {b.holder.lastName} · {b.holder.email}
                   </dd>
+                </div>
+              )}
+              {b.specialRequest && (
+                <div>
+                  <dt>Your special request</dt>
+                  <dd className={styles.requestText}>{b.specialRequest}</dd>
+                  <dd className={styles.muted}>Sent to the hotel with the booking. Requests are not guaranteed: the hotel decides.</dd>
                 </div>
               )}
               <div>

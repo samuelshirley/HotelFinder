@@ -53,6 +53,52 @@ of the app imports `index.ts` and `types.ts` and nothing else
 7. `et: 10800` appears on each hotel in a rates response. Its meaning is not
    documented where I looked; nothing depends on it.
 
+## Checkout extras (2026-11-13)
+
+Three questions asked of the sandbox before building anything
+(`--add-checkout-extras`: `prebook-checkout-extras`, `prebook-get`,
+`rates-city-porto-payment-types`, `book-with-remarks`,
+`booking-get-with-remarks`, `booking-cancel-with-remarks`). Each answer is
+pinned by a test over the recording (`normalize.test.ts`, "evidence for the
+checkout"; `adapter.test.ts`).
+
+1. **A prebook carries no expiry, so there is no price timer.** No field in
+   the prebook, in the prebook read back (`GET /prebooks/{id}`), or in any
+   earlier prebook recording names an expiry, a hold or a validity window,
+   and the book reference does not state one (it lists a 410 "rate expired"
+   with no time). A countdown would be a number we made up, so none is shown.
+   What stands instead is our own rule, `PRICE_CHECK_TTL_MS` (20 minutes,
+   `server/checkout.ts`): an older check is checked again before anyone pays,
+   and the page says that in words, never as a countdown. `et: 10800` on each
+   hotel in a rates answer (item 7 above) is still undocumented and still
+   unused. If the supplier adds a real expiry, the timer reads it.
+2. **Special requests are supported: `guests[].remarks`.** Sent in the book
+   request, the sandbox kept the text and returned it on the booking (as
+   `remarks`, `bookedRooms[].remarks`, `bookedRooms[].guests[].remarks` and,
+   on the read-back, `specialRemarks`). The reference marks it "not
+   guaranteed". The app: a 500-character box at checkout (Zod at the route,
+   `cleanSpecialRequest` in `lib/checkout.ts`: trimmed, control and invisible
+   characters dropped, never read or matched), kept on `bookings.special_request`,
+   sent with every room on the one book call, shown on the receipt with
+   "requests are not guaranteed". Never in the usage ledger. A top-level
+   `remarks` in the request is not in the schema and was not tried.
+3. **No pay-later and no pay-at-property rate was offered.** 150 room types
+   over 30 Porto hotels: every one `paymentSchedule: "now"` and
+   `paymentTypes: ["NUITEE_PAY"]`; no `PROPERTY_PAY`, no
+   `CREDIT_CARD_SCHEDULED`. The reference says `later` needs scheduled card
+   payments enabled on the account and the guest's card sent through
+   `CREDIT_CARD_SCHEDULED`, which this app never does (card data never
+   reaches our server). So the checkout says "Pay now" for the total and
+   lists, under "Pay at the hotel", the charges the rate marks not included,
+   each named as the supplier names it and in its own currency (kept on
+   `bookings.pay_at_property_fees` at the price check). A `PROPERTY_PAY` rate,
+   if one ever appears, is not handled: what our checkout would charge for it
+   is an open question.
+
+Also in the book reference, not acted on: `clientReference` is documented as
+an idempotency key ("reusing an existing one returns error 4005"). Not tried
+in the sandbox; the claim rule above does not depend on it.
+
 ## Money
 
 `lib/money.ts` turns a supplier decimal into integer minor units, by decimal

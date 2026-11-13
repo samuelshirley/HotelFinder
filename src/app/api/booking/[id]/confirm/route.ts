@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { SPECIAL_REQUEST_MAX } from '@/lib/checkout';
 import { bookingView, confirmCheckout } from '@/server/checkout';
 import { currentUser, errorResponse, handled, ownedBooking, rateLimit, signInBrowser } from '@/server/http';
 import { WALLETS } from '@/server/payments';
@@ -17,6 +18,8 @@ const payload = z
     firstName: z.string().max(80),
     lastName: z.string().max(80),
     wallet: z.enum(WALLETS),
+    /** Free text for the hotel: capped here, cleaned in checkout.ts, forwarded and never interpreted. */
+    specialRequest: z.string().max(SPECIAL_REQUEST_MAX).optional(),
     acceptedTotalMinor: z.number().int().nonnegative(),
   })
   .strict();
@@ -27,6 +30,7 @@ const STATUS: Record<string, number> = {
   price_changed: 409,
   price_stale: 409,
   name_missing: 400,
+  request_too_long: 400,
   email_invalid: 400,
   code_wrong: 400,
   code_expired: 400,
