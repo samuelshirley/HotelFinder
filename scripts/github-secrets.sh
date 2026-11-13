@@ -7,7 +7,7 @@
 #   NEON_API_KEY     Neon API key (console.neon.tech → Organization settings → API keys)
 #   NEON_PROJECT_ID  defaults to the hotel-finder project when .env has none
 #   LITE_API_KEY     must be the SANDBOX key (sand_…): previews and CI never get a live one
-#   VERCEL_TOKEN     vercel.com/account/settings/tokens (account settings, not the project's)
+#   VERCEL_TOKEN     (or VERCEL_API_TOKEN) vercel.com/account/settings/tokens (account settings, not the project's)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,6 +22,8 @@ gh auth status >/dev/null 2>&1 || { echo "gh is not signed in: run 'gh auth logi
 missing=()
 for k in NEON_API_KEY LITE_API_KEY VERCEL_TOKEN; do
   v="$(envval "$k")"
+  # The Vercel dashboard calls it an API token; either name in .env works.
+  if [ -z "$v" ] && [ "$k" = VERCEL_TOKEN ]; then v="$(envval VERCEL_API_TOKEN)"; fi
   if [ -z "$v" ]; then missing+=("$k"); continue; fi
   if [ "$k" = LITE_API_KEY ] && [[ "$v" != sand_* ]]; then
     echo "LITE_API_KEY in .env is not a sandbox key (sand_…): not copied" >&2; missing+=("$k"); continue
