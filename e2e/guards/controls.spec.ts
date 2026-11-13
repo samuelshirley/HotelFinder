@@ -154,9 +154,11 @@ test.describe('coverage registry', { tag: '@coverage' }, () => {
     await openSession(page, searched.sessionId);
     await app.results.waitForCards();
     await page.setViewportSize({ width: 390, height: 780 });
-    await sweep.at('narrow, chat tab');
-    await app.sidebar.toggle().click();
-    await sweep.at('narrow, trips drawer open');
+    await sweep.at('phone, chat tab');
+    await page.getByRole('tab', { name: 'Map' }).click();
+    await sweep.at('phone, map tab');
+    await page.getByRole('tab', { name: 'Trips' }).click();
+    await sweep.at('phone, trips tab');
     await page.setViewportSize({ width: 1360, height: 860 });
 
     const api = visitor.api();

@@ -81,7 +81,8 @@ export function buildUserTurn(input: AgentInput): string {
       .join('; '),
   );
   return [
-    `<today>${input.today}</today>`,
+    // With its weekday: models miscount it from a bare date (2026-11-13).
+    `<today>${input.today} (${new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${input.today}T00:00:00Z`))})</today>`,
     '<search>',
     `place: ${esc(s.destinationText)}`,
     `check-in: ${s.checkIn}`,

@@ -109,7 +109,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           <span className={styles.summaryRight}>
             {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
             {canMap && (
-              <button className={styles.ghost} aria-pressed={map.open} onClick={map.onToggle}>
+              <button className={`${styles.ghost} ${styles.mapToggle}`} aria-pressed={map.open} onClick={map.onToggle}>
                 {map.open ? 'Hide map' : 'Show map'}
               </button>
             )}

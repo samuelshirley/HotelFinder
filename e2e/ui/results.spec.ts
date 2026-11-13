@@ -435,30 +435,54 @@ test.describe('results', { tag: '@ui' }, () => {
     expect(Math.round((await app.chat.region().boundingBox())!.width)).toBe(Math.round(1360 * 0.3));
   });
 
-  test('a narrow window: one column, Chat and Hotels as tabs, the trips list a drawer', async ({ page, app, searched }) => {
+  test('a phone: one pane at a time over a tab bar, and each pane scrolls as one', async ({ page, app, searched }) => {
+    // 2026-11-13 audit: the list was a 168px box under the header and the map, and the first screen could not scroll.
     await openSession(page, searched.sessionId);
     await app.results.waitForCards();
     const count = await app.results.cards().count();
     await page.setViewportSize({ width: 390, height: 780 });
+    const tab = (name: string | RegExp) => page.getByRole('tablist', { name: 'View' }).getByRole('tab', { name });
     await expect(app.sidebar.nav()).toBeHidden();
     await expect(page.getByRole('separator', { name: 'Resize the chat' })).toBeHidden();
-    await expect(page.getByRole('tab', { name: 'Chat' })).toHaveAttribute('aria-selected', 'true');
+    await expect(tab('Chat')).toHaveAttribute('aria-selected', 'true');
     await expect(app.chat.input()).toBeVisible();
     await expect(app.results.card(0).root).toBeHidden();
-    await page.getByRole('tab', { name: `Hotels (${count})` }).click();
-    await expect(page.getByRole('tab', { name: `Hotels (${count})` })).toHaveAttribute('aria-selected', 'true');
+
+    // Hotels: the list alone, and the pane itself scrolls: no box inside it scrolls.
+    await tab(`Hotels (${count})`).click();
+    await expect(tab(`Hotels (${count})`)).toHaveAttribute('aria-selected', 'true');
     await expect(app.results.card(0).root).toBeVisible();
     expect((await app.results.card(0).root.boundingBox())!.width).toBeLessThanOrEqual(390);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    await page.getByRole('tab', { name: 'Chat' }).click();
-    await expect(app.chat.input()).toBeVisible();
-    // The drawer: opened by the same button, closed by its scrim, or by picking a trip.
-    await app.sidebar.toggle().click();
+    const scrollers = await page.evaluate(() =>
+      [...document.querySelectorAll('[aria-label="Hotels"] *, [aria-label="Hotels"]')]
+        .filter((e) => (e as HTMLElement).offsetParent !== null && /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 2)
+        .map((e) => e.getAttribute('aria-label') ?? e.className),
+    );
+    expect(scrollers, 'one scrolling surface: the Hotels pane').toEqual(['Hotels']);
+
+    // Map: the map fills the pane, one hotel at a time; it opens as a full page and closes back to the map.
+    await tab('Map').click();
+    const card = page.getByRole('group', { name: 'Hotel on the map' });
+    await expect(card).toContainText(`1 of ${count}`);
+    if (count > 1) {
+      await card.getByRole('button', { name: 'Next hotel' }).click();
+      await expect(card).toContainText(`2 of ${count}`);
+      await card.getByRole('button', { name: 'Previous hotel' }).click();
+      await expect(card).toContainText(`1 of ${count}`);
+    }
+    await card.getByRole('button', { name: new RegExp(`^1 of ${count}`) }).click();
+    await expect(app.detail.panel()).toBeVisible();
+    await app.detail.panel().getByRole('button', { name: 'Close' }).first().click();
+    await expect(tab('Map')).toHaveAttribute('aria-selected', 'true');
+    await expect(card).toBeVisible();
+
+    // Trips: the list as a page; a trip opens on its hotels.
+    await tab('Trips').click();
     await expect(app.sidebar.trip(/Porto, Portugal/)).toBeVisible();
-    await app.sidebar.scrim().click({ position: { x: 370, y: 400 } });
-    await expect(app.sidebar.nav()).toBeHidden();
-    await app.sidebar.toggle().click();
     await app.sidebar.trip(/Porto, Portugal/).click();
-    await expect(app.sidebar.nav()).toBeHidden();
+    await expect(tab(`Hotels (${count})`)).toHaveAttribute('aria-selected', 'true');
+    await tab('Chat').click();
+    await expect(app.chat.input()).toBeVisible();
   });
 });

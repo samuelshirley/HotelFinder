@@ -52,6 +52,28 @@ of the app imports `index.ts` and `types.ts` and nothing else
 6. **The suggested selling price** is on the room type and again at prebook.
 7. `et: 10800` appears on each hotel in a rates response. Its meaning is not
    documented where I looked; nothing depends on it.
+8. **Pets: three fields that disagree** (measured 2026-11-13 on 48 hotels in
+   Annecy, Porto, Lisbon and Barcelona; recorded with
+   `--add-pet-details`). Whether a hotel takes pets is in the details call's
+   `petsAllowed` flag, its `hotelFacilities` list ("Pets allowed"), and its
+   `policies` (`POLICY_HOTEL_PETS`). The bulk `/data/hotels` list carries only
+   facility ids (id 4), no flag and no policy.
+   - `petsAllowed` is `true` only when a structured pet policy exists, and
+     `false` for 16 of the 48 hotels whose own facilities say "Pets allowed"
+     (Novotel Annecy Centre among them). A false flag alone means "not
+     stated".
+   - Hotels with a pet policy (ibis Annecy Centre Vieille Ville, Rivage,
+     Impérial Palace) do not list facility 4, so the bulk list misses them.
+   - One hotel lists the facility AND a policy "Pets are not allowed."
+     (Hilton Porto Gaia).
+
+   `petsFromListing` (`liteapi/amenities.ts`) is the one reading: an explicit
+   "not allowed" policy wins; the flag, the facility or an "allowed" policy is
+   a yes; anything else is null, "the listing does not say", never "no". On a
+   trip with a pet the finder confirms every candidate from its own details
+   (free: `src/lib/supplierPrices.ts`), once per hotel, before ranking on it.
+   Found because the shortlist's only dog-friendly hotel showed "No pets" on
+   its own page (docs/testing.md, "How the 2026-11-13 bugs were found").
 
 ## Money
 

@@ -63,7 +63,7 @@ scripts/jev-live.sh      # ask the real Jev 46 messages (46 of 46 on 2026-11-12)
 ```
 src/
   app/            page.tsx + api/ (each route: one Zod payload)
-  components/     App, ChatPanel, FormControl, ResultsPanel, MapPanel, DetailSheet, api.ts
+  components/     App (phone tab bar: docs/design/mobile.md), ChatPanel, FormControl, ResultsPanel, MapPanel, DetailSheet, SignInSheet, api.ts
   lib/            PURE logic, unit-tested
     store/        actions (closed Zod union), reducers, fingerprint
     router/       catalogue (Jev's questions), slots (code extracts values), route
@@ -206,3 +206,5 @@ The ones most easily broken:
   (`scripts/migrate.mjs`); a 500 always carries a `ref` that is in its log line: `docs/deploy.md`.
 - Mutation-check every new guard test.
 - Never trim test coverage to save time or spend; measure and present.
+- Every feature gets an e2e test at desktop and phone size, and the bug hunt in
+  `docs/testing.md` ("How the 2026-11-13 bugs were found") before it is done.

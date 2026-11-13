@@ -126,6 +126,75 @@ second.
   `e2e/guards/registry.ts`. A new route: add it to `e2e/api/catalog.ts` and a
   `test.describe('<METHOD> /api/<route>')` to its spec.
 
+### Every new feature: its e2e test, and a phone pass
+
+A feature is not done until an e2e test drives it the way a person would, at
+desktop size AND at 390×780, and the hunt below has been run against it. When
+you investigate what to test (an agent writing or reviewing specs), start from
+the list below, not from what the code does today.
+
+## How the 2026-11-13 bugs were found (run this hunt for every feature)
+
+On 13 Nov 2026 Sam used the app on a phone for two minutes and found more than
+the whole suite had. Everything below was then reproduced and is now a test.
+The suite had passed, and in two places it was asserting the bug (a locked
+composer reading "Answer above to continue"; a second text box inside the
+place question). The method, in the order it paid off:
+
+1. **Use it as the person did, at phone size, with their exact words.** Typos
+   and all: "Annex for a week with dogs let's say next week Monday". Watch a
+   screen recording frame by frame (`ffmpeg -vf fps=1,tile=6x2` makes contact
+   sheets) and replay it on the live site and locally at 375×812.
+2. **Measure, don't eyeball.** In the page: every element whose
+   `scrollHeight > clientHeight` with `overflow` other than visible. That found
+   the shell clipping 379px of the first screen, and the 168px list box under
+   the map. Also the document's `scrollWidth`, and every input's font size
+   (under 16px zooms iOS).
+3. **Check one fact on every surface that shows it, down to the raw supplier
+   payload.** The finder ranked Novotel Annecy Centre as the one hotel fit for
+   a dog; its own page said "No pets". Neither surface was trustworthy alone:
+   reading LiteAPI's details for 48 hotels showed the flag the page used is
+   false for most dog-friendly hotels, and one hotel contradicts itself
+   (docs/supplier.md, "Pets"). When two screens disagree, sample the source
+   until you know which field to trust, then record real payloads as fixtures.
+4. **After every odd or failed input, ask: what can the person do now?** Is a
+   control for the open question on screen, and is the chat box enabled? The
+   "Which nights?" calendar vanished after one typed answer it could not read,
+   and the composer was locked: a dead end. Every onboarding state needs a way
+   forward (`src/lib/openQuestion.ts`).
+5. **Type where the app does not expect it.** In the composer while a question
+   with buttons is open; Enter in every box; send while the app is busy; send
+   twice; answer a tap question in words. Messages typed while busy were
+   silently dropped; Enter in the question's own place box did nothing.
+6. **Watch the network, not just the screen.** A turn POST ending
+   `ERR_ABORTED`, a send that failed with nothing shown, a request that never
+   left. Every sent message must still be there after a reload, or show
+   "Not sent · Retry".
+7. **Follow each value through every path.** Something said in the first
+   message (dates, the dog) must survive every later step: a place picked by
+   button, typed, or picked from "Which one?". The dates were dropped on one
+   path only. And a read-back must claim only what the words said: "From your
+   message: 2 adults" was a default.
+8. **Feed the model what people actually say about time and place.** "Next
+   week Monday" on a Friday, "a week", "a fortnight", a misspelled place that
+   is also a real place ("Annex" is a Toronto neighbourhood). Give the model
+   today's weekday (it miscounted from a bare date), and when the app picks a
+   place the person did not name exactly, say so and invite the correction.
+9. **Before keeping a test, ask whether it asserts the bug.** A test written
+   from today's output locks the defect in. Assert the intended behaviour from
+   the docs and the obvious UX intent (see "What it holds the app to").
+10. **Know which server you are testing.** Another worktree's dev server was
+    on :3000 during the audit; the suite starts its own on :3322
+    (`reuseExistingServer: false`), and a manual check needs its own port.
+
+Each item above has at least one test that fails without its fix
+(mutation-checked): `pets.test.ts`, `finder.test.ts` (Hilton Porto Gaia),
+`openQuestion.test.ts`, `turn.test.ts` (dead end, typed guests, lost turns),
+`agent.test.ts` (dates kept through the place question, honest read-back,
+merged scans), `e2e/ui/onboarding.spec.ts`, `e2e/ui/results.spec.ts` (a phone,
+sign in to see price), `e2e/api/auth.spec.ts`, `e2e/ui/booking.spec.ts` (sign
+in first).
+
 ## Isolation and the sandbox's rate limit
 
 - **Each test is its own visitor**: its own cookies, and its own client IP

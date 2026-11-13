@@ -20,6 +20,7 @@ pick up from the first unfinished step.
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |
+| 13 | Phone audit fixes (2026-11-13): pets read from the hotel's own listing; no onboarding dead ends; sent messages never vanish; first-message dates kept; "Sign in to see price"; checkout sign-in first; phones get a Chat · Hotels · Map · Trips tab bar (`docs/design/mobile.md`) | built 2026-11-13; unit, pg and e2e at 390×780 in Chromium; **keyboard handling not yet checked on a real iPhone** |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.

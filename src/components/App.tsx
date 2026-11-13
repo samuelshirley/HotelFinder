@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorCopy, withRef } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
-import { formatDates, formatGuests } from '@/lib/replies';
+import { formatDates, formatGuests, formatMoney } from '@/lib/replies';
 import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, logEvent, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
 import styles from './App.module.css';
 import { ChatPanel, Penny, PENNY_HELLO } from './ChatPanel';
@@ -85,7 +85,9 @@ export function App() {
   const [drawer, setDrawer] = useState(false);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
   /** On a narrow window only one of the two is on screen. */
-  const [tab, setTab] = useState<'chat' | 'hotels'>('chat');
+  // Phones show one of these at a time, chosen in the bottom tab bar (docs/design/mobile.md).
+  const [tab, setTab] = useState<Tab>('chat');
+  const narrow = useNarrow();
   /** The map over the list: open unless the user (or Penny, asked to) folded it away. */
   const [mapOpen, setMapOpen] = useState(true);
   /** The hotel under the pointer, on the map or in the list, and the one last pressed. */
@@ -97,6 +99,7 @@ export function App() {
   const resultsRef = useRef<HTMLElement>(null);
   const viewRef = useRef<SessionView | null>(null);
   const shell = useRef<HTMLDivElement>(null);
+  useVisualViewport(shell);
 
   useEffect(() => {
     const w = Number(stored(PANEL_KEY));
@@ -167,7 +170,7 @@ export function App() {
   };
   const toggleSidebar = () => {
     // One button, two layouts: the drawer on a narrow window, the column on a wide one.
-    if (window.matchMedia('(max-width: 900px)').matches) return setDrawer((d) => !d);
+    if (window.matchMedia('(max-width: 900px)').matches) return setTab('trips');
     setSidebar((open) => {
       store(SIDEBAR_KEY, open ? 'closed' : 'open');
       return !open;
@@ -228,7 +231,12 @@ export function App() {
   }, [start]);
 
   const openTrip = async (id: string) => {
-    if (busy !== null || id === view?.session.id) return setDrawer(false);
+    if (busy !== null) return setDrawer(false);
+    // The trip already open: back to it (on a phone the Trips tab covered it).
+    if (id === view?.session.id) {
+      setDrawer(false);
+      return setTab(view.shortlist.length > 0 ? 'hotels' : 'chat');
+    }
     setBusy('boot');
     setError(null);
     setOutbox([]);
@@ -236,7 +244,9 @@ export function App() {
     setSelected(null);
     setDrawer(false);
     try {
-      setView(await loadSession(id));
+      const next = await loadSession(id);
+      setView(next);
+      setTab(next.shortlist.length > 0 ? 'hotels' : 'chat');
       store(STORAGE_KEY, id);
     } catch (err) {
       fail(err);
@@ -254,12 +264,15 @@ export function App() {
   }, [tripKey, refreshTrips]);
 
   /** How a hotel opens: the `detail` flag (components/flags.ts), read once on the client. */
-  const [variant, setVariant] = useState<DetailVariant>('slideout');
+  const [flagged, setVariant] = useState<DetailVariant>('slideout');
   useEffect(() => setVariant(detailVariant()), []);
+  // A phone always gets the full-screen page: the inline variant opened inside a 168px box (2026-11-13).
+  const variant: DetailVariant = narrow ? 'slideout' : flagged;
   const openHotel = useCallback(
     (propertyId: string) => {
       setOpenProperty((current) => (current === propertyId && variant === 'expand' ? null : propertyId));
-      setTab('hotels');
+      // On the map tab the hotel opens over the map, and closing it returns there.
+      setTab((t) => (t === 'map' ? t : 'hotels'));
       setSelected(propertyId);
       setFocus((f) => ({ id: propertyId, n: (f?.n ?? 0) + 1 }));
       if (viewRef.current) void logEvent('detail_open', { variant, sessionId: viewRef.current.session.id });
@@ -384,7 +397,7 @@ export function App() {
       if (ui?.map) showMap(ui.map === 'show');
       if (ui?.focus?.propertyId) {
         showMap(true);
-        setTab('hotels');
+        setTab(narrow ? 'map' : 'hotels');
         markHotel(ui.focus.propertyId);
       }
     } catch (err) {
@@ -418,7 +431,7 @@ export function App() {
     >
       <nav className={styles.sidebar} aria-label="Your trips">
         <div className={styles.brand}>Hotel finder</div>
-        <button className={styles.newTrip} onClick={() => { setDrawer(false); void start(true); }} disabled={busy !== null}>
+        <button className={styles.newTrip} onClick={() => { setDrawer(false); setTab('chat'); void start(true); }} disabled={busy !== null}>
           New search
         </button>
         <h2 className={styles.sideHeading}>Your trips</h2>
@@ -482,16 +495,6 @@ export function App() {
             </svg>
           </button>
           <h1>{view?.stay?.destination ?? 'New search'}</h1>
-          {hasPanel && (
-            <div className={styles.tabs} role="tablist" aria-label="View">
-              <button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>
-                Chat
-              </button>
-              <button role="tab" aria-selected={tab === 'hotels'} onClick={() => setTab('hotels')}>
-                Hotels{count > 0 ? ` (${count})` : ''}
-              </button>
-            </div>
-          )}
         </header>
         {error && (
           <p className={styles.error} role="alert">
@@ -507,7 +510,9 @@ export function App() {
             <Spinner label="Starting…" />
           </p>
         ) : (
-          <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
+          <div className={styles.hero}>
+            <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
+          </div>
         )}
       </section>
 
@@ -563,6 +568,34 @@ export function App() {
           <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} />
         </SlideOut>
       )}
+      {view && tab === 'map' && view.shortlist.length > 0 && (
+        <MapCard view={view} selected={selected} onSelect={markHotel} onOpen={openHotel} />
+      )}
+      <nav className={styles.tabbar} role="tablist" aria-label="View">
+        {(
+          [
+            ['chat', 'Chat', ICONS.chat, true],
+            ['hotels', count > 0 ? `Hotels (${count})` : 'Hotels', ICONS.list, hasPanel],
+            ['map', 'Map', ICONS.map, hasPanel && Boolean(view?.stay)],
+            ['trips', 'Trips', ICONS.trips, true],
+          ] as const
+        ).map(([key, label, icon, enabled]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            aria-label={label}
+            disabled={!enabled}
+            onClick={() => {
+              if (key === 'map') showMap(true);
+              setTab(key);
+            }}
+          >
+            {icon}
+            <span aria-hidden="true">{label.replace(/ \(\d+\)$/, '')}</span>
+          </button>
+        ))}
+      </nav>
       {view && signIn && (
         <SignInSheet
           sessionId={view.session.id}
@@ -625,3 +658,107 @@ function FirstSearch({ place }: { place: string | null }) {
     </div>
   );
 }
+
+type Tab = 'chat' | 'hotels' | 'map' | 'trips';
+
+/** True on a phone-sized window: the layout with the bottom tab bar. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia('(max-width: 900px)');
+    const on = () => setNarrow(m.matches);
+    on();
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
+
+/**
+ * Size the app to the part of the screen the user can see. iOS Safari does
+ * not shrink the page for the keyboard (it ignores interactive-widget), so
+ * without this the composer sat under the keyboard (2026-11-13 recording).
+ * Sets --app-h and --app-top on the shell, and data-keyboard while the
+ * keyboard takes the bottom of the screen (the tab bar hides then).
+ */
+function useVisualViewport(ref: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const el = ref.current;
+    if (!vv || !el) return;
+    let frame = 0;
+    const apply = () => {
+      cancelAnimationFrame(frame);
+      // Two frames: iOS reports the new size late (WebKit 237851).
+      frame = requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          el.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
+          el.style.setProperty('--app-top', `${Math.round(vv.offsetTop)}px`);
+          el.dataset.keyboard = window.innerHeight - vv.height > 150 ? 'open' : 'closed';
+        }),
+      );
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    // iOS 26 can keep stale numbers after the keyboard closes: check again on blur.
+    window.addEventListener('focusout', apply);
+    return () => {
+      cancelAnimationFrame(frame);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      window.removeEventListener('focusout', apply);
+    };
+  }, [ref]);
+}
+
+/** The map tab's one hotel at a time: tap to open it, arrows for the next pin. */
+function MapCard({ view, selected, onSelect, onOpen }: { view: SessionView; selected: string | null; onSelect: (id: string) => void; onOpen: (id: string) => void }) {
+  const rows = view.shortlist;
+  const at = Math.max(0, rows.findIndex((r) => r.property.id === selected));
+  const row = rows[at];
+  const go = (step: number) => onSelect(rows[(at + step + rows.length) % rows.length].property.id);
+  return (
+    <div className={styles.mapCard} role="group" aria-label="Hotel on the map">
+      <button type="button" className={styles.mapCardMain} onClick={() => onOpen(row.property.id)}>
+        <span className={styles.mapCardRank}>
+          {at + 1} of {rows.length}
+        </span>
+        <span className={styles.mapCardName}>{row.property.name}</span>
+        <span className={styles.mapCardPrice}>{row.offer ? `${formatMoney(row.offer.totalMinor, row.offer.currency)} total` : 'Price after sign-in'}</span>
+      </button>
+      {rows.length > 1 && (
+        <div className={styles.mapCardNav}>
+          <button type="button" aria-label="Previous hotel" onClick={() => go(-1)}>
+            ‹
+          </button>
+          <button type="button" aria-label="Next hotel" onClick={() => go(1)}>
+            ›
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const icon = (path: React.ReactNode) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {path}
+  </svg>
+);
+const ICONS = {
+  chat: icon(<path d="M4 5h16v11H9l-5 4z" />),
+  list: icon(<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />),
+  map: icon(
+    <>
+      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" />
+      <path d="M9 4v14M15 6v14" />
+    </>,
+  ),
+  trips: icon(
+    <>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </>,
+  ),
+};

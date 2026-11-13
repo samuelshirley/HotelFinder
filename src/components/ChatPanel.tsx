@@ -146,7 +146,8 @@ export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onS
               {m.message}
             </p>
             {m.state === 'failed' && (
-              <p className={styles.notSent} role="alert">
+              // Plain text, not an alert: the error that made it fail is already announced once.
+              <p className={styles.notSent}>
                 Not sent.{' '}
                 <button type="button" className={styles.retry} onClick={() => onRetry(m.key)}>
                   Retry

@@ -106,7 +106,7 @@
 /* Expand-only */
 .collapse { align-self: flex-end; margin-top: 20px; background: transparent; border: 1px solid var(--tp-border); color: var(--tp-muted); border-radius: 8px; padding: 6px 12px; }
 /* Slide-out only: Book stays in reach */
-.bookBar { position: sticky; bottom: 0; margin: 24px -24px 0; padding: 12px 24px; min-height: 72px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--tp-surface); border-top: 1px solid var(--tp-border); }
+.bookBar { position: sticky; bottom: 0; margin: 24px -24px 0; padding: 12px 24px calc(12px + env(safe-area-inset-bottom)); min-height: 72px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--tp-surface); border-top: 1px solid var(--tp-border); }
 
 /* Wide detail (the panel, or an expanded card ≥720px): the full layouts. */
 @container (min-width: 720px) {

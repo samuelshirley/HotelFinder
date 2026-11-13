@@ -54,7 +54,8 @@ test.describe('chat', { tag: '@ui' }, () => {
     expect((await turn).postDataJSON().message).toBe('near the river');
   });
 
-  test('while a message is being read, the chat says so and nothing else can be sent', async ({ page, app, searched }) => {
+  test('while a message is being read, the chat says so, and a second one waits its turn instead of being dropped', async ({ page, app, searched }) => {
+    // 2026-11-13: Enter while busy was silently ignored, so a typed message never appeared.
     await openSession(page, searched.sessionId);
     await app.results.waitForCards();
     let release!: () => void;
@@ -66,10 +67,13 @@ test.describe('chat', { tag: '@ui' }, () => {
     await app.chat.say('quiet room please');
     await expect(app.chat.region().getByRole('status').filter({ hasText: 'Reading…' })).toBeVisible();
     await app.chat.input().fill('another');
-    await expect(app.chat.send()).toBeDisabled();
-    release();
-    await expect(app.chat.region().getByText(NO_MODEL)).toBeVisible({ timeout: 60_000 });
     await expect(app.chat.send()).toBeEnabled();
+    await app.chat.send().click();
+    await expect(app.chat.input()).toHaveValue('');
+    await expect(app.chat.region().getByText('another', { exact: true })).toBeVisible();
+    release();
+    await expect(app.chat.region().getByText(NO_MODEL)).toHaveCount(2, { timeout: 60_000 });
+    await expect(app.chat.region().getByText('another', { exact: true })).toHaveCount(1);
   });
 
   test('a capped price, asked in words, is applied by the assistant', { tag: '@ai' }, async ({ page, app, searched }) => {

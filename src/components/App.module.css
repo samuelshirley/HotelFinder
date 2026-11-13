@@ -123,20 +123,38 @@
   .card { grid-template-columns: 220px minmax(0, 1fr) 200px; }
   .photo { width: 220px; }
 }
-/* Narrow window: the trips list is a drawer, and the chat and the hotels take turns. */
+/* The bottom tab bar, the map tab's card and the first screen's scroll: phones only (below). */
+.tabbar, .mapCard { display: none; }
+/* The first screen scrolls on its own, so nothing on it is ever out of reach (2026-11-13: 379px were). */
+.hero { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+/*
+ * Phones (docs/design/mobile.md): one pane at a time over a bottom tab bar,
+ * Chat · Hotels · Map · Trips. Each pane is ONE scrolling surface; nothing
+ * scrolls inside it. The app is sized to the visible screen (--app-h and
+ * --app-top from useVisualViewport), so the iOS keyboard pushes the composer
+ * up instead of covering it; the tab bar hides while the keyboard is open.
+ */
 @media (max-width: 900px) {
-  .shell, .shell[data-panel='open'] { grid-template-columns: minmax(0, 1fr); }
-  .shell[data-panel='open'] .results, .shell[data-panel='open'] .chat { grid-column: 1; grid-row: 1; }
-  .sidebar, .shell[data-sidebar='closed'] .sidebar { display: none; position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); z-index: 30; box-shadow: 8px 0 30px rgba(0, 0, 0, 0.4); }
-  .shell[data-drawer='open'] .sidebar { display: flex; visibility: visible; padding: 0 10px 12px; }
-  .shell[data-drawer='open'] .scrim { display: block; position: fixed; inset: 0; z-index: 20; background: var(--tp-overlay); border: 0; }
-  .resizer { display: none; }
-  .tabs { display: flex; }
-  .results { display: none; grid-row: 1; grid-column: 1; margin-top: var(--bar-h); padding: 12px var(--gutter) 32px; }
-  .shell[data-tab='hotels'] .results { display: block; }
-  /* clip, not hidden: hidden can still be scrolled by code, and the thread's scroll-to-end once pushed the bar 9px up. */
-  .shell[data-tab='hotels'] .chat { grid-row: 1; grid-column: 1; align-self: start; height: var(--bar-h); overflow: clip; z-index: 1; }
+  .shell, .shell[data-panel='open'] {
+    position: fixed; left: 0; top: 0; width: 100%;
+    height: var(--app-h, 100dvh); transform: translateY(var(--app-top, 0px));
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .chat, .results, .sidebar, .shell[data-panel='open'] .results, .shell[data-panel='open'] .chat { grid-column: 1; grid-row: 1; }
+  .sidebar, .shell[data-sidebar='closed'] .sidebar { display: none; }
+  .scrim, .resizer, .header .icon { display: none; }
+  .shell[data-tab='trips'] .sidebar { display: flex; visibility: visible; position: static; width: auto; box-shadow: none; border-right: 0; padding: 0 var(--gutter) 24px; overflow-y: auto; overscroll-behavior: contain; }
+  .shell[data-tab='trips'] .chat, .shell[data-tab='hotels'] .chat, .shell[data-tab='map'] .chat { display: none; }
+  .results, .shell[data-panel='open'] .results { display: none; margin-top: 0; padding: 0; }
+  .shell[data-tab='hotels'] .results, .shell[data-tab='map'] .results { display: block; }
   .bubble { max-width: 92%; }
+
+  .tabbar { display: grid; grid-row: 2; grid-column: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 2px 4px env(safe-area-inset-bottom); background: var(--tp-surface-muted); border-top: 1px solid var(--tp-neutral-900); }
+  .tabbar button { min-height: var(--tabbar-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: transparent; border: 0; color: var(--tp-muted); font-size: 11px; font-weight: 500; }
+  .tabbar button[aria-selected='true'] { color: var(--tp-primary-hover); font-weight: 600; }
+  .tabbar button[aria-selected='true'] svg { fill: var(--tp-primary-muted); }
+  .shell[data-keyboard='open'] .tabbar { display: none; }
 }
 .editable { display: inline-flex; }
 .editor { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; width: min(560px, 100%); background: var(--tp-surface); border: 1px solid var(--tp-border-strong); border-radius: 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -209,8 +227,24 @@
   .resultsLayout[data-map='open'] .mapBand { grid-column: 2; grid-row: 2; height: auto; border-bottom: 0; border-left: 1px solid var(--tp-neutral-900); }
 }
 @media (max-width: 900px) {
-  .results[data-layout='map'] { margin-top: var(--bar-h); height: calc(100dvh - var(--bar-h)); }
-  .listScroll { padding: 12px var(--gutter) 32px; }
+  /* Hotels tab: the list only, and the whole pane scrolls (it was a 168px box under the map). */
+  .shell[data-tab='hotels'] .results[data-layout='map'] { overflow-y: auto; overscroll-behavior: contain; height: 100%; }
+  .shell[data-tab='hotels'] .resultsLayout { display: block; height: auto; }
+  .shell[data-tab='hotels'] .mapBand { display: none; }
+  .shell[data-tab='hotels'] .listScroll { overflow: visible; padding: 12px var(--gutter) 32px; }
+  .mapToggle { display: none; }
+  /* Map tab: the map fills the pane; one hotel at a time in the card over it. */
+  .shell[data-tab='map'] .results[data-layout='map'] { overflow: hidden; height: 100%; }
+  .shell[data-tab='map'] .resultsLayout, .shell[data-tab='map'] .resultsLayout[data-map='closed'] { height: 100%; grid-template-rows: minmax(0, 1fr); }
+  .shell[data-tab='map'] .summary, .shell[data-tab='map'] .listScroll { display: none; }
+  .shell[data-tab='map'] .mapBand { height: 100%; border-bottom: 0; }
+  .mapCard { position: fixed; z-index: 15; left: 12px; right: 12px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px); display: flex; align-items: stretch; gap: 4px; padding: 6px; border-radius: 16px; background: var(--tp-surface); border: 1px solid var(--tp-border-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55); }
+  .mapCardMain { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: transparent; border: 0; border-radius: 12px; text-align: left; color: var(--tp-text); }
+  .mapCardRank { font-size: 12px; font-weight: 600; color: var(--tp-primary-hover); }
+  .mapCardName { font-size: 16px; font-weight: 500; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mapCardPrice { font-size: 14px; color: var(--tp-muted); }
+  .mapCardNav { display: flex; gap: 4px; }
+  .mapCardNav button { width: 44px; min-height: 44px; border-radius: 12px; border: 1px solid var(--tp-border); background: transparent; color: var(--tp-text); font-size: 20px; }
 }
 /* Narrow window: one gutter for the bar, the thread and the composer (they were 14 / 12 / 12). */
 @media (max-width: 900px) {

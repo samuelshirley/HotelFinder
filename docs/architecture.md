@@ -28,7 +28,7 @@ write, price alerts, group bookings, saved cards, a second supplier, native app.
 | 7 | Jev is the first responder on every message. It settles what it is confident about; everything else goes to Haiku | D |
 | 8 | "Best" is asked once as a chip question: cheapest / closest / nicest / just a safe bed. Free text maps onto the same four values | D |
 | 9 | Remembered preferences are restated as one plain sentence at the start of the next search and confirmed, never silently applied | D |
-| 10 | Desktop web first. Chat on the left, results panel on the right | D |
+| 10 | Desktop web first. Chat on the left, results panel on the right. **Amended 2026-11-13:** phones get their own layout, one pane at a time over a bottom tab bar (Chat · Hotels · Map · Trips): docs/design/mobile.md | D |
 | 11 | Same stack and visual language as Feral Travels (Nocturne tokens) | D |
 | 12 | Saved cards are phase 2 | D |
 
@@ -331,7 +331,7 @@ and makes no supplier call.
 
 ## 13. UI
 
-Desktop, two panes. Left: the chat, composer always reachable, form rows
+Phones (≤900px): docs/design/mobile.md. Desktop, two panes. Left: the chat, composer always reachable, form rows
 (chips, OTP, payment) inline. Right: the shortlist (three to five cards: photo,
 name, rating from supplier data, total and per-night, cancellation line, the
 reason, one primary action), a detail view for one property, and a map toggle
