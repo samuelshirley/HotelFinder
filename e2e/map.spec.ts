@@ -93,7 +93,18 @@ test('the map over the list', async ({ page }) => {
       return still;
     }, { intervals: [300], timeout: 10_000 })
     .toBe(true);
-  await page.mouse.move(band.x + band.width / 2, band.y + band.height / 2);
+  // Over open map, not over a pin: a pin under the pointer brings its card into
+  // view, which is a scroll of the list on purpose. The labels' layout can put
+  // one in the middle (2026-11-13: pin 5, stepped aside from pin 4).
+  const open = await page.evaluate((b) => {
+    for (const fx of [0.5, 0.3, 0.7, 0.15, 0.85]) for (const fy of [0.5, 0.25, 0.75]) {
+      const x = b.x + b.width * fx, y = b.y + b.height * fy;
+      if (!document.elementFromPoint(x, y)?.closest('button')) return { x, y };
+    }
+    return null;
+  }, band);
+  expect(open).not.toBeNull();
+  await page.mouse.move(open!.x, open!.y);
   await page.mouse.wheel(0, -300);
   await page.waitForTimeout(600);
   expect(await list.evaluate((el) => el.scrollTop)).toBe(scrolledBefore);

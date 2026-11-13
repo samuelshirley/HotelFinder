@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { PriorityKey } from '@/lib/finder/rank';
 import { mentionsDates } from '@/lib/placePick';
-import { formatGuests } from '@/lib/replies';
+import { INTL, type Locale } from '@/lib/i18n/locale';
+import { formatGuests, roomsShown } from '@/lib/replies';
 import type { Brief } from '@/server/brief';
 import { loadExample, searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import type { Example } from '@/server/example';
 import { Spinner } from './Spinner';
 import styles from './TripBox.module.css';
+import { useLocale } from './i18n';
 
 /**
  * The first screen (docs/entry-ux.md, mocks: "Hotel finder — trip box first
@@ -20,23 +22,14 @@ import styles from './TripBox.module.css';
  */
 type Props = { busy: boolean; onSubmit: (brief: Brief) => void };
 
-const PLACEHOLDERS = [
-  'Annecy, 1–6 Dec, just me, central and well rated',
-  'Lisbon with my wife and the dog, 3 nights in March, nice but not crazy expensive',
-  'Cheap hotel near Barcelona airport next Friday for 2',
-];
-const CHIPS: Array<[PriorityKey, string]> = [
-  ['cheapest', 'Low price'],
-  ['nicest', 'Great reviews'],
-  ['closest', 'Close to the centre'],
-];
+const CHIPS: PriorityKey[] = ['cheapest', 'nicest', 'closest'];
 
 const addDays = (iso: string, days: number) => {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
-const dayName = (iso: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
+const dayName = (iso: string, locale: Locale) => new Intl.DateTimeFormat(INTL[locale].date, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 /** Friday to Sunday: this week's, or next week's. */
 const weekend = (today: string, next: boolean) => {
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = Sunday
@@ -50,19 +43,22 @@ const weekend = (today: string, next: boolean) => {
  * sentence itself is still read on Enter.
  */
 const placeGuess = (t: string) => {
-  const head = t.split(/[,.;]|\s(?:with|for|from|in|on|next|this|near|cheap|nice|under|\d)/i)[0].trim();
+  const head = t.split(/[,.;]|\s(?:with|for|from|in|on|next|this|near|cheap|nice|under|\d|(?:con|para|desde|en|el próximo|este|esta|cerca|barato|bonito|menos)(?![\p{L}]))/iu)[0].trim();
   return head.length >= 2 && head.split(/\s+/).length <= 4 ? head : '';
 };
 /** Text that is only a place: no digit, no word about when, four words at most. */
-const looksLikePlace = (t: string) => t.trim().length >= 2 && !/\d/.test(t) && !mentionsDates(t) && t.trim().split(/\s+/).length <= 4 && !/\b(with|for|near|cheap|nice|close|central)\b/i.test(t);
+const looksLikePlace = (t: string) => t.trim().length >= 2 && !/\d/.test(t) && !mentionsDates(t) && t.trim().split(/\s+/).length <= 4 && !/(?<![\p{L}])(with|for|near|cheap|nice|close|central|con|para|cerca|barato|bonito|céntrico)(?![\p{L}])/iu.test(t);
 
 export function TripBox({ busy, onSubmit }: Props) {
+  const { locale, t } = useLocale();
+  const PLACEHOLDERS = t.ui.placeholders;
+  const chipLabel = (k: PriorityKey) => (k === 'closest' ? t.ui.closeToCentre : t.replies.priorityChip[k]);
   const today = todayLocal();
   const [text, setText] = useState('');
   const [placeholder, setPlaceholder] = useState(0);
   const [place, setPlace] = useState<{ placeId: string; label: string } | null>(null);
   const [dates, setDates] = useState<{ checkIn: string; checkOut: string } | null>(null);
-  const [guests, setGuests] = useState<{ adults: number; childrenAges: number[]; rooms: number; pets: boolean } | null>(null);
+  const [guests, setGuests] = useState<{ adults: number; childrenAges: number[]; rooms: number | null; pets: boolean } | null>(null);
   const [priorities, setPriorities] = useState<PriorityKey[]>([]);
   const [open, setOpen] = useState<null | 'where' | 'when' | 'who'>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -70,14 +66,15 @@ export function TripBox({ busy, onSubmit }: Props) {
   const focused = useRef(false);
   const [example, setExample] = useState<Example | null>(null);
   useEffect(() => {
+    // Again on a new language: the server writes the example's words (the response varies on the cookie).
     loadExample().then(setExample).catch(() => setExample(null));
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const t = setInterval(() => !focused.current && setPlaceholder((p) => (p + 1) % PLACEHOLDERS.length), 4000);
-    return () => clearInterval(t);
-  }, []);
+    const timer = setInterval(() => !focused.current && setPlaceholder((p) => (p + 1) % PLACEHOLDERS.length), 4000);
+    return () => clearInterval(timer);
+  }, [PLACEHOLDERS.length]);
 
   // Place suggestions while the box holds only a place, or while the Where pill is open.
   const [whereQuery, setWhereQuery] = useState('');
@@ -99,9 +96,9 @@ export function TripBox({ busy, onSubmit }: Props) {
 
   const shownDates = dates ?? { checkIn: today, checkOut: addDays(today, 1) };
   const nights = Math.round((Date.parse(shownDates.checkOut) - Date.parse(shownDates.checkIn)) / 86_400_000);
-  const whenLabel = dates ? `${dayName(dates.checkIn)} – ${dayName(dates.checkOut)} · ${nights} night${nights === 1 ? '' : 's'}` : 'Tonight · 1 night';
-  const g = guests ?? { adults: 2, childrenAges: [], rooms: 1, pets: false };
-  const whoLabel = `${formatGuests(g.adults, g.childrenAges, g.rooms)}${g.pets ? ' · pet' : ''}`;
+  const whenLabel = dates ? `${dayName(dates.checkIn, locale)} – ${dayName(dates.checkOut, locale)} · ${t.words.nights(nights)}` : t.ui.tonightOneNight;
+  const g = guests ?? { adults: 2, childrenAges: [], rooms: null, pets: false };
+  const whoLabel = `${formatGuests(g.adults, g.childrenAges, g.rooms, locale)}${g.pets ? t.words.pet : ''}`;
 
   const pick = (p: PlaceSuggestion) => {
     setPlace({ placeId: p.placeId, label: p.label });
@@ -120,8 +117,8 @@ export function TripBox({ busy, onSubmit }: Props) {
   return (
     <main className={styles.page}>
       <div className={styles.intro}>
-        <h1>Not 400 hotels. The right one, and why.</h1>
-        <p>Tell us the trip. We check every hotel we can book and show the best few, each with the reason it won.</p>
+        <h1>{t.ui.heroTitle}</h1>
+        <p>{t.ui.heroText}</p>
       </div>
 
       <div className={styles.boxWrap}>
@@ -133,7 +130,7 @@ export function TripBox({ busy, onSubmit }: Props) {
           }}
         >
           <label htmlFor="trip" className={styles.hidden}>
-            Your trip
+            {t.ui.yourTrip}
           </label>
           <textarea
             id="trip"
@@ -141,7 +138,7 @@ export function TripBox({ busy, onSubmit }: Props) {
             value={text}
             maxLength={1000}
             autoFocus
-            placeholder={place ? 'Anything else? e.g. central and well rated' : PLACEHOLDERS[placeholder]}
+            placeholder={place ? t.ui.anythingElse : PLACEHOLDERS[placeholder % PLACEHOLDERS.length]}
             onFocus={() => (focused.current = true)}
             onBlur={() => (focused.current = false)}
             onChange={(e) => setText(e.target.value)}
@@ -154,41 +151,41 @@ export function TripBox({ busy, onSubmit }: Props) {
           />
           <div className={styles.pills}>
             <button type="button" className={styles.pill} data-set={place ? 'true' : undefined} aria-expanded={open === 'where'} onClick={() => setOpen(open === 'where' ? null : 'where')}>
-              {place ? `Where: ${place.label}` : 'Where: Add a place'}
+              {t.ui.where(place ? place.label : null)}
             </button>
             <button type="button" className={styles.pill} data-set={dates ? 'true' : undefined} aria-expanded={open === 'when'} onClick={() => setOpen(open === 'when' ? null : 'when')}>
-              When: {whenLabel}
+              {t.ui.when(whenLabel)}
             </button>
             <button type="button" className={styles.pill} data-set={guests ? 'true' : undefined} aria-expanded={open === 'who'} onClick={() => setOpen(open === 'who' ? null : 'who')}>
-              Who: {whoLabel}
+              {t.ui.who(whoLabel)}
             </button>
             <button type="submit" className={styles.find} disabled={busy}>
               {busy ? (
                 <>
-                  <Spinner size={14} /> Finding…
+                  <Spinner size={14} /> {t.ui.finding}
                 </>
               ) : (
-                'Find my hotel'
+                t.ui.findMyHotel
               )}
             </button>
           </div>
         </form>
 
         {(showFullRow || (query && suggestions.length > 0) || open !== null || lookup === 'failed') && (
-          <div className={styles.pop} role={open === 'when' || open === 'who' ? 'dialog' : 'listbox'} aria-label={open === 'when' ? 'Choose your nights' : open === 'who' ? 'Who is going' : open === 'where' ? 'Choose a place' : 'Suggestions'}>
+          <div className={styles.pop} role={open === 'when' || open === 'who' ? 'dialog' : 'listbox'} aria-label={open === 'when' ? t.ui.chooseNights : open === 'who' ? t.ui.whoIsGoing : open === 'where' ? t.ui.choosePlace : t.ui.suggestions}>
             {open === null && showFullRow && (
               <button type="button" className={styles.fullRow} onClick={submit}>
                 <span>
-                  Search for: <strong>“{text.trim()}”</strong>
+                  {t.ui.searchFor} <strong>“{text.trim()}”</strong>
                 </span>
                 <kbd>Enter</kbd>
               </button>
             )}
             {open === 'where' && (
-              <input className={styles.input} autoFocus aria-label="Place" placeholder="City, neighbourhood, airport…" value={whereQuery} onChange={(e) => setWhereQuery(e.target.value)} />
+              <input className={styles.input} autoFocus aria-label={t.ui.place} placeholder={t.ui.placePlaceholder} value={whereQuery} onChange={(e) => setWhereQuery(e.target.value)} />
             )}
-            {lookup === 'failed' && <p className={styles.muted}>The place search did not answer. Keep typing to try again.</p>}
-            {open === null && showFullRow && suggestions.length > 0 && <span className={styles.groupLabel}>Or just the place</span>}
+            {lookup === 'failed' && <p className={styles.muted}>{t.ui.placeSearchFailed}</p>}
+            {open === null && showFullRow && suggestions.length > 0 && <span className={styles.groupLabel}>{t.ui.orJustThePlace}</span>}
             {(open === 'where' || open === null) &&
               suggestions.map((p) => (
                 <button type="button" key={p.placeId} className={styles.row} onClick={() => pick(p)}>
@@ -203,35 +200,35 @@ export function TripBox({ busy, onSubmit }: Props) {
               <div className={styles.when}>
                 <div className={styles.chips}>
                   <button type="button" className={styles.chip} aria-pressed={!dates} onClick={() => setDates(null)}>
-                    Tonight
+                    {t.ui.tonight}
                   </button>
                   <button type="button" className={styles.chip} aria-pressed={dates?.checkIn === weekend(today, false).checkIn && dates?.checkOut === weekend(today, false).checkOut} onClick={() => setDates(weekend(today, false))}>
-                    This weekend
+                    {t.ui.thisWeekend}
                   </button>
                   <button type="button" className={styles.chip} aria-pressed={dates?.checkIn === weekend(today, true).checkIn && dates?.checkOut === weekend(today, true).checkOut} onClick={() => setDates(weekend(today, true))}>
-                    Next weekend
+                    {t.ui.nextWeekend}
                   </button>
                 </div>
                 <RangeCalendar value={shownDates} min={today} maxNights={30} onChange={setDates} />
                 <div className={styles.whenFoot}>
                   <span className={styles.muted}>
-                    {dayName(shownDates.checkIn)} – {dayName(shownDates.checkOut)} · {nights} night{nights === 1 ? '' : 's'}
+                    {dayName(shownDates.checkIn, locale)} – {dayName(shownDates.checkOut, locale)} · {t.words.nights(nights)}
                   </span>
                 <button type="button" className={styles.done} onClick={() => setOpen(null)}>
-                  Done
+                  {t.ui.done}
                 </button>
                 </div>
               </div>
             )}
             {open === 'who' && (
               <div className={styles.when}>
-                <Stepper label="Adults" value={g.adults} min={1} max={12} onChange={(n) => setGuests({ ...g, adults: n, rooms: Math.min(g.rooms, n) })} />
-                <Stepper label="Children" value={g.childrenAges.length} min={0} max={8} onChange={(n) => setGuests({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) })} />
+                <Stepper label={t.ui.adults} value={g.adults} min={1} max={12} onChange={(n) => setGuests({ ...g, adults: n, rooms: g.rooms === null ? null : Math.min(g.rooms, n) })} />
+                <Stepper label={t.ui.children} value={g.childrenAges.length} min={0} max={8} onChange={(n) => setGuests({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) })} />
                 {g.childrenAges.length > 0 && (
                   <div className={styles.dateRow}>
                     {g.childrenAges.map((age, i) => (
                       <label key={i}>
-                        Age of child {i + 1}
+                        {t.ui.ageOfChild(i + 1)}
                         <select value={age} onChange={(e) => setGuests({ ...g, childrenAges: g.childrenAges.map((a, j) => (j === i ? Number(e.target.value) : a)) })}>
                           {Array.from({ length: 18 }, (_, n) => (
                             <option key={n} value={n}>
@@ -243,13 +240,14 @@ export function TripBox({ busy, onSubmit }: Props) {
                     ))}
                   </div>
                 )}
-                <Stepper label="Rooms" value={g.rooms} min={1} max={Math.min(6, g.adults)} onChange={(n) => setGuests({ ...g, rooms: n })} />
+                {/* 0 is "Best price": we price the sensible splits and show each hotel's cheapest. */}
+                <Stepper label={t.ui.rooms} value={g.rooms ?? 0} shown={roomsShown(g.rooms, locale)} min={0} max={Math.min(6, g.adults)} onChange={(n) => setGuests({ ...g, rooms: n === 0 ? null : n })} />
                 <label className={styles.check}>
                   <input type="checkbox" checked={g.pets} onChange={(e) => setGuests({ ...g, pets: e.target.checked })} />
-                  Bringing a pet
+                  {t.ui.bringingPet}
                 </label>
                 <button type="button" className={styles.done} onClick={() => setOpen(null)}>
-                  Done
+                  {t.ui.done}
                 </button>
               </div>
             )}
@@ -258,24 +256,24 @@ export function TripBox({ busy, onSubmit }: Props) {
       </div>
 
       <div className={styles.matters}>
-        <span className={styles.muted}>What matters? Optional, pick any</span>
-        <div className={styles.chips} role="group" aria-label="What matters">
-          {CHIPS.map(([k, label]) => (
+        <span className={styles.muted}>{t.ui.whatMattersOptional}</span>
+        <div className={styles.chips} role="group" aria-label={t.ui.whatMatters}>
+          {CHIPS.map((k) => (
             <button key={k} type="button" className={styles.chip} aria-pressed={priorities.includes(k)} onClick={() => setPriorities((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]))}>
-              {label}
+              {chipLabel(k)}
             </button>
           ))}
         </div>
-        {showFullRow && priorities.length === 0 && <span className={styles.hint}>Your sentence already says what matters: we read it when you press Enter.</span>}
+        {showFullRow && priorities.length === 0 && <span className={styles.hint}>{t.ui.sentenceSaysWhatMatters}</span>}
       </div>
 
       <p className={styles.trust}>
-        <span>Real prices, taxes in</span>
-        <span>Ranked only by what you asked for</span>
+        <span>{t.ui.realPrices}</span>
+        <span>{t.ui.rankedOnly}</span>
       </p>
 
       {example && (
-        <section aria-label="Example answer" className={styles.example}>
+        <section aria-label={t.ui.exampleAnswer} className={styles.example}>
           <span className={styles.exampleCaption}>{example.caption}</span>
           <article className={styles.exampleCard}>
             {example.photo ? <img src={example.photo} alt="" className={styles.examplePhoto} /> : <div aria-hidden="true" className={styles.examplePhoto} />}
@@ -299,15 +297,16 @@ export function TripBox({ busy, onSubmit }: Props) {
   );
 }
 
-function Stepper({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (n: number) => void }) {
+function Stepper({ label, value, shown = value, min, max, onChange }: { label: string; value: number; shown?: string | number; min: number; max: number; onChange: (n: number) => void }) {
+  const { t } = useLocale();
   return (
     <div className={styles.stepper}>
       <span>{label}</span>
-      <button type="button" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={`Fewer ${label.toLowerCase()}`}>
+      <button type="button" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={t.ui.fewer(label)}>
         −
       </button>
-      <output>{value}</output>
-      <button type="button" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={`More ${label.toLowerCase()}`}>
+      <output>{shown}</output>
+      <button type="button" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={t.ui.more(label)}>
         +
       </button>
     </div>

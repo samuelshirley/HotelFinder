@@ -1,0 +1,10 @@
+{
+  "data": {
+    "bookingId": "hMt2HdnXq",
+    "cancellation_fee": 0,
+    "currency": "EUR",
+    "refund_amount": 363.46,
+    "status": "CANCELLED"
+  },
+  "sandbox": true
+}

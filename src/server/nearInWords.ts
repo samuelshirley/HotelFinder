@@ -3,7 +3,9 @@ import 'server-only';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 import { placeName } from '@/lib/finder/searchPlan';
 import { pickNearPlace } from '@/lib/placePick';
-import { describeChange, FIXED_LINES } from '@/lib/replies';
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
+import { describeChange, fixedLine } from '@/lib/replies';
 import type { Action } from '@/lib/store/actions';
 import { readPriorities, type CallModel } from '@/server/agent';
 import { dispatchActions } from '@/server/dispatch';
@@ -40,10 +42,13 @@ export async function nearInWords(args: {
   model: ModelId;
   now: Date;
   today: string;
+  locale?: Locale;
 }): Promise<NearResult> {
   const { session, stay, supplier } = args;
+  const L = args.locale ?? 'en';
+  const o = copy(L).onboarding;
   const budget = await aiBudget(session.id, args.now);
-  if (!budget.ok) return { kind: 'done', text: FIXED_LINES.ai_budget, meta: { near: 'budget' } };
+  if (!budget.ok) return { kind: 'done', text: fixedLine('ai_budget', L), meta: { near: 'budget' } };
   const read = await readPriorities({ message: args.message, destination: stay.destinationText, callModel: args.callModel, model: args.model });
   const spent = await logModelCalls(session, 'near', [read.reply]);
   const reading = read.reading;
@@ -65,7 +70,7 @@ export async function nearInWords(args: {
       const choices: NearChoice[] = pick.places.map((p) => ({ placeId: p.placeId, label: p.address ? `${p.name} · ${p.address}` : p.name }));
       return {
         kind: 'ask',
-        text: `Which ${reading.nearQuery} did you mean?`,
+        text: o.whichNear(reading.nearQuery),
         // `ui` is kept on the chat message: the choices render as buttons.
         meta: { near: 'ask', ui: { nearChoices: choices, priorities }, ...spent },
       };
@@ -77,7 +82,7 @@ export async function nearInWords(args: {
     const dispatched = await dispatchActions({ session, stay, actions, supplier, now: args.now, today: args.today });
     return {
       kind: 'done',
-      text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+      text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
       meta: {
         near: 'set',
         actions,
@@ -90,10 +95,10 @@ export async function nearInWords(args: {
       },
     };
   }
-  if (lookupFailed) return { kind: 'done', text: 'The place lookup did not answer, so nothing was changed. Send that again.', meta: { near: 'lookup_failed', ...spent } };
+  if (lookupFailed) return { kind: 'done', text: o.nearLookupFailedNothingChanged, meta: { near: 'lookup_failed', ...spent } };
   return {
     kind: 'done',
-    text: `I could not find "${reading.nearQuery}" in ${town}. Try its full name, like a street, a neighbourhood or a landmark.`,
+    text: o.couldNotFindNear(reading.nearQuery, town),
     meta: { near: 'not_found', ...spent },
   };
 }

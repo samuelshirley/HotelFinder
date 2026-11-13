@@ -17,9 +17,16 @@ pick up from the first unfinished step.
 | 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done |
 | 9b | Map over the list (MapLibre + OpenFreeMap), linked to the cards, two gestures, Penny's map tools (`docs/design/map.md`) | built 2026-11-12; verified in a real browser (`e2e/map.spec.ts`) |
+| 9c | Filters: star class, guest rating, kind of place, brand; chips, agent tools, Jev `filter` intent; neighbourhood not built (no field) (`docs/finder.md`, "Filters") | built 2026-11-13; PGlite on recorded fixtures, Jev live 53 of 53, `e2e/filters.spec.ts` against the sandbox; **agent tools not run against the live model** |
+| 9d | "Show all N hotels": every hotel that fits under the top picks, paged, on the map, by chat (`docs/finder.md`) | built 2026-11-13; verified in a real browser (`e2e/full-list.spec.ts`); the pager not exercised in a browser (sandbox: one page) |
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
+| 12b | Checkout extras: pay now / at the hotel by named charge, special request to the hotel (`guests[].remarks`) and on the receipt, hotel-page FAQ from the chat's answer templates. No price timer: the prebook has no expiry (`docs/supplier.md`, "Checkout extras") | built 2026-11-13; verified in a real browser against the sandbox (`e2e/checkout.spec.ts`) |
 | 11 | Cost measurement | not started |
+| 12b | Deal Freeze: book a free-cancellation rate with no payment, confirm or release before 48 h ahead of its deadline (`docs/deal-freeze.md`) | built 2026-11-13, sandbox only; e2e against the live sandbox (`e2e/freeze.spec.ts`); the sweep has no scheduler yet and reminders are display-only without Resend |
+| 13 | Saved hotels (the heart) and the currency picker (`docs/saved.md`) | built 2026-11-13; e2e `saved.spec.ts` in a real browser on the live sandbox; Jev and the agent run live on the save cases |
+| 13b | Room splits ("best price" rooms): each split priced, cheapest combination per hotel, shown on the card, booked exactly (`docs/finder.md` "Room splits", `docs/supplier.md` §8) | built 2026-11-13; recorded fixtures; `e2e/rooms.spec.ts` passed on the live sandbox (signed in; stops at checkout); agent tool change not run live |
+| 13c | A second language: Spanish. Catalogues for UI, fixed lines, answers, reasons and errors; a picker; Spanish slot extraction; the supplier asked in Spanish (`docs/i18n.md`) | built 2026-11-13; `e2e/spanish.spec.ts` passes against the sandbox. **Not done:** HotelDetail, Checkout. **Never run:** Jev and the agent on Spanish (live cases added) |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.
@@ -48,6 +55,13 @@ the search → new search. `e2e/search.spec.ts`.
 - The detail slide-out still opens over the map.
 
 ## Not verified
+
+- **Per-PR preview environments** (2026-11-13, `docs/deploy.md`): Neon
+  branch per PR, migrated then emptied, Vercel preview pointed at it, sticky
+  comment, teardown on close; Git-integration deploys limited to `main`.
+  Never run in GitHub Actions: needs Sam's four repo secrets and the Preview
+  `DATABASE_URL` removed in Vercel first. The wipe ran against a local
+  Postgres; the sweep against a stubbed API.
 
 - **Jev's settle rate on real traffic.** `scripts/jev-live.sh` was run on
   2026-11-12 from Sam's Mac: 46 of 46 cases, median 151 ms, about 2,290 input

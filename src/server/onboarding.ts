@@ -7,7 +7,9 @@ import { placeName } from '@/lib/finder/searchPlan';
 import { inferNationality } from '@/lib/nationality';
 import type { PriorityReading } from '@/lib/priorityReading';
 import { reduce } from '@/lib/store/reduce';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, nearLabel, nearMissLine, outcomeLine, prioritiesLabel, prioritiesLine } from '@/lib/replies';
+import { copy } from '@/lib/i18n';
+import { INTL, type Locale } from '@/lib/i18n/locale';
+import { formatDates, formatGuests, formatMoney, mustHaveLabel, nearLabel, nearMissLine, outcomeLine, prioritiesLabel, prioritiesLine } from '@/lib/replies';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import { MAX_NIGHTS } from '@/lib/store/reduce';
 import { dispatchActions, resolveDestination, toSearchState } from '@/server/dispatch';
@@ -48,7 +50,8 @@ export const formAnswerSchema = z.discriminatedUnion('field', [
       field: z.literal('guests'),
       adults: z.number().int().min(1).max(12),
       childrenAges: z.array(z.number().int().min(0).max(17)).max(8),
-      rooms: z.number().int().min(1).max(6),
+      /** null = not said: the finder prices the cheapest split of the party. */
+      rooms: z.number().int().min(1).max(6).nullable(),
       /** Travelling with a pet: only hotels that take them are shown. */
       pets: z.boolean(),
     })
@@ -66,12 +69,6 @@ export const formAnswerSchema = z.discriminatedUnion('field', [
 ]);
 export type FormAnswer = z.infer<typeof formAnswerSchema>;
 
-const QUESTION: Record<Field, string> = {
-  destination: 'Where are you going?',
-  dates: 'Which nights?',
-  guests: 'Who is travelling?',
-  priorities: 'What matters most? Pick any, or say it in your own words.',
-};
 
 /** The first thing still unknown, or null when the search can run. */
 export function nextField(session: SearchSession, stay: Stay | null, guestsAnswered: boolean): Field | null {
@@ -82,12 +79,12 @@ export function nextField(session: SearchSession, stay: Stay | null, guestsAnswe
   return null;
 }
 
-export async function askQuestion(sessionId: string, field: Field, extra: Record<string, unknown> = {}) {
+export async function askQuestion(sessionId: string, field: Field, extra: Record<string, unknown> = {}, locale: Locale = 'en') {
   return appendMessage({
     sessionId,
     role: 'assistant',
     kind: 'form_question',
-    content: QUESTION[field],
+    content: copy(locale).onboarding.question[field],
     meta: { field, ...extra },
   });
 }
@@ -107,38 +104,39 @@ function scannedStayFields(scanned: ScannedTrip) {
 }
 
 /** "3 nights in March", "2 nights", "some nights in March": what the words said about when, short of two dates. */
-export function hintText(hint: { nights?: number; month?: string }): string {
-  const month = hint.month ? new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(`${hint.month}-01T00:00:00Z`)) : null;
-  const what = hint.nights ? `${hint.nights} night${hint.nights === 1 ? '' : 's'}` : 'nights';
-  return `${what}${month ? ` in ${month}` : ''}`;
+export function hintText(hint: { nights?: number; month?: string }, locale: Locale = 'en'): string {
+  const month = hint.month ? new Intl.DateTimeFormat(INTL[locale].date, { month: 'long', timeZone: 'UTC' }).format(new Date(`${hint.month}-01T00:00:00Z`)) : null;
+  return copy(locale).onboarding.hint(hint.nights, month);
 }
 
 /** What was taken from the first message, so the user can see it and correct it. Only what will not be asked again. */
-function understoodLine(scanned: ScannedTrip, datesTaken: boolean, currency: string): string {
+function understoodLine(scanned: ScannedTrip, datesTaken: boolean, currency: string, locale: Locale): string {
+  const c = copy(locale);
   const parts: string[] = [];
-  if (datesTaken && scanned.checkIn && scanned.checkOut) parts.push(formatDates(scanned.checkIn, scanned.checkOut));
-  else if (scanned.datesHint) parts.push(hintText(scanned.datesHint));
-  if (scanned.guests) parts.push(formatGuests(scanned.guests.adults, scanned.guests.childrenAges, scanned.guests.rooms));
-  if (scanned.priceCapMinor) parts.push(`up to ${formatMoney(scanned.priceCapMinor, currency)} a night`);
-  for (const m of scanned.mustHaves ?? []) parts.push(MUST_HAVE_LABEL[m]);
-  if (scanned.priorities?.length) parts.push(prioritiesLabel(scanned.priorities, 'the centre').toLowerCase());
-  return parts.length ? `From your message: ${parts.join(' · ')}.` : '';
+  if (datesTaken && scanned.checkIn && scanned.checkOut) parts.push(formatDates(scanned.checkIn, scanned.checkOut, locale));
+  else if (scanned.datesHint) parts.push(hintText(scanned.datesHint, locale));
+  if (scanned.guests) parts.push(formatGuests(scanned.guests.adults, scanned.guests.childrenAges, scanned.guests.rooms, locale));
+  if (scanned.priceCapMinor) parts.push(c.onboarding.upToANight(formatMoney(scanned.priceCapMinor, currency, locale)));
+  for (const m of scanned.mustHaves ?? []) parts.push(mustHaveLabel(m, locale));
+  if (scanned.priorities?.length) parts.push(prioritiesLabel(scanned.priorities, c.words.theCentre, locale).toLowerCase());
+  return parts.length ? c.onboarding.fromYourMessage(parts.join(' · ')) : '';
 }
 
 export type FormError = 'wrong_step' | 'dates_in_past' | 'checkout_not_after_checkin' | 'stay_too_long' | 'more_rooms_than_adults' | 'not_onboarding';
 
 export type FormResult = { ok: true; done: boolean } | { ok: false; error: FormError; expected?: Field | null };
 
-function answerText(answer: FormAnswer): string {
+function answerText(answer: FormAnswer, locale: Locale): string {
+  const c = copy(locale);
   switch (answer.field) {
     case 'destination':
       return answer.label;
     case 'dates':
-      return formatDates(answer.checkIn, answer.checkOut);
+      return formatDates(answer.checkIn, answer.checkOut, locale);
     case 'guests':
-      return `${formatGuests(answer.adults, answer.childrenAges, answer.rooms)}${answer.pets ? ', with a pet' : ''}`;
+      return `${formatGuests(answer.adults, answer.childrenAges, answer.rooms, locale)}${answer.pets ? c.words.withPet : ''}`;
     case 'priorities':
-      return answer.priorities.length === 0 ? 'No preference' : prioritiesLabel(answer.priorities, 'the centre');
+      return answer.priorities.length === 0 ? c.onboarding.noPreference : prioritiesLabel(answer.priorities, c.words.theCentre, locale);
   }
 }
 
@@ -164,8 +162,11 @@ export async function answerForm(args: {
    * already shows: no echo, and no "From your message" line for it.
    */
   quiet?: boolean;
+  /** The language of every line this writes. English when absent. */
+  locale?: Locale;
 }): Promise<FormResult> {
   const { sessionId, answer, supplier, now, today } = args;
+  const L = args.locale ?? 'en';
   const session = await getSession(sessionId);
   if (!session || session.status !== 'onboarding') return { ok: false, error: 'not_onboarding' };
   let stay: Stay | null = (await listStays(sessionId))[0] ?? null;
@@ -196,7 +197,7 @@ export async function answerForm(args: {
       if (scanned.checkIn && scanned.checkOut && scanned.checkIn >= today) {
         stay = await addStay(sessionId, { destinationText: answer.label, placeId: answer.placeId, ...destFields(current), checkIn: scanned.checkIn, checkOut: scanned.checkOut, ...scannedStayFields(scanned) });
       }
-      understood = understoodLine(scanned, stay !== null, session.currency);
+      understood = understoodLine(scanned, stay !== null, session.currency, L);
       break;
     }
     case 'dates': {
@@ -216,7 +217,7 @@ export async function answerForm(args: {
       break;
     }
     case 'guests':
-      if (answer.rooms > answer.adults) return { ok: false, error: 'more_rooms_than_adults' };
+      if (answer.rooms !== null && answer.rooms > answer.adults) return { ok: false, error: 'more_rooms_than_adults' };
       stay = await updateStay(stay!.id, sessionId, {
         adults: answer.adults,
         childrenAges: answer.childrenAges,
@@ -232,19 +233,19 @@ export async function answerForm(args: {
 
   if (args.quiet) understood = '';
   else if (args.readBack) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: args.readBack, meta: { field: answer.field, readBack: true } });
-  else await appendMessage({ sessionId, role: 'user', kind: 'form_answer', content: answerText(answer), meta: { field: answer.field } });
+  else await appendMessage({ sessionId, role: 'user', kind: 'form_answer', content: answerText(answer, L), meta: { field: answer.field } });
   if (understood) await appendMessage({ sessionId, role: 'assistant', kind: 'line', content: understood, meta: { scanned: true } });
 
   const next = nextField(current, stay, guestsAnswered);
   if (next) {
-    await askQuestion(sessionId, next, questionExtra(next, stay, current));
+    await askQuestion(sessionId, next, questionExtra(next, stay, current, L), L);
     return { ok: true, done: false };
   }
 
   // Everything is known: the first search. Its real outcome is what gets said.
   current = (await updateSession(sessionId, { status: 'active' }))!;
   const dispatched = await dispatchActions({ session: current, stay: stay!, actions: [], supplier, now, today, alwaysRun: true });
-  const line = firstSearchLine(dispatched.finder);
+  const line = firstSearchLine(dispatched.finder, L);
   await appendMessage({
     sessionId,
     role: 'assistant',
@@ -252,21 +253,21 @@ export async function answerForm(args: {
     content: line,
     meta: { finder: dispatched.finder?.kind ?? null },
   });
-  await sayPennysPick(current, stay!, dispatched.finder);
+  await sayPennysPick(current, stay!, dispatched.finder, L);
   return { ok: true, done: true };
 }
 
 /** What a question's control needs to say: the priorities card names where "close" means. */
-export function questionExtra(field: Field, stay: Stay | null, session?: SearchSession): Record<string, unknown> {
+export function questionExtra(field: Field, stay: Stay | null, session?: SearchSession, locale: Locale = 'en'): Record<string, unknown> {
   if (field === 'dates') {
     // The words said "3 nights in March": open the card there, with that length.
     const hint = session?.draft.scanned?.datesHint;
     if (!hint) return {};
     // With a length one tap sets the stay; without one the card takes two taps.
-    return { ...hint, prompt: `Which ${hintText(hint)}? ${hint.nights ? 'Tap the first night.' : 'Tap the first night, then the last.'}` };
+    return { ...hint, prompt: copy(locale).onboarding.whichHint(hintText(hint, locale), Boolean(hint.nights)) };
   }
   if (field !== 'priorities' || !stay) return {};
-  return { near: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) };
+  return { near: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }, locale) };
 }
 
 /** The stay's destination columns, from the point looked up when the destination was answered. */
@@ -283,7 +284,7 @@ const kmOf = (reason: unknown): number | null => {
 };
 
 /** After a first search that found a lot: Penny names one and asks which appeals (lib/pennyPick.ts). */
-async function sayPennysPick(session: SearchSession, stay: Stay, outcome: FinderOutcome | null) {
+async function sayPennysPick(session: SearchSession, stay: Stay, outcome: FinderOutcome | null, locale: Locale) {
   if (outcome?.kind !== 'ok') return;
   const rows = (await listShortlist(session.id, stay.id, audienceFor(session)))
     // Penny names a hotel that fits, never one shown only to fill the list.
@@ -299,25 +300,26 @@ async function sayPennysPick(session: SearchSession, stay: Stay, outcome: Finder
       rating: r.property.rating,
       km: kmOf(r.entry.reason),
     }));
-  const pick = pennyPick(rows, outcome.eligible, SPONSORED_HOTELS);
+  const pick = pennyPick(rows, outcome.eligible, SPONSORED_HOTELS, locale);
   if (!pick) return;
   await appendMessage({
     sessionId: session.id,
     role: 'assistant',
     kind: 'line',
-    content: pennyLine(outcome.eligible, pick),
+    content: pennyLine(outcome.eligible, pick, locale),
     meta: { pennyPick: { propertyId: pick.propertyId, sponsored: pick.sponsored } },
   });
 }
 
 /** What the first search found, in one line. */
-export function firstSearchLine(outcome: FinderOutcome | null): string {
+export function firstSearchLine(outcome: FinderOutcome | null, locale: Locale = 'en'): string {
+  const c = copy(locale);
   if (outcome?.kind === 'ok' && outcome.eligible > 0) {
     const considered = outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0);
-    const best = outcome.shortlisted === 1 ? 'It is listed first with the reason it fits.' : `The best ${outcome.shortlisted} are listed, each with the reason it is there.`;
-    return `${outcome.eligible} of ${considered} hotels fit. ${best}${nearMissLine(outcome.nearMisses, outcome.eligible)}`;
+    const best = outcome.shortlisted === 1 ? c.onboarding.listedFirst : c.onboarding.bestListed(outcome.shortlisted);
+    return `${c.replies.fit(outcome.eligible, considered)} ${best}${nearMissLine(outcome.nearMisses, outcome.eligible, locale)}`;
   }
-  return outcomeLine(outcome);
+  return outcomeLine(outcome, locale);
 }
 
 /**
@@ -335,8 +337,10 @@ export async function answerPrioritiesInWords(args: {
   supplier: SupplierAdapter;
   now: Date;
   today: string;
+  locale?: Locale;
 }): Promise<FormResult & { near: 'set' | 'not_found' | 'too_far' | 'lookup_failed' | null }> {
   const { sessionId, reading, supplier } = args;
+  const L = args.locale ?? 'en';
   const session = await getSession(sessionId);
   const stay = session ? ((await listStays(sessionId))[0] ?? null) : null;
   if (!session || session.status !== 'onboarding' || !stay) return { ok: false, error: 'not_onboarding', near: null };
@@ -376,12 +380,13 @@ export async function answerPrioritiesInWords(args: {
     }
   }
 
-  const label = nearName ?? nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null });
-  const words = reading.priorities.length === 0 ? 'No preference: a balanced search.' : prioritiesLine(reading.priorities, label);
+  const o = copy(L).onboarding;
+  const label = nearName ?? nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }, L);
+  const words = reading.priorities.length === 0 ? o.noPreferenceLine : prioritiesLine(reading.priorities, label, L);
   const missed =
-    near === 'not_found' ? ` "${reading.nearQuery}" was not found in ${placeName(stay.destinationText)}, so close means ${label}.`
-    : near === 'too_far' ? ` "${reading.nearQuery}" is too far from ${placeName(stay.destinationText)}, so close means ${label}.`
-    : near === 'lookup_failed' ? ` The place lookup did not answer, so close means ${label} for now.`
+    near === 'not_found' ? o.nearNotFound(reading.nearQuery ?? '', placeName(stay.destinationText), label)
+    : near === 'too_far' ? o.nearTooFar(reading.nearQuery ?? '', placeName(stay.destinationText), label)
+    : near === 'lookup_failed' ? o.nearLookupFailed(label)
     : '';
   const result = await answerForm({
     sessionId,
@@ -391,6 +396,7 @@ export async function answerPrioritiesInWords(args: {
     now: args.now,
     today: args.today,
     readBack: `${words}${missed}`,
+    locale: L,
   });
   return { ...result, near };
 }

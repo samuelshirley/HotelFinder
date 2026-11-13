@@ -1,4 +1,4 @@
-import { fixture, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
+import { fixture, manifest, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
 import { normalizeDetails, normalizePlaceDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
 import { hotelDetailsResponse, hotelListResponse, placeDetailsResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { SearchRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
@@ -16,6 +16,22 @@ export const PLACE_IDS = {
   opo: 'ChIJrStKYWRvJA0R0TlgbYpXGhU',
   bcn: 'ChIJpY58hGSepBIR15tv-0LpK_M',
 } as const;
+
+/**
+ * Rate searches recorded for a party other than two adults in one room, by the
+ * occupancies they were recorded with (read from the manifest, so a fixture
+ * answers only the request it really was): the room-split recordings.
+ */
+const key = (occupancies: Array<{ adults: number; childrenAges?: number[]; children?: number[] }>) =>
+  JSON.stringify(occupancies.map((o) => [o.adults, o.childrenAges ?? o.children ?? []]));
+const COUPLE = key([{ adults: 2 }]);
+export const RECORDED_PARTIES = new Map<string, string>();
+for (const [file, entry] of Object.entries(manifest.files)) {
+  const request = entry.request as { occupancies?: Array<{ adults: number; children?: number[] }>; includeHotelData?: boolean; radius?: number } | null;
+  if (!entry.url.endsWith('/hotels/rates') || !request?.occupancies || !request.includeHotelData || request.radius) continue;
+  const k = key(request.occupancies);
+  if (k !== COUPLE && !RECORDED_PARTIES.has(k)) RECORDED_PARTIES.set(k, file.replace(/\.json$/, ''));
+}
 
 export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place', 'fail' | 'empty'>> = {}, placesFor: (query: string) => string = () => 'places-porto-ribeira') {
   const searches: SearchRequest[] = [];
@@ -51,9 +67,18 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       searches.push(request);
       if (over.search === 'fail') return { ok: false, error: DOWN };
       if (over.search === 'empty') return { ok: true, value: { properties: [], offers: [] } };
-      // The recording that matches the margin asked for: net for members, +15% for the public.
+      // The recording that matches the currency and margin asked for: net for members, +15% for the public.
+      // A party with its own recording is answered with it (recorded in EUR at the public 15% margin).
+      // Only EUR and member-margin USD are recorded; anything else is a test asking for a payload nobody captured.
+      const party = 'radiusM' in request.where ? undefined : RECORDED_PARTIES.get(key(request.occupancies));
+      if (party ? request.currency !== 'EUR' : request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct < 15 && !('radiusM' in request.where))) {
+        throw new Error(`no recording for ${request.currency} at a ${request.marginPct}% margin`);
+      }
       const name =
-        'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto';
+        party ??
+        (request.currency === 'USD'
+          ? 'rates-city-porto-usd'
+          : 'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto');
       return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(name)), request.marginPct, RECORDED_AT) };
     },
     async getStaticFacts() {

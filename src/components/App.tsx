@@ -6,16 +6,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorCopy, withRef } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
-import { formatDates, formatGuests } from '@/lib/replies';
-import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, logEvent, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
+import { formatDates, formatGuests, formatMoney } from '@/lib/replies';
+import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSaved, loadSession, loadTrips, logEvent, sendTurn, setSaved, signOut, startBrief, startCheckout, type BookingSummary, type Me, type SavedHotel, type Trip } from './api';
+import { Heart, type SaveLink } from './Heart';
 import styles from './App.module.css';
-import { ChatPanel, Penny, PENNY_HELLO } from './ChatPanel';
+import { ChatPanel, Penny } from './ChatPanel';
+import { LanguagePicker, useLocale } from './i18n';
+import { copy } from '@/lib/i18n';
+import { INTL, type Locale } from '@/lib/i18n/locale';
 import { HotelDetail } from './HotelDetail';
 import { detailVariant, type DetailVariant } from './flags';
 import { SlideOut } from './SlideOut';
 import { ResultsPanel } from './ResultsPanel';
 import { CardSkeleton, Spinner } from './Spinner';
 import { TripBox } from './TripBox';
+import { useFullList } from './useFullList';
 import type { Brief } from '@/server/brief';
 
 const STORAGE_KEY = 'hf_session';
@@ -56,6 +61,7 @@ type PendingBrief = { bubble: string; place: string | null };
 
 /** The whole app: your trips on the left, the conversation in the middle, the shortlist on the right. */
 export function App() {
+  const { locale, t } = useLocale();
   const [view, setView] = useState<SessionView | null>(null);
   const [busy, setBusy] = useState<null | 'form' | 'edit' | 'turn' | 'boot'>('boot');
   /** Set from the first press until the session exists: the chat-and-hotels layout shows at once, not 4 s later. */
@@ -70,6 +76,9 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  /** The heart: this visitor's saved hotels, and the one being saved or removed. */
+  const [saved, setSavedList] = useState<SavedHotel[]>([]);
+  const [savePending, setSavePending] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState(true);
   /** On a narrow window the sidebar is a drawer, closed until asked for. */
   const [drawer, setDrawer] = useState(false);
@@ -83,6 +92,8 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(null);
   /** Bumped to bring a hotel's pin into view. */
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  /** "Show all N hotels": open or not, and the page of it on screen. */
+  const full = useFullList(view);
   const booted = useRef(false);
   const resultsRef = useRef<HTMLElement>(null);
   const viewRef = useRef<SessionView | null>(null);
@@ -116,6 +127,17 @@ export function App() {
       // The list is a convenience; the search itself reports its own errors.
     }
   }, []);
+
+  const refreshSaved = useCallback(async () => {
+    try {
+      setSavedList((await loadSaved()).saved);
+    } catch {
+      // The list is a convenience; a heart pressed later answers with the whole list.
+    }
+  }, []);
+  useEffect(() => {
+    void refreshSaved();
+  }, [refreshSaved]);
 
   const clampPanel = useCallback(
     (w: number) => {
@@ -181,7 +203,33 @@ export function App() {
 
   const fail = (err: unknown) => {
     if (!(err instanceof ApiError)) console.error('[app] unexpected', err);
-    setError(withRef(errorCopy(err instanceof ApiError ? err.code : 'server_error'), err instanceof ApiError ? err.ref : null));
+    setError(withRef(errorCopy(err instanceof ApiError ? err.code : 'server_error', locale), err instanceof ApiError ? err.ref : null));
+  };
+
+  const onSave = async (propertyId: string, on: boolean) => {
+    if (savePending) return;
+    const sessionId = viewRef.current?.session.id;
+    if (on && !sessionId) return;
+    setSavePending(propertyId);
+    setError(null);
+    try {
+      setSavedList((await setSaved(on ? { saved: true, propertyId, sessionId: sessionId! } : { saved: false, propertyId })).saved);
+    } catch (err) {
+      fail(err);
+    } finally {
+      setSavePending(null);
+    }
+  };
+  const savedIds = new Set(saved.map((h) => h.propertyId));
+  const saveLink: SaveLink = { saved: savedIds, pending: savePending, onSave: (id, on) => void onSave(id, on) };
+  /** "show my saved hotels": the list beside the trips comes into view. */
+  const showSaved = () => {
+    if (window.matchMedia('(max-width: 900px)').matches) setDrawer(true);
+    else {
+      setSidebar(true);
+      store(SIDEBAR_KEY, 'open');
+    }
+    requestAnimationFrame(() => document.getElementById('saved-hotels')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   };
 
   const start = useCallback(async (fresh: boolean) => {
@@ -216,6 +264,16 @@ export function App() {
     void start(false);
   }, [start]);
 
+  // A new language: the search's own words (where "close" means) come back in it. Lines already said stay as they were.
+  const shownLocale = useRef(locale);
+  useEffect(() => {
+    if (shownLocale.current === locale) return;
+    shownLocale.current = locale;
+    const id = viewRef.current?.session.id;
+    if (id) loadSession(id).then(setView, fail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
+
   const openTrip = async (id: string) => {
     if (busy !== null || id === view?.session.id) return setDrawer(false);
     setBusy('boot');
@@ -232,6 +290,12 @@ export function App() {
       setBusy(null);
     }
   };
+
+  // A new set of prices on screen may be a saved hotel's newest price found: the saved list is read again.
+  const pricesKey = view?.shortlist.map((r) => r.offer?.id ?? '').join('|') ?? '';
+  useEffect(() => {
+    if (pricesKey) void refreshSaved();
+  }, [pricesKey, refreshSaved]);
 
   // The list changes when a search gets its place or dates, or when another one is opened.
   const tripKey = view ? `${view.session.id}|${view.stay?.destination ?? ''}|${view.stay?.checkIn ?? ''}|${view.stay?.checkOut ?? ''}` : '';
@@ -278,7 +342,7 @@ export function App() {
   const onBrief = async (brief: Brief) => {
     setBusy('form');
     setError(null);
-    const party = brief.guests ? formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms) : '2 adults';
+    const party = brief.guests ? formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms, locale) : t.ui.defaultParty;
     setPendingBrief({ bubble: brief.text || [brief.place?.label, party].filter(Boolean).join(' · '), place: brief.place?.label ?? null });
     try {
       const { sessionId } = await startBrief(brief);
@@ -331,7 +395,7 @@ export function App() {
     const key = crypto.randomUUID();
     setBusy('turn');
     setError(null);
-    setProgress('Reading');
+    setProgress(t.ui.reading);
     // Show the message at once; the server's copy replaces it on refresh.
     setView({
       ...view,
@@ -339,8 +403,8 @@ export function App() {
     });
     try {
       await sendTurn(id, message, key, (type) => {
-        if (type === 'working') setProgress('Working');
-        if (type === 'queued') setProgress('Queued behind your last message');
+        if (type === 'working') setProgress(t.ui.working);
+        if (type === 'queued') setProgress(t.ui.queued);
       });
     } catch (err) {
       fail(err);
@@ -351,8 +415,17 @@ export function App() {
       const next = await loadSession(id);
       setView(next);
       const last = [...next.messages].reverse().find((m) => m.role === 'assistant');
-      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide' } }).ui;
+      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide'; all?: 'show'; saved?: 'show' } }).ui;
+      // Penny saved a hotel or was asked for the saved ones: the list is read again and shown.
+      void refreshSaved();
+      if (ui?.saved === 'show') showSaved();
       if (ui?.open?.propertyId) openHotel(ui.open.propertyId);
+      // "Show me all of them": the full list opens under the top picks and comes into view.
+      if (ui?.all === 'show' && next.fullList.more > 0) {
+        full.show();
+        setTab('hotels');
+        requestAnimationFrame(() => document.getElementById('full-list')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      }
       // Penny can fold the map away, bring it back, or point at one hotel on it.
       if (ui?.map) showMap(ui.map === 'show');
       if (ui?.focus?.propertyId) {
@@ -374,10 +447,10 @@ export function App() {
    * skeleton holds the place), not when its results land.
    */
   viewRef.current = view;
-  const openRow = openProperty ? view?.shortlist.find((r) => r.property.id === openProperty) ?? null : null;
+  const openRow = openProperty ? (view?.shortlist.find((r) => r.property.id === openProperty) ?? full.rows.find((r) => r.property.id === openProperty) ?? null) : null;
   const hasPanel =
     Boolean(view?.stay && view.session.status !== 'onboarding') || Boolean(pendingBrief?.place) || (busy === 'form' && searching);
-  const working = pendingBrief ? 'Finding hotels…' : busy === 'form' && searching ? 'Finding hotels…' : busy === 'edit' ? 'Updating the shortlist…' : null;
+  const working = pendingBrief ? t.ui.findingHotels : busy === 'form' && searching ? t.ui.findingHotels : busy === 'edit' ? t.ui.updatingShortlist : null;
   const count = view?.shortlist.length ?? 0;
   return (
     <div
@@ -389,37 +462,69 @@ export function App() {
       data-tab={tab}
       style={{ '--panel-w': `${panelWidth}px` } as React.CSSProperties}
     >
-      <nav className={styles.sidebar} aria-label="Your trips">
-        <div className={styles.brand}>Hotel finder</div>
+      <nav className={styles.sidebar} aria-label={t.ui.yourTrips}>
+        <div className={styles.brand}>{t.ui.brand}</div>
+        <LanguagePicker className={styles.language} />
         <button className={styles.newTrip} onClick={() => { setDrawer(false); void start(true); }} disabled={busy !== null}>
-          New search
+          {t.ui.newSearch}
         </button>
-        <h2 className={styles.sideHeading}>Your trips</h2>
+        <h2 className={styles.sideHeading}>{t.ui.yourTrips}</h2>
         {trips.length === 0 ? (
-          <p className={styles.sideEmpty}>A search appears here once it has a place and dates.</p>
+          <p className={styles.sideEmpty}>{t.ui.tripsEmpty}</p>
         ) : (
           <ul className={styles.trips}>
-            {trips.map((t) => (
-              <li key={t.id}>
-                <button className={styles.trip} aria-current={t.id === view?.session.id ? 'true' : undefined} onClick={() => void openTrip(t.id)}>
-                  <span className={styles.tripName}>{t.destination}</span>
-                  <span className={styles.tripDates}>{formatDates(t.checkIn, t.checkOut)}</span>
+            {trips.map((trip) => (
+              <li key={trip.id}>
+                <button className={styles.trip} aria-current={trip.id === view?.session.id ? 'true' : undefined} onClick={() => void openTrip(trip.id)}>
+                  <span className={styles.tripName}>{trip.destination}</span>
+                  <span className={styles.tripDates}>{formatDates(trip.checkIn, trip.checkOut, locale)}</span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h2 className={styles.sideHeading} id="saved-hotels">
+          {t.ui.savedHotels}
+        </h2>
+        {saved.length === 0 ? (
+          <p className={styles.sideEmpty}>{t.ui.savedEmpty}</p>
+        ) : (
+          <ul className={styles.trips} aria-label={t.ui.savedHotels}>
+            {saved.map((h) => (
+              <li key={h.propertyId} className={styles.savedItem}>
+                <button
+                  className={styles.trip}
+                  disabled={!h.sessionId}
+                  title={h.sessionId ? t.ui.openSavedFrom : t.ui.savedFromGone}
+                  onClick={() => h.sessionId && void openTrip(h.sessionId)}
+                >
+                  <span className={styles.tripName}>{h.name}</span>
+                  <span className={styles.savedPrice}>{lastFoundLine(h.lastFound, locale)}</span>
+                </button>
+                <Heart propertyId={h.propertyId} name={h.name} link={saveLink} />
               </li>
             ))}
           </ul>
         )}
         {bookings.length > 0 && (
           <>
-            <h2 className={styles.sideHeading}>Your bookings</h2>
+            <h2 className={styles.sideHeading}>{t.ui.yourBookings}</h2>
             <ul className={styles.trips}>
               {bookings.map((b) => (
                 <li key={b.id}>
                   <a className={styles.bookingLink} href={withBase(`/book/${b.id}`)}>
                     <span className={styles.tripName}>{b.hotelName}</span>
                     <span className={styles.tripDates}>
-                      {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut) : ''}
-                      {b.status === 'cancelled' ? ' · cancelled' : b.status === 'booking' ? ' · waiting for the hotel' : ''}
+                      {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut, locale) : ''}
+                      {b.status === 'cancelled'
+                        ? t.ui.bookingCancelled
+                        : b.status === 'frozen' || b.status === 'keeping'
+                          ? t.ui.bookingFrozen
+                          : b.status === 'releasing'
+                            ? t.ui.bookingReleasing
+                            : b.status === 'booking' || b.status === 'freezing'
+                              ? t.ui.bookingWaiting
+                              : ''}
                     </span>
                   </a>
                 </li>
@@ -429,7 +534,7 @@ export function App() {
         )}
         {me?.user && (
           <div className={styles.account}>
-            <span>Signed in as {me.user.email}</span>
+            <span>{t.ui.signedInAs(me.user.email)}</span>
             <button
               onClick={() =>
                 void signOut().then(() => {
@@ -439,29 +544,29 @@ export function App() {
                 })
               }
             >
-              Sign out
+              {t.ui.signOut}
             </button>
           </div>
         )}
       </nav>
-      {drawer && <button className={styles.scrim} aria-label="Close the trips list" onClick={() => setDrawer(false)} />}
+      {drawer && <button className={styles.scrim} aria-label={t.ui.closeTripsList} onClick={() => setDrawer(false)} />}
 
-      <section className={styles.chat} aria-label="Conversation">
+      <section className={styles.chat} aria-label={t.ui.conversation}>
         <header className={styles.header}>
-          <button className={styles.icon} onClick={toggleSidebar} aria-label="Trips list" aria-expanded={sidebar}>
+          <button className={styles.icon} onClick={toggleSidebar} aria-label={t.ui.tripsList} aria-expanded={sidebar}>
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
               <rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
               <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
             </svg>
           </button>
-          <h1>{view?.stay?.destination ?? 'New search'}</h1>
+          <h1>{view?.stay?.destination ?? t.ui.newSearch}</h1>
           {hasPanel && (
-            <div className={styles.tabs} role="tablist" aria-label="View">
+            <div className={styles.tabs} role="tablist" aria-label={t.ui.view}>
               <button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>
-                Chat
+                {t.ui.chat}
               </button>
               <button role="tab" aria-selected={tab === 'hotels'} onClick={() => setTab('hotels')}>
-                Hotels{count > 0 ? ` (${count})` : ''}
+                {t.ui.hotelsTab(count)}
               </button>
             </div>
           )}
@@ -477,7 +582,7 @@ export function App() {
           <PendingChat bubble={pendingBrief.bubble} reading={pendingBrief.place === null} />
         ) : busy === 'boot' ? (
           <p className={styles.starting}>
-            <Spinner label="Starting…" />
+            <Spinner label={t.ui.starting} />
           </p>
         ) : (
           <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
@@ -490,7 +595,7 @@ export function App() {
             className={styles.resizer}
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize the chat"
+            aria-label={t.ui.resizeChat}
             aria-valuemin={PANEL_MIN}
             aria-valuenow={panelWidth}
             tabIndex={0}
@@ -498,7 +603,7 @@ export function App() {
             onKeyDown={nudgePanel}
             onDoubleClick={() => { const w = clampPanel(halfWindow()); setPanelWidth(w); store(PANEL_KEY, String(w)); }}
           />
-          <section ref={resultsRef} className={styles.results} data-layout={view?.stay ? 'map' : undefined} aria-label="Hotels">
+          <section ref={resultsRef} className={styles.results} data-layout={view?.stay ? 'map' : undefined} aria-label={t.ui.hotels}>
             {view ? (
               <ResultsPanel
                 view={view}
@@ -510,6 +615,7 @@ export function App() {
                 booking={booking}
                 onEdit={onEdit}
                 busy={busy !== null}
+                save={saveLink}
                 map={{
                   open: mapOpen,
                   onToggle: () => showMap(!mapOpen),
@@ -523,6 +629,7 @@ export function App() {
                   },
                   onSelect: markHotel,
                 }}
+                full={full}
               />
             ) : (
               <FirstSearch place={pendingBrief?.place ?? null} />
@@ -532,11 +639,23 @@ export function App() {
       )}
       {view && openRow && variant === 'slideout' && (
         <SlideOut title={openRow.property.name} onClose={closeHotel}>
-          <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} />
+          <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} save={saveLink} />
         </SlideOut>
       )}
     </div>
   );
+}
+
+/**
+ * A saved hotel's last price found, said as exactly that: what one of the
+ * visitor's searches was quoted, for which nights, on which day. Never a
+ * current price; the hotel is priced again when its search is opened.
+ */
+export function lastFoundLine(found: SavedHotel['lastFound'], locale: Locale = 'en'): string {
+  const t = copy(locale).ui;
+  if (!found) return t.noPriceYet;
+  const day = new Intl.DateTimeFormat(INTL[locale].date, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(found.fetchedAt));
+  return t.lastPriceFound(formatMoney(found.totalMinor, found.currency, locale), formatDates(found.checkIn, found.checkOut, locale), day);
 }
 
 /**
@@ -555,16 +674,17 @@ function answerRunsSearch(view: SessionView, field: FormAnswer['field']): boolea
 
 /** The chat during the first press: the user's words, and that they are being read. */
 function PendingChat({ bubble, reading }: { bubble: string; reading: boolean }) {
+  const { t } = useLocale();
   return (
     <div className={styles.messages}>
       <div className={styles.thread}>
         <Penny first>
-          <p className={`${styles.bubble} ${styles.assistant}`}>{PENNY_HELLO}</p>
+          <p className={`${styles.bubble} ${styles.assistant}`}>{t.penny.hello}</p>
         </Penny>
         <p className={`${styles.bubble} ${styles.user}`}>{bubble}</p>
         <Penny first>
           <p className={`${styles.bubble} ${styles.assistant}`}>
-            <Spinner label={reading ? 'Reading your trip…' : 'Finding hotels…'} />
+            <Spinner label={reading ? t.ui.readingTrip : t.ui.findingHotels} />
           </p>
         </Penny>
       </div>
@@ -574,10 +694,11 @@ function PendingChat({ bubble, reading }: { bubble: string; reading: boolean }) 
 
 /** The hotels side during the first press. */
 function FirstSearch({ place }: { place: string | null }) {
+  const { t } = useLocale();
   return (
     <div className={styles.firstSearch} aria-busy="true">
       {place && <h2>{place}</h2>}
-      <Spinner label={place ? 'Finding hotels…' : 'Reading your trip…'} />
+      <Spinner label={place ? t.ui.findingHotels : t.ui.readingTrip} />
       <ol className={styles.cards}>
         <CardSkeleton />
         <CardSkeleton />

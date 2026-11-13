@@ -114,3 +114,12 @@ stop the model and leave the router, the chips and the map working.
 table, with the session) and the server answers `idea_noted`. The text is the
 model's few-word summary, capped at 200 characters, asked to hold no personal
 details; that last part is an instruction, not a check.
+
+## The full list (2026-11-13)
+
+`show_all_hotels` opens "Show all N hotels" under the top picks (`docs/finder.md`). It names no
+hotel and changes nothing; the server answers with `fullListLine`, counted from the finder's rows,
+and the reply carries `ui.all`. With nothing after the picks the line says so and opens nothing.
+`show_others` is unchanged: it still sets the shown hotels aside. Tested with a scripted model
+(`test/pg/agent.test.ts`); exercised live once in `e2e/full-list.spec.ts` (Jev off, so the agent
+answered "show me all of them").

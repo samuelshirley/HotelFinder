@@ -3,6 +3,8 @@
 import { useState } from 'react';
 
 import styles from './RangeCalendar.module.css';
+import { INTL } from '@/lib/i18n/locale';
+import { useLocale } from './i18n';
 
 /**
  * Pick a check-in and a check-out on two months side by side. The first tap
@@ -33,6 +35,7 @@ export const addDays = (day: string, n: number) => {
 export const nightsBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
 export function RangeCalendar({ value, min, month, nights, maxNights, onChange, months = 2 }: Props) {
+  const { locale, t } = useLocale();
   const startMonth = month ?? (value?.checkIn ?? min).slice(0, 7);
   const [first, setFirst] = useState(startMonth);
   const [pending, setPending] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function RangeCalendar({ value, min, month, nights, maxNights, onChange, 
     const m = d.getUTCMonth();
     const lead = (d.getUTCDay() + 6) % 7; // Monday first
     const count = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-    const name = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+    const name = new Intl.DateTimeFormat(INTL[locale].date, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
     const days = Array.from({ length: count }, (_, i) => iso(y, m, i + 1));
     return { name, lead, days };
   });
@@ -68,10 +71,10 @@ export function RangeCalendar({ value, min, month, nights, maxNights, onChange, 
   return (
     <div className={styles.cal}>
       <div className={styles.nav}>
-        <button type="button" onClick={() => shift(-1)} disabled={!canBack} aria-label="Previous month">
+        <button type="button" onClick={() => shift(-1)} disabled={!canBack} aria-label={t.ui.previousMonth}>
           ‹
         </button>
-        <button type="button" onClick={() => shift(1)} aria-label="Next month">
+        <button type="button" onClick={() => shift(1)} aria-label={t.ui.nextMonth}>
           ›
         </button>
       </div>
@@ -80,7 +83,7 @@ export function RangeCalendar({ value, min, month, nights, maxNights, onChange, 
           <div key={g.name} className={styles.month}>
             <span className={styles.name}>{g.name}</span>
             <div className={styles.grid} aria-hidden>
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((w, i) => (
+              {t.ui.weekdays.map((w, i) => (
                 <span key={i} className={styles.dow}>
                   {w}
                 </span>
@@ -101,7 +104,7 @@ export function RangeCalendar({ value, min, month, nights, maxNights, onChange, 
                     data-state={edge ? 'edge' : inside ? 'inside' : undefined}
                     disabled={day < min}
                     aria-pressed={Boolean(edge)}
-                    aria-label={new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`))}
+                    aria-label={new Intl.DateTimeFormat(INTL[locale].date, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`))}
                     onClick={() => tap(day)}
                   >
                     {Number(day.slice(8))}

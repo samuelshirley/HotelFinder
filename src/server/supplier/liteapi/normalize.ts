@@ -2,6 +2,7 @@ import type { z } from 'zod';
 
 import { sumMoney, toMoney, type Money } from '@/lib/money';
 import { amenitiesFromFacilityIds } from './amenities';
+import { chainName, propertyTypeFromId } from './propertyTypes';
 import type {
   CancellationPolicy,
   CancelResult,
@@ -168,7 +169,12 @@ export function normalizePlaceDetails(placeId: string, body: z.infer<typeof plac
 }
 
 export function normalizeStaticFacts(body: z.infer<typeof hotelListResponse>): StaticFacts[] {
-  return body.data.map((h) => ({ supplierHotelId: h.id, amenities: amenitiesFromFacilityIds(h.facilityIds ?? []) }));
+  return body.data.map((h) => ({
+    supplierHotelId: h.id,
+    amenities: amenitiesFromFacilityIds(h.facilityIds ?? []),
+    propertyType: propertyTypeFromId(h.hotelTypeId),
+    chain: chainName(h.chain),
+  }));
 }
 
 export function normalizeDetails(body: z.infer<typeof hotelDetailsResponse>): PropertyDetails {
@@ -225,6 +231,13 @@ export function normalizePrebook(body: z.infer<typeof prebookResponse>, checkedA
   const policies = (d.roomTypes ?? []).flatMap((rt) =>
     rt.rates.map((r) => normalizeCancellation(r.cancellationPolicies, currency)),
   );
+  const rates = (d.roomTypes ?? []).flatMap((rt) => rt.rates);
+  // Every rate must say which room and for whom, or the rooms are unknown (empty), never half-known.
+  const rooms = rates.every((r) => typeof r.name === 'string' && typeof r.adultCount === 'number' && typeof r.occupancyNumber === 'number')
+    ? [...rates]
+        .sort((a, b) => (a.occupancyNumber as number) - (b.occupancyNumber as number))
+        .map((r) => ({ name: r.name as string, boardName: r.boardName ?? null, adults: r.adultCount as number, childrenAges: r.childrenAges ?? [] }))
+    : [];
   return {
     prebookId: d.prebookId,
     transactionId: d.transactionId,
@@ -236,6 +249,7 @@ export function normalizePrebook(body: z.infer<typeof prebookResponse>, checkedA
     cancellation: policies.length > 0 ? combineCancellations(policies) : null,
     cancellationChanged: d.cancellationChanged ?? false,
     boardChanged: d.boardChanged ?? false,
+    rooms,
     checkedAt,
   };
 }

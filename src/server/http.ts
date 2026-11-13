@@ -5,17 +5,30 @@ import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import type { ErrorCode } from '@/lib/errors';
+import { LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
 import { describeFailure } from '@/lib/pgErrors';
 import { ANON_COOKIE, mintAnonCookie, readAnonCookie } from '@/server/auth/anon';
 import { createUserSession, endUserSession, USER_COOKIE, userForToken, type SignedInUser } from '@/server/auth/user';
 import { getBooking, type Booking } from '@/server/repos/bookings';
 import { countRequest } from '@/server/repos/rateLimit';
+import { adoptAnonymousSaved } from '@/server/repos/saved';
 import { adoptAnonymousSessions, assertSessionOwned, SessionNotOwnedError, type Owner, type SearchSession } from '@/server/repos/sessions';
 
 /** Shared by every route: who is asking, error responses, the per-IP limit. */
 
 export function errorResponse(code: ErrorCode, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error: code, ...extra }, { status });
+}
+
+/**
+ * The language to answer this request in: the picker's cookie, else the
+ * browser's Accept-Language, else English (lib/i18n/locale.ts). Read per
+ * request, not stored on the search (no schema change): a queued turn is
+ * answered by the request already running for that search, which almost
+ * always comes from the same browser. docs/i18n.md has the edge case.
+ */
+export function requestLocale(): Locale {
+  return resolveLocale({ cookie: cookies().get(LOCALE_COOKIE)?.value, acceptLanguage: headers().get('accept-language') });
 }
 
 /** The signed-in user, or null. Checked against the database on every request, so a sign-out ends it. */
@@ -51,12 +64,15 @@ export async function ensureOwner(): Promise<Owner> {
   return { anonId };
 }
 
-/** Signs the browser in as `userId` and hands it this browser's anonymous searches. */
+/** Signs the browser in as `userId` and hands it this browser's anonymous searches and saved hotels. */
 export async function signInBrowser(userId: string, now: Date): Promise<void> {
   const { token, expires } = await createUserSession(userId, now);
   cookies().set(USER_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: BASE_PATH, expires });
   const anonId = currentAnonId();
-  if (anonId) await adoptAnonymousSessions(anonId, userId);
+  if (anonId) {
+    await adoptAnonymousSessions(anonId, userId);
+    await adoptAnonymousSaved(anonId, userId);
+  }
 }
 
 export async function signOutBrowser(): Promise<void> {

@@ -3,13 +3,16 @@ import type { Action } from '@/lib/store/actions';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 
 import { AMENITIES, type Amenity } from '@/lib/amenities';
+import { filterOptions, readChain, readPropertyType } from '@/lib/filters';
 import { buildAnswer, type HotelFacts } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
 import type { DistanceFrom } from '@/lib/finder/rank';
 import { planSearch } from '@/lib/finder/searchPlan';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { answerLine, describeChange, FIXED_LINES, formatDates, nearLabel, REJECTION_LINE } from '@/lib/replies';
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
+import { answerLine, describeChange, filtersLine, fixedLine, formatDates, fullListLine, nearLabel, rejectionLine, savedLine, savedListLine } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
 import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
@@ -21,7 +24,8 @@ import { placeKindWord, whichOne } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { listLiveOffersForRanking } from '@/server/repos/offers';
+import { countFullList, listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
@@ -30,6 +34,8 @@ import { checkStage, isPlainNo, isPlainYes, makeStage, readStage } from '@/lib/s
 import { fingerprint } from '@/lib/store/reduce';
 import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS } from '@/lib/turnBudget';
 import { insertIdea } from '@/server/repos/ideas';
+import { listSaved } from '@/server/repos/saved';
+import { ownerOf, saveFromSearch } from '@/server/saved';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
@@ -67,7 +73,11 @@ export type TurnDeps = {
   deadline?: number;
   /** The wall clock in ms; tests move it. */
   clock?: () => number;
+  /** The language every line of this turn is written in (server/http.ts requestLocale). English when absent. */
+  locale?: Locale;
 };
+
+const loc = (deps: TurnDeps): Locale => deps.locale ?? 'en';
 
 export async function runTurn(args: {
   session: SearchSession;
@@ -143,12 +153,13 @@ type TurnResult = { text: string; meta: Record<string, unknown> & { ui?: unknown
 /** A typed message while the form is still being filled in. */
 async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void): Promise<TurnResult> {
   emit({ type: 'working', by: 'form' });
+  const L = loc(deps);
   const stay = (await listStays(session.id))[0] ?? null;
   const field = nextField(session, stay, guestsAnsweredIn(session, await listMessages(session.id)));
 
   if (field === 'priorities' && stay) return prioritiesInWords(session, stay, turn, deps);
   if (field === 'dates') return datesInWords(session, turn, deps);
-  if (field !== 'destination') return { text: FIXED_LINES.use_the_form, meta: { by: 'form', field } };
+  if (field !== 'destination') return { text: fixedLine('use_the_form', L), meta: { by: 'form', field } };
 
   // The first message may say more than the place ("Porto, 12 to 15 March, two of
   // us, under 120"). One forced-tool call transcribes it; the server checks every
@@ -162,11 +173,11 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
 
   // The place itself is always looked up at the supplier and always picked by the user.
   const places = await deps.supplier.searchPlaces(destination ?? turn.userMessage);
-  if (!places.ok) return { text: 'The place search did not answer. Type the place again.', meta: { ...meta, error: places.error.kind } };
+  if (!places.ok) return { text: copy(L).onboarding.placeSearchFailed, meta: { ...meta, error: places.error.kind } };
   if (places.value.length === 0) {
-    return { text: destination || Object.keys(rest).length === 0 ? 'No place by that name. Try a city or a neighbourhood.' : FIXED_LINES.which_place, meta: { ...meta, places: 0 } };
+    return { text: destination || Object.keys(rest).length === 0 ? copy(L).onboarding.noPlaceByThatName : fixedLine('which_place', L), meta: { ...meta, places: 0 } };
   }
-  await askQuestion(session.id, 'destination', whichOne(places.value.filter((p) => placeKindWord(p.types) !== null).slice(0, 5)));
+  await askQuestion(session.id, 'destination', whichOne(places.value.filter((p) => placeKindWord(p.types) !== null).slice(0, 5), L), L);
   return { text: '', meta: { ...meta, places: places.value.length } };
 }
 
@@ -176,14 +187,15 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
  * "3 nights in March" lands in March; the server checks the dates as always.
  */
 async function datesInWords(session: SearchSession, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const L = loc(deps);
   const hint = session.draft.scanned?.datesHint;
   const budget = await aiBudget(session.id, deps.now());
-  if (!budget.ok) return { text: FIXED_LINES.tap_the_nights, meta: { by: 'form', field: 'dates', skipped: 'budget' } };
+  if (!budget.ok) return { text: fixedLine('tap_the_nights', L), meta: { by: 'form', field: 'dates', skipped: 'budget' } };
   const context = hint ? ` (the trip is ${hint.nights ? `${hint.nights} night${hint.nights === 1 ? '' : 's'}` : 'some nights'}${hint.month ? ` in ${hint.month}` : ''})` : '';
   const scan = await scanIntent({ message: `Dates: ${turn.userMessage}${context}`, today: deps.today, currency: session.currency, callModel: deps.callModel, model: deps.model });
   const spent = await logModelCalls(session, 'scan', [scan.reply]);
   const { checkIn, checkOut } = scan.trip;
-  if (!checkIn || !checkOut) return { text: FIXED_LINES.tap_the_nights, meta: { by: 'agent', field: 'dates', read: null, ...spent } };
+  if (!checkIn || !checkOut) return { text: fixedLine('tap_the_nights', L), meta: { by: 'agent', field: 'dates', read: null, ...spent } };
   const messages = await listMessages(session.id);
   const result = await answerForm({
     sessionId: session.id,
@@ -192,7 +204,8 @@ async function datesInWords(session: SearchSession, turn: AgentTurn, deps: TurnD
     supplier: deps.supplier,
     now: deps.now(),
     today: deps.today,
-    readBack: `Reading that as ${formatDates(checkIn, checkOut)}.`,
+    readBack: copy(L).onboarding.readingAs(formatDates(checkIn, checkOut, L)),
+    locale: L,
   });
   return { text: '', meta: { by: 'agent', field: 'dates', read: { checkIn, checkOut }, ok: result.ok, ...spent } };
 }
@@ -232,12 +245,12 @@ async function prioritiesInWords(session: SearchSession, stay: Stay, turn: Agent
   let spent = { model_calls: 0, cost_microcents: 0 };
   if (!reading) {
     const budget = await aiBudget(session.id, deps.now());
-    if (!budget.ok) return { text: 'Pick one or more of the options above.', meta: { by: 'form', field: 'priorities', skipped: 'budget' } };
+    if (!budget.ok) return { text: copy(loc(deps)).onboarding.pickOptions, meta: { by: 'form', field: 'priorities', skipped: 'budget' } };
     const read = await readPriorities({ message: turn.userMessage, destination: stay.destinationText, callModel: deps.callModel, model: deps.model });
     spent = await logModelCalls(session, 'priorities', [read.reply]);
     reading = read.reading;
   }
-  if (!reading) return { text: 'That did not say what matters. Pick one or more of the options above, or say it another way.', meta: { by: fromJev ? 'router' : 'agent', field: 'priorities', read: null, ...spent } };
+  if (!reading) return { text: copy(loc(deps)).onboarding.didNotSayWhatMatters, meta: { by: fromJev ? 'router' : 'agent', field: 'priorities', read: null, ...spent } };
 
   const messages = await listMessages(session.id);
   const result = await answerPrioritiesInWords({
@@ -247,6 +260,7 @@ async function prioritiesInWords(session: SearchSession, stay: Stay, turn: Agent
     supplier: deps.supplier,
     now: deps.now(),
     today: deps.today,
+    locale: loc(deps),
   });
   return {
     text: '',
@@ -256,8 +270,9 @@ async function prioritiesInWords(session: SearchSession, stay: Stay, turn: Agent
 
 /** A message about a search that is already running. */
 async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void): Promise<TurnResult> {
+  const L = loc(deps);
   const stay = (await listStays(session.id))[0];
-  if (!stay) return { text: FIXED_LINES.use_the_form, meta: { by: 'form' } };
+  if (!stay) return { text: fixedLine('use_the_form', L), meta: { by: 'form' } };
   const state = toSearchState(session, stay);
   const rows = (await listShortlist(session.id, stay.id, audienceFor(session))).filter((r) => r.entry.source === 'finder');
   const shortlist = rows
@@ -282,6 +297,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         close_to: nearLabel(state.stay),
         must_haves: state.stay.mustHaves,
         price_cap_per_night: state.stay.priceCapMinor === null ? null : state.stay.priceCapMinor / 100,
+        filters: filtersLine(state.stay.filters) ?? 'none',
         currency: session.currency,
       },
       hotels_on_screen: shortlist.map((r, i) => `${i + 1}. ${r.name}`),
@@ -329,7 +345,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     case 'actions': {
       const dispatched = await dispatchActions({ session, stay, actions: decision.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
       return {
-        text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+        text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
         meta: {
           ...trace,
           intent: decision.intent,
@@ -344,31 +360,33 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     }
     case 'ui': {
       const hint = decision.hint;
-      if ('map' in hint) return { text: hint.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...trace, intent: decision.intent, ui: { map: hint.map }, model_calls: 0 } };
+      if ('map' in hint) return { text: fixedLine(hint.map === 'hide' ? 'map_hidden' : 'map_shown', L), meta: { ...trace, intent: decision.intent, ui: { map: hint.map }, model_calls: 0 } };
+      if ('all' in hint) {
+        const all = await fullList(session, stay, rows, L);
+        return { text: all.text, meta: { ...trace, intent: decision.intent, ...all.meta, model_calls: 0 } };
+      }
       if ('focus' in hint) {
         const marked = shortlist.find((r) => r.propertyId === hint.focus.propertyId);
-        return { text: `${marked?.name ?? 'That hotel'} is marked on the map.`, meta: { ...trace, intent: decision.intent, ui: { focus: hint.focus }, model_calls: 0 } };
+        return { text: copy(L).replies.markedOnMap(marked?.name ?? copy(L).words.thatHotel), meta: { ...trace, intent: decision.intent, ui: { focus: hint.focus }, model_calls: 0 } };
       }
       const row = shortlist.find((r) => r.propertyId === ('open' in hint ? hint.open.propertyId : hint.book.propertyId));
-      const text =
-        'book' in hint
-          ? `${row?.name ?? 'That hotel'} is open: press Book there to check the price and pay.`
-          : `${row?.name ?? 'That hotel'} is open.`;
+      const name = row?.name ?? copy(L).words.thatHotel;
+      const text = 'book' in hint ? copy(L).replies.isOpenToBook(name) : copy(L).replies.isOpen(name);
       return { text, meta: { ...trace, intent: decision.intent, ui: { open: 'open' in hint ? hint.open : hint.book }, model_calls: 0 } };
     }
     case 'line':
-      return { text: FIXED_LINES[decision.line], meta: { ...trace, intent: decision.intent, model_calls: 0 } };
+      return { text: fixedLine(decision.line, L), meta: { ...trace, intent: decision.intent, model_calls: 0 } };
     case 'answer': {
       // Read off the rows this turn already loaded. No model, no supplier call, no write.
       const answer = buildAnswer(decision.plan, rows.map(hotelFacts), {
         nights: nightsBetween(stay.checkIn, stay.checkOut),
         // Measured from where the finder measured, by the same rule (lib/finder/searchPlan.ts).
         ...distanceBasis(state),
-        search: { ...state.stay, priorities: state.priorities, nearLabel: nearLabel(state.stay) },
+        search: { ...state.stay, priorities: state.priorities, nearLabel: nearLabel(state.stay, L) },
       });
       // No single honest answer in the rows (a tie for "the cheapest"): the agent's.
       if (!answer) return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, decision: 'defer', deferred: 'answer_unavailable', plan: decision.plan } });
-      return { text: answerLine(answer, session.currency), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
+      return { text: answerLine(answer, session.currency, L), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
     }
     case 'near': {
       // Be close to a named place: looked up and applied in code (server/nearInWords.ts).
@@ -383,6 +401,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         model: deps.model,
         now: deps.now(),
         today: deps.today,
+        locale: L,
       });
       // No place in the words after all, or a whole town: the agent's.
       if (near.kind === 'not_mine') return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, ...near.meta, deferred: 'near_not_a_place' } });
@@ -431,8 +450,9 @@ async function agentTurn(args: {
   trace: Record<string, unknown>;
 }): Promise<TurnResult> {
   const { session, stay, turn, deps, rows } = args;
+  const L = loc(deps);
   const budget = await aiBudget(session.id, deps.now());
-  if (!budget.ok) return { text: FIXED_LINES.ai_budget, meta: { ...args.trace, by: 'agent', budget: budget.cap, model_calls: 0 } };
+  if (!budget.ok) return { text: fixedLine('ai_budget', L), meta: { ...args.trace, by: 'agent', budget: budget.cap, model_calls: 0 } };
 
   args.emit({ type: 'working', by: 'agent' });
   const clock = deps.clock ?? Date.now;
@@ -441,14 +461,19 @@ async function agentTurn(args: {
   const recent = (await listModelVisibleTail(session.id, 9))
     .filter((m) => m.turnId !== turn.id)
     .map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('assistant' as const), text: m.content }));
+  // The brands set_brands may name: the chains among the hotels the finder ranks over, as their listings write them.
+  const held = new Map((await listLiveOffersForRanking(session.id, stay.id, audienceFor(session), deps.now())).map((r) => [r.property.id, r.property]));
+  const brands = filterOptions([...held.values()].map((p) => ({ propertyType: readPropertyType(p.content), chain: readChain(p.content) }))).chains.map((c) => c.chain);
 
   const agent = await runAgent(
     {
       message: turn.userMessage,
       today: deps.today,
       currency: session.currency,
+      locale: L,
       state,
       recent,
+      brands,
       shortlist: rows.map((r) => ({ propertyId: r.property.id })),
       hotels: rows.map((r, i) => ({
         position: i + 1,
@@ -463,7 +488,7 @@ async function agentTurn(args: {
         boardName: r.offer?.boardName ?? null,
         refundable: r.offer ? r.offer.refundableTag === 'RFN' : null,
         freeCancellationUntil: (r.offer?.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
-        reason: reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0 }),
+        reason: reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0, locale: L }),
       })),
     },
     {
@@ -483,28 +508,32 @@ async function agentTurn(args: {
   if (agent.failure) {
     // A refused request (bad key, no workspace, unknown model) will be refused again: do not ask for a retry.
     const refused = /^http_4\d\d$/.test(agent.failure) && agent.failure !== 'http_408' && agent.failure !== 'http_429';
-    return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : refused ? FIXED_LINES.agent_misconfigured : FIXED_LINES.agent_unavailable, meta };
+    return { text: fixedLine(agent.failure === 'not_configured' ? 'agent_not_configured' : refused ? 'agent_misconfigured' : 'agent_unavailable', L), meta };
   }
   // Out of time: what the agent queued is NOT applied. A change half-made, or made after the user was told it was not, is worse than none.
-  if (agent.outOfTime) return { text: FIXED_LINES.out_of_time, meta: { ...meta, timed_out: 'model', dropped_actions: agent.actions.length } };
+  if (agent.outOfTime) return { text: fixedLine('out_of_time', L), meta: { ...meta, timed_out: 'model', dropped_actions: agent.actions.length } };
   // Stored before anything else can fail: the request is the user's, whatever the turn then does.
   if (agent.idea) await insertIdea({ sessionId: session.id, userId: session.userId, text: agent.idea });
+  // "Save this one": through the same path as the heart. The line is said only after the row is written.
+  const saved = agent.save ? await saveFromSearch(session, agent.save) : null;
+  const savedText = saved ? (saved.ok ? savedLine(saved.name, L) : fixedLine('save_failed', L)) : null;
   // Held for a yes: staged on this turn's row, not applied. The question is the model's if it passed the guards, else the fixed one.
   if (agent.hold && agent.actions.length > 0) {
     return {
-      text: agent.text || FIXED_LINES.confirm,
+      text: agent.text || fixedLine('confirm', L),
       kind: agent.text ? 'ai' : 'line',
       meta: { ...meta, staged: agent.actions.length, stagedPlan: makeStage(agent.actions, fingerprint(state), deps.now()) },
     };
   }
   if (agent.actions.length > 0) {
-    if (!hasTimeFor(deps.deadline, clock(), DISPATCH_MAX_MS)) return { text: FIXED_LINES.out_of_time, meta: { ...meta, timed_out: 'dispatch', dropped_actions: agent.actions.length } };
+    if (!hasTimeFor(deps.deadline, clock(), DISPATCH_MAX_MS)) return { text: fixedLine('out_of_time', L), meta: { ...meta, timed_out: 'dispatch', dropped_actions: agent.actions.length } };
     const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
     const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
     return {
-      text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+      text: [describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L), savedText].filter(Boolean).join(' '),
       meta: {
         ...meta,
+        ...(saved ? { saved: saved.ok } : {}),
         actions,
         applied: dispatched.results.filter((r) => r.ok).length,
         rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
@@ -514,19 +543,28 @@ async function agentTurn(args: {
       },
     };
   }
+  if (savedText) return { text: savedText, meta: { ...meta, saved: saved!.ok, ...(saved!.ok ? { ui: { ...agentUi(agent), saved: 'show' } } : {}) } };
   if (agent.open) {
     const row = rows.find((r) => r.property.id === agent.open);
-    return { text: `${row?.property.name ?? 'That hotel'} is open.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
+    return { text: copy(L).replies.isOpen(row?.property.name ?? copy(L).words.thatHotel), meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
   }
   if (agent.focus) {
     const row = rows.find((r) => r.property.id === agent.focus);
-    return { text: `${row?.property.name ?? 'That hotel'} is marked on the map.`, meta: { ...meta, ui: agentUi(agent) } };
+    return { text: copy(L).replies.markedOnMap(row?.property.name ?? copy(L).words.thatHotel), meta: { ...meta, ui: agentUi(agent) } };
   }
-  if (agent.idea) return { text: FIXED_LINES.idea_noted, meta: { ...meta, idea: true } };
-  if (agent.map) return { text: agent.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...meta, ui: agentUi(agent) } };
+  if (agent.showSaved) {
+    const names = (await listSaved(ownerOf(session))).map((r) => r.property.name);
+    return { text: savedListLine(names, L), meta: { ...meta, saved_listed: names.length, ui: { saved: 'show' } } };
+  }
+  if (agent.idea) return { text: fixedLine('idea_noted', L), meta: { ...meta, idea: true } };
+  if (agent.map) return { text: fixedLine(agent.map === 'hide' ? 'map_hidden' : 'map_shown', L), meta: { ...meta, ui: agentUi(agent) } };
+  if (agent.all) {
+    const all = await fullList(session, stay, rows, L);
+    return { text: all.text, meta: { ...meta, ...all.meta } };
+  }
   if (agent.text) return { text: agent.text, kind: 'ai', meta };
-  if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };
-  return { text: FIXED_LINES.cannot_yet, meta };
+  if (agent.rejected.length > 0) return { text: rejectionLine(agent.rejected[0], L), meta: { ...meta, rejected: agent.rejected } };
+  return { text: fixedLine('cannot_yet', L), meta };
 }
 
 /**
@@ -542,14 +580,15 @@ async function stagedAnswer(session: SearchSession, stay: Stay, state: SearchSta
   const previous = await turnBefore(turn);
   const stage = previous?.status === 'done' ? readStage(previous.resultMeta) : null;
   if (!stage) return null;
+  const L = loc(deps);
   const trace = { by: 'staged' as const, staged_turn: previous!.id, model_calls: 0 };
-  if (!yes) return { text: FIXED_LINES.stage_dropped, meta: { ...trace, answer: 'no' } };
+  if (!yes) return { text: fixedLine('stage_dropped', L), meta: { ...trace, answer: 'no' } };
   const check = checkStage(stage, fingerprint(state), deps.now());
-  if (check !== 'live') return { text: FIXED_LINES.stage_lapsed, meta: { ...trace, answer: 'yes', stage: check } };
+  if (check !== 'live') return { text: fixedLine('stage_lapsed', L), meta: { ...trace, answer: 'yes', stage: check } };
   const actions = withCloseness(stage.actions, state.priorities);
   const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
   return {
-    text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+    text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
     meta: {
       ...trace,
       answer: 'yes',
@@ -563,12 +602,24 @@ async function stagedAnswer(session: SearchSession, stay: Stay, state: SearchSta
 }
 
 /** What the agent asked the screen to do, in the shape the client reads off the last message. */
-function agentUi(agent: { open: string | null; focus: string | null; map: 'show' | 'hide' | null }): Record<string, unknown> | null {
+function agentUi(agent: { open: string | null; focus: string | null; map: 'show' | 'hide' | null; all?: boolean }): Record<string, unknown> | null {
   const ui: Record<string, unknown> = {};
   if (agent.open) ui.open = { propertyId: agent.open };
   if (agent.focus) ui.focus = { propertyId: agent.focus };
   if (agent.map) ui.map = agent.map;
+  if (agent.all) ui.all = 'show';
   return Object.keys(ui).length ? ui : null;
+}
+
+/**
+ * "Show me all of them": the full list opens under the top picks. Counted from
+ * the finder's rows, never from a model. Nothing after the top picks: nothing
+ * to open, and the line says every hotel that fits is already on screen.
+ */
+async function fullList(session: SearchSession, stay: Stay, rows: ShortlistRow[], locale: Locale): Promise<{ text: string; meta: Record<string, unknown> }> {
+  const more = await countFullList(session.id, stay.id, audienceFor(session));
+  const fits = rows.filter((r) => r.entry.source === 'finder' && r.entry.reason?.kind !== 'near_miss').length;
+  return { text: fullListLine(fits, more, locale), meta: { full_list: { fits, more }, ...(more > 0 ? { ui: { all: 'show' } } : {}) } };
 }
 
 /** Where the shortlist's distances were measured from: a named place, a point destination, else the middle of the results. */

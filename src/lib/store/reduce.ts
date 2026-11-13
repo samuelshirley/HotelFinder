@@ -1,4 +1,5 @@
 import type { MustHave } from '@/lib/amenities';
+import { PROPERTY_TYPES, type StayFilters } from '@/lib/filters';
 import { haversineKm, nightsBetween, type LatLng } from '@/lib/finder/geo';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 import { mapPointNear, type Action, type ResolvedAction, type ResolvedPoint } from './actions';
@@ -8,6 +9,8 @@ export type SearchState = {
   /** null = not asked yet; [] = no preference. Kept in canonical order. */
   priorities: PriorityKey[] | null;
   guestNationality: string | null;
+  /** ISO 4217; what prices and the price cap are in. */
+  currency: string;
   stay: {
     destinationText: string;
     placeId: string | null;
@@ -21,9 +24,12 @@ export type SearchState = {
     checkOut: string;
     adults: number;
     childrenAges: number[];
-    rooms: number;
+    /** null = the user did not say: the finder prices the sensible room splits (lib/finder/rooms.ts). */
+    rooms: number | null;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
+    /** Star class, rating, kind of place, brand (lib/filters.ts). Types kept in PROPERTY_TYPES order, chains sorted. */
+    filters: StayFilters;
     excludedPropertyIds: string[];
   };
 };
@@ -64,6 +70,8 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
     effect,
   });
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  // A filter only narrows what is held: a re-rank, never a new search.
+  const withFilters = (patch: Partial<StayFilters>) => withStay({ filters: { ...stay.filters, ...patch } }, 'rerank');
 
   switch (action.type) {
     case 'set_priorities': {
@@ -95,8 +103,28 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
       if (!stay.mustHaves.includes(action.mustHave)) return { ok: false, rejection: 'no_change' };
       return withStay({ mustHaves: stay.mustHaves.filter((m) => m !== action.mustHave) }, 'rerank');
 
+    case 'set_min_stars':
+      if (stay.filters.minStars === action.stars) return { ok: false, rejection: 'no_change' };
+      return withFilters({ minStars: action.stars });
+
+    case 'set_min_rating':
+      if (stay.filters.minRating === action.rating) return { ok: false, rejection: 'no_change' };
+      return withFilters({ minRating: action.rating });
+
+    case 'set_property_types': {
+      const next = PROPERTY_TYPES.filter((t) => action.types.includes(t));
+      if (same(next, stay.filters.propertyTypes)) return { ok: false, rejection: 'no_change' };
+      return withFilters({ propertyTypes: next });
+    }
+
+    case 'set_chains': {
+      const next = [...new Set(action.chains.map((c) => c.trim()))].sort();
+      if (same(next, stay.filters.chains)) return { ok: false, rejection: 'no_change' };
+      return withFilters({ chains: next });
+    }
+
     case 'set_guests': {
-      if (action.rooms > action.adults) return { ok: false, rejection: 'more_rooms_than_adults' };
+      if (action.rooms !== null && action.rooms > action.adults) return { ok: false, rejection: 'more_rooms_than_adults' };
       const next = { adults: action.adults, childrenAges: action.childrenAges, rooms: action.rooms };
       if (same(next, { adults: stay.adults, childrenAges: stay.childrenAges, rooms: stay.rooms })) {
         return { ok: false, rejection: 'no_change' };
@@ -133,6 +161,11 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
     case 'set_nationality':
       if (state.guestNationality === action.code) return { ok: false, rejection: 'no_change' };
       return { ok: true, state: { ...state, guestNationality: action.code }, effect: 'refetch' };
+
+    case 'set_currency':
+      if (state.currency === action.code) return { ok: false, rejection: 'no_change' };
+      // The cap was in the old currency, and we never convert: it goes, and the chip said so before the change.
+      return { ok: true, state: { ...state, currency: action.code, stay: { ...stay, priceCapMinor: null } }, effect: 'refetch' };
 
     case 'exclude_property':
       if (stay.excludedPropertyIds.includes(action.propertyId)) return { ok: false, rejection: 'no_change' };
@@ -193,6 +226,7 @@ export function fingerprint(state: SearchState): string {
   return JSON.stringify([
     state.priorities === null ? null : canonicalPriorities(state.priorities),
     state.guestNationality,
+    state.currency,
     s.placeId,
     s.near?.placeId ?? null,
     s.checkIn,
@@ -203,5 +237,9 @@ export function fingerprint(state: SearchState): string {
     s.priceCapMinor,
     [...s.mustHaves].sort(),
     [...s.excludedPropertyIds].sort(),
+    s.filters.minStars,
+    s.filters.minRating,
+    s.filters.propertyTypes,
+    [...s.filters.chains].sort(),
   ]);
 }

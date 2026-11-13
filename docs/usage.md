@@ -55,6 +55,15 @@ resolved by the agent adds place calls of its own. The search spec makes up to
 4 rate searches per search, so with no bookings the 5000:1 ratio is passed at
 roughly 1,250 searches.
 
+### Room splits multiply rate searches, not priced calls (2026-11-13)
+
+When nobody fixed the rooms, a search makes one rate search per split
+(`lib/finder/rooms.ts`): 1 for one or two adults (most searches, unchanged),
+2 for 3–6 adults or a family of four, at most 3; a radius search that widens
+doubles that (at most 6). Rate searches are free, so the price per search is
+unchanged, but each counts toward the 5000:1 search-to-book ratio. Static
+facts stay one call; a hotel's detail rates stay one search (the card's rooms).
+
 ## Attribution: place lookups made before a search
 
 The trip box looks places up before a search session exists, so those rows

@@ -4,7 +4,7 @@ import type { PriorityKey } from '@/lib/finder/rank';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import { HOTEL_FACTS, SEARCH_FIELDS, SUPERLATIVES, type HotelFact, type Intent, type SearchField, type Superlative, type Tier } from './catalogue';
-import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget, wantsMapHidden } from './slots';
+import { addDays, extractGuests, extractMinRating, extractMinStars, extractNightsShift, extractPriceCap, extractPropertyTypes, extractTarget, wantsMapHidden, wantsWholeList } from './slots';
 
 /**
  * Turn Jev's label choices plus the message into typed actions, or defer.
@@ -41,6 +41,8 @@ export type Readings = {
   superlative: ChoiceReading<string> | null;
   /** Which part of the search is asked about. */
   searchField: ChoiceReading<string> | null;
+  /** Which filter is set or dropped. Absent in readings made before filters existed. */
+  filterKind?: ChoiceReading<string> | null;
 };
 
 /**
@@ -49,7 +51,7 @@ export type Readings = {
  * question for this read 0.33-0.76 on messages that said nothing of the sort.
  */
 export function addsToCurrent(message: string): boolean {
-  return /\b(also|too|as well|and also|plus)\b/i.test(message);
+  return /\b(also|too|as well|and also|plus)\b/i.test(message) || /(?<![\p{L}])(tambi[eé]n|adem[aá]s)(?![\p{L}])/iu.test(message);
 }
 
 /** A noul read decisively, or null when Jev is unsure either way. */
@@ -155,6 +157,8 @@ export type UiHint =
   | { book: { propertyId: string; offerId: string | null } }
   /** The map band shown or folded away. */
   | { map: 'show' | 'hide' }
+  /** "Show me all of them": the full ranked list opened under the top picks (lib/fullList.ts). Changes nothing about the search. */
+  | { all: 'show' }
   /** One listed hotel marked on the map (and the map shown). */
   | { focus: { propertyId: string } };
 
@@ -170,7 +174,7 @@ export type RouteDecision =
 export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
 
 /** Intents a named place never turns into "be close to it". */
-const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'map', 'exclude', 'new_search', 'greeting_or_thanks'];
+const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'map', 'save', 'exclude', 'new_search', 'greeting_or_thanks'];
 
 export function routeMessage(input: {
   message: string;
@@ -248,10 +252,39 @@ export function routeMessage(input: {
       return defer('slot_ambiguous');
     }
 
+    case 'filter': {
+      if (!settles(readings.filterKind ?? null, min)) return defer('slot_ambiguous');
+      const kind = readings.filterKind!.choice;
+      // A brand has to be matched to the chains in the results: the agent has them.
+      if (kind === 'brand') return defer('intent_for_agent');
+      const removing = decided(readings.removing);
+      if (removing === null) return defer('slot_ambiguous');
+      if (kind === 'stars') {
+        if (removing) return { kind: 'actions', intent, actions: [{ type: 'set_min_stars', stars: null }] };
+        const stars = extractMinStars(message);
+        return stars === null ? defer('slot_missing') : { kind: 'actions', intent, actions: [{ type: 'set_min_stars', stars }] };
+      }
+      if (kind === 'rating') {
+        if (removing) return { kind: 'actions', intent, actions: [{ type: 'set_min_rating', rating: null }] };
+        const rating = extractMinRating(message);
+        return rating === null ? defer('slot_missing') : { kind: 'actions', intent, actions: [{ type: 'set_min_rating', rating }] };
+      }
+      if (kind === 'property_type') {
+        // "No apartments" means every other kind: the agent works out which.
+        if (removing) return defer('slot_ambiguous');
+        const types = extractPropertyTypes(message);
+        if (types === null) return defer('slot_missing');
+        const next = addsToCurrent(message) ? [...new Set([...state.stay.filters.propertyTypes, ...types])] : types;
+        return { kind: 'actions', intent, actions: [{ type: 'set_property_types', types: next }] };
+      }
+      return defer('slot_missing');
+    }
+
     case 'guests': {
       const g = extractGuests(message);
       if (!g) return defer('slot_missing');
-      const rooms = g.rooms ?? Math.min(state.stay.rooms, g.adults);
+      // Rooms not said: keep the user's rooms (no more than the adults), or keep letting the finder choose.
+      const rooms = g.rooms ?? (state.stay.rooms === null ? null : Math.min(state.stay.rooms, g.adults));
       return { kind: 'actions', intent, actions: [{ type: 'set_guests', adults: g.adults, childrenAges: g.childrenAges, rooms }] };
     }
 
@@ -273,6 +306,8 @@ export function routeMessage(input: {
 
     case 'more':
       if (shortlist.length === 0) return defer('slot_missing');
+      // "Show me all of them" opens the full list; it sets nothing aside.
+      if (wantsWholeList(message)) return { kind: 'ui', intent, hint: { all: 'show' } };
       return { kind: 'actions', intent, actions: [{ type: 'more_options', propertyIds: shortlist.map((r) => r.propertyId) }] };
 
     case 'open': {
@@ -342,6 +377,8 @@ export function routeMessage(input: {
       return { kind: 'answer', intent, plan: { about: 'search', field: field as SearchField } };
     }
 
+    // Saving a hotel, or listing the saved ones, is the agent's: its save_hotel and show_saved tools (docs/saved.md).
+    case 'save':
     case 'new_search':
     case 'question':
     case 'none':

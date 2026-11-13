@@ -1,0 +1,58 @@
+# Tears down a PR's preview environment when the PR closes, merged or not:
+# its Neon branch `preview/pr-<N>` and its Vercel preview deployments
+# (preview.yml made both; docs/deploy.md).
+#
+# Deleting the branch keeps the Neon project under its branch limit; the
+# branch also expires on its own 14 days after the last push, as a backstop.
+# Deleting the deployments keeps the Vercel project under its storage cap:
+# Feral Travels piled up 481 previews before anything swept them. Only
+# deployments that preview.yml tagged with this PR's number (meta previewPr)
+# and whose target is not production are deleted (scripts/delete-pr-previews.sh).
+#
+# Both steps are best effort: a PR closed before a preview ever ran has
+# nothing to delete, and that is not a failed run.
+name: Preview cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+# The same group as preview.yml: closing a PR cancels its in-flight preview
+# run first, so nothing is created after the teardown.
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_ORG_ID: team_h4OSdARxBO7dHsgUYxNp0I7h
+  VERCEL_PROJECT_ID: prj_zvbq13oHPmfm6J3Xy0zwLmdMWHNl
+
+jobs:
+  teardown:
+    name: Delete the PR's preview
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete Neon branch preview/pr-${{ github.event.pull_request.number }}
+        continue-on-error: true
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID || secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: preview/pr-${{ github.event.pull_request.number }}
+
+      # The script lives on main; a PR closed unmerged may predate it, so it
+      # is checked out from the base branch, never the PR's head.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          sparse-checkout: scripts
+      - name: Delete the PR's Vercel preview deployments
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: bash scripts/delete-pr-previews.sh "${{ github.event.pull_request.number }}"
