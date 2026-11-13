@@ -17,3 +17,8 @@ export function errorCopy(code: string | null | undefined, locale: Locale = 'en'
   const table = copy(locale).errors;
   return code && code in table ? table[code as ErrorCode] : table.server_error;
 }
+
+/** The copy with the server's reference appended, so a report can be matched to its log line. */
+export function withRef(copy: string, ref: string | null | undefined): string {
+  return ref ? `${copy} (Reference: ${ref})` : copy;
+}

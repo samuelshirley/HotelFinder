@@ -1,0 +1,48 @@
+# After every Vercel deployment: the smoke spec against what was deployed.
+# Production fails loudly. A preview runs against the PRODUCTION database
+# (previews share it), so a preview whose PR adds a migration is expected to
+# report it pending until merge: previews only warn.
+name: Deployed
+
+on: deployment_status
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.event.deployment_status.state == 'success'
+    name: Smoke test the deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: 'true'
+      PRODUCTION: ${{ github.event.deployment.environment == 'Production' }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Where to test
+        run: |
+          if [ "$PRODUCTION" = "true" ]; then
+            echo "E2E_BASE_URL=https://www.feraltravels.com" >> "$GITHUB_ENV"
+          elif [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "E2E_BASE_URL=${{ github.event.deployment_status.target_url }}" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Preview deployments are behind Vercel SSO: add VERCEL_AUTOMATION_BYPASS_SECRET to smoke-test them."; echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/checkout@v4
+        if: env.SKIP != '1'
+        with: { ref: '${{ github.event.deployment.sha }}' }
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with: { node-version: 22, cache: npm }
+      - if: env.SKIP != '1'
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: Health check and smoke spec
+        if: env.SKIP != '1'
+        continue-on-error: ${{ env.PRODUCTION != 'true' }}
+        run: |
+          curl -s "$E2E_BASE_URL/hotels/api/health" ${VERCEL_AUTOMATION_BYPASS_SECRET:+-H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"}; echo
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: smoke, path: 'test-results/', retention-days: 14 }

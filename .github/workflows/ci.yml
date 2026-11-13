@@ -1,0 +1,114 @@
+# Every PR and every push to main. Branch protection on main should require
+# all three jobs (docs/deploy.md).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck and unit + pg tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+
+  migrations:
+    # The deploy path on a real Postgres: the base branch's migrations first
+    # (production's state before this PR), then this branch's, applied by the
+    # same script the production build runs; then the built app's health check
+    # against that database. This is the class of failure of 2026-11-13.
+    name: Migrations, build and health on Postgres 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: hf }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/hf
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Apply the base branch's migrations (production before this change)
+        if: github.event_name == 'pull_request'
+        run: |
+          git worktree add ../base "origin/${{ github.base_ref }}"
+          if [ -f ../base/scripts/migrate.mjs ]; then
+            ln -s "$PWD/node_modules" ../base/node_modules
+            node ../base/scripts/migrate.mjs
+          else
+            echo "::notice::base branch has no scripts/migrate.mjs yet; starting from an empty database"
+          fi
+      - name: Apply this branch's migrations
+        run: npm run db:migrate
+      - name: Apply them again (must be a no-op)
+        run: |
+          npm run db:migrate | tee /tmp/second.txt
+          grep -q "ok: 0 applied" /tmp/second.txt
+      - run: npm run build
+      - name: The built app reports a healthy database
+        run: |
+          npx next start -p 3000 > /tmp/server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3000/hotels && break; sleep 1; done
+          code=$(curl -s -o /tmp/health.json -w '%{http_code}' http://localhost:3000/hotels/api/health)
+          cat /tmp/health.json; echo
+          [ "$code" = 200 ] || { cat /tmp/server.log; exit 1; }
+
+  e2e:
+    name: Playwright (live LiteAPI sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      # The SANDBOX key: test bookings only, cancelled by the specs.
+      LITE_API_KEY: ${{ secrets.LITE_API_KEY }}
+    steps:
+      - name: The sandbox key is set
+        run: |
+          if [ -z "$LITE_API_KEY" ]; then
+            if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
+              echo "::warning::A fork's PR gets no secrets: Playwright skipped. A maintainer re-runs it from a branch."; echo "SKIP=1" >> "$GITHUB_ENV"
+            else
+              echo "::error::Add the LiteAPI sandbox key as the LITE_API_KEY repository secret (Settings → Secrets → Actions)."; exit 1
+            fi
+          fi
+      - uses: actions/checkout@v4
+        if: env.SKIP != '1'
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with: { node-version: 22, cache: npm }
+      - if: env.SKIP != '1'
+        run: npm ci
+      - if: env.SKIP != '1'
+        run: npx playwright install --with-deps chromium
+      - if: env.SKIP != '1'
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

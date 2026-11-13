@@ -56,6 +56,7 @@ npm run test             # vitest: unit + pg (in-process PGlite, no network)
 npm run typecheck        # tsc --noEmit
 npx playwright test      # real browser, own dev server, live LiteAPI sandbox
 npm run db:generate      # after editing schema.ts; a test fails if you forget
+npm run db:migrate       # apply drizzle/ to DATABASE_URL (production builds do it: docs/deploy.md)
 scripts/jev-live.sh      # ask the real Jev 46 messages (46 of 46 on 2026-11-12)
 ```
 
@@ -105,6 +106,7 @@ api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
 api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/auth/verify (sign in with a code outside checkout)
 api/saved (POST the heart, GET this visitor's saved hotels: `docs/saved.md`)
+api/health (live DB vs schema.ts and drizzle/; 503 names what is missing)
 ```
 
 Pages (all under `/hotels`): `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
@@ -124,7 +126,8 @@ savedHotels
 ### Repos (`src/server/repos/`)
 
 sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
-ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit, saved
+ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit, saved,
+health (schema drift, read-only)
 
 ### Guard tests
 
@@ -155,6 +158,8 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
 agent-live.sh (20 real cases against Anthropic, 6 in Spanish; prints the cost),
+migrate.mjs (applies drizzle/; run by `vercel-build` on production builds
+only, and by the preview workflow on the PR's own Neon branch: `docs/deploy.md`),
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
 Neon URL kept in .env.neon so dev stays on embedded Postgres; production
 env only for DATABASE_URL and AUTH_SECRET), wipe-preview-db.mjs and
@@ -172,7 +177,9 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map, filters, full-list, saved, checkout, freeze, spanish
+search, book, admin, map, filters, full-list, saved, checkout, freeze, rooms, spanish, smoke (health + both search paths; also run against
+each deployment with `E2E_BASE_URL`). CI: `.github/workflows/ci.yml` on every PR,
+`preview.yml` (a preview per PR), `deployed.yml` after every Vercel deploy: `docs/deploy.md`.
 
 ## Lockdown invariants (load-bearing)
 
@@ -204,5 +211,7 @@ The ones most easily broken:
   (repo: github.com/samuelshirley/HotelFinder, public); Sam merges PRs.
 - Reproduce, never guess. If it cannot be reproduced, say so.
 - Supplier payloads in tests are recorded from the sandbox, never hand-written.
+- A migration reaches production only through the production build
+  (`scripts/migrate.mjs`); a 500 always carries a `ref` that is in its log line: `docs/deploy.md`.
 - Mutation-check every new guard test.
 - Never trim test coverage to save time or spend; measure and present.
