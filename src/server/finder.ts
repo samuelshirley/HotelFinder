@@ -6,7 +6,7 @@ import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
 import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
-import { upsertProperty } from '@/server/repos/properties';
+import { setPropertyPets, upsertProperty, type Property } from '@/server/repos/properties';
 import { audienceFor, getSession, getStay } from '@/server/repos/sessions';
 import type { SupplierAdapter, SupplierError } from '@/server/supplier';
 
@@ -117,7 +117,8 @@ export async function runFinder(args: {
         reviewCount: p.reviewCount,
         mainPhoto: p.mainPhoto,
         address: p.address,
-        petsAllowed: known ? known.includes('pets_allowed') : null,
+        // The facility list can say yes; its silence is not a no (docs/supplier.md, "Pets").
+        petsAllowed: known?.includes('pets_allowed') ? true : null,
         // `amenities` absent = unknown. An empty array = known to have none.
         content: known ? { amenities: known } : {},
       });
@@ -163,6 +164,12 @@ export async function runFinder(args: {
     const current = cheapest.get(row.property.id);
     if (!current || row.offer.totalMinor < current.offer.totalMinor) cheapest.set(row.property.id, row);
   }
+  const mustHaves = stay.mustHaves.filter(isMustHave) as MustHave[];
+  // Pets are the one must-have the bulk facility list gets wrong both ways:
+  // confirm them from each hotel's own listing before ranking on them.
+  const petsChecked = mustHaves.includes('pets_allowed')
+    ? await confirmPets(supplier, [...cheapest.values()].map((r) => r.property))
+    : new Map<string, Amenity[] | null>();
   const candidates: Candidate[] = [...cheapest.values()].map(({ offer, property }) => ({
     offerId: offer.id,
     propertyId: property.id,
@@ -176,7 +183,7 @@ export async function runFinder(args: {
     rating: property.rating,
     reviewCount: property.reviewCount,
     stars: property.stars,
-    amenities: readAmenities(property.content),
+    amenities: petsChecked.has(property.id) ? petsChecked.get(property.id)! : readAmenities(property.content),
     refundable: offer.refundableTag === 'RFN',
     boardName: offer.boardName,
   }));
@@ -186,7 +193,7 @@ export async function runFinder(args: {
     checkIn: stay.checkIn,
     checkOut: stay.checkOut,
     priorities: session.priorities ?? [],
-    mustHaves: stay.mustHaves.filter(isMustHave) as MustHave[],
+    mustHaves,
     priceCapMinor: stay.priceCapMinor,
     near: plan?.target ?? null,
     audience,
@@ -232,6 +239,35 @@ export async function runFinder(args: {
     widened,
     amenityFactsMissing,
   };
+}
+
+const PET_CHECK_CONCURRENCY = 6;
+
+/**
+ * For each hotel whose pets answer has not yet come from its own listing,
+ * read the listing (free: src/lib/supplierPrices.ts) and store the answer.
+ * Returns the amenities to rank on, by property id. A hotel whose listing
+ * could not be read keeps what the facility list said.
+ */
+async function confirmPets(supplier: SupplierAdapter, props: Property[]): Promise<Map<string, Amenity[] | null>> {
+  const out = new Map<string, Amenity[] | null>();
+  const todo = props.filter((p) => p.content?.petsSource !== 'details');
+  for (const p of props) if (p.content?.petsSource === 'details') out.set(p.id, readAmenities(p.content));
+  for (let i = 0; i < todo.length; i += PET_CHECK_CONCURRENCY) {
+    await Promise.all(
+      todo.slice(i, i + PET_CHECK_CONCURRENCY).map(async (p) => {
+        const details = await supplier.getStaticContent(p.supplierHotelId);
+        if (!details.ok) return;
+        const pets = details.value.petsAllowed;
+        const known = readAmenities(p.content);
+        // Unknown amenities stay unknown: one confirmed fact does not make the rest known.
+        const amenities = known === null ? null : [...known.filter((a) => a !== 'pets_allowed'), ...(pets === true ? (['pets_allowed'] as const) : [])];
+        await setPropertyPets(p.id, pets, { ...(p.content ?? {}), ...(amenities ? { amenities } : {}), petsSource: 'details' });
+        out.set(p.id, amenities);
+      }),
+    );
+  }
+  return out;
 }
 
 function readAmenities(content: Record<string, unknown> | null): Amenity[] | null {

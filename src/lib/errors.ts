@@ -23,6 +23,7 @@ export const ERROR_COPY = {
   property_not_found: 'That hotel is no longer in this search.',
   circuit_open: 'The chat is paused for the moment. The filters above the hotels still work. Try the chat again in a few minutes.',
   turn_timeout: 'That took too long, so it was stopped before anything was changed. Send it again.',
+  turn_lost: 'A message before this one was never answered: the server stopped part way. Send it again if it still matters.',
   turn_failed: 'Something broke while handling that message. Nothing was changed. Send it again.',
   server_error: 'Something broke on our side. Nothing was changed. Try again.',
   email_invalid: 'That email address does not look complete. Check it and try again.',

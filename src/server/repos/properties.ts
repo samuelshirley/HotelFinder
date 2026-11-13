@@ -24,3 +24,8 @@ export async function getProperty(id: string): Promise<Property | null> {
   const [row] = await db.select().from(properties).where(eq(properties.id, id));
   return row ?? null;
 }
+
+/** The finder's pets check: the answer read from the hotel's own listing, and the content it ranks on. */
+export async function setPropertyPets(id: string, petsAllowed: boolean | null, content: Record<string, unknown>): Promise<void> {
+  await db.update(properties).set({ petsAllowed, content }).where(eq(properties.id, id));
+}

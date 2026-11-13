@@ -22,13 +22,16 @@ import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
-import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
+import { enqueueTurn, failLostTurns, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
 import { nearInWords } from '@/server/nearInWords';
 import { checkStage, isPlainNo, isPlainYes, makeStage, readStage } from '@/lib/stagedPlan';
 import { fingerprint } from '@/lib/store/reduce';
-import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS } from '@/lib/turnBudget';
+import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS, TURN_BUDGET_MS } from '@/lib/turnBudget';
+
+/** How far past the turn budget a running turn must be before it is called lost. */
+const LOST_TURN_GRACE_MS = 60_000;
 import { insertIdea } from '@/server/repos/ideas';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
@@ -91,6 +94,13 @@ export async function runTurn(args: {
 
   await appendMessage({ sessionId: session.id, turnId: turn.id, role: 'user', kind: 'user', content: args.message });
 
+  // A turn the platform killed mid-way must not hold the session's running slot for ever.
+  // startedAt is the database's clock, so this compares with real time, not deps.clock.
+  const lost = await failLostTurns(session.id, new Date(Date.now() - TURN_BUDGET_MS - LOST_TURN_GRACE_MS));
+  for (const t of lost) {
+    await appendMessage({ sessionId: session.id, turnId: t.id, role: 'assistant', kind: 'error', content: '', meta: { code: 'turn_lost' } });
+  }
+
   let running = await promoteToRunning(turn.id);
   if (!running) {
     emit({ type: 'queued', turnId: turn.id });
@@ -148,6 +158,7 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
 
   if (field === 'priorities' && stay) return prioritiesInWords(session, stay, turn, deps);
   if (field === 'dates') return datesInWords(session, turn, deps);
+  if (field === 'guests' && stay) return guestsInWords(session, stay, turn, deps);
   if (field !== 'destination') return { text: FIXED_LINES.use_the_form, meta: { by: 'form', field } };
 
   // The first message may say more than the place ("Porto, 12 to 15 March, two of
@@ -195,6 +206,31 @@ async function datesInWords(session: SearchSession, turn: AgentTurn, deps: TurnD
     readBack: `Reading that as ${formatDates(checkIn, checkOut)}.`,
   });
   return { text: '', meta: { by: 'agent', field: 'dates', read: { checkIn, checkOut }, ok: result.ok, ...spent } };
+}
+
+/**
+ * "Who is travelling?" answered in words ("two of us and the dog"). The same
+ * scan reads it; a pet already asked for is kept unless the words say who
+ * without one, which is not a "no" (only the toggle removes it).
+ */
+async function guestsInWords(session: SearchSession, stay: Stay, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const budget = await aiBudget(session.id, deps.now());
+  if (!budget.ok) return { text: FIXED_LINES.say_who, meta: { by: 'form', field: 'guests', skipped: 'budget' } };
+  const scan = await scanIntent({ message: `Who is travelling: ${turn.userMessage}`, today: deps.today, currency: session.currency, callModel: deps.callModel, model: deps.model });
+  const spent = await logModelCalls(session, 'scan', [scan.reply]);
+  const guests = scan.trip.guests;
+  const pets = (scan.trip.mustHaves ?? []).includes('pets_allowed') || stay.mustHaves.includes('pets_allowed');
+  if (!guests) return { text: FIXED_LINES.say_who, meta: { by: 'agent', field: 'guests', read: null, ...spent } };
+  const messages = await listMessages(session.id);
+  const result = await answerForm({
+    sessionId: session.id,
+    answer: { field: 'guests', adults: guests.adults, childrenAges: guests.childrenAges, rooms: guests.rooms, pets },
+    guestsAnswered: guestsAnsweredIn(session, messages),
+    supplier: deps.supplier,
+    now: deps.now(),
+    today: deps.today,
+  });
+  return { text: '', meta: { by: 'agent', field: 'guests', read: { adults: guests.adults, children: guests.childrenAges.length, pets }, ok: result.ok, ...spent } };
 }
 
 /**

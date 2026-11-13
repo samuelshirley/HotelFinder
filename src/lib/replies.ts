@@ -190,6 +190,7 @@ export const FIXED_LINES = {
   router_not_configured: 'Messages are handled by Jev, and JEV_API_KEY is not set on this server, so nothing was changed.',
   use_the_form: 'Pick one of the options above to continue.',
   tap_the_nights: 'That did not give two dates. Tap the first night above, or say it another way: 12 to 15 March.',
+  say_who: 'That did not say who is travelling. Set it above, or say it another way: two adults and a dog.',
   agent_unavailable: 'The assistant did not answer, so nothing was changed. Send that again.',
   agent_misconfigured: 'The assistant is set up wrongly on this server (its API key was refused), so nothing was changed. Sending again will not help.',
   agent_not_configured: 'That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.',

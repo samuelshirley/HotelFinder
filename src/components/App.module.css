@@ -41,6 +41,12 @@
 .bubble { max-width: 85%; padding: 9px 12px; border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; }
 .assistant { align-self: flex-start; background: var(--tp-surface); border: 1px solid var(--tp-neutral-900); }
 .user { align-self: flex-end; background: var(--tp-primary-muted); border: 1px solid var(--tp-accent-700); color: var(--tp-accent-300); }
+/* A message the server does not hold yet: waiting its turn, or not sent (with Retry). */
+.outgoing { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.outgoing .user[data-state='waiting'] { opacity: 0.7; }
+.outgoing .user[data-state='failed'] { border-style: dashed; }
+.notSent { margin: 0; font-size: 13px; color: var(--tp-danger-text); }
+.retry { background: transparent; border: 0; padding: 4px 2px; color: var(--tp-accent-300); text-decoration: underline; font: inherit; cursor: pointer; }
 .errorBubble { border-color: var(--tp-border-strong); color: var(--tp-muted); }
 .composer { padding: 0 20px 18px; }
 .composerBox { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; background: var(--tp-surface); border: 1px solid var(--tp-border); border-radius: 16px; }

@@ -1,4 +1,4 @@
-import { fixture, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
+import { fixture, recordedHotelDetailIds, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
 import { normalizeDetails, normalizePlaceDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
 import { hotelDetailsResponse, hotelListResponse, placeDetailsResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { SearchRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
@@ -9,6 +9,8 @@ export const DOWN: SupplierError = { kind: 'timeout', status: null, code: null, 
 /** A supplier that answers from the recorded sandbox responses and counts what it was asked. */
 /** Recorded place details by the real place id they were recorded for. An id with no recording is an error. */
 const RECORDED_PLACES = recordedPlaceIds();
+/** Recorded hotel details by supplier hotel id; any other id gets the one older generic recording. */
+const RECORDED_DETAILS = recordedHotelDetailIds();
 export const PLACE_IDS = {
   porto: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY',
   annecy: 'ChIJu_5hWOWPi0cRK4mrtTKskGo',
@@ -17,18 +19,21 @@ export const PLACE_IDS = {
   bcn: 'ChIJpY58hGSepBIR15tv-0LpK_M',
 } as const;
 
-export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place', 'fail' | 'empty'>> = {}, placesFor: (query: string) => string = () => 'places-porto-ribeira') {
+export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place' | 'content', 'fail' | 'empty'>> = {}, placesFor: (query: string) => string = () => 'places-porto-ribeira') {
   const searches: SearchRequest[] = [];
   const placeQueries: string[] = [];
   const placeLookups: string[] = [];
   let factCalls = 0;
+  const contentCalls: string[] = [];
   const unused = async () => {
     throw new Error('not used here');
   };
   const supplier: SupplierAdapter = {
     name: 'liteapi',
-    async getStaticContent() {
-      return { ok: true, value: normalizeDetails(hotelDetailsResponse.parse(fixture('hotel-details'))) };
+    async getStaticContent(supplierHotelId) {
+      contentCalls.push(supplierHotelId);
+      if (over.content === 'fail') return { ok: false, error: DOWN };
+      return { ok: true, value: normalizeDetails(hotelDetailsResponse.parse(fixture(RECORDED_DETAILS.get(supplierHotelId) ?? 'hotel-details'))) };
     },
     recheckRate: unused,
     book: unused,
@@ -62,5 +67,5 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       return { ok: true, value: normalizeStaticFacts(hotelListResponse.parse(fixture('hotels-static-porto'))) };
     },
   };
-  return { supplier, searches, placeQueries, placeLookups, facts: () => factCalls };
+  return { supplier, searches, placeQueries, placeLookups, facts: () => factCalls, contentCalls };
 }

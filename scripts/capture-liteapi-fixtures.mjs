@@ -51,8 +51,9 @@ const addPlaces = process.argv.includes('--add-places');
 const addCountries = process.argv.includes('--add-countries');
 const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
+const addPetDetails = process.argv.includes('--add-pet-details');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addPetDetails
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -149,6 +150,21 @@ if (addRibeiraDetails) {
   for (const [i, p] of places.entries()) await capture(`place-porto-ribeira-${i + 1}`, 'GET', `${DATA}/data/places/${encodeURIComponent(p.placeId)}`);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added Ribeira place details');
+  process.exit(0);
+}
+
+if (addPetDetails) {
+  // Whether a hotel takes pets lives in three disagreeing fields (docs/supplier.md, "Pets"): the
+  // facility list, a `petsAllowed` flag and the pet policies. Details for every hotel in the
+  // recorded Porto search, so the finder can be tested on real answers, plus three Annecy hotels
+  // found on 2026-11-13 that cover each case: facility yes + flag false (Novotel Annecy Centre),
+  // policy yes with no facility (ibis Annecy Centre Vieille Ville), and an explicit no (Hebe Hotel).
+  const porto = JSON.parse(readFileSync(path.join(outDir, 'hotels-static-porto.json'), 'utf8')).data.map((h) => h.id);
+  for (const id of [...porto, 'lp42f1e', 'lp2c368', 'lpd1449']) {
+    await capture(`hotel-details-${id}`, 'GET', `${DATA}/data/hotel?hotelId=${encodeURIComponent(id)}`);
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added hotel details for the pets cases');
   process.exit(0);
 }
 

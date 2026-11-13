@@ -53,6 +53,11 @@ const halfWindow = () => Math.max(PANEL_MIN, Math.min(Math.round(window.innerWid
 
 /** What the first press showed, until the server's answer replaces it. */
 type PendingBrief = { bubble: string; place: string | null };
+/** A message the user sent that the server has not confirmed yet: waiting its turn, or not sent. */
+export type Outgoing = { key: string; message: string; state: 'waiting' | 'failed' };
+/** crypto.randomUUID is missing on older iOS Safari; the key only has to be unique per message. */
+const newKey = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 /** The whole app: your trips on the left, the conversation in the middle, the shortlist on the right. */
 export function App() {
@@ -63,6 +68,8 @@ export function App() {
   /** Will the form answer being sent run the first search? Then the hotels panel says so while it waits. */
   const [searching, setSearching] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
+  // Sent messages stay on screen until the server holds them: never dropped, never silently ignored.
+  const [outbox, setOutbox] = useState<Outgoing[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openProperty, setOpenProperty] = useState<string | null>(null);
   /** The offer whose price is being re-checked for checkout. */
@@ -187,6 +194,7 @@ export function App() {
   const start = useCallback(async (fresh: boolean) => {
     setBusy('boot');
     setError(null);
+    setOutbox([]);
     setOpenProperty(null);
     try {
       if (fresh) store(STORAGE_KEY, '');
@@ -220,6 +228,7 @@ export function App() {
     if (busy !== null || id === view?.session.id) return setDrawer(false);
     setBusy('boot');
     setError(null);
+    setOutbox([]);
     setOpenProperty(null);
     setSelected(null);
     setDrawer(false);
@@ -327,26 +336,39 @@ export function App() {
     }
   };
 
-  const onSend = async (message: string) => {
+  /** Queue a message. It is sent as soon as nothing else is running; the server queues turns too. */
+  const onSend = (message: string) => {
+    if (!view) return;
+    setOutbox((o) => [...o, { key: newKey(), message, state: 'waiting' }]);
+  };
+  const onRetry = (key: string) => setOutbox((o) => o.map((m) => (m.key === key ? { ...m, state: 'waiting' } : m)));
+
+  useEffect(() => {
+    if (busy !== null || !view) return;
+    const next = outbox.find((m) => m.state === 'waiting');
+    if (next) void deliver(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, outbox, view]);
+
+  const deliver = async (item: Outgoing) => {
     if (!view) return;
     const id = view.session.id;
-    const key = crypto.randomUUID();
     setBusy('turn');
     setError(null);
     setProgress('Reading');
-    // Show the message at once; the server's copy replaces it on refresh.
-    setView({
-      ...view,
-      messages: [...view.messages, { id: `pending-${key}`, role: 'user', kind: 'user', content: message, meta: null, createdAt: new Date().toISOString() }],
-    });
+    let sent = false;
     try {
-      await sendTurn(id, message, key, (type) => {
+      // The same key on a retry: if the first try did reach the server, it is not run twice.
+      await sendTurn(id, item.message, item.key, (type) => {
         if (type === 'working') setProgress('Working');
         if (type === 'queued') setProgress('Queued behind your last message');
       });
+      sent = true;
     } catch (err) {
       fail(err);
     }
+    // A send that failed stays on screen as "Not sent", with Retry.
+    setOutbox((o) => (sent ? o.filter((m) => m.key !== item.key) : o.map((m) => (m.key === item.key ? { ...m, state: 'failed' } : m))));
     // Whatever the stream did, the session is the truth: a turn that finished
     // after the connection dropped still shows up here.
     try {
@@ -474,7 +496,7 @@ export function App() {
           </p>
         )}
         {view ? (
-          <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} onEdit={(a) => void onEdit(a)} />
+          <ChatPanel view={view} busy={busy} progress={progress} outbox={outbox} onRetry={onRetry} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} onEdit={(a) => void onEdit(a)} />
         ) : pendingBrief ? (
           <PendingChat bubble={pendingBrief.bubble} reading={pendingBrief.place === null} />
         ) : busy === 'boot' ? (

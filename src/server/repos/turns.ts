@@ -60,6 +60,20 @@ export async function finishTurn(
   return row ?? null;
 }
 
+/**
+ * A turn still marked running long after any turn can last (the platform
+ * killed it, or froze it after the client left) would hold the session's one
+ * running slot for ever, and every later message would queue for nobody.
+ * Marks such turns failed and returns them, so the caller can say so.
+ */
+export async function failLostTurns(sessionId: string, olderThan: Date): Promise<AgentTurn[]> {
+  return db
+    .update(agentTurns)
+    .set({ status: 'error', errorCode: 'turn_lost', finishedAt: sql`now()` })
+    .where(and(eq(agentTurns.sessionId, sessionId), eq(agentTurns.status, 'running'), lt(agentTurns.startedAt, olderThan)))
+    .returning();
+}
+
 export async function failTurn(
   turnId: string,
   failure: { errorCode: string; finalText?: string; resultMeta?: Record<string, unknown> },

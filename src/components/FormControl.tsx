@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates } from '@/lib/replies';
-import { searchPlaces, todayLocal } from './api';
+import { todayLocal } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import styles from './App.module.css';
 
@@ -41,41 +41,19 @@ export function FormControl({ question, disabled, onAnswer }: Props) {
   }
 }
 
+/**
+ * "Where are you going?" is answered in the chat box: one question, one text
+ * input (2026-11-13: a second box inside the question took Enter and did
+ * nothing with it). A typed place comes back as "Which one?" with a button per
+ * real place; those buttons are this control.
+ */
 function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<{ placeId: string; label: string; display?: string }>; disabled: boolean; onAnswer: Props['onAnswer'] }) {
-  const [query, setQuery] = useState('');
-  const [places, setPlaces] = useState(suggestions ?? []);
-  const [state, setState] = useState<'idle' | 'loading' | 'failed' | 'none'>('idle');
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) return;
-    let stale = false;
-    setState('loading');
-    const timer = setTimeout(() => {
-      searchPlaces(q)
-        .then((r) => {
-          if (stale) return;
-          setPlaces(r.places);
-          setState(r.places.length ? 'idle' : 'none');
-        })
-        .catch(() => !stale && setState('failed'));
-    }, 300);
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
+  if (!suggestions?.length) return null;
   return (
     <div className={styles.control}>
-      {!suggestions && (
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Porto, Shibuya, Trastevere…" aria-label="Destination" disabled={disabled} autoFocus />
-      )}
-      {state === 'failed' && <p className={styles.errorText}>The place search did not answer. Keep typing to try again.</p>}
-      {state === 'none' && <p className={styles.muted}>No place by that name.</p>}
       <div className={styles.chips}>
-        {places.map((p) => (
-          <button key={p.placeId} className={styles.chip} disabled={disabled} onClick={() => onAnswer({ field: 'destination', placeId: p.placeId, label: p.label })}>
+        {suggestions.map((p) => (
+          <button key={p.placeId} type="button" className={styles.chip} disabled={disabled} onClick={() => onAnswer({ field: 'destination', placeId: p.placeId, label: p.label })}>
             {p.display ?? p.label}
           </button>
         ))}

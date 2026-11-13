@@ -199,7 +199,7 @@ describe('the rest of the recorded responses', () => {
     expect(d).toMatchObject({
       supplierHotelId: 'lp76a2a',
       name: 'Vincci Porto',
-      petsAllowed: false,
+      petsAllowed: null, // a false flag alone is "not stated": pets.test.ts
       parking: 'PAID',
       childrenAllowed: true,
       stars: 4,

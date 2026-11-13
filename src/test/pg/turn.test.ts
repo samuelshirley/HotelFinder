@@ -10,6 +10,7 @@ import type { Readings } from '@/lib/router/route';
 import type { CallModel } from '@/server/agent';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
+import { FIXED_LINES } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { createSession, getSession, listStays, updateSession } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
@@ -175,16 +176,42 @@ describe('onboarding: a form in the chat, no model', () => {
     });
   });
 
-  it('typing during a later step points back at the form and calls nothing', async () => {
+  /** A model that answers the intent scan with these fields (the rest null). */
+  const scanReads = (input: Record<string, unknown>): CallModel => async (call) => ({
+    ok: true,
+    model: call.model,
+    stopReason: 'tool_use',
+    latencyMs: 300,
+    usage: { input: 250, cacheWrite: 0, cacheRead: 0, output: 30 },
+    content: [{ type: 'tool_use', id: 'tu_scan', name: 'record_trip', input: { destination: null, check_in: null, check_out: null, nights: null, month: null, adults: null, children_ages: null, rooms: null, max_per_night: null, must_haves: [], priorities: [], ...input } }],
+  });
+
+  it('"Who is travelling?" takes a typed answer, and a pet asked for earlier is kept', async () => {
     const session = await createSession({ anonId: 'a' });
     const s = recordedSupplier();
-    // Dates and priorities take words; the guests step is form-only.
     for (const answer of ANSWERS.slice(0, 2)) await answerForm({ sessionId: session.id, answer, guestsAnswered: false, supplier: s.supplier, now: RECORDED_AT, today: TODAY });
-    const d = deps(s.supplier, JEV_DOWN);
-    await say((await getSession(session.id))!, 'two of us', d);
-    expect((await lastLine(session.id)).content).toBe('Pick one of the options above to continue.');
-    expect(d.asked).toHaveLength(0);
-    expect(s.placeQueries).toHaveLength(0);
+    const stay = (await listStays(session.id))[0];
+    await (await import('@/server/repos/sessions')).updateStay(stay.id, session.id, { mustHaves: ['pets_allowed'] });
+    await say((await getSession(session.id))!, 'three of us', deps(s.supplier, JEV_DOWN, scanReads({ adults: 3 })));
+    const after = (await listStays(session.id))[0];
+    expect(after).toMatchObject({ adults: 3 });
+    expect(after.mustHaves).toContain('pets_allowed');
+    expect((await listMessages(session.id)).some((m) => m.kind === 'form_answer' && (m.meta as { field?: string } | null)?.field === 'guests')).toBe(true);
+  });
+
+  it('a typed answer that does not work leaves its question open: never a dead end', async () => {
+    // 2026-11-13, live: "a week from next Monday" at "Which nights?" left no calendar and a locked composer.
+    const session = await createSession({ anonId: 'a' });
+    const s = recordedSupplier();
+    await answerForm({ sessionId: session.id, answer: ANSWERS[0], guestsAnswered: false, supplier: s.supplier, now: RECORDED_AT, today: TODAY });
+    await say((await getSession(session.id))!, 'whenever suits', deps(s.supplier, JEV_DOWN, scanReads({})));
+    const messages = await listMessages(session.id);
+    expect(messages.at(-1)!.content).toBe(FIXED_LINES.tap_the_nights);
+    const { unansweredQuestion } = await import('@/lib/openQuestion');
+    expect((unansweredQuestion(messages)?.meta as { field?: string } | null)?.field).toBe('dates');
+
+    await say((await getSession(session.id))!, 'nobody knows', deps(s.supplier, JEV_DOWN, scanReads({})));
+    expect((unansweredQuestion(await listMessages(session.id))?.meta as { field?: string } | null)?.field).toBe('dates');
   });
 });
 
@@ -321,6 +348,32 @@ describe('a chat turn on a running search', () => {
     const done = await first;
     expect(done.events.filter((e) => e.type === 'done')).toHaveLength(2);
     expect((await listTurns(session.id)).map((t) => t.status)).toEqual(['done', 'done']);
+  });
+
+  it('a turn the platform killed mid-way does not hold the session for ever', async () => {
+    // A detached turn can die (deploy, crash, a frozen function) and stay "running".
+    // Before this, every later message queued behind it and was never answered.
+    const { session, supplier } = await onboarded();
+    const { enqueueTurn, promoteToRunning } = await import('@/server/repos/turns');
+    const { turn: dead } = await enqueueTurn({ sessionId: session.id, idempotencyKey: 'dead', userMessage: 'under 80 a night' });
+    await promoteToRunning(dead.id);
+    await rawQuery(`update agent_turns set started_at = now() - interval '6 minutes' where id = '${dead.id}'`);
+
+    const next = await say((await getSession(session.id))!, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')), 'after');
+    expect(next.turn.status).toBe('done');
+    const turns = await listTurns(session.id);
+    expect(turns.find((t) => t.id === dead.id)).toMatchObject({ status: 'error', errorCode: 'turn_lost' });
+    expect((await listMessages(session.id)).some((m) => m.kind === 'error' && (m.meta as { code?: string } | null)?.code === 'turn_lost')).toBe(true);
+  });
+
+  it('a turn running for less than the budget is left alone: the new message queues behind it', async () => {
+    const { session, supplier } = await onboarded();
+    const { enqueueTurn, promoteToRunning } = await import('@/server/repos/turns');
+    const { turn: live } = await enqueueTurn({ sessionId: session.id, idempotencyKey: 'live', userMessage: 'under 80 a night' });
+    await promoteToRunning(live.id);
+    const next = await say((await getSession(session.id))!, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')), 'behind');
+    expect(next.events.map((e) => e.type)).toContain('queued');
+    expect((await listTurns(session.id)).find((t) => t.id === live.id)?.status).toBe('running');
   });
 
   it('a message queued behind a turn that used up the time is told so, not left queued for nobody', async () => {

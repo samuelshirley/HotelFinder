@@ -37,13 +37,15 @@ test.describe('questions in the chat', { tag: '@ui' }, () => {
     await app.trip.box().fill('somewhere nice and quiet');
     await app.trip.box().press('Enter');
     await expect(app.chat.region().getByText('Where are you going?', { exact: true })).toBeVisible({ timeout: 60_000 });
-    const input = app.chat.region().getByLabel('Destination', { exact: true });
-    await expect(input).toBeFocused();
-    await expect(input).toHaveAttribute('placeholder', 'Porto, Shibuya, Trastevere…');
-    await input.fill('qqzxqqzxqq');
-    await expect(app.chat.region().getByText('No place by that name.', { exact: true })).toBeVisible();
-    await input.fill('porto');
-    await app.chat.region().getByRole('button', { name: 'Porto, Portugal', exact: true }).click();
+    // One question, one text input: the place is typed in the chat box, not a second box in the question.
+    await expect(app.chat.region().getByLabel('Destination', { exact: true })).toHaveCount(0);
+    await expect(app.chat.input()).toHaveAttribute('placeholder', 'Type a city or neighbourhood');
+    await app.chat.say('qqzxqqzxqq');
+    await expect(app.chat.region().getByText(/^No place by that name/)).toBeVisible({ timeout: 60_000 });
+    // The question is still open after an answer that did not work: never a dead end.
+    await expect(app.chat.input()).toBeEnabled();
+    await app.chat.say('porto');
+    await app.chat.region().getByRole('button', { name: 'Porto · Portugal', exact: true }).click();
     await app.results.waitForCards();
   });
 
@@ -83,8 +85,8 @@ test.describe('questions in the chat', { tag: '@ui' }, () => {
     const chat = app.chat.region();
     await expect(chat.getByText('Where are you going?', { exact: true })).toBeVisible();
     await expect(app.chat.heading()).toHaveText('New search');
-    await chat.getByLabel('Destination', { exact: true }).fill('porto');
-    await chat.getByRole('button', { name: 'Porto, Portugal', exact: true }).click();
+    await app.chat.say('porto');
+    await chat.getByRole('button', { name: 'Porto · Portugal', exact: true }).click();
     // The answer is echoed as the user's own bubble.
     await expect(chat.getByText('Porto, Portugal', { exact: true }).first()).toBeVisible();
 
@@ -95,8 +97,9 @@ test.describe('questions in the chat', { tag: '@ui' }, () => {
     await dates.getByRole('button', { name: 'Use these nights' }).click();
 
     await expect(chat.getByText('Who is travelling?', { exact: true })).toBeVisible();
-    await expect(app.chat.input()).toBeDisabled();
-    await expect(app.chat.input()).toHaveAttribute('placeholder', 'Answer above to continue');
+    // Every question also takes a typed answer: the chat box is never locked.
+    await expect(app.chat.input()).toBeEnabled();
+    await expect(app.chat.input()).toHaveAttribute('placeholder', 'Or type it: two adults and a dog');
     await expect(chat.getByRole('button', { name: 'Fewer adults' })).toBeEnabled();
     await chat.getByRole('button', { name: 'More adults' }).click();
     await chat.getByRole('button', { name: 'Fewer adults' }).click();

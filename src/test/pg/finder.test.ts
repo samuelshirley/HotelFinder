@@ -77,15 +77,22 @@ describe('the stay finder', () => {
     expect(list[1].entry.reason).toMatchObject({ kind: 'runner_up', price_delta_minor: 989 });
   });
 
-  it('a refinement re-ranks what is held and makes no supplier call', async () => {
+  it('a refinement re-ranks what is held and makes no new search', async () => {
     const ids = await porto();
-    const { supplier, searches, facts } = recordedSupplier();
+    const { supplier, searches, facts, contentCalls } = recordedSupplier();
     await runFinder({ ...ids, supplier, now: NOW });
+    expect(contentCalls).toHaveLength(0);
 
+    // Pets are confirmed from each hotel's own listing, once (docs/supplier.md, "Pets").
+    // 7 hotels list the facility; Hilton Porto Gaia also says "Pets are not allowed." and drops out.
     await updateStay(ids.stayId, ids.sessionId, { mustHaves: ['pets_allowed'] });
     const outcome = await runFinder({ ...ids, supplier, now: LATER(5) });
-    expect(outcome).toMatchObject({ kind: 'ok', fetched: false, eligible: 7 });
+    expect(outcome).toMatchObject({ kind: 'ok', fetched: false, eligible: 6 });
     expect((await names(ids))[0]).toBe('Mercure Porto Centro Aliados');
+    expect(await names(ids)).not.toContain('Hilton Porto Gaia');
+    expect(contentCalls).toHaveLength(20);
+    await runFinder({ ...ids, supplier, now: LATER(5) });
+    expect(contentCalls).toHaveLength(20);
 
     await updateSession(ids.sessionId, { priorities: ['nicest'] });
     await updateStay(ids.stayId, ids.sessionId, { mustHaves: [] });

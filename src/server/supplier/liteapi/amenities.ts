@@ -20,6 +20,33 @@ export const FACILITY_IDS: Record<Amenity, readonly number[]> = {
   airport_shuttle: [17, 139, 140], // Airport shuttle, (free), (additional charge)
 };
 
+/**
+ * Whether a hotel takes pets, read from the three places LiteAPI's details
+ * say it, which disagree (docs/supplier.md, "Pets"). Measured on 48 hotels,
+ * 2026-11-13: `petsAllowed` is true only when a structured pet policy
+ * exists, and is false for most hotels whose facility list says "Pets
+ * allowed", so a false flag alone means "not stated", not "no".
+ *
+ * - An explicit "not allowed" policy wins over everything (Hilton Porto
+ *   Gaia lists the facility AND says "Pets are not allowed.").
+ * - Any positive: the flag, the facility, or a policy saying they are allowed.
+ * - Otherwise null: the listing does not say.
+ */
+export function petsFromListing(listing: {
+  flag: boolean | null | undefined;
+  facilities: readonly string[];
+  policies: readonly { policy_type?: string | null; name?: string | null; description?: string | null }[];
+}): boolean | null {
+  const petPolicies = listing.policies
+    .filter((p) => p.policy_type === 'POLICY_HOTEL_PETS' || /\bpets?\b/i.test(p.name ?? ''))
+    .map((p) => (p.description ?? '').trim());
+  if (petPolicies.some((d) => /\b(pets?\s+(are\s+)?not\s+allowed|no\s+pets)\b/i.test(d))) return false;
+  if (listing.flag === true) return true;
+  if (listing.facilities.some((f) => /^pets allowed$/i.test(f.trim()))) return true;
+  if (petPolicies.some((d) => /^pets\s+(are\s+)?allowed\b/i.test(d))) return true;
+  return null;
+}
+
 export function amenitiesFromFacilityIds(ids: readonly number[]): Amenity[] {
   const have = new Set(ids);
   return (Object.keys(FACILITY_IDS) as Amenity[]).filter((a) => FACILITY_IDS[a].some((id) => have.has(id)));

@@ -165,8 +165,8 @@ test.describe('coverage registry', { tag: '@coverage' }, () => {
     await page.evaluate((id) => localStorage.setItem('hf_session', id), sessionId);
     await page.reload();
     await sweep.at('question: where');
-    await app.chat.region().getByLabel('Destination', { exact: true }).fill('porto');
-    await app.chat.region().getByRole('button', { name: 'Porto, Portugal', exact: true }).click();
+    await app.chat.say('porto');
+    await app.chat.region().getByRole('button', { name: 'Porto · Portugal', exact: true }).click();
     await expect(app.chat.region().getByRole('button', { name: 'Use these nights' })).toBeVisible();
     await sweep.at('question: nights');
     const card = app.chat.region().locator('div').filter({ has: page.getByRole('button', { name: 'Use these nights' }) }).filter({ has: page.getByRole('grid') }).last();
