@@ -19,6 +19,12 @@ const CHAT = 'ui/chat.spec.ts';
 const ASK = 'ui/onboarding.spec.ts';
 const BOOK = 'ui/booking.spec.ts';
 const ADMIN = 'ui/admin.spec.ts';
+const SAVED = 'ui/saved.spec.ts';
+const FILTERS = 'ui/filters.spec.ts';
+const FULL = 'ui/full-list.spec.ts';
+const FREEZE = 'ui/freeze.spec.ts';
+const SPANISH = 'ui/spanish.spec.ts';
+const EXTRAS = 'ui/checkout-extras.spec.ts';
 
 const DAY = '(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December)';
 const MONEY = '(?:[€£$¥]|[A-Z]{2,3}\\$?)[\\d,]+(?:\\.\\d{2})?';
@@ -135,6 +141,41 @@ export const CLAIMS: Claim[] = [
   { control: /^button "Keep it"$/, by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
   { control: /^button "(Yes, cancel it|Cancelling…)"$/, by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
   { control: /^button "Check again"$/, by: `${BOOK} › a booking the hotel refused, and one it has not answered yet, each say what to do` },
+
+  // ── Language (docs/i18n.md) ────────────────────────────────────────────────
+  { control: /^combobox "Language \/ Idioma"$|^combobox "Idioma \/ Language"$/, by: `${SPANISH} › switch to Spanish and search Oporto` },
+
+  // ── Saved hotels and the currency (docs/saved.md) ─────────────────────────
+  { control: /^button "(Save .+|Remove .+ from saved hotels)"$/, by: `${SAVED} › the heart on a card saves the hotel; the list shows it with its last price found; its own heart unsaves it` },
+  { control: /^button ".+(Last price found: .+|No price found yet)"$/, by: `${SAVED} › a saved hotel opens the search it was saved from` },
+  { control: /^button "Change currency"$/, by: `${SAVED} › another currency prices the search again: every card in it, the saved price too, and kept over a reload` },
+  { control: /^combobox "Currency"$/, by: `${SAVED} › another currency prices the search again: every card in it, the saved price too, and kept over a reload` },
+
+  // ── Filters (docs/finder.md, "Filters") ────────────────────────────────────
+  { control: /^button "Change star class"$/, by: `${FILTERS} › star class: five stars only, every fitting card a 5★; back to any` },
+  { control: /^radio "(Any star class|\d\+? stars)"$/, by: `${FILTERS} › star class: five stars only, every fitting card a 5★; back to any` },
+  { control: /^button "Change guest rating"$/, by: `${FILTERS} › guest rating: rated 9+ only; every fitting card rated 9 or more` },
+  { control: /^radio "(Any guest rating|Rated \d\+)"$/, by: `${FILTERS} › guest rating: rated 9+ only; every fitting card rated 9 or more` },
+  { control: /^button "Change kind of place"$/, by: `${FILTERS} › kind of place: one kind ticked, the chip names it; none ticked is every kind` },
+  { control: /^checkbox "(hotels|aparthotels|apartments|hostels|B&Bs|guest houses|holiday homes)\s*\d*"$/i, by: `${FILTERS} › kind of place: one kind ticked, the chip names it; none ticked is every kind` },
+  { control: /^button "Change brand"$/, by: `${FILTERS} › brand: one brand ticked; another brand under the divider says why; kept over a reload; cleared` },
+  { control: /^checkbox ".+\d+"$/, by: `${FILTERS} › brand: one brand ticked; another brand under the divider says why; kept over a reload; cleared` },
+
+  // ── The full list (docs/finder.md, "The full list") ────────────────────────
+  { control: /^button "Show all \d+ hotels"$/, by: `${FULL} › Show all opens every other hotel that fits, in the same order, compact; Top picks only folds it` },
+  { control: /^button "Top picks only"$/, by: `${FULL} › Show all opens every other hotel that fits, in the same order, compact; Top picks only folds it` },
+  { control: /^button "(Previous|Next)"$/, by: `${FULL} › the pager: Next and Previous move a page and say where you are` },
+  { control: /^button "Try again"$/, by: `${FULL} › a page that does not load says so, and Try again loads it` },
+
+  // ── Hotel FAQ and checkout extras ──────────────────────────────────────────
+  { control: /^button "(Show all \d+ questions|Show fewer questions)"$/, by: `${DETAIL} › questions about this hotel: answered from the listing and the rate, eight first, then all, then fewer` },
+  { control: /^textbox "Special requests \(optional\)"$/, by: `${EXTRAS} › checkout extras: the hotel FAQ, pay now and at the hotel, a special request on the receipt` },
+
+  // ── Deal Freeze (docs/deal-freeze.md) ──────────────────────────────────────
+  { control: /^button "(Freeze until .+|Booking with the hotel…)"$/, by: `${FREEZE} › freeze a free-cancellation room: frozen with no payment, then confirmed; frozen again, then released` },
+  { control: new RegExp(`^button "Confirm and pay ${MONEY} with Apple Pay"$`), by: `${FREEZE} › freeze a free-cancellation room: frozen with no payment, then confirmed; frozen again, then released` },
+  { control: new RegExp(`^button "Confirm and pay ${MONEY} with Google Pay"$`), by: `${FREEZE} › says what is held, until when, that nothing is paid and how the reminder comes; Google Pay confirms it` },
+  { control: /^button "(Release it|Keep holding it|Yes, release it|Releasing…)"$/, by: `${FREEZE} › freeze a free-cancellation room: frozen with no payment, then confirmed; frozen again, then released` },
 
   // ── Admin ──────────────────────────────────────────────────────────────────
   { control: /^textbox "Email"$/, by: `${ADMIN} › the sign-in form: a bad email and a wrong code each say why` },

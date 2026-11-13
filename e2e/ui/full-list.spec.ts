@@ -1,141 +1,163 @@
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 
-import { expect, test } from '../fixtures/test';
+import { expect, openSession, test } from '../fixtures/test';
+import type { AppPage } from '../pages/app';
+import { ERROR_COPY } from '../support/copy';
 
 /**
- * "Show all N hotels" (lib/fullList.ts) in a real browser against the live
- * sandbox: the top picks stay as they are, the control opens every other hotel
- * that fits in the same order, the map shows the page on screen, and a hotel
- * from the full list opens and books like a top pick.
+ * "Show all N hotels" (docs/finder.md, "The full list"): the top picks stay as
+ * they are; the control opens every other hotel that fits, in the finder's
+ * order, a page at a time, as compact cards that open and book like the
+ * others; the map shows the page on screen.
  */
-async function searchPorto(page: Page) {
-  await page.goto('./?detail=slideout');
-  await page.getByLabel('Your trip', { exact: true }).fill('porto');
-  await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();
-  await page.getByRole('button', { name: /^When:/ }).click();
-  await page.getByRole('button', { name: 'Next weekend' }).click();
-  await page.getByRole('button', { name: 'Done' }).click();
-  await page.getByRole('button', { name: 'Low price' }).click();
-  await page.getByRole('button', { name: 'Find my hotel' }).click();
-  await expect(page.getByText(/\d+ of \d+ hotels fit/)).toBeVisible({ timeout: 60_000 });
+async function open(page: Page, app: AppPage, sessionId: string) {
+  await openSession(page, sessionId, '?detail=slideout');
+  await app.results.waitForCards();
 }
 
-const euros = (text: string) => Number(text.replace(/[^\d.]/g, ''));
-const totalOf = async (card: ReturnType<Page['locator']>) => (await card.locator('p').filter({ hasText: /^€[\d,.]+$/ }).first().textContent())!.trim();
+test.describe('the full list', { tag: '@ui' }, () => {
+  test.beforeEach(async ({ visitor }, info) => {
+    // Ranked for low price, so the order of the tail can be read off its prices.
+    const { sessionId, view } = await visitor.api().search({ priorities: ['cheapest'] });
+    expect(view.fullList.more, 'the Porto search has hotels after the top picks').toBeGreaterThan(0);
+    await visitor.toBrowser();
+    info.annotations.push({ type: 'session', description: JSON.stringify({ sessionId, total: view.fullList.total, more: view.fullList.more, picks: view.shortlist.length }) });
+  });
+  const session = () => JSON.parse(test.info().annotations.find((a) => a.type === 'session')!.description!) as { sessionId: string; total: number; more: number; picks: number };
 
-test('show all hotels under the top picks', { tag: ['@ui'] }, async ({ page }) => {
-  const errors: string[] = [];
-  page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()));
-  page.on('pageerror', (e) => errors.push(String(e)));
+  test('Show all opens every other hotel that fits, in the same order, compact; Top picks only folds it', async ({ page, app }) => {
+    const s = session();
+    await open(page, app, s.sessionId);
+    await expect(app.results.showAll()).toHaveText(`Show all ${s.total} hotels`);
+    await app.results.showAll().click();
+    const list = app.results.fullList();
+    await expect(list.getByRole('heading', { name: `All ${s.total} hotels that fit` })).toBeVisible();
+    const onPage = Math.min(s.more, 20);
+    await expect(app.results.fullCards()).toHaveCount(onPage);
+    await expect(list).toContainText(`Hotels ${s.picks + 1}–${s.picks + onPage} of ${s.total}, in the same order as the picks above.`);
+    // The picks keep their place and their reasons.
+    await expect(app.results.cards()).toHaveCount(s.picks);
+    await expect(app.results.card(0).root).toContainText('Cheapest available');
+    let previous = await app.results.card(s.picks - 1).totalMinor();
+    for (let i = 0; i < onPage; i++) {
+      const card = app.results.fullCard(i);
+      expect(await card.rank()).toBe(String(s.picks + 1 + i));
+      await expect(card.root).toHaveAttribute('data-compact', 'true');
+      await expect(card.root.locator('img')).toHaveCount(0);
+      const total = await card.totalMinor();
+      expect(total).toBeGreaterThanOrEqual(previous);
+      previous = total;
+    }
+    await app.results.topPicksOnly().click();
+    await expect(app.results.fullCards()).toHaveCount(0);
+    await expect(app.results.showAll()).toBeVisible();
+    await expect(app.results.cards()).toHaveCount(s.picks);
+  });
 
-  await searchPorto(page);
-  const hotels = page.getByRole('region', { name: 'Hotels' });
-  const picks = hotels.locator('ol').first().locator('> li');
-  await expect(picks).toHaveCount(5);
-  const fit = (await page.getByText(/\d+ of \d+ hotels fit/).last().textContent())!;
-  const n = Number(/(\d+) of \d+ hotels fit/.exec(fit)![1]);
-  test.skip(n <= 5, `the sandbox had only ${n} hotels that fit today: nothing to show after the picks`);
+  test('the map shows the picks and the page on screen, and frames that page', async ({ page, app }) => {
+    const s = session();
+    await open(page, app, s.sessionId);
+    const map = app.results.map();
+    await expect(map).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
+    await expect(app.results.pins()).toHaveCount(s.picks);
+    await expect(map).toHaveAttribute('data-frame', 'all');
+    await app.results.showAll().click();
+    const onPage = Math.min(s.more, 20);
+    await expect(app.results.pins()).toHaveCount(s.picks + onPage);
+    await expect(map).toHaveAttribute('data-frame', 'page');
+    await expect(map.locator('button[data-pin]', { hasText: new RegExp(`^${s.picks + 1}( · |$)`) })).toHaveCount(1);
+    const band = (await map.boundingBox())!;
+    const ids = await app.results.fullCards().evaluateAll((els) => els.map((el) => el.id.replace(/^hotel-/, '')));
+    const outside = () =>
+      map.locator('button[data-pin]').evaluateAll(
+        (els, { ids, b }) =>
+          els
+            .filter((el) => ids.includes((el as HTMLElement).dataset.pin!))
+            .filter((el) => {
+              const r = el.getBoundingClientRect();
+              const x = r.left + r.width / 2;
+              const y = r.top + r.height / 2;
+              return x < b.x || x > b.x + b.width || y < b.y || y > b.y + b.height;
+            }).length,
+        { ids, b: band },
+      );
+    await expect.poll(outside, { timeout: 10_000 }).toBe(0);
+    await app.results.topPicksOnly().click();
+    await expect(app.results.pins()).toHaveCount(s.picks);
+    await expect(map).toHaveAttribute('data-frame', 'all');
+  });
 
-  // The control names every hotel that fits, the picks included, as the chat counted them.
-  const all = page.getByRole('region', { name: 'Full list' });
-  await expect(all.getByRole('button', { name: `Show all ${n} hotels` })).toBeVisible();
-  const map = page.getByTestId('map');
-  await expect(map).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
-  await expect(map.locator('button[data-pin]')).toHaveCount(5);
-  await page.screenshot({ path: 'test-results/30-show-all-closed.png' });
+  test('a hotel from the full list opens in the detail view and books like a top pick', async ({ page, app }) => {
+    const s = session();
+    await open(page, app, s.sessionId);
+    await app.results.showAll().click();
+    const card = app.results.fullCard(0);
+    const name = await card.name();
+    await card.details().click();
+    await expect(page.getByRole('dialog', { name })).toBeVisible();
+    await expect(app.detail.price()).toBeVisible();
+    await expect(page.getByText(ERROR_COPY.property_not_found)).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await card.book().click();
+    await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
+    const stay = page.getByRole('region', { name: 'Your stay' });
+    await expect(stay.getByRole('heading', { name })).toBeVisible();
+    await expect(stay).toContainText(/Price re-checked with the hotel just now|The price changed: it was/);
+  });
 
-  await all.getByRole('button', { name: `Show all ${n} hotels` }).click();
-  await expect(all.getByRole('heading', { name: `All ${n} hotels that fit` })).toBeVisible();
-  const rest = all.locator('ol > li');
-  const onPage = Math.min(n - 5, 20);
-  await expect(rest).toHaveCount(onPage, { timeout: 30_000 });
-  await expect(all).toContainText(`Hotels 6–${5 + onPage} of ${n}, in the same order as the picks above.`);
-  // The top picks keep their reasons and their place.
-  await expect(picks).toHaveCount(5);
-  await expect(picks.first().locator('p').filter({ hasText: /^Cheapest/ })).toBeVisible();
+  test('the pager: Next and Previous move a page and say where you are', async ({ page, app }) => {
+    const s = session();
+    // Thirty hotels are asked for, so the real list is one page: a longer one is shown by answering with
+    // more rows than fit a page (the session's count and page 2 are the real rows, renumbered).
+    const more = 45;
+    await page.route(new RegExp(`/api/session/${s.sessionId}$`), async (route) => {
+      const res = await route.fetch();
+      const body = await res.json();
+      await route.fulfill({ response: res, json: { ...body, fullList: { ...body.fullList, total: body.fullList.total - body.fullList.more + more, more } } });
+    });
+    await page.route(new RegExp(`/api/session/${s.sessionId}/hotels\\?page=\\d+$`), async (route: Route) => {
+      const asked = Number(new URL(route.request().url()).searchParams.get('page'));
+      const res = await route.fetch({ url: route.request().url().replace(/page=\d+$/, 'page=1') });
+      const body = await res.json();
+      const rows = body.rows.map((r: { rank: number }, i: number) => ({ ...r, rank: s.picks + 1 + (asked - 1) * 20 + i }));
+      await route.fulfill({ response: res, json: { ...body, more, page: asked, rows } });
+    });
+    await open(page, app, s.sessionId);
+    await app.results.showAll().click();
+    const pager = app.results.pager();
+    await expect(pager).toContainText('Page 1 of 3');
+    await expect(pager.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    await pager.getByRole('button', { name: 'Next' }).click();
+    await expect(pager).toContainText('Page 2 of 3');
+    await expect(app.results.fullList()).toContainText(`Hotels ${s.picks + 21}–${s.picks + 40} of`);
+    await pager.getByRole('button', { name: 'Next' }).click();
+    await expect(pager).toContainText('Page 3 of 3');
+    await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await pager.getByRole('button', { name: 'Previous' }).click();
+    await expect(pager).toContainText('Page 2 of 3');
+  });
 
-  // Ranked for low price: the long tail continues the order, no cheaper than the last pick.
-  const lastPick = euros(await totalOf(picks.nth(4)));
-  let previous = lastPick;
-  for (let i = 0; i < onPage; i++) {
-    const card = rest.nth(i);
-    await expect(card.locator('h3')).toContainText(String(6 + i));
-    await expect(card).toHaveAttribute('data-compact', 'true');
-    await expect(card.locator('img')).toHaveCount(0);
-    const total = euros(await totalOf(card));
-    expect(total).toBeGreaterThanOrEqual(previous);
-    previous = total;
-  }
+  test('a page that does not load says so, and Try again loads it', async ({ page, app, diagnostics }) => {
+    const s = session();
+    diagnostics.allow(/\/hotels\?page=\d+$/, 503, 'the page is made to fail once');
+    let fail = true;
+    await page.route(/\/api\/session\/[^/]+\/hotels\?page=\d+$/, (route) => (fail ? route.fulfill({ status: 503, json: { error: 'supplier_unavailable' } }) : route.fallback()));
+    await open(page, app, s.sessionId);
+    await app.results.showAll().click();
+    const alert = app.results.fullList().getByRole('alert');
+    await expect(alert).toContainText(ERROR_COPY.supplier_unavailable);
+    fail = false;
+    await alert.getByRole('button', { name: 'Try again' }).click();
+    await expect(app.results.fullCards()).toHaveCount(Math.min(s.more, 20));
+    await expect(alert).toHaveCount(0);
+  });
 
-  // The map shows the picks and the page on screen; every pin carries its card's rank and total.
-  const pins = map.locator('button[data-pin]');
-  await expect(pins).toHaveCount(5 + onPage);
-  // Rank 6's pin: "6 · total", or "6" alone where its label would have covered another.
-  await expect(map.locator('button[data-pin]', { hasText: /^6( · |$)/ })).toHaveCount(1);
-  await page.screenshot({ path: 'test-results/31-show-all-open.png' });
-  // The camera frames the page on screen, not the whole city: every one of its pins is inside the map.
-  await expect(map).toHaveAttribute('data-frame', 'page');
-  const band = (await map.boundingBox())!;
-  const pageIds = await rest.evaluateAll((els) => els.map((el) => el.id.replace(/^hotel-/, '')));
-  const inside = () =>
-    map.locator('button[data-pin]').evaluateAll(
-      (els, { ids, b }) =>
-        els
-          .filter((el) => ids.includes((el as HTMLElement).dataset.pin!))
-          .filter((el) => {
-            const r = el.getBoundingClientRect();
-            const x = r.left + r.width / 2;
-            const y = r.top + r.height / 2;
-            return x < b.x || x > b.x + b.width || y < b.y || y > b.y + b.height;
-          }).length,
-      { ids: pageIds, b: band },
-    );
-  await expect.poll(inside, { timeout: 10_000 }).toBe(0);
-  await map.screenshot({ path: 'test-results/31b-show-all-map.png' });
-
-  // A hotel from the full list opens in the same detail view, with its rooms and rates.
-  const sixthName = (await rest.first().locator('h3').textContent())!.replace(/^\s*\d+\s*/, '').trim();
-  await rest.first().getByRole('button', { name: 'Details' }).click();
-  const sheet = page.getByRole('dialog', { name: sixthName });
-  await expect(sheet).toBeVisible();
-  await expect(sheet.getByText(/Something broke|could not be found/i)).toHaveCount(0);
-  await page.screenshot({ path: 'test-results/32-show-all-detail.png' });
-  await page.keyboard.press('Escape');
-  await expect(sheet).toHaveCount(0);
-
-  // Folding it away leaves the picks, and the map goes back to them.
-  await all.getByRole('button', { name: 'Top picks only' }).click();
-  await expect(rest).toHaveCount(0);
-  await expect(pins).toHaveCount(5);
-  await expect(map).toHaveAttribute('data-frame', 'all');
-
-  // Penny opens it too. Jev is off in this run, so this is the agent, live, if it can be reached.
-  await page.getByLabel('Message').fill('show me all of them');
-  await page.getByRole('button', { name: 'Send' }).click();
-  const said = page
-    .getByRole('region', { name: 'Conversation' })
-    .getByText(/hotels that fit are listed under the top picks|The assistant did not answer|The assistant is set up wrongly|ANTHROPIC_API_KEY is not set|used its allowance/);
-  await expect(said).toBeVisible({ timeout: 90_000 });
-  if (/listed under the top picks/.test((await said.textContent())!)) {
-    await expect(said).toHaveText(`All ${n} hotels that fit are listed under the top picks, in the same order.`);
-    await expect(rest).toHaveCount(onPage);
-    // Nothing was set aside: the same five picks.
-    await expect(picks).toHaveCount(5);
-    await expect(hotels.getByText(/set aside/)).toHaveCount(0);
-  } else {
-    console.log('[full-list.spec] the agent was not reachable, so "show me all of them" by chat was not exercised:', await said.textContent());
-    await all.getByRole('button', { name: `Show all ${n} hotels` }).click();
-    await expect(rest).toHaveCount(onPage);
-  }
-
-  // And a hotel from the full list books: the price is re-checked and the checkout opens on it.
-  const bookName = (await rest.first().locator('h3').textContent())!.replace(/^\s*\d+\s*/, '').trim();
-  await rest.first().getByRole('button', { name: 'Book' }).click();
-  await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
-  const stay = page.getByRole('region', { name: 'Your stay' });
-  await expect(stay.getByRole('heading', { name: bookName })).toBeVisible();
-  await expect(stay).toContainText(/Price re-checked with the hotel just now|The price changed: it was/);
-  await page.screenshot({ path: 'test-results/33-show-all-checkout.png' });
-
-  expect(errors).toEqual([]);
+  test('Penny opens it when asked for all of them', { tag: '@ai' }, async ({ page, app }) => {
+    const s = session();
+    await open(page, app, s.sessionId);
+    await app.chat.say('show me all of them');
+    await expect(app.chat.region().getByText(`All ${s.total} hotels that fit are listed under the top picks, in the same order.`)).toBeVisible({ timeout: 90_000 });
+    await expect(app.results.fullCards()).toHaveCount(Math.min(s.more, 20));
+    await expect(app.results.cards()).toHaveCount(s.picks);
+  });
 });

@@ -146,8 +146,11 @@ export type KeepError = 'booking_not_found' | 'booking_not_payable' | 'freeze_ex
 /** Confirm a frozen booking: the guest pays the held price. The room is already booked. */
 export async function keepFrozen(input: { bookingId: string; userId: string; wallet: Wallet; acceptedTotalMinor: number; now: Date }): Promise<{ ok: true; booking: Booking } | { ok: false; error: KeepError }> {
   const booking = await getBooking(input.bookingId);
-  if (!booking || booking.userId !== input.userId) return { ok: false, error: 'booking_not_found' };
+  if (!booking) return { ok: false, error: 'booking_not_found' };
+  // The route has already found it is this visitor's. Not frozen comes first: a prebooked row bought
+  // signed out has no account on it yet, and was answered "not on this account" (e2e, 2026-11-13).
   if (booking.status !== 'frozen') return { ok: false, error: 'booking_not_payable' };
+  if (booking.userId !== input.userId) return { ok: false, error: 'booking_not_found' };
   if (holdEnded(booking.frozenUntil, input.now)) return { ok: false, error: 'freeze_expired' };
   if (input.acceptedTotalMinor !== booking.totalMinor) return { ok: false, error: 'price_changed' };
   if (paymentMode() === 'none') return { ok: false, error: 'payment_unavailable' };

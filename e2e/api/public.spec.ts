@@ -18,10 +18,13 @@ test.describe('GET /api/health', { tag: ['@api', '@smoke'] }, () => {
 });
 
 test.describe('GET /api/example', { tag: ['@api', '@smoke'] }, () => {
-  test('the recorded example card, cacheable for an hour, made with no supplier call', async ({ api }) => {
+  test('the recorded example card, cacheable for an hour by this browser only (its words follow the language)', async ({ api }) => {
     const res = await api.example();
     const body = await json(res, S.exampleBody);
-    expect(res.headers()['cache-control']).toBe('public, max-age=3600');
+    // docs/i18n.md: the words follow the visitor's language, so it is cached per browser, never shared.
+    expect(res.headers()['cache-control']).toBe('private, max-age=3600');
+    expect(res.headers()['vary']).toMatch(/Accept-Language/i);
+    expect(res.headers()['vary']).toMatch(/Cookie/i);
     expect(body.caption).toMatch(/^Example from a real search: /);
     expect(body.total).toMatch(/^[€£$][\d,]+(\.\d{2})?$/);
     expect(body.reason.length).toBeGreaterThan(10);

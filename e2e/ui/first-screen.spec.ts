@@ -264,7 +264,8 @@ test.describe('first screen', { tag: '@ui' }, () => {
     await expect(app.trip.who()).toHaveAttribute('aria-expanded', 'true');
     await expect(party.value('adults')).toHaveText('2');
     await expect(party.value('children')).toHaveText('0');
-    await expect(party.value('rooms')).toHaveText('1');
+    // Rooms start at "Best price": we price the sensible splits (docs/finder.md, "Room splits").
+    await expect(party.value('rooms')).toHaveText('Best price');
     await expect(party.fewer('children')).toBeDisabled();
     await expect(party.fewer('rooms')).toBeDisabled();
     await expect(party.pet()).not.toBeChecked();
@@ -273,13 +274,17 @@ test.describe('first screen', { tag: '@ui' }, () => {
     await party.fewer('adults').click();
     await expect(party.value('adults')).toHaveText('1');
     await expect(party.fewer('adults')).toBeDisabled();
-    // One adult: one room at most.
+    // One adult: one room at most; "−" from 1 goes back to "Best price".
+    await party.more('rooms').click();
+    await expect(party.value('rooms')).toHaveText('1');
     await expect(party.more('rooms')).toBeDisabled();
+    await party.fewer('rooms').click();
+    await expect(party.value('rooms')).toHaveText('Best price');
     for (let i = 1; i < 12; i++) await party.more('adults').click();
     await expect(party.value('adults')).toHaveText('12');
     await expect(party.more('adults')).toBeDisabled();
     // Rooms: up to 6, and never more than adults.
-    for (let i = 1; i < 6; i++) await party.more('rooms').click();
+    for (let i = 0; i < 6; i++) await party.more('rooms').click();
     await expect(party.value('rooms')).toHaveText('6');
     await expect(party.more('rooms')).toBeDisabled();
     for (let i = 12; i > 3; i--) await party.fewer('adults').click();
@@ -341,7 +346,7 @@ test.describe('first screen', { tag: '@ui' }, () => {
     const brief = page.waitForRequest((r) => r.url().includes('/api/session/brief'));
     await app.trip.find().click();
     // While it searches: the button says so and cannot be pressed twice.
-    expect((await brief).postDataJSON().brief).toMatchObject({ text: '', dates, guests: { adults: 2, childrenAges: [], rooms: 1, pets: false }, priorities: ['cheapest'] });
+    expect((await brief).postDataJSON().brief).toMatchObject({ text: '', dates, guests: { adults: 2, childrenAges: [], rooms: null, pets: false }, priorities: ['cheapest'] });
     await app.results.waitForCards();
 
     const convo = app.chat.region();

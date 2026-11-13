@@ -51,13 +51,21 @@ export class Api {
   verify = (body: unknown) => this.request.post('api/auth/verify', { data: body });
   signOut = (body: unknown = {}) => this.request.post('api/auth/sign-out', { data: body });
   events = (body: unknown) => this.request.post('api/events', { data: body });
+  hotels = (id: string, query = '?page=1') => this.request.get(`api/session/${id}/hotels${query}`);
+  saved = () => this.request.get('api/saved');
+  save = (body: unknown) => this.request.post('api/saved', { data: body });
+  freeze = (id: string, body: unknown) => this.request.post(`api/booking/${id}/freeze`, { data: body });
+  keep = (id: string, body: unknown) => this.request.post(`api/booking/${id}/keep`, { data: body });
+  release = (id: string, body: unknown = {}) => this.request.post(`api/booking/${id}/release`, { data: body });
+  sweep = (authorization?: string) => this.request.get('api/freeze/sweep', authorization ? { headers: { authorization } } : undefined);
 
   // ── Steps many tests share ──────────────────────────────────────────────────
   async porto(): Promise<{ placeId: string; label: string }> {
     porto ??= (async () => {
-      const res = await this.places('porto');
-      // Loose on purpose: the strict shape is the places API test's job (e2e/api/places.spec.ts).
-      const body = (await res.json()) as { places: Array<{ placeId: string; label: string }> };
+      const res = await this.patient(() => this.places('porto'));
+      // Loose on purpose: the strict shape is the places API test's job (e2e/api/public.spec.ts).
+      const body = (await res.json()) as { places?: Array<{ placeId: string; label: string }> };
+      if (!body.places) throw new Error(`the place search answered ${res.status()}: ${JSON.stringify(body)}`);
       const city = body.places.find((p) => p.label === 'Porto, Portugal');
       if (!city) throw new Error(`the place search has no "Porto, Portugal": ${JSON.stringify(body)}`);
       return { placeId: city.placeId, label: city.label };
@@ -94,6 +102,27 @@ export class Api {
       if (res.status() !== 503 || attempt === 3) return res;
       await new Promise((r) => setTimeout(r, 1500 * attempt));
     }
+  }
+
+  /**
+   * A checkout past the price re-check whose rate can be frozen (docs/deal-freeze.md): refundable, with a
+   * free-cancellation deadline at least 72 h away. Searched five weeks out, where the sandbox still has such
+   * rates (a week out it often has none); the top picks first, then the full list. Setup only.
+   */
+  async freezable(): Promise<{ sessionId: string; bookingId: string; booking: S.BookingViewBody }> {
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const { sessionId, view } = await this.search({ dates: { checkIn: day(35), checkOut: day(37) } });
+    const full = view.fullList.more > 0 ? (await json(await this.hotels(sessionId), S.fullListBody)).rows : [];
+    const soon = Date.now() + 80 * 3_600_000;
+    const candidates = [...view.shortlist, ...full].filter((r) => r.offer?.refundable && r.offer.freeCancellationUntil && Date.parse(r.offer.freeCancellationUntil) > soon);
+    for (const row of candidates) {
+      const res = await this.patient(() => this.checkout(sessionId, { offerId: row.offer!.id }));
+      if (!res.ok()) continue;
+      const { bookingId } = S.bookingIdBody.parse(await res.json());
+      const { booking } = await json(await this.booking(bookingId), S.bookingPageBody);
+      if (booking.freezeOffer) return { sessionId, bookingId, booking };
+    }
+    throw new Error(`no freezable rate among ${candidates.length} refundable offers five weeks out: the sandbox answered without one`);
   }
 
   /** Sends a code and returns it: no email service in e2e, so the answer carries it (dev mailbox). */

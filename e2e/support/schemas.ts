@@ -55,7 +55,9 @@ const offer = z
     payAtPropertyMinor: minor,
     suggestedSellingMinor: minor.nullable(),
     audience: z.enum(['public', 'member']),
+    /** One room's name, or "2 rooms: …" when the price is for several (docs/finder.md, "Room splits"). */
     roomName: z.string().nullable(),
+    rooms: z.number().int().min(1).max(6),
     boardName: z.string().nullable(),
     refundable: z.boolean(),
     freeCancellationUntil: z.string().nullable(),
@@ -101,6 +103,7 @@ const message = z
   .strict();
 
 const priorityKey = z.enum(['cheapest', 'closest', 'nicest']);
+const propertyType = z.enum(['hotel', 'aparthotel', 'apartment', 'hostel', 'bed_and_breakfast', 'guest_house', 'holiday_home']);
 
 export const sessionView = z
   .object({
@@ -134,9 +137,25 @@ export const sessionView = z
         checkOut: isoDate,
         adults: z.number().int().min(1).max(12),
         childrenAges: z.array(z.number().int().min(0).max(17)),
-        rooms: z.number().int().min(1).max(6),
+        /** null = "Best price": the finder chooses the rooms. */
+        rooms: z.number().int().min(1).max(6).nullable(),
         priceCapMinor: z.number().int().positive().nullable(),
         mustHaves: z.array(z.string()),
+        filters: z
+          .object({
+            minStars: z.union([z.literal(3), z.literal(4), z.literal(5)]).nullable(),
+            minRating: z.union([z.literal(7), z.literal(8), z.literal(9)]).nullable(),
+            propertyTypes: z.array(propertyType),
+            chains: z.array(z.string().min(1)),
+          })
+          .strict(),
+        filterOptions: z
+          .object({
+            propertyTypes: z.array(z.object({ type: propertyType, count: z.number().int().positive() }).strict()),
+            chains: z.array(z.object({ chain: z.string().min(1), count: z.number().int().positive() }).strict()),
+            silent: z.object({ propertyType: z.number().int().nonnegative(), chain: z.number().int().nonnegative() }).strict(),
+          })
+          .strict(),
         excludedCount: z.number().int().nonnegative(),
         nearLabel: z.string().min(1),
         nearIsNamed: z.boolean(),
@@ -146,6 +165,8 @@ export const sessionView = z
       .nullable(),
     messages: z.array(message),
     shortlist: z.array(shortlistRow),
+    /** "Show all N hotels": every hotel that fits (top picks included), and how many lie after the picks. */
+    fullList: z.object({ total: z.number().int().nonnegative(), more: z.number().int().nonnegative(), pageSize: z.number().int().positive() }).strict(),
   })
   .strict();
 export type SessionViewBody = z.infer<typeof sessionView>;
@@ -189,6 +210,8 @@ export const propertyDetailsBody = z
       .nullable(),
     rooms: z.array(z.record(z.unknown())).max(40),
     allFacilities: z.array(z.string()),
+    /** The amenity list the chat answers from; null when the listing has none. */
+    amenities: z.array(z.string()).nullable(),
   })
   .strict();
 
@@ -215,7 +238,8 @@ export const ratesBody = z
 
 export const bookingIdBody = z.object({ bookingId: uuid }).strict();
 
-const bookingStatus = z.enum(['prebooked', 'payment_pending', 'paid', 'booking', 'confirmed', 'failed', 'cancelled']);
+const bookingStatus = z.enum(['prebooked', 'payment_pending', 'paid', 'booking', 'confirmed', 'failed', 'cancelled', 'freezing', 'frozen', 'keeping', 'releasing']);
+const charge = z.object({ description: z.string().min(1), amountMinor: minor, currency }).strict();
 export const bookingView = z
   .object({
     id: uuid,
@@ -234,6 +258,9 @@ export const bookingView = z
     quotedTotalMinor: minor.nullable(),
     priceChanged: z.boolean(),
     payAtPropertyMinor: minor,
+    /** Each charge the hotel collects, as the supplier names it; null on bookings from before they were kept. */
+    payAtPropertyFees: z.array(charge).nullable(),
+    specialRequest: z.string().max(500).nullable(),
     refundable: z.boolean().nullable(),
     freeCancellationUntil: z.string().nullable(),
     checkedAt: isoTime,
@@ -247,19 +274,25 @@ export const bookingView = z
     refundMinor: minor.nullable(),
     cancelFeeMinor: minor.nullable(),
     offerId: uuid.nullable(),
+    /** Deal Freeze (docs/deal-freeze.md). */
+    freezeOffer: z.object({ until: isoTime, reminderAt: isoTime }).strict().nullable(),
+    frozenUntil: isoTime.nullable(),
+    freezeReminderDueAt: isoTime.nullable(),
+    freezeReminderSentAt: isoTime.nullable(),
+    releasedBy: z.enum(['guest', 'expiry', 'terms']).nullable(),
   })
   .strict();
 export type BookingViewBody = z.infer<typeof bookingView>;
 
 const holder = z.object({ firstName: z.string(), lastName: z.string() }).strict().nullable();
 export const bookingPageBody = z
-  .object({ booking: bookingView, me: z.object({ email: z.string().email() }).strict().nullable(), lastHolder: holder, payment: z.enum(['test', 'none']) })
+  .object({ booking: bookingView, me: z.object({ email: z.string().email() }).strict().nullable(), lastHolder: holder, payment: z.enum(['test', 'none']), mail: z.boolean() })
   .strict();
 export const bookingBody = z.object({ booking: bookingView }).strict();
 export const bookingsBody = z
   .object({
     bookings: z.array(
-      z.object({ id: uuid, status: z.enum(['confirmed', 'cancelled', 'booking']), hotelName: z.string().nullable(), checkIn: isoDate.nullable(), checkOut: isoDate.nullable() }).strict(),
+      z.object({ id: uuid, status: z.enum(['confirmed', 'cancelled', 'booking', 'frozen', 'keeping', 'releasing', 'freezing']), hotelName: z.string().nullable(), checkIn: isoDate.nullable(), checkOut: isoDate.nullable() }).strict(),
     ),
   })
   .strict();
@@ -287,3 +320,34 @@ export const exampleBody = z
 
 /** One Server-Sent Events frame of a chat turn. */
 export const turnEvent = z.object({ type: z.string().min(1) }).passthrough();
+
+/** One page of "Show all N hotels" (GET api/session/[id]/hotels): rows in the session view's row shape. */
+export const fullListBody = z
+  .object({ more: z.number().int().nonnegative(), page: z.number().int().min(1), pageSize: z.number().int().positive(), rows: z.array(shortlistRow) })
+  .strict();
+
+/** The saved list (GET/POST api/saved): never a current price, only the last one found (docs/saved.md). */
+export const savedBody = z
+  .object({
+    saved: z.array(
+      z
+        .object({
+          propertyId: uuid,
+          name: z.string().min(1),
+          photo: z.string().url().nullable(),
+          address: z.string().nullable(),
+          stars: z.number().min(0).max(5).nullable(),
+          rating: z.number().min(0).max(10).nullable(),
+          savedAt: isoTime,
+          sessionId: uuid.nullable(),
+          lastFound: z.object({ totalMinor: z.number().int().positive(), currency, checkIn: isoDate, checkOut: isoDate, fetchedAt: isoTime }).strict().nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+/** The Deal Freeze sweep's report (GET api/freeze/sweep). */
+export const sweepBody = z
+  .object({ released: z.number().int().nonnegative(), releaseFailed: z.number().int().nonnegative(), resolved: z.number().int().nonnegative(), remindersSent: z.number().int().nonnegative(), remindersDisplayOnly: z.number().int().nonnegative() })
+  .strict();

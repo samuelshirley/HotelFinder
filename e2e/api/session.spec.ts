@@ -39,12 +39,16 @@ test.describe('GET /api/session', { tag: '@api' }, () => {
   });
 
   test('this visitor\'s trips, newest first; a search without a place and dates is not one yet', async ({ api }) => {
-    await json(await api.newSession(), S.sessionIdBody);
+    const { sessionId: noPlaceYet } = await json(await api.newSession(), S.sessionIdBody);
     const first = await api.search();
     const second = await api.search({ dates: { checkIn: addDays(canonicalDates().checkIn, 7), checkOut: addDays(canonicalDates().checkIn, 9) } });
     const { trips } = await json(await api.trips(), S.tripsBody);
-    expect(trips.map((t) => t.id)).toEqual([second.sessionId, first.sessionId]);
-    expect(trips[1]).toEqual({ id: first.sessionId, status: 'active', destination: 'Porto, Portugal', checkIn: canonicalDates().checkIn, checkOut: canonicalDates().checkOut });
+    // Newest first. (A setup search the sandbox refused is retried as a new search, which is a trip too.)
+    const ids = trips.map((t) => t.id);
+    expect(ids).not.toContain(noPlaceYet);
+    expect(ids.indexOf(second.sessionId)).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf(second.sessionId)).toBeLessThan(ids.indexOf(first.sessionId));
+    expect(trips.find((t) => t.id === first.sessionId)).toEqual({ id: first.sessionId, status: 'active', destination: 'Porto, Portugal', checkIn: canonicalDates().checkIn, checkOut: canonicalDates().checkOut });
   });
 
   test('another visitor\'s trips are not listed', async ({ api, ip }) => {
@@ -59,7 +63,8 @@ test.describe('POST /api/session/brief', { tag: '@api' }, () => {
   test('a picked place and nights: the first search runs in the same request', async ({ api }) => {
     const { view } = await api.search({ priorities: ['cheapest', 'nicest'] });
     expect(view.session.status).toBe('active');
-    expect(view.stay).toMatchObject({ destination: 'Porto, Portugal', ...canonicalDates(), adults: 2, childrenAges: [], rooms: 1 });
+    expect(view.stay).toMatchObject({ destination: 'Porto, Portugal', ...canonicalDates(), adults: 2, childrenAges: [], rooms: null });
+    // No rooms named: "Best price" (null), the finder picks the split (docs/finder.md, "Room splits").
     expect([...view.session.priorities!].sort()).toEqual(['cheapest', 'nicest']);
     expect(view.shortlist.length).toBeGreaterThan(0);
     expect(view.shortlist.length).toBeLessThanOrEqual(5);
@@ -257,7 +262,7 @@ test.describe('POST /api/session/[id]/edit', { tag: '@api' }, () => {
     await expectError(await api.edit(id, { actions: Array(4).fill({ type: 'clear_near' }), today: today() }), 400, 'invalid_request');
     // The search is unchanged by all of that.
     const view = await json(await api.session(id), S.sessionView);
-    expect(view.stay).toMatchObject({ ...d, adults: 2, rooms: 1 });
+    expect(view.stay).toMatchObject({ ...d, adults: 2, rooms: null });
   });
 
   test('a search still being set up is not_active (409); another visitor\'s is session_not_found', async ({ api, searched, ip }) => {

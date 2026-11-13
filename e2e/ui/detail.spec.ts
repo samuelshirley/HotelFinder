@@ -306,6 +306,34 @@ test.describe('hotel detail, slide-out', { tag: '@ui' }, () => {
     }
   });
 
+  test('questions about this hotel: answered from the listing and the rate, eight first, then all, then fewer', async ({ page, app, searched, api }) => {
+    const rich = await richest(api, searched.sessionId, searched.view);
+    await open(page, app, searched.sessionId, 'slideout', rich.index);
+    const faq = app.detail.faq();
+    await expect(faq.getByRole('heading', { name: 'Questions about this hotel' })).toBeVisible();
+    await expect(faq).toContainText("Answered from the hotel's listing and this rate. Ask in the chat for anything else.");
+    const questions = faq.locator('dt');
+    expect(await questions.count()).toBeLessThanOrEqual(8);
+    const all = faq.getByRole('button', { name: /^Show all \d+ questions$/ });
+    if (await all.count()) {
+      const n = Number((await all.textContent())!.match(/\d+/)![0]);
+      await all.click();
+      await expect(questions).toHaveCount(n);
+      await faq.getByRole('button', { name: 'Show fewer questions' }).click();
+      await expect(questions).toHaveCount(8);
+      await all.click();
+    }
+    // Every question has its answer, a sentence; a facility is listed, not listed, or not said: never a bare "no".
+    for (let i = 0; i < (await questions.count()); i++) {
+      const answer = (await questions.nth(i).locator('+ dd').textContent())!.trim();
+      expect(answer).toMatch(/\S.*[.?]$/);
+      expect(answer).not.toMatch(/^no\.?$/i);
+    }
+    // The price question says the card's own total.
+    const total = (await app.detail.price().locator('p').first().textContent())!.replace(/ total$/, '').trim();
+    await expect(faq.locator('div', { has: page.getByText('How much is it for these dates?', { exact: true }) }).locator('dd')).toContainText(total);
+  });
+
   test('a listing that cannot be loaded says so, and the rest still works', async ({ page, app, searched, diagnostics }) => {
     diagnostics.allow(/\/api\/session\/[^/]+\/property\/[^/]+$/, 503, 'the listing call is made to fail on purpose');
     diagnostics.allow(/\/api\/session\/[^/]+\/property\/[^/]+\/rates$/, 503, 'the rates call is made to fail on purpose');

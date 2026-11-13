@@ -68,7 +68,21 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     await expect(co.stay()).toContainText(`${fmtDay(b.checkIn!, !sameMonth)} – ${fmtDay(b.checkOut!, true)} · 2 nights · 2 adults`);
     await expect(co.stay()).toContainText([b.roomName, b.boardName ?? 'Room only'].filter(Boolean).join(' · '));
     expect(minor((await co.total().textContent())!)).toBe(b.totalMinor);
-    await expect(co.dd('Paid at the hotel')).toHaveText(b.payAtPropertyMinor > 0 ? MONEY : 'Nothing listed');
+    // Paid now, before paying; what the hotel charges on top, each charge as the supplier names it.
+    await expect(co.dd('Pay now, taxes in')).toHaveText(MONEY);
+    const charges = b.payAtPropertyFees ?? [];
+    if (charges.length === 0) await expect(co.dd('Pay at the hotel')).toHaveText(b.payAtPropertyMinor > 0 && b.payAtPropertyFees === null ? MONEY : 'Nothing listed');
+    else {
+      const group = co.stay().getByRole('group', { name: 'Pay at the hotel' });
+      await expect(group.locator('dt')).toHaveText('Pay at the hotel, not in the total');
+      await expect(group.getByRole('listitem')).toHaveCount(charges.length);
+      for (const [i, c] of charges.entries()) {
+        await expect(group.getByRole('listitem').nth(i)).toContainText(c.description);
+        expect(minor((await group.getByRole('listitem').nth(i).locator('span').last().textContent())!)).toBe(c.amountMinor);
+      }
+      // The named charges add up to what the card said is paid at the hotel.
+      if (charges.every((c) => c.currency === b.currency)) expect(charges.reduce((n, c) => n + c.amountMinor, 0)).toBe(b.payAtPropertyMinor);
+    }
     await expect(co.dd('Cancellation')).toHaveText(/^(Non-refundable|Not given by the hotel|Refundable; the hotel did not give the deadline|Free until \d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC)$/);
     await expect(co.form().getByRole('heading', { level: 1 })).toHaveText('Book it');
     await expect(co.email()).toHaveAttribute('type', 'email');

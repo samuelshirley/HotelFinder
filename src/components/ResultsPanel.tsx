@@ -412,7 +412,8 @@ function StepChip({ name, label, value, steps, stepLabel, anyLabel, note, busy, 
   const [picked, setPicked] = useState<number | null>(value);
   useEffect(() => setPicked(value), [value]);
   return (
-    <Editable label={label} name={name} busy={busy} onApply={() => onApply(picked)}>
+    // Each opening starts from the search as it is, so Cancel and Esc discard (as Who and When do).
+    <Editable label={label} name={name} busy={busy} onOpen={() => setPicked(value)} onApply={() => onApply(picked)}>
       {[null, ...steps].map((step) => (
         <label key={step ?? 'any'} className={styles.check}>
           <input type="radio" name={name} checked={picked === step} onChange={() => setPicked(step)} />
@@ -429,7 +430,7 @@ function PickChip({ name, label, choices, picked, silent, noneTicked, silentNote
   const [sel, setSel] = useState<string[]>(picked);
   useEffect(() => setSel(picked), [picked]);
   return (
-    <Editable label={label} name={name} busy={busy} onApply={() => onApply(sel)}>
+    <Editable label={label} name={name} busy={busy} onOpen={() => setSel(picked)} onApply={() => onApply(sel)}>
       {choices.map((c) => (
         <label key={c.value} className={styles.check}>
           <input type="checkbox" checked={sel.includes(c.value)} onChange={(e) => setSel(e.target.checked ? [...sel, c.value] : sel.filter((v) => v !== c.value))} />
@@ -625,7 +626,7 @@ function CurrencyChip({ code, capSet, busy, onEdit }: { code: string; capSet: bo
     </option>
   );
   return (
-    <Editable label={t.ui.currencyChip(code)} name={t.ui.currencyName} busy={busy} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
+    <Editable label={t.ui.currencyChip(code)} name={t.ui.currencyName} busy={busy} onOpen={() => setPicked(code)} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
       <select className={styles.editorInput} aria-label={t.ui.currency} value={picked} onChange={(e) => setPicked(e.target.value)}>
         {COMMON_CURRENCIES.map((c) => option(CURRENCIES.find((x) => x.code === c)!))}
         <option disabled>──────────</option>

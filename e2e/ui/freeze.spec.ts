@@ -1,6 +1,10 @@
 import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from '../fixtures/test';
+import { CheckoutPage } from '../pages/checkout';
+import { json } from '../support/api';
+import { uniqueEmail } from '../support/env';
+import * as S from '../support/schemas';
 
 /**
  * Deal Freeze through the real UI against the LiteAPI SANDBOX
@@ -65,7 +69,7 @@ async function refundableCard(page: Page): Promise<{ card: Locator; hotel: strin
   throw new Error('no free-cancellation card on the shortlist or the full list: the sandbox answered without one');
 }
 
-test('freeze a free-cancellation room: frozen with no payment, then confirmed; frozen again, then released', { tag: ['@ui', '@booking'] }, async ({ page }) => {
+test('freeze a free-cancellation room: frozen with no payment, then confirmed; frozen again, then released', { tag: ['@ui', '@booking', '@freeze'] }, async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -163,4 +167,40 @@ test('freeze a free-cancellation room: frozen with no payment, then confirmed; f
   await expect(page.getByRole('button', { name: /Confirm and pay/ })).toHaveCount(0);
 
   expect(errors).toEqual([]);
+});
+
+test.describe('a frozen booking\'s page', { tag: ['@ui', '@booking', '@freeze'] }, () => {
+  test('says what is held, until when, that nothing is paid and how the reminder comes; Google Pay confirms it', async ({ page, visitor, api }) => {
+    test.setTimeout(240_000);
+    const b = await api.freezable();
+    const email = uniqueEmail('frozen-page');
+    const code = await api.sendCode(email);
+    const { booking } = await json(await api.freeze(b.bookingId, { email, code, firstName: 'Ana', lastName: 'Silva', acceptedTotalMinor: b.booking.totalMinor }), S.bookingBody);
+    await visitor.toBrowser();
+    const co = new CheckoutPage(page);
+    try {
+      await co.goto(b.bookingId);
+      await expect(co.heading()).toHaveText('Frozen');
+      const until = (await co.dd('Held until').textContent())!.trim();
+      expect(until).toMatch(/^\w{3} \d{1,2} \w{3}, \d{2}:\d{2} UTC$/);
+      expect(new Date(booking.frozenUntil!).toISOString().slice(11, 16)).toBe(until.match(/(\d{2}:\d{2}) UTC$/)![1]);
+      await expect(co.receipt()).toContainText(`This room is booked with the hotel at ${(await co.total().textContent())!.trim()} and nothing is paid.`);
+      await expect(co.dd('Paid')).toHaveText('Nothing yet');
+      await expect(co.dd('Booking reference')).toHaveText(booking.reference!);
+      await expect(co.dd('Guest')).toHaveText(`Ana Silva · ${email.toLowerCase()}`);
+      await expect(co.dd('Reminder')).toHaveText(/^Due \w{3} \d{1,2} \w{3}, \d{2}:\d{2} UTC\. No email service is set up here, so no email will be sent: this page is the reminder\.$/);
+      await expect(page.getByText('Test payments: the wallets below are a stand-in and no money moves.')).toBeVisible();
+      await expect(page).toHaveLoadedImages();
+      const total = (await co.total().textContent())!.trim();
+      await co.confirmFrozen('Google Pay').click();
+      await co.sheet('Google Pay').getByRole('button', { name: `Confirm ${total}` }).click();
+      await expect(co.heading()).toHaveText('Booked', { timeout: 60_000 });
+      await expect(co.dd('Paid')).toHaveText(`${total} with Google Pay (test payment: no money moved)`);
+      await expect(co.dd('Booking reference')).toHaveText(booking.reference!);
+    } finally {
+      const now = (await (await visitor.api().booking(b.bookingId)).json()).booking?.status;
+      if (now === 'frozen') await visitor.api().release(b.bookingId);
+      if (now === 'confirmed') await visitor.api().cancel(b.bookingId);
+    }
+  });
 });

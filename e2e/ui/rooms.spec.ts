@@ -1,5 +1,3 @@
-import type { Page } from '@playwright/test';
-
 import { expect, test } from '../fixtures/test';
 
 /**
@@ -11,24 +9,12 @@ import { expect, test } from '../fixtures/test';
  * price from an anonymous visitor (docs/finder.md, "Room splits"). Nothing
  * is booked: the spec stops at the checkout page (a prebook books nothing).
  */
-async function signIn(page: Page, email: string) {
-  // The admin form is the one sign-in page with no booking behind it; a non-admin is simply signed in.
-  await page.goto('./admin');
-  await page.getByLabel('Email').fill(email);
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const devCode = page.getByText(/Dev mailbox: \d{6}/);
-  await expect(devCode).toBeVisible();
-  await page.getByLabel(/Code sent to/).fill((await devCode.textContent())!.match(/\d{6}/)![0]);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText('This page could not be found.')).toBeVisible();
-}
-
-test('four adults, rooms left to us: each card names its rooms, and the checkout re-checks those rooms', { tag: ['@ui', '@booking'] }, async ({ page }) => {
+test('four adults, rooms left to us: each card names its rooms, and the checkout re-checks those rooms', { tag: ['@ui', '@booking'] }, async ({ page, signedIn: _signedIn }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
 
-  await signIn(page, 'rooms@e2e.test');
+  // Signed in by the fixture (an email code, no booking behind it).
   await page.goto('./');
   await page.getByLabel('Your trip', { exact: true }).fill('porto');
   await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();

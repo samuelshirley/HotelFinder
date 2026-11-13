@@ -226,6 +226,68 @@ test.describe('coverage registry', { tag: '@coverage' }, () => {
     expect(sweep.report(), UNCLAIMED).toEqual([]);
   });
 
+  test('the Vio-parity controls: filters, currency, hearts and the saved list, the full list, the hotel FAQ', async ({ page, app, searched, api }) => {
+    const sweep = new Sweep(page);
+    await json(await api.save({ saved: true, propertyId: searched.view.shortlist[0].property.id, sessionId: searched.sessionId }), S.savedBody);
+    await openSession(page, searched.sessionId, '?detail=slideout');
+    await app.results.waitForCards();
+    await sweep.at('a saved hotel in the list');
+    for (const name of ['star class', 'guest rating', 'kind of place', 'brand'] as const) {
+      const chip = app.results.filter(name);
+      if (!(await chip.count())) continue;
+      await chip.click();
+      await sweep.at(`${name} editor open`);
+      await page.keyboard.press('Escape');
+    }
+    await app.results.currency().click();
+    await sweep.at('currency editor open');
+    await page.keyboard.press('Escape');
+    if (await app.results.showAll().count()) {
+      await app.results.showAll().click();
+      await expect(app.results.fullCards().first()).toBeVisible();
+      await sweep.at('the full list open');
+      await app.results.fullCard(0).details().click();
+      await expect(page.getByText('Loading the hotel…')).toHaveCount(0, { timeout: 60_000 });
+      await sweep.at('a full-list hotel opened');
+      await page.keyboard.press('Escape');
+    }
+    await app.results.card(0).details().click();
+    await expect(page.getByText('Loading the hotel…')).toHaveCount(0, { timeout: 60_000 });
+    const all = app.detail.faq().getByRole('button', { name: /^Show all \d+ questions$/ });
+    if (await all.count()) await all.click();
+    await sweep.at('the hotel FAQ, all questions');
+    expect(sweep.report(), UNCLAIMED).toEqual([]);
+  });
+
+  test('Deal Freeze: the offer on the checkout, a frozen booking, and a released one', { tag: ['@booking', '@freeze'] }, async ({ page, visitor, api }) => {
+    test.setTimeout(300_000);
+    const sweep = new Sweep(page);
+    const b = await api.freezable();
+    await visitor.toBrowser();
+    const co = new CheckoutPage(page);
+    await co.goto(b.bookingId);
+    await expect(co.freezeOffer()).toBeVisible();
+    await sweep.at('checkout with a freeze offer');
+    const email = uniqueEmail('sweep-freeze');
+    const code = await api.sendCode(email);
+    await json(await api.freeze(b.bookingId, { email, code, firstName: 'Ana', lastName: 'Silva', acceptedTotalMinor: b.booking.totalMinor }), S.bookingBody);
+    await visitor.toBrowser();
+    try {
+      await co.goto(b.bookingId);
+      await expect(co.heading()).toHaveText('Frozen');
+      await sweep.at('frozen');
+      await co.releaseIt().click();
+      await sweep.at('release this room?');
+      await co.yesRelease().click();
+      await expect(co.heading()).toHaveText('Released', { timeout: 60_000 });
+      await sweep.at('released');
+    } finally {
+      const now = (await (await visitor.api().booking(b.bookingId)).json()).booking?.status;
+      if (now === 'frozen') await visitor.api().release(b.bookingId);
+    }
+    expect(sweep.report(), UNCLAIMED).toEqual([]);
+  });
+
   test('admin: the sign-in steps, the overview and one search', { tag: '@admin' }, async ({ page, visitor }) => {
     const sweep = new Sweep(page);
     const admin = new AdminPage(page);
