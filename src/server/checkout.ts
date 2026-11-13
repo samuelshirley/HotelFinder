@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { CancellationPolicy, SupplierAdapter } from '@/server/supplier';
+import { freezeTerms } from '@/lib/freeze';
 import { formatDates } from '@/lib/replies';
 import { normalizeEmail, verifyCode } from '@/server/auth/otp';
 import { userForVerifiedEmail } from '@/server/auth/user';
@@ -98,6 +99,34 @@ export type ConfirmResult = { ok: true; booking: Booking; signedInAs: string | n
 const NAME = /^[\p{L}][\p{L}\p{M}' .-]{0,59}$/u;
 const cleanName = (s: string) => s.trim().replace(/\s+/g, ' ');
 
+/** The guest's names as typed, or null when either is missing or not a name. */
+export function guestNames(input: { firstName: string; lastName: string }): { firstName: string; lastName: string } | null {
+  const firstName = cleanName(input.firstName);
+  const lastName = cleanName(input.lastName);
+  return NAME.test(firstName) && NAME.test(lastName) ? { firstName, lastName } : null;
+}
+
+/**
+ * The account a booking step acts for: the signed-in one, or the one the
+ * email code proves. `signedInAs` is set when the code was spent here, so the
+ * route signs the browser in even when the step then fails.
+ */
+export async function signInGuest(
+  input: { signedInUserId: string | null; email: string; code: string },
+  now: Date,
+): Promise<{ ok: true; userId: string; email: string; signedInAs: string | null } | { ok: false; error: 'email_invalid' | 'code_wrong' | 'code_expired'; signedInAs: string | null }> {
+  if (input.signedInUserId) {
+    const email = normalizeEmail(input.email);
+    return email ? { ok: true, userId: input.signedInUserId, email, signedInAs: null } : { ok: false, error: 'email_invalid', signedInAs: null };
+  }
+  const normalized = normalizeEmail(input.email);
+  if (!normalized) return { ok: false, error: 'email_invalid', signedInAs: null };
+  const verified = await verifyCode(normalized, input.code.trim(), now);
+  if (!verified.ok) return { ok: false, error: verified.error, signedInAs: null };
+  const user = await userForVerifiedEmail(normalized, now);
+  return { ok: true, userId: user.id, email: normalized, signedInAs: user.id };
+}
+
 export async function confirmCheckout(input: ConfirmInput): Promise<ConfirmResult> {
   const { now } = input;
   const booking = await getBooking(input.bookingId);
@@ -106,28 +135,15 @@ export async function confirmCheckout(input: ConfirmInput): Promise<ConfirmResul
   // Only the price the guest saw can be paid: a changed price needs a fresh press.
   if (input.acceptedTotalMinor !== booking.totalMinor) return { ok: false, error: 'price_changed', signedInAs: null };
   if (now.getTime() - booking.createdAt.getTime() > PRICE_CHECK_TTL_MS) return { ok: false, error: 'price_stale', signedInAs: null };
-  const firstName = cleanName(input.firstName);
-  const lastName = cleanName(input.lastName);
-  if (!NAME.test(firstName) || !NAME.test(lastName)) return { ok: false, error: 'name_missing', signedInAs: null };
+  const names = guestNames(input);
+  if (!names) return { ok: false, error: 'name_missing', signedInAs: null };
+  const { firstName, lastName } = names;
   if (paymentMode() === 'none') return { ok: false, error: 'payment_unavailable', signedInAs: null };
 
   // Sign in first: a wrong code stops here, before any payment.
-  let userId = input.signedInUserId;
-  let email: string;
-  let signedInAs: string | null = null;
-  if (userId) {
-    email = normalizeEmail(input.email) ?? '';
-  } else {
-    const normalized = normalizeEmail(input.email);
-    if (!normalized) return { ok: false, error: 'email_invalid', signedInAs: null };
-    const verified = await verifyCode(normalized, input.code.trim(), now);
-    if (!verified.ok) return { ok: false, error: verified.error, signedInAs: null };
-    const user = await userForVerifiedEmail(normalized, now);
-    userId = user.id;
-    email = normalized;
-    signedInAs = user.id;
-  }
-  if (!email) return { ok: false, error: 'email_invalid', signedInAs };
+  const guest = await signInGuest(input, now);
+  if (!guest.ok) return { ok: false, error: guest.error, signedInAs: guest.signedInAs };
+  const { userId, email, signedInAs } = guest;
 
   const pending = await transitionBooking(booking.id, 'payment_pending', { userId, holderFirstName: firstName, holderLastName: lastName, holderEmail: email, paidWith: input.wallet });
   if (!pending) return { ok: false, error: 'booking_not_payable', signedInAs };
@@ -239,6 +255,17 @@ export function bookingView(b: Booking, now: Date) {
     refundMinor: b.refundMinor,
     cancelFeeMinor: b.cancelFeeMinor,
     offerId: b.offerId,
+    /** Deal Freeze, before anything is booked: until when this rate could be held, or null when it cannot. */
+    freezeOffer: b.status === 'prebooked' ? freezeOfferOf(b, now) : null,
+    frozenUntil: b.frozenUntil?.toISOString() ?? null,
+    freezeReminderDueAt: b.freezeReminderDueAt?.toISOString() ?? null,
+    freezeReminderSentAt: b.freezeReminderSentAt?.toISOString() ?? null,
+    releasedBy: b.releasedBy,
   };
+}
+
+function freezeOfferOf(b: Booking, now: Date): { until: string; reminderAt: string } | null {
+  const terms = freezeTerms(b.cancellation, now);
+  return terms.ok ? { until: terms.frozenUntil.toISOString(), reminderAt: terms.reminderDueAt.toISOString() } : null;
 }
 export type BookingView = ReturnType<typeof bookingView>;

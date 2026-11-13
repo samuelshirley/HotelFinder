@@ -91,7 +91,7 @@ export async function sendTurn(id: string, message: string, idempotencyKey: stri
 export type BookingView = import('@/server/checkout').BookingView;
 export type Wallet = import('@/server/payments').Wallet;
 export type Me = { user: { email: string } | null; lastHolder: { firstName: string; lastName: string } | null };
-export type BookingPage = Me & { booking: BookingView; me: { email: string } | null; payment: 'test' | 'none' };
+export type BookingPage = Me & { booking: BookingView; me: { email: string } | null; payment: 'test' | 'none'; mail?: boolean };
 
 export const loadMe = () => request<Me>('/api/me');
 export const sendSignInCode = (email: string) => request<{ sent: true; devCode?: string }>('/api/auth/code', { method: 'POST', body: JSON.stringify({ email }) });
@@ -106,6 +106,11 @@ export const confirmBooking = (
   body: { email: string; code: string; firstName: string; lastName: string; wallet: Wallet; acceptedTotalMinor: number },
 ) => request<{ booking: BookingView }>(`/api/booking/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) });
 export const cancelBookingApi = (id: string) => request<{ booking: BookingView }>(`/api/booking/${id}/cancel`, { method: 'POST', body: '{}' });
+export const freezeBookingApi = (id: string, body: { email: string; code: string; firstName: string; lastName: string; acceptedTotalMinor: number }) =>
+  request<{ booking: BookingView }>(`/api/booking/${id}/freeze`, { method: 'POST', body: JSON.stringify(body) });
+export const keepFrozenApi = (id: string, body: { wallet: Wallet; acceptedTotalMinor: number }) =>
+  request<{ booking: BookingView }>(`/api/booking/${id}/keep`, { method: 'POST', body: JSON.stringify(body) });
+export const releaseFrozenApi = (id: string) => request<{ booking: BookingView }>(`/api/booking/${id}/release`, { method: 'POST', body: '{}' });
 export type BookingSummary = { id: string; status: string; hotelName: string | null; checkIn: string | null; checkOut: string | null };
 export const loadBookings = () => request<{ bookings: BookingSummary[] }>('/api/bookings');
 

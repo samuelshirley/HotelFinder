@@ -63,6 +63,7 @@
 .facts dt { font-size: 12px; color: var(--tp-muted); }
 .facts dd { font-size: 15px; }
 .confirmBox { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--tp-border); }
+.freeze h2 { font-size: 16px; font-weight: 600; }
 
 @media (max-width: 600px) {
   .names, .wallets { grid-template-columns: 1fr; }

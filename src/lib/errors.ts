@@ -42,6 +42,13 @@ export const ERROR_COPY = {
   payment_unavailable: 'Payments are not set up here yet.',
   cancel_failed: 'The hotel did not confirm the cancellation. Reload this page in a minute to see where the booking stands before trying again.',
   not_cancellable: 'This booking cannot be cancelled here.',
+  freeze_unavailable: 'Holding a room without paying is only set up in the test sandbox, so this one cannot be frozen. Book it now instead.',
+  freeze_not_eligible: 'Only a free-cancellation rate with at least three days left to cancel can be frozen. Book it now, or pick a refundable rate.',
+  freeze_limit: 'You already have 3 frozen rooms. Confirm or release one of them first.',
+  freeze_terms_changed: 'The hotel booked this room on terms that cannot be frozen, so it is being released and nothing is held. Nothing was paid.',
+  freeze_expired: 'The hold on this room has ended, so it is being released. Search again to book it.',
+  release_unknown: 'The hotel has not confirmed the release yet. Do not release it again: reload this page in a minute.',
+  not_allowed: 'This is not available here.',
   network: 'No connection to the server. Check the network; your message was not lost if it already appears above.',
 } as const;
 
