@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { actionSchema, type ResolvedAction } from './actions';
 import { fingerprint, NEAR_MAX_KM, reduce, reduceAll, type SearchState } from './reduce';
+import { NO_FILTERS } from '@/lib/filters';
 
 const TODAY = '2026-11-11';
 const P1 = 'a0000000-0000-4000-8000-000000000001';
@@ -25,6 +26,7 @@ const state = (over: Partial<SearchState['stay']> = {}, top: Partial<SearchState
     rooms: 1,
     priceCapMinor: null,
     mustHaves: [],
+    filters: NO_FILTERS,
     excludedPropertyIds: [],
     ...over,
   },

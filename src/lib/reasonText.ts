@@ -1,4 +1,5 @@
 import { isMustHave } from '@/lib/amenities';
+import { aKind, eitherOf, isListedPropertyType, isPropertyType } from '@/lib/filters';
 import { formatMoney, MUST_HAVE_LABEL } from '@/lib/replies';
 
 /**
@@ -63,7 +64,7 @@ export function reasonText(reason: ReasonLike | null, ctx: { currency: string; h
 /** What a near-miss misses, from the finder's own list (finder/rank.ts `Miss`). */
 export function missText(misses: unknown, currency: string): string {
   const parts = (Array.isArray(misses) ? misses : []).flatMap((m): string[] => {
-    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown };
+    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown; min?: unknown; stars?: unknown; rating?: unknown; wanted?: unknown; listed?: unknown };
     switch (miss.kind) {
       case 'over_price_cap': {
         const over = num(miss.over_by_minor);
@@ -81,6 +82,25 @@ export function missText(misses: unknown, currency: string): string {
       }
       case 'member_price':
         return ['its rate is a member price, not shown before you sign in'];
+      // The filters (lib/filters.ts). A silent listing is said as exactly that, never as a "no".
+      case 'below_stars': {
+        const stars = num(miss.stars);
+        return [stars === null ? 'the listing does not give a star class' : `${stars} star${stars === 1 ? '' : 's'}`];
+      }
+      case 'below_rating': {
+        const rating = num(miss.rating);
+        return [rating === null ? 'the listing does not give a guest rating' : `rated ${rating}`];
+      }
+      case 'not_property_type': {
+        const listed = isListedPropertyType(miss.listed) ? miss.listed : null;
+        const wanted = (Array.isArray(miss.wanted) ? miss.wanted : []).filter(isPropertyType).map(aKind);
+        if (listed === null) return ['the listing does not say what kind of place it is'];
+        return [listed === 'other' ? `not ${eitherOf(wanted)}` : `it is ${aKind(listed)}`];
+      }
+      case 'not_chain': {
+        const listed = typeof miss.listed === 'string' && miss.listed ? miss.listed : null;
+        return [listed === null ? 'the listing names no brand' : `it is ${listed}`];
+      }
       default:
         return [];
     }

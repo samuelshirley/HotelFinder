@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { MUST_HAVES } from '@/lib/amenities';
 import { isCountryCode } from '@/lib/countries';
+import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 
 /**
@@ -50,6 +51,34 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_price_cap'), perNightMinor: z.number().int().positive().nullable() }).strict(),
   z.object({ type: z.literal('add_must_have'), mustHave: z.enum(MUST_HAVES) }).strict(),
   z.object({ type: z.literal('remove_must_have'), mustHave: z.enum(MUST_HAVES) }).strict(),
+  /** The lowest star class to show. null = any. Filters (lib/filters.ts): a hotel with no class listed misses it, and says so. */
+  z.object({ type: z.literal('set_min_stars'), stars: z.number().int().min(1).max(5).nullable() }).strict(),
+  /** The lowest guest rating to show, out of 10, in halves. null = any. */
+  z.object({ type: z.literal('set_min_rating'), rating: z.number().min(1).max(10).multipleOf(0.5).nullable() }).strict(),
+  /** The kinds of place to show, as the whole set. [] = any kind. */
+  z
+    .object({
+      type: z.literal('set_property_types'),
+      types: z
+        .array(z.enum(PROPERTY_TYPES))
+        .max(PROPERTY_TYPES.length)
+        .refine((t) => new Set(t).size === t.length, 'each type once'),
+    })
+    .strict(),
+  /**
+   * The brands to show, as the whole set: the supplier's chain names exactly as
+   * its listings write them. [] = any. The chip offers only chains in the
+   * results; the agent's tool maps what the user said onto one of those.
+   */
+  z
+    .object({
+      type: z.literal('set_chains'),
+      chains: z
+        .array(z.string().trim().min(1).max(120))
+        .max(MAX_CHAINS)
+        .refine((c) => new Set(c).size === c.length, 'each chain once'),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('set_guests'),

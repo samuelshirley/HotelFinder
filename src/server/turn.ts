@@ -3,13 +3,14 @@ import type { Action } from '@/lib/store/actions';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
 
 import { AMENITIES, type Amenity } from '@/lib/amenities';
+import { filterOptions, readChain, readPropertyType } from '@/lib/filters';
 import { buildAnswer, type HotelFacts } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
 import type { DistanceFrom } from '@/lib/finder/rank';
 import { planSearch } from '@/lib/finder/searchPlan';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { answerLine, describeChange, FIXED_LINES, formatDates, nearLabel, REJECTION_LINE } from '@/lib/replies';
+import { answerLine, describeChange, filtersLine, FIXED_LINES, formatDates, nearLabel, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
 import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
@@ -21,6 +22,7 @@ import { placeKindWord, whichOne } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
+import { listLiveOffersForRanking } from '@/server/repos/offers';
 import { listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
@@ -282,6 +284,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         close_to: nearLabel(state.stay),
         must_haves: state.stay.mustHaves,
         price_cap_per_night: state.stay.priceCapMinor === null ? null : state.stay.priceCapMinor / 100,
+        filters: filtersLine(state.stay.filters) ?? 'none',
         currency: session.currency,
       },
       hotels_on_screen: shortlist.map((r, i) => `${i + 1}. ${r.name}`),
@@ -441,6 +444,9 @@ async function agentTurn(args: {
   const recent = (await listModelVisibleTail(session.id, 9))
     .filter((m) => m.turnId !== turn.id)
     .map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('assistant' as const), text: m.content }));
+  // The brands set_brands may name: the chains among the hotels the finder ranks over, as their listings write them.
+  const held = new Map((await listLiveOffersForRanking(session.id, stay.id, audienceFor(session), deps.now())).map((r) => [r.property.id, r.property]));
+  const brands = filterOptions([...held.values()].map((p) => ({ propertyType: readPropertyType(p.content), chain: readChain(p.content) }))).chains.map((c) => c.chain);
 
   const agent = await runAgent(
     {
@@ -449,6 +455,7 @@ async function agentTurn(args: {
       currency: session.currency,
       state,
       recent,
+      brands,
       shortlist: rows.map((r) => ({ propertyId: r.property.id })),
       hotels: rows.map((r, i) => ({
         position: i + 1,

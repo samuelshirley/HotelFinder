@@ -12,6 +12,7 @@ export const INTENTS = [
   'priority',
   'price_cap',
   'must_have',
+  'filter',
   'guests',
   'dates_shift',
   'exclude',
@@ -39,6 +40,10 @@ export type Superlative = (typeof SUPERLATIVES)[number];
 export const SEARCH_FIELDS = ['dates', 'guests', 'destination', 'budget', 'must_haves', 'priority', 'everything'] as const;
 export type SearchField = (typeof SEARCH_FIELDS)[number];
 
+/** Which filter a message sets or drops (lib/filters.ts). Code reads the value. */
+export const FILTER_KINDS = ['stars', 'rating', 'property_type', 'brand'] as const;
+export type FilterKind = (typeof FILTER_KINDS)[number];
+
 export type ChoiceQuestion = { type: 'choice'; instructions: string; criteria: Record<string, string> };
 export type NoulQuestion = { type: 'noul'; instructions: string };
 export type Question = ChoiceQuestion | NoulQuestion;
@@ -61,6 +66,8 @@ export const QUESTIONS = {
       priority: 'Says what matters most, or how to order the hotels: cheapest, closest or most central, nicest or best rated, or a mix of these.',
       price_cap: 'Sets, changes or removes a maximum price.',
       must_have: 'Adds or drops something the hotel must have: pets, parking, pool, breakfast, free cancellation, wifi, air conditioning, a lift, accessibility, a gym, family rooms, soundproofing, an airport shuttle.',
+      filter:
+        'Limits the hotels shown, or stops limiting them, by star class ("4 stars or more", "five-star only"), guest rating ("rated 8 or above"), kind of place (hotel, apartment, aparthotel, hostel, B&B, guest house, holiday home) or brand ("only Hilton").',
       guests: 'Changes who is travelling or how many rooms.',
       dates_shift: 'Makes the stay longer or shorter by a number of nights.',
       exclude: 'Rejects one of the listed hotels.',
@@ -101,6 +108,17 @@ export const QUESTIONS = {
     },
   },
   removing: { type: 'noul', instructions: 'The user says they do NOT need, or no longer need, the thing they mention.' },
+  filter_kind: {
+    type: 'choice',
+    instructions: 'Which limit on the hotels shown is the message about?',
+    criteria: {
+      stars: 'The star class or star rating of the hotel.',
+      rating: 'The guest rating or review score, out of 10.',
+      property_type: 'The kind of place: hotel, apartment, aparthotel, hostel, B&B, guest house or holiday home.',
+      brand: 'A hotel brand or chain.',
+      none: 'None of these.',
+    },
+  },
   // What "best" means is a SET (docs/onboarding.md §3.2): one yes/no question per priority.
   wants_price: { type: 'noul', instructions: 'The user wants a low price, cheap, good value, or not too expensive.' },
   wants_quality: { type: 'noul', instructions: 'The user wants a nice, well-rated, well-reviewed or high-quality hotel.' },
@@ -162,4 +180,5 @@ export const LABELS = {
   fact: [...HOTEL_FACTS, 'none'] as const,
   superlative: [...SUPERLATIVES, 'none'] as const,
   search_field: [...SEARCH_FIELDS, 'none'] as const,
+  filter_kind: [...FILTER_KINDS, 'none'] as const,
 } as const;

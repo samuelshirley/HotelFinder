@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
+import { chainsChip, PROPERTY_TYPE_PLURAL, RATING_STEPS, ratingChip, STAR_STEPS, starsChip, typesChip, type FilterOptions, type PropertyType, type StayFilters } from '@/lib/filters';
 import type { PriorityKey } from '@/lib/finder/rank';
 import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel } from '@/lib/replies';
 import type { EditAction } from './api';
@@ -135,6 +136,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           ))}
           {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
         </div>
+        <FilterChips filters={stay.filters} options={stay.filterOptions} busy={busy} onEdit={onEdit} />
         {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Sign in when you book, and your next searches show member prices.</p>}
         {working && (
           <p className={styles.working}>
@@ -217,6 +219,105 @@ function Editable({ label, name, busy, children, onApply }: { label: string; nam
         </div>
       )}
     </span>
+  );
+}
+
+/**
+ * The filters (lib/filters.ts), one chip each, in the Editable pattern above.
+ * The kind and brand editors offer only values the held listings carry, and
+ * say how many hotels name none: those are listed under the fits as not
+ * checked, never dropped without a word.
+ */
+function FilterChips({ filters, options, busy, onEdit }: { filters: StayFilters; options: FilterOptions; busy: boolean; onEdit: OnEdit }) {
+  const types = [...new Set([...options.propertyTypes.map((o) => o.type), ...filters.propertyTypes])];
+  const chains = [...new Set([...options.chains.map((o) => o.chain), ...filters.chains])];
+  return (
+    <div className={styles.tags} role="group" aria-label="Filters">
+      <StepChip
+        name="star class"
+        label={filters.minStars === null ? 'Any stars' : starsChip(filters.minStars)}
+        value={filters.minStars}
+        steps={STAR_STEPS}
+        stepLabel={starsChip}
+        anyLabel="Any star class"
+        note="A hotel whose listing gives no star class is shown under the others, saying so."
+        busy={busy}
+        onApply={(stars) => onEdit({ type: 'set_min_stars', stars })}
+      />
+      <StepChip
+        name="guest rating"
+        label={filters.minRating === null ? 'Any rating' : ratingChip(filters.minRating)}
+        value={filters.minRating}
+        steps={RATING_STEPS}
+        stepLabel={ratingChip}
+        anyLabel="Any guest rating"
+        note="Guest ratings are out of 10, as the listing gives them."
+        busy={busy}
+        onApply={(rating) => onEdit({ type: 'set_min_rating', rating })}
+      />
+      {(types.length > 1 || filters.propertyTypes.length > 0) && (
+        <PickChip
+          name="kind of place"
+          label={filters.propertyTypes.length ? typesChip(filters.propertyTypes) : 'Any kind of place'}
+          choices={types.map((t) => ({ value: t, label: PROPERTY_TYPE_PLURAL[t], count: options.propertyTypes.find((o) => o.type === t)?.count ?? 0 }))}
+          picked={filters.propertyTypes}
+          silent={options.silent.propertyType}
+          silentNote="do not say what kind of place they are"
+          busy={busy}
+          onApply={(picked) => onEdit({ type: 'set_property_types', types: picked as PropertyType[] })}
+        />
+      )}
+      {chains.length > 0 && (
+        <PickChip
+          name="brand"
+          label={filters.chains.length ? chainsChip(filters.chains) : 'Any brand'}
+          choices={chains.map((c) => ({ value: c, label: c, count: options.chains.find((o) => o.chain === c)?.count ?? 0 }))}
+          picked={filters.chains}
+          silent={options.silent.chain}
+          silentNote="name no brand"
+          busy={busy}
+          onApply={(picked) => onEdit({ type: 'set_chains', chains: picked })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** A minimum: any, or one of a few steps. */
+function StepChip({ name, label, value, steps, stepLabel, anyLabel, note, busy, onApply }: { name: string; label: string; value: number | null; steps: readonly number[]; stepLabel: (n: number) => string; anyLabel: string; note: string; busy: boolean; onApply: (v: number | null) => void }) {
+  const [picked, setPicked] = useState<number | null>(value);
+  useEffect(() => setPicked(value), [value]);
+  return (
+    <Editable label={label} name={name} busy={busy} onApply={() => onApply(picked)}>
+      {[null, ...steps].map((step) => (
+        <label key={step ?? 'any'} className={styles.check}>
+          <input type="radio" name={name} checked={picked === step} onChange={() => setPicked(step)} />
+          {step === null ? anyLabel : stepLabel(step)}
+        </label>
+      ))}
+      <span className={styles.muted}>{note}</span>
+    </Editable>
+  );
+}
+
+/** Any of a set: kinds of place, or brands. None picked = any. */
+function PickChip({ name, label, choices, picked, silent, silentNote, busy, onApply }: { name: string; label: string; choices: Array<{ value: string; label: string; count: number }>; picked: string[]; silent: number; silentNote: string; busy: boolean; onApply: (picked: string[]) => void }) {
+  const [sel, setSel] = useState<string[]>(picked);
+  useEffect(() => setSel(picked), [picked]);
+  return (
+    <Editable label={label} name={name} busy={busy} onApply={() => onApply(sel)}>
+      {choices.map((c) => (
+        <label key={c.value} className={styles.check}>
+          <input type="checkbox" checked={sel.includes(c.value)} onChange={(e) => setSel(e.target.checked ? [...sel, c.value] : sel.filter((v) => v !== c.value))} />
+          {c.label}
+          {c.count > 0 && <span className={styles.muted}>{c.count}</span>}
+        </label>
+      ))}
+      <span className={styles.muted}>
+        None ticked shows every {name === 'brand' ? 'brand' : 'kind'}.
+        {silent > 0 && ` ${silent} hotel${silent === 1 ? '' : 's'} here ${silentNote}; with a ${name} picked they are shown under the others, saying so.`}
+      </span>
+    </Editable>
   );
 }
 

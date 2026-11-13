@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenities';
+import { readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
 import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
@@ -31,6 +32,8 @@ export type FinderOutcome =
       eligible: number;
       rejected: RankResult['rejected'];
       uncheckable: number;
+      /** Left out by a filter only because the listing does not hold that field. */
+      filterUnknown: number;
       distanceFrom: RankResult['distanceFrom'];
       distanceLabel: RankResult['distanceLabel'];
       /** Radius searches only: true when the first radius held too few hotels and one wider search was made. */
@@ -101,11 +104,11 @@ export async function runFinder(args: {
 
     const facts = await supplier.getStaticFacts(search.value.properties.map((p) => p.supplierHotelId));
     amenityFactsMissing = !facts.ok;
-    const amenities = new Map<string, Amenity[]>(facts.ok ? facts.value.map((f) => [f.supplierHotelId, f.amenities]) : []);
+    const known = new Map(facts.ok ? facts.value.map((f) => [f.supplierHotelId, f]) : []);
 
     const propertyIds = new Map<string, string>();
     for (const p of search.value.properties) {
-      const known = amenities.get(p.supplierHotelId);
+      const fact = known.get(p.supplierHotelId);
       const row = await upsertProperty({
         supplier: p.supplier,
         supplierHotelId: p.supplierHotelId,
@@ -117,9 +120,12 @@ export async function runFinder(args: {
         reviewCount: p.reviewCount,
         mainPhoto: p.mainPhoto,
         address: p.address,
-        petsAllowed: known ? known.includes('pets_allowed') : null,
+        petsAllowed: fact ? fact.amenities.includes('pets_allowed') : null,
         // `amenities` absent = unknown. An empty array = known to have none.
-        content: known ? { amenities: known } : {},
+        // `propertyType` and `chain` absent = the listing does not say (the filters read them).
+        content: fact
+          ? { amenities: fact.amenities, ...(fact.propertyType ? { propertyType: fact.propertyType } : {}), ...(fact.chain ? { chain: fact.chain } : {}) }
+          : {},
       });
       propertyIds.set(p.supplierHotelId, row.id);
     }
@@ -179,6 +185,8 @@ export async function runFinder(args: {
     amenities: readAmenities(property.content),
     refundable: offer.refundableTag === 'RFN',
     boardName: offer.boardName,
+    propertyType: readPropertyType(property.content),
+    chain: readChain(property.content),
   }));
 
   const result = rankStay({
@@ -191,6 +199,7 @@ export async function runFinder(args: {
     near: plan?.target ?? null,
     audience,
     excludedPropertyIds: stay.excludedPropertyIds,
+    filters: stayFilters(stay),
   });
 
   await replaceFinderShortlist(
@@ -227,6 +236,7 @@ export async function runFinder(args: {
     eligible: result.eligible,
     rejected: result.rejected,
     uncheckable: result.uncheckable,
+    filterUnknown: result.filterUnknown,
     distanceFrom: result.distanceFrom,
     distanceLabel: result.distanceLabel,
     widened,

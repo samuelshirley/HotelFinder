@@ -1,3 +1,5 @@
+import type { PropertyType } from '@/lib/filters';
+
 /**
  * Values are extracted by CODE, never by Jev (it only picks among labels) and
  * never by guessing. Every function returns null when the message does not
@@ -142,4 +144,67 @@ export function addDays(isoDate: string, days: number): string {
  */
 export function wantsMapHidden(message: string): boolean {
   return /\b(hide|close|remove|collapse|fold|lose|get rid of|turn off|switch off|no|without|don'?t (?:need|want|show))\b/i.test(message);
+}
+
+const STAR_WORD: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+
+/**
+ * For the `filter` intent, stars: "4 stars or more", "4+ stars", "five-star",
+ * "at least 4*". Exactly one class, 1 to 5, or null.
+ */
+export function extractMinStars(message: string): number | null {
+  const found = new Set<number>();
+  for (const m of message.matchAll(/\b([1-5]|one|two|three|four|five)\s*(?:\+\s*)?(?:-\s*)?(?:stars?\b|\*|★)/gi)) {
+    found.add(/^\d$/.test(m[1]) ? Number(m[1]) : STAR_WORD[m[1].toLowerCase()]);
+  }
+  if (found.size !== 1) return null;
+  const [n] = [...found];
+  // "3 or 4 stars" names two classes in one sentence: not one minimum.
+  if (/\b[1-5]\s*(?:or|to|-)\s*[1-5]\s*stars?\b/i.test(message)) return null;
+  return n;
+}
+
+/**
+ * For the `filter` intent, rating: "rated 8 or above", "a score of 8.5+",
+ * "8/10 or better", "reviews over 9". Exactly one value from 1 to 10 in halves,
+ * said next to a rating word, or null.
+ */
+export function extractMinRating(message: string): number | null {
+  if (!/\b(rat(ed|ing)|scor(e|ed|ing)|reviews?|reviewed|out of 10)\b|\/\s*10\b/i.test(message)) return null;
+  // Not a star class, a price or a count of nights.
+  const text = message.replace(/\b\d\s*(?:\+\s*)?(?:-\s*)?(?:stars?\b|\*|★)/gi, ' ').replace(/\/\s*10\b/g, ' ');
+  const values = [...text.matchAll(/(?<![\d.,])(10|[1-9](?:[.,]\d)?)(?![\d.,]*\d)(?!\s*(?:nights?|adults?|people|kids?|children|rooms?|€|eur|euros?|\$|usd|£|gbp)\b)/gi)].map((m) => Number(m[1].replace(',', '.')));
+  const distinct = [...new Set(values)];
+  if (distinct.length !== 1) return null;
+  const v = distinct[0];
+  return v >= 1 && v <= 10 && Number.isInteger(v * 2) ? v : null;
+}
+
+const KIND_WORDS: Array<[RegExp, PropertyType]> = [
+  [/\baparthotels?\b/i, 'aparthotel'],
+  [/\b(apartments?|flats?)\b/i, 'apartment'],
+  [/\b(hostels?|backpackers?)\b/i, 'hostel'],
+  [/\b(b\s*&\s*bs?|b and bs?|bnbs?|bed and breakfasts?|bed & breakfasts?)\b/i, 'bed_and_breakfast'],
+  [/\b(guest ?houses?|pensions?|pensi[oó]n|pensao|pensão)\b/i, 'guest_house'],
+  [/\b(holiday homes?|holiday rentals?|vacation (?:homes?|rentals?)|villas?)\b/i, 'holiday_home'],
+  [/\bhotels?\b/i, 'hotel'],
+];
+
+/**
+ * For the `filter` intent, kinds of place: "apartments only", "a hostel or a
+ * guest house". The kinds named, or null when none is, or when the message
+ * says one is NOT wanted ("a hotel, not an apartment": the agent decides).
+ */
+export function extractPropertyTypes(message: string): PropertyType[] | null {
+  if (/\b(not|no|never|without|except|rather than|instead of|other than|anything but|don'?t)\b/i.test(message)) return null;
+  // "aparthotel" also contains "hotel": read the longer words first, then take them out.
+  let text = message;
+  const found: PropertyType[] = [];
+  for (const [re, type] of KIND_WORDS) {
+    if (re.test(text)) {
+      found.push(type);
+      text = text.replace(new RegExp(re.source, 'gi'), ' ');
+    }
+  }
+  return found.length ? found : null;
 }

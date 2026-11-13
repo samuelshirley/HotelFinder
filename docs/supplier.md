@@ -70,6 +70,12 @@ fails if a fixture is edited, added by hand, or contains a key or a secret.
 Schema-drift tests derive a broken variant in memory from a recording; the
 file on disk is never edited.
 
+`--add-hotel-types` (2026-11-13) records `/data/hotelTypes` (the id → name
+list the property-type filter is checked against) and one page of Porto's
+static list at offset 300, where apartments, hostels, B&Bs, guest houses and
+an aparthotel sit beside hotels (the 20 in `rates-city-porto.json` are all
+type 204). See `docs/finder.md`, "Filters".
+
 ## Live check
 
 `liteapi/live.test.ts` runs the adapter against the real sandbox when

@@ -17,6 +17,7 @@ pick up from the first unfinished step.
 | 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done |
 | 9b | Map over the list (MapLibre + OpenFreeMap), linked to the cards, two gestures, Penny's map tools (`docs/design/map.md`) | built 2026-11-12; verified in a real browser (`e2e/map.spec.ts`) |
+| 9c | Filters: star class, guest rating, kind of place, brand; chips, agent tools, Jev `filter` intent; neighbourhood not built (no field) (`docs/finder.md`, "Filters") | built 2026-11-13; PGlite on recorded fixtures, Jev live 53 of 53, `e2e/filters.spec.ts` against the sandbox; **agent tools not run against the live model** |
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |

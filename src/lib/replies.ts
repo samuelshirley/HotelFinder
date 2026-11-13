@@ -1,4 +1,5 @@
 import type { MustHave } from '@/lib/amenities';
+import { chainsChip, hasFilters, PROPERTY_TYPE_PLURAL, type StayFilters } from '@/lib/filters';
 import type { Answer, RankValue } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
 import { canonicalPriorities, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
@@ -111,6 +112,14 @@ function actionLine(action: ResolvedAction, state: SearchState, currency: string
       return `Must have ${MUST_HAVE_LABEL[action.mustHave]}.`;
     case 'remove_must_have':
       return `No longer requiring ${MUST_HAVE_LABEL[action.mustHave]}.`;
+    case 'set_min_stars':
+      return action.stars === null ? 'Any star class.' : `${starsFloor(action.stars)} only.`;
+    case 'set_min_rating':
+      return action.rating === null ? 'Any guest rating.' : `${ratingFloor(action.rating)} only.`;
+    case 'set_property_types':
+      return action.types.length === 0 ? 'Any kind of place.' : `${capitalise(listEither(state.stay.filters.propertyTypes.map((t) => PROPERTY_TYPE_PLURAL[t])))} only.`;
+    case 'set_chains':
+      return action.chains.length === 0 ? 'Any brand.' : `${chainsChip(state.stay.filters.chains)} only.`;
     case 'set_guests':
       return `${formatGuests(action.adults, action.childrenAges, action.rooms)}.`;
     case 'set_dates':
@@ -129,7 +138,7 @@ function actionLine(action: ResolvedAction, state: SearchState, currency: string
 }
 
 export type OutcomeForReply =
-  | { kind: 'ok'; shortlisted: number; nearMisses?: number; eligible: number; rejected: Record<string, number>; uncheckable: number; amenityFactsMissing: boolean }
+  | { kind: 'ok'; shortlisted: number; nearMisses?: number; eligible: number; rejected: Record<string, number>; uncheckable: number; filterUnknown?: number; amenityFactsMissing: boolean }
   | { kind: 'no_availability' | 'needs_place' | 'needs_nationality' | 'not_found' }
   | { kind: 'supplier_error'; error: { retryable: boolean } };
 
@@ -149,6 +158,14 @@ export function outcomeLine(outcome: OutcomeForReply | null): string {
             : `${outcome.rejected.missing_must_have} lack a must-have`,
         );
       }
+      if (outcome.rejected.filtered_out) {
+        const silent = outcome.filterUnknown ?? 0;
+        why.push(
+          silent > 0
+            ? `${outcome.rejected.filtered_out} miss a filter (for ${silent} the listing does not say)`
+            : `${outcome.rejected.filtered_out} miss a filter`,
+        );
+      }
       if (outcome.rejected.excluded_by_user) why.push(`${outcome.rejected.excluded_by_user} you set aside`);
       if (outcome.rejected.below_public_price) why.push(`${outcome.rejected.below_public_price} have a member price only`);
       return `None of ${considered} hotels fit${why.length ? `: ${why.join(', ')}` : ''}.${near}`;
@@ -162,6 +179,24 @@ export function outcomeLine(outcome: OutcomeForReply | null): string {
     case 'not_found':
       return '';
   }
+}
+
+/** "4 stars and up", "5 stars". */
+export const starsFloor = (min: number) => (min >= 5 ? '5 stars' : `${min} stars and up`);
+/** "Rated 8 and up". */
+export const ratingFloor = (min: number) => `Rated ${min} and up`;
+const capitalise = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const listEither = (names: string[]) => (names.length <= 2 ? names.join(' or ') : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`);
+
+/** The filters in one sentence, for "what is my search set to?". null when none is set. */
+export function filtersLine(f: StayFilters): string | null {
+  if (!hasFilters(f)) return null;
+  const parts: string[] = [];
+  if (f.minStars !== null) parts.push(starsFloor(f.minStars).toLowerCase());
+  if (f.minRating !== null) parts.push(ratingFloor(f.minRating).toLowerCase());
+  if (f.propertyTypes.length) parts.push(listEither(f.propertyTypes.map((t) => PROPERTY_TYPE_PLURAL[t])));
+  if (f.chains.length) parts.push(`from ${chainsChip(f.chains)}`);
+  return `Showing only ${parts.join(', ')}.`;
 }
 
 /** Said when the list is topped up with hotels that miss something (finder/rank.ts MIN_SHOWN). */
@@ -292,6 +327,7 @@ function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['
   const cap = s.priceCapMinor === null ? null : `Capped at ${formatMoney(s.priceCapMinor, currency)} a night.`;
   const musts = s.mustHaves.length === 0 ? null : `Must have ${listNames(s.mustHaves.map((m) => MUST_HAVE_LABEL[m]))}.`;
   const order = s.priorities === null ? null : prioritiesLine(s.priorities, s.nearLabel);
+  const filters = s.filters ? filtersLine(s.filters) : null;
   switch (field) {
     case 'dates':
       return dates;
@@ -302,11 +338,11 @@ function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['
     case 'budget':
       return cap ?? 'No price cap is set.';
     case 'must_haves':
-      return musts ?? 'Nothing is required of the hotel yet.';
+      return [musts ?? 'Nothing is required of the hotel yet.', filters].filter(Boolean).join(' ');
     case 'priority':
       return order ?? 'No order is set.';
     case 'everything':
-      return [place, dates, guests, cap, musts, order].filter(Boolean).join(' ');
+      return [place, dates, guests, cap, musts, filters, order].filter(Boolean).join(' ');
   }
 }
 
