@@ -264,6 +264,33 @@ describe('the agent: what the router did not settle', () => {
     expect(await names(session.id)).toEqual(before);
   });
 
+  it('"save the second one": saved through the heart\'s path, the server\'s line, and the saved list told to show; "show my saved" lists names only', async () => {
+    const { session, supplier } = await onboarded();
+    const before = await names(session.id);
+    const none = scripted([{ tool: 'show_saved', input: {} }]);
+    expect((await say(session, 'what did I save?', deps(supplier.supplier, none.callModel))).finalText).toBe('You have not saved any hotels yet. Press the heart on one to keep it.');
+
+    const save = scripted([{ text: 'Saved it for you!' }, { tool: 'save_hotel', input: { position: 2 } }]);
+    const turn = await say((await getSession(session.id))!, 'save the second one', deps(supplier.supplier, save.callModel));
+    expect(save.calls).toHaveLength(1);
+    expect(turn.finalText).toBe(`${before[1]} is saved. Your saved hotels are listed beside your trips.`);
+    expect((await last(session.id)).kind).toBe('line'); // not the model's words
+    expect((await last(session.id)).meta).toEqual({ ui: { saved: 'show' } });
+    expect(await rawQuery<{ anon_id: string; session_id: string }>('select anon_id, session_id from saved_hotels')).toEqual([{ anon_id: 'anon-1', session_id: session.id }]);
+    expect(await names(session.id)).toEqual(before); // the search is untouched
+    expect(supplier.searches).toHaveLength(1);
+
+    const list = scripted([{ tool: 'show_saved', input: {} }]);
+    const listed = await say((await getSession(session.id))!, 'show my saved hotels', deps(supplier.supplier, list.callModel));
+    expect(listed.finalText).toBe(`You have saved one hotel: ${before[1]}. They are listed beside your trips.`);
+    expect(listed.finalText).not.toMatch(/€|\d{2,}/); // no price in the chat line
+
+    // A position that is not on screen saves nothing; the model is told, and may answer.
+    const wrong = scripted([{ tool: 'save_hotel', input: { position: 9 } }], [{ text: 'There is no ninth hotel on screen.' }]);
+    await say((await getSession(session.id))!, 'save the ninth', deps(supplier.supplier, wrong.callModel));
+    expect(await rawQuery('select 1 from saved_hotels')).toHaveLength(1);
+  });
+
   it('new dates in prose become one typed action; the reply is the server\'s, and the call is on the ledger', async () => {
     const { session, supplier } = await onboarded();
     const m = scripted([{ text: 'Sure, I have changed your dates!' }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);

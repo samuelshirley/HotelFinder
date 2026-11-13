@@ -170,7 +170,7 @@ export type RouteDecision =
 export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
 
 /** Intents a named place never turns into "be close to it". */
-const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'map', 'exclude', 'new_search', 'greeting_or_thanks'];
+const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'map', 'save', 'exclude', 'new_search', 'greeting_or_thanks'];
 
 export function routeMessage(input: {
   message: string;
@@ -342,6 +342,8 @@ export function routeMessage(input: {
       return { kind: 'answer', intent, plan: { about: 'search', field: field as SearchField } };
     }
 
+    // Saving a hotel, or listing the saved ones, is the agent's: its save_hotel and show_saved tools (docs/saved.md).
+    case 'save':
     case 'new_search':
     case 'question':
     case 'none':

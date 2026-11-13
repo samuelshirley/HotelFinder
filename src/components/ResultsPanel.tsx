@@ -16,6 +16,7 @@ import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import { CardSkeleton, Spinner } from './Spinner';
 import { HotelDetail } from './HotelDetail';
+import { Heart, type SaveLink } from './Heart';
 import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
 
@@ -49,7 +50,7 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; save: SaveLink }) {
   const { stay, session, shortlist } = view;
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
   const pins = useMemo(
@@ -108,7 +109,6 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         <div className={styles.summaryTop}>
           <h2>{stay.destination}</h2>
           <span className={styles.summaryRight}>
-            <CurrencyChip code={session.currency} capSet={stay.priceCapMinor !== null} busy={busy} onEdit={onEdit} />
             {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
             {canMap && (
               <button className={styles.ghost} aria-pressed={map.open} onClick={map.onToggle}>
@@ -136,6 +136,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
             </span>
           ))}
           {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
+          <CurrencyChip code={session.currency} capSet={stay.priceCapMinor !== null} busy={busy} onEdit={onEdit} />
         </div>
         {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Sign in when you book, and your next searches show member prices.</p>}
         {working && (
@@ -185,6 +186,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
+              save={save}
             />
             </Fragment>
           ))}
@@ -364,39 +366,29 @@ function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; 
 }
 
 /**
- * The currency prices are quoted in. A change is a new search priced by the
- * supplier; nothing on screen is converted. A price cap was set in the old
- * currency, so it goes, and the picker says so before it is used.
+ * The currency prices are quoted in, a chip like the others. A change is a
+ * new search priced by the supplier; nothing on screen is converted. A price
+ * cap was set in the old currency, so it goes, and the editor says so first.
  */
 function CurrencyChip({ code, capSet, busy, onEdit }: { code: string; capSet: boolean; busy: boolean; onEdit: OnEdit }) {
+  const [picked, setPicked] = useState(code);
+  useEffect(() => setPicked(code), [code]);
   const common = new Set<string>(COMMON_CURRENCIES);
-  const label = (c: (typeof CURRENCIES)[number]) => `${c.code} · ${c.name}`;
+  const option = (c: (typeof CURRENCIES)[number]) => (
+    <option key={c.code} value={c.code}>
+      {c.code} · {c.name}
+    </option>
+  );
   return (
-    <label className={styles.note}>
-      Currency:{' '}
-      <select
-        aria-label="Currency"
-        aria-describedby={capSet ? 'currency-cap-note' : undefined}
-        value={code}
-        disabled={busy}
-        onChange={(e) => isCurrencyCode(e.target.value) && onEdit({ type: 'set_currency', code: e.target.value })}
-      >
-        {CURRENCIES.filter((c) => common.has(c.code))
-          .sort((a, b) => COMMON_CURRENCIES.indexOf(a.code as never) - COMMON_CURRENCIES.indexOf(b.code as never))
-          .map((c) => (
-            <option key={c.code} value={c.code}>
-              {label(c)}
-            </option>
-          ))}
+    <Editable label={`Prices in ${code}`} name="currency" busy={busy} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
+      <select className={styles.editorInput} aria-label="Currency" value={picked} onChange={(e) => setPicked(e.target.value)}>
+        {COMMON_CURRENCIES.map((c) => option(CURRENCIES.find((x) => x.code === c)!))}
         <option disabled>──────────</option>
-        {CURRENCIES.filter((c) => !common.has(c.code)).map((c) => (
-          <option key={c.code} value={c.code}>
-            {label(c)}
-          </option>
-        ))}
+        {CURRENCIES.filter((c) => !common.has(c.code)).map(option)}
       </select>
-      {capSet && <span id="currency-cap-note"> (changing it removes the price cap, which is in {code})</span>}
-    </label>
+      <span className={styles.muted}>The hotels are searched again and priced in this currency.</span>
+      {capSet && <span className={styles.muted}>Changing it removes the price cap, which is in {code}.</span>}
+    </Editable>
   );
 }
 
@@ -419,6 +411,7 @@ function Card({
   booking,
   marked,
   onHover,
+  save,
 }: {
   view: SessionView;
   row: Row;
@@ -432,6 +425,7 @@ function Card({
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
   onHover: (id: string, on: boolean) => void;
+  save: SaveLink;
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
@@ -462,9 +456,12 @@ function Card({
           <div className={styles.photo} aria-hidden />
         )}
         <div className={styles.cardBody}>
-          <h3>
-            <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
-          </h3>
+          <div className={styles.cardTitle}>
+            <h3>
+              <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
+            </h3>
+            <Heart propertyId={property.id} name={property.name} link={save} />
+          </div>
           <p className={styles.muted}>
             {property.rating !== null && <>{property.rating} </>}
             {property.reviewCount !== null && <>({property.reviewCount.toLocaleString('en')} reviews) </>}
@@ -514,7 +511,7 @@ function Card({
       </div>
       {open && (
         <div className={styles.expandArea}>
-          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} />
+          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} save={save} />
         </div>
       )}
     </li>

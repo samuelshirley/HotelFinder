@@ -82,6 +82,9 @@ const CASES: Array<[string, string]> = [
   ['can I see them on a map?', 'ui:map:show'],
   ['where is the second one on the map?', 'ui:focus'],
   ['show the yotel on the map', 'ui:focus'],
+  // Saved hotels (docs/saved.md): the agent's save_hotel and show_saved tools. Added 2026-11-13.
+  ['save the second one for later', 'defer'],
+  ['show my saved hotels', 'defer'],
   // Asking is not requiring, and requiring is not asking.
   ['it has to have parking', 'actions:add_must_have'],
   // No listing field answers these: the agent's.

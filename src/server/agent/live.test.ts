@@ -109,6 +109,15 @@ describe.skipIf(!live)(`the agent, live (${model})`, () => {
     expect(r.guards).not.toContain('claims_action');
   }, 60_000);
 
+  it('"save the second one" saves that hotel and changes nothing; "show my saved hotels" asks for the list', async () => {
+    const saved = await ask('save the second one for later');
+    expect(saved.save).toBe(P(2));
+    expect(saved.actions).toEqual([]);
+    const listed = await ask('show my saved hotels');
+    expect(listed.showSaved).toBe(true);
+    expect(listed.actions).toEqual([]);
+  }, 60_000);
+
   it('a comparison uses only the numbers on screen', async () => {
     const r = await ask('how much more is the third one than the first?');
     expect(r.actions).toEqual([]);

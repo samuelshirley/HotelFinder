@@ -125,3 +125,5 @@
   .quad { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .roomSkeleton { animation: none; } }
+
+.nameRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }

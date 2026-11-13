@@ -39,6 +39,11 @@ export const answerForm = (id: string, answer: FormAnswer) =>
 export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_currency' | 'set_priorities' | 'set_near' | 'set_near_point' | 'clear_near' }>;
 export const editSearch = (id: string, actions: EditAction | EditAction[]) =>
   request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ actions: Array.isArray(actions) ? actions : [actions], today: todayLocal() }) });
+/** The heart. A saved hotel carries the last price found for it, never a current price (docs/saved.md). */
+export type SavedHotel = import('@/server/saved').SavedHotelView;
+export const loadSaved = () => request<{ saved: SavedHotel[] }>('/api/saved');
+export const setSaved = (body: { saved: true; propertyId: string; sessionId: string } | { saved: false; propertyId: string }) =>
+  request<{ saved: SavedHotel[] }>('/api/saved', { method: 'POST', body: JSON.stringify(body) });
 export type PlaceSuggestion = { placeId: string; label: string; name: string; where: string | null; kind: string };
 export const searchPlaces = (q: string) => request<{ places: PlaceSuggestion[] }>(`/api/places?q=${encodeURIComponent(q)}`);
 export type { Example } from '@/server/example';
