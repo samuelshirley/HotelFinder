@@ -531,7 +531,7 @@ export const en = {
       titlePrice: 'Sign in for member prices',
       titleBook: 'Sign in to book',
       note: 'Members see lower prices at many hotels. We email you a 6-digit code; there is no password. Your search stays as it is.',
-      email: 'Email',
+      email: 'Email. A sign-in code goes here; no password.',
       sendCode: 'Send code',
       sending: 'Sending…',
       code: (email: string) => `The 6-digit code sent to ${email}`,

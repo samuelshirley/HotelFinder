@@ -55,6 +55,8 @@ const offer = z
     payAtPropertyMinor: minor,
     suggestedSellingMinor: minor.nullable(),
     audience: z.enum(['public', 'member']),
+    /** A member pays less than the hotel's public price for this room. Signed out the price shown is the public one. */
+    lowerForMembers: z.boolean(),
     roomName: z.string().nullable(),
     boardName: z.string().nullable(),
     refundable: z.boolean(),
@@ -114,6 +116,8 @@ export const sessionView = z
         currency,
         signedIn: z.boolean(),
         audience: z.enum(['public', 'member']),
+        /** The latest prices were fetched for someone else (before a sign-in, or before Not you?). */
+        repriceNeeded: z.boolean(),
       })
       .strict(),
     pending: z

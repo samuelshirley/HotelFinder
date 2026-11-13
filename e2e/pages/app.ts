@@ -82,6 +82,10 @@ export class Card {
   }
   perNightLine = () => this.root.getByText(/^total for \d+ nights? · /);
   book = () => this.root.getByRole('button', { name: /^(Book|Checking the price…)$/ });
+  /** Signed out, on a hotel where members pay less. */
+  signInLower = () => this.root.getByRole('button', { name: 'Sign in for a lower price' });
+  /** Signed in, on a hotel where the member price is under the hotel's public price. */
+  memberPrice = () => this.root.getByText('Member price', { exact: true });
   details = () => this.root.getByRole('button', { name: /^(Details|Collapse ▲)$/ }).first();
 }
 
@@ -103,7 +107,7 @@ export class Results {
   mapToggle = () => this.page.getByRole('button', { name: /^(Hide map|Show map)$/ });
   map = () => this.page.getByTestId('map');
   pins = () => this.map().locator('button[data-pin]');
-  publicNote = () => this.region().getByText(/^These are public prices\./);
+  publicNote = () => this.region().getByText(/^Signed out, each hotel shows its own public price\./);
   async waitForCards(timeout = 90_000): Promise<void> {
     await expect(this.cards().first()).toBeVisible({ timeout });
     await expect(this.cards().first()).not.toHaveAttribute('aria-busy', 'true');
@@ -192,3 +196,39 @@ export async function expectNotCovered(target: Locator): Promise<void> {
 }
 
 export const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The sign-in modal (components/SignInModal.tsx): on the results ("Sign in for
+ * member prices", "Sign in to book") and over a signed-out checkout ("Who is
+ * booking?"). Email, Send code, then the code: the sixth digit signs in.
+ */
+export class SignInModal {
+  constructor(
+    readonly page: Page,
+    readonly title: string | RegExp,
+  ) {}
+  dialog = () => this.page.getByRole('dialog', { name: this.title });
+  email = () => this.dialog().getByLabel(/^Email\./);
+  send = () => this.dialog().getByRole('button', { name: /^(Send code|Sending…)$/ });
+  newCode = () => this.dialog().getByRole('button', { name: 'Send a new code' });
+  code = () => this.dialog().getByLabel(/^The 6-digit code sent to /);
+  devCode = () => this.dialog().getByRole('status').filter({ hasText: 'No email service is set up here' });
+  submit = () => this.dialog().getByRole('button', { name: /^(Sign in|Checking the price…|Checking the prices…)$/ });
+  notNow = () => this.dialog().getByRole('button', { name: 'Not now' });
+  back = () => this.dialog().getByRole('link', { name: 'Back to the shortlist' });
+  alert = () => this.dialog().getByRole('alert');
+  async sendTo(email: string): Promise<string> {
+    await this.email().fill(email);
+    await this.send().click();
+    await expect(this.devCode()).toBeVisible();
+    const code = (await this.devCode().locator('strong').textContent())!.trim();
+    expect(code).toMatch(/^\d{6}$/);
+    return code;
+  }
+  /** Email, code, and the modal closes once the price is checked for this account. */
+  async signIn(email: string): Promise<void> {
+    const code = await this.sendTo(email);
+    await this.code().fill(code);
+    await expect(this.dialog()).toHaveCount(0, { timeout: 90_000 });
+  }
+}

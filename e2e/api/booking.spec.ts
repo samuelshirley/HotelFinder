@@ -100,6 +100,71 @@ test.describe('POST /api/booking/[id]/confirm', { tag: ['@api', '@booking'] }, (
   });
 });
 
+/** A checkout made by the signed-in `signedIn` account. */
+async function memberCheckout(api: Api) {
+  const { sessionId, view } = await api.search();
+  const { bookingId } = await json(await api.patient(() => api.checkout(sessionId, { offerId: view.shortlist.find((r) => r.offer)!.offer!.id })), S.bookingIdBody);
+  return { sessionId, bookingId };
+}
+
+test.describe('POST /api/booking/[id]/not-you', { tag: ['@api', '@booking'] }, () => {
+  test('signs this browser out and gives it the search; the checkout then asks who is booking', async ({ api, signedIn }) => {
+    const { sessionId, bookingId } = await memberCheckout(api);
+    await json(await api.request.post(`api/booking/${bookingId}/not-you`, { data: {} }), S.signedOutBody);
+    expect((await json(await api.me(), S.meBody)).user).toBeNull();
+    // Nothing of the checkout is shown signed out; the page asks for an email.
+    await expectError(await api.booking(bookingId), 401, 'signed_out');
+    // The search is this browser's now, and its prices are someone else's until it is priced again.
+    const view = await json(await api.session(sessionId), S.sessionView);
+    expect(view.session).toMatchObject({ signedIn: false, audience: 'public', repriceNeeded: true });
+    void signedIn;
+  });
+
+  test('signed out, not the owner, or unknown: refused, nothing changed', async ({ api, prebooked, ip }) => {
+    await expectError(await api.request.post(`api/booking/${prebooked.bookingId}/not-you`, { data: {} }), 401, 'signed_out');
+    const other = await stranger(ip);
+    await new Api(other).signIn(uniqueEmail('stranger'));
+    await expectError(await other.post(`api/booking/${prebooked.bookingId}/not-you`, { data: {} }), 404, 'booking_not_found');
+    await expectError(await other.post(`api/booking/${UNKNOWN}/not-you`, { data: {} }), 404, 'booking_not_found');
+    await other.dispose();
+    expect((await json(await api.booking(prebooked.bookingId), S.bookingPageBody)).booking.status).toBe('prebooked');
+  });
+
+  test('a booking already paid: 409 booking_not_payable, still signed in', async ({ api, booked }) => {
+    await api.signIn(booked.email);
+    await expectError(await api.request.post(`api/booking/${booked.bookingId}/not-you`, { data: {} }), 409, 'booking_not_payable');
+    expect((await json(await api.me(), S.meBody)).user).toEqual({ email: booked.email });
+  });
+});
+
+test.describe('POST /api/booking/[id]/reprice', { tag: ['@api', '@booking'] }, () => {
+  test('after Not you? and a new sign-in: the same room, a new price check for that account, quoted at the last price shown', async ({ api, signedIn }) => {
+    const { sessionId, bookingId } = await memberCheckout(api);
+    const before = (await json(await api.booking(bookingId), S.bookingPageBody)).booking;
+    await json(await api.request.post(`api/booking/${bookingId}/not-you`, { data: {} }), S.signedOutBody);
+    const next = uniqueEmail('next');
+    await api.signIn(next);
+    // Signed in, but not the account it was priced for: the checkout says to price it again.
+    await expectError(await api.booking(bookingId), 409, 'reprice_needed');
+    const { bookingId: again } = await json(await api.patient(() => api.request.post(`api/booking/${bookingId}/reprice`, { data: {} })), S.bookingIdBody);
+    expect(again).not.toBe(bookingId);
+    const page = await json(await api.booking(again), S.bookingPageBody);
+    expect(page.me).toEqual({ email: next });
+    expect(page.booking).toMatchObject({ status: 'prebooked', sessionId, hotelName: before.hotelName, roomName: before.roomName, quotedTotalMinor: before.totalMinor });
+    expect(page.booking.priceChanged).toBe(page.booking.totalMinor !== before.totalMinor);
+    void signedIn;
+  });
+
+  test('signed out, unknown, or not in this visitor\'s search: refused', async ({ api, prebooked, ip }) => {
+    await expectError(await api.request.post(`api/booking/${prebooked.bookingId}/reprice`, { data: {} }), 401, 'signed_out');
+    const other = await stranger(ip);
+    await new Api(other).signIn(uniqueEmail('stranger'));
+    await expectError(await other.post(`api/booking/${prebooked.bookingId}/reprice`, { data: {} }), 404, 'booking_not_found');
+    await expectError(await other.post(`api/booking/${UNKNOWN}/reprice`, { data: {} }), 404, 'booking_not_found');
+    await other.dispose();
+  });
+});
+
 test.describe('POST /api/booking/[id]/cancel', { tag: ['@api', '@booking'] }, () => {
   test('a booking still to pay is not_cancellable (409)', async ({ api, prebooked }) => {
     await expectError(await api.cancel(prebooked.bookingId), 409, 'not_cancellable');
