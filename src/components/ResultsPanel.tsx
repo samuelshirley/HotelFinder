@@ -684,6 +684,7 @@ function Card({
   onOpen: (id: string) => void;
   onClose: () => void;
   onBook: (offerId: string) => void;
+  /** Signed out, on a hotel where members pay less: the sign-in modal. */
   onSignIn: () => void;
   booking: string | null;
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
@@ -783,6 +784,15 @@ function Card({
               {t.ui.totalFor(t.words.nights(nights), formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency, locale))}
             </p>
             {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>{t.ui.paidAtHotel(formatMoney(offer.payAtPropertyMinor, offer.currency, locale))}</p>}
+            {/* Never by how much: that would publish the member rate (lib/pricing.ts). */}
+            {offer.lowerForMembers &&
+              (view.session.signedIn ? (
+                <p className={styles.member}>{t.ui.memberPrice}</p>
+              ) : (
+                <button type="button" className={styles.memberLink} onClick={onSignIn}>
+                  {t.ui.signInLower}
+                </button>
+              ))}
             <div className={styles.cardActions}>
               <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
                 {booking === offer.id ? (
