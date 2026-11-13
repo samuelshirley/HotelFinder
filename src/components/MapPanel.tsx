@@ -66,13 +66,16 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
       const at = m.project([k.point.longitude, k.point.latitude]);
       return { id, rank: k.rank, x: at.x, y: at.y, width: k.fullWidth, height: 28 };
     });
-    const places = layoutPins(boxes);
+    const { clientWidth: width, clientHeight: height } = m.getContainer();
+    const places = layoutPins(boxes, { width, height });
     for (const [id, { el, marker }] of markers.current) {
       const place = places.get(id);
       el.dataset.compact = place?.compact ? 'true' : 'false';
+      const dx = place?.dx ?? 0;
       const dy = place?.dy ?? 0;
       // Only when it changes: setOffset repositions the marker.
-      if (marker.getOffset().y !== dy) marker.setOffset([0, dy]);
+      const now = marker.getOffset();
+      if (now.x !== dx || now.y !== dy) marker.setOffset([dx, dy]);
     }
   };
   const declutterRef = useRef(declutter);

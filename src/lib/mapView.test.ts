@@ -113,11 +113,11 @@ describe('when the camera may move', () => {
 
 describe('labels never cover each other', () => {
   const box = (id: string, rank: number | null, x: number, y: number) => ({ id, rank, x, y, width: 102, height: 28 });
-  const rects = (boxes: ReturnType<typeof box>[]) => {
-    const places = layoutPins(boxes);
+  const rects = (boxes: ReturnType<typeof box>[], view: { width: number; height: number } | null = null) => {
+    const places = layoutPins(boxes, view);
     return boxes.flatMap((b) => {
       const p = places.get(b.id);
-      return p ? [{ id: b.id, x: b.x, y: b.y + p.dy, w: p.compact ? 28 : b.width, h: b.height }] : [];
+      return p ? [{ id: b.id, x: b.x + p.dx, y: b.y + p.dy, w: p.compact ? 28 : b.width, h: b.height }] : [];
     });
   };
   const overlapping = (rs: ReturnType<typeof rects>) =>
@@ -127,15 +127,15 @@ describe('labels never cover each other', () => {
     // Centres as measured in the browser on 12 Nov 2026.
     const boxes = [box('p1', 1, 610, 403), box('p2', 2, 538, 256), box('p3', 3, 540, 258), box('p4', 4, 609, 393), box('p5', 5, 612, 405)];
     const places = layoutPins(boxes);
-    expect(places.get('p1')).toEqual({ dy: 0, compact: false });
-    expect(places.get('p2')).toEqual({ dy: 0, compact: false });
+    expect(places.get('p1')).toEqual({ dx: 0, dy: 0, compact: false });
+    expect(places.get('p2')).toEqual({ dx: 0, dy: 0, compact: false });
     expect([...places.values()].every((p) => !p.compact)).toBe(true);
     expect(overlapping(rects(boxes))).toEqual([]);
   });
 
   it('pins apart stay exactly where their hotels are', () => {
     const places = layoutPins([box('a', 1, 100, 100), box('b', 2, 300, 100), box('c', 3, 100, 140)]);
-    expect([...places.values()]).toEqual([{ dy: 0, compact: false }, { dy: 0, compact: false }, { dy: 0, compact: false }]);
+    expect([...places.values()]).toEqual([{ dx: 0, dy: 0, compact: false }, { dx: 0, dy: 0, compact: false }, { dx: 0, dy: 0, compact: false }]);
   });
 
   it('more hotels on one spot than there are slots: the rest show their rank alone', () => {
@@ -145,9 +145,39 @@ describe('labels never cover each other', () => {
     expect(places.get('h6')!.compact).toBe(true);
   });
 
+  it('a label moved to make room stays inside the map: near the bottom edge it stacks above, not past the edge', () => {
+    // The band in e2e/map.spec is 274 px tall; the fit leaves 72 px around the hotels,
+    // so a hotel can sit 72 px from the bottom, and 64 px below that is outside.
+    const view = { width: 1360, height: 274 };
+    const boxes = [box('a', 1, 600, 202), box('b', 2, 600, 202), box('c', 3, 600, 202), box('d', 4, 600, 202)];
+    const rs = rects(boxes, view);
+    expect(overlapping(rs)).toEqual([]);
+    for (const r of rs) {
+      expect(r.y - r.h / 2).toBeGreaterThanOrEqual(0);
+      expect(r.y + r.h / 2).toBeLessThanOrEqual(view.height);
+    }
+    // Without the edge the same pile used the slot past it.
+    expect(rects(boxes).some((r) => r.y + r.h / 2 > view.height)).toBe(true);
+  });
+
+  it('a rank alone that would still cover a pin steps aside instead (Porto, 13 Nov 2026: 4 under 5)', () => {
+    const view = { width: 1360, height: 274 };
+    // Seven on one spot: five full labels fill the stack, the last two are ranks alone, beside it.
+    const boxes = Array.from({ length: 7 }, (_, i) => box(`h${i + 1}`, i + 1, 600, 137));
+    const rs = rects(boxes, view);
+    expect(overlapping(rs)).toEqual([]);
+    expect(rs.filter((r) => r.w === 28).map((r) => r.id)).toEqual(['h6', 'h7']);
+    for (const r of rs) expect(r.x - r.w / 2).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a hotel near the edge keeps its own spot: the camera, not the layout, decides where it is', () => {
+    const places = layoutPins([box('a', 1, 600, 268)], { width: 1360, height: 274 });
+    expect(places.get('a')).toEqual({ dx: 0, dy: 0, compact: false });
+  });
+
   it('near-misses are rings, not labels: never moved, never in the way', () => {
     const places = layoutPins([box('m', null, 100, 100), box('a', 1, 100, 100)]);
     expect(places.has('m')).toBe(false);
-    expect(places.get('a')).toEqual({ dy: 0, compact: false });
+    expect(places.get('a')).toEqual({ dx: 0, dy: 0, compact: false });
   });
 });

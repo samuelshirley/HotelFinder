@@ -46,6 +46,12 @@ are laid out best rank first. One that would touch another is stacked 32 px belo
 A stacked label is up to 64 px from its hotel; zooming in pulls the stack apart. The best rank is
 always drawn on top and always on its own spot.
 
+Two gaps, found by `e2e/map.spec` failing on live data (13 Nov 2026), closed in `layoutPins`:
+a moved label must stay inside the map (stacked 64 px below a hotel near the bottom edge, it hung
+5 px past it), and a rank alone that still covers a pin steps aside, left then right, far enough
+to clear a full label (pins 4 and 5 on almost one spot overlapped). A label on its own hotel's spot
+is never moved for the edge: where the hotel is on screen is the camera's business.
+
 ## List and map
 
 | You do | What happens |

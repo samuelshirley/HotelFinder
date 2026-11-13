@@ -124,12 +124,14 @@ export function ringPolygon(centre: MapPoint, km: number, steps = 64): Array<[nu
 }
 
 export type PinBox = { id: string; rank: number | null; x: number; y: number; width: number; height: number };
-export type PinPlace = { dy: number; compact: boolean };
+export type PinPlace = { dx: number; dy: number; compact: boolean };
 
 /** A pin drawn small: just its rank, in a circle this wide. */
 export const COMPACT_PX = 28;
 /** Where a label that would cover another is tried instead, in order: just below, just above, then one further each way. */
 export const STACK_OFFSETS = [32, -32, 64, -64] as const;
+/** A rank alone that still covers another steps aside: past another rank alone, then past a full label, left before right. */
+const sideOffsets = (labelWidth: number) => [-(COMPACT_PX + 4), COMPACT_PX + 4, -(labelWidth / 2 + COMPACT_PX / 2 + 4), labelWidth / 2 + COMPACT_PX / 2 + 4];
 
 /**
  * Where each label goes so that no two cover each other. Seen in the browser
@@ -140,25 +142,41 @@ export const STACK_OFFSETS = [32, -32, 64, -64] as const;
  * Better ranks are placed first, on their own spot. A label that would touch
  * one already placed is stacked just below or above it (hotels in one street
  * read as a stack, and zooming in pulls them apart). Only when no slot is
- * free does it shrink to its rank alone; the price comes back on hover.
+ * free does it shrink to its rank alone; the price comes back on hover. A
+ * rank alone that still touches one steps aside, left or right.
+ *
+ * A moved label stays inside the map (`view`): stacking 64 px below a hotel
+ * near the bottom edge put the label past it (e2e/map.spec, 13 Nov 2026). A
+ * label on its own hotel's spot is always allowed; the camera decides that.
  * `x`,`y` are the pin's centre on screen, `width` its full label.
  */
-export function layoutPins(boxes: readonly PinBox[], gap = 2): Map<string, PinPlace> {
+export function layoutPins(boxes: readonly PinBox[], view: { width: number; height: number } | null = null, gap = 2): Map<string, PinPlace> {
   const order = [...boxes].filter((b) => b.rank !== null).sort((a, b) => a.rank! - b.rank!);
   const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
   const out = new Map<string, PinPlace>();
   const free = (x: number, y: number, w: number, h: number) =>
     !placed.some((p) => Math.abs(p.x - x) * 2 < p.w + w + gap * 2 && Math.abs(p.y - y) * 2 < p.h + h + gap * 2);
+  const inside = (x: number, y: number, w: number, h: number) => !view || (x - w / 2 >= 0 && x + w / 2 <= view.width && y - h / 2 >= 0 && y + h / 2 <= view.height);
+  const fits = (b: PinBox, dx: number, dy: number, w: number) => free(b.x + dx, b.y + dy, w, b.height) && ((dx === 0 && dy === 0) || inside(b.x + dx, b.y + dy, w, b.height));
+  const place = (b: PinBox, dx: number, dy: number, compact: boolean) => {
+    out.set(b.id, { dx, dy, compact });
+    placed.push({ x: b.x + dx, y: b.y + dy, w: compact ? COMPACT_PX : b.width, h: b.height });
+  };
   for (const b of order) {
-    const dy = [0, ...STACK_OFFSETS].find((d) => free(b.x, b.y + d, b.width, b.height));
+    const dy = [0, ...STACK_OFFSETS].find((d) => fits(b, 0, d, b.width));
     if (dy !== undefined) {
-      out.set(b.id, { dy, compact: false });
-      placed.push({ x: b.x, y: b.y + dy, w: b.width, h: b.height });
+      place(b, 0, dy, false);
       continue;
     }
-    const small = [0, ...STACK_OFFSETS].find((d) => free(b.x, b.y + d, COMPACT_PX, b.height)) ?? 0;
-    out.set(b.id, { dy: small, compact: true });
-    placed.push({ x: b.x, y: b.y + small, w: COMPACT_PX, h: b.height });
+    let spot: [number, number] | undefined;
+    for (const dx of [0, ...sideOffsets(b.width)]) {
+      const d = [0, ...STACK_OFFSETS].find((y) => fits(b, dx, y, COMPACT_PX));
+      if (d !== undefined) {
+        spot = [dx, d];
+        break;
+      }
+    }
+    place(b, spot?.[0] ?? 0, spot?.[1] ?? 0, true);
   }
   return out;
 }
