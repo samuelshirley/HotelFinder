@@ -51,8 +51,9 @@ const addPlaces = process.argv.includes('--add-places');
 const addCountries = process.argv.includes('--add-countries');
 const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
+const addRoomSplits = process.argv.includes('--add-room-splits');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addRoomSplits
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -119,6 +120,40 @@ if (addNonrefundableCancel) {
   await capture('booking-cancel-with-charges', 'PUT', `${BOOK}/bookings/${booked.json.data.bookingId}`);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added prebook-nonrefundable.json, book-nonrefundable.json, booking-cancel-with-charges.json');
+  process.exit(0);
+}
+
+if (addRoomSplits) {
+  // Room splits (docs/supplier.md §8): the same 20 Porto hotels and dates as
+  // rates-city-porto, priced for one party asked for as one room and as two,
+  // at the public 15% margin. Then ONE sandbox booking of a two-room offer
+  // whose rooms have different names, booked with one guest per room and
+  // cancelled: what "books exactly the combination shown" rests on.
+  const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
+  const base = { currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13', hotelIds: recorded.data.map((h) => h.hotelId), margin: 15, maxRatesPerHotel: 1, includeHotelData: true };
+  await capture('rates-four-adults-one-room', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 4 }] });
+  await capture('rates-four-adults-two-rooms', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 2 }, { adults: 2 }] });
+  await capture('rates-family-one-room', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 2, children: [4, 9] }] });
+  await capture('rates-family-two-rooms-split', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 1, children: [4] }, { adults: 1, children: [9] }] });
+
+  const mixed = await capture('rates-mixed-rooms', 'POST', `${DATA}/hotels/rates`, { ...base, occupancies: [{ adults: 2 }, { adults: 1 }], maxRatesPerHotel: 5, includeHotelData: false });
+  const offers = (mixed.json.data ?? []).flatMap((h) => h.roomTypes ?? []);
+  const differs = (rt) => new Set((rt.rates ?? []).map((r) => r.name)).size > 1;
+  const pick = offers.find((rt) => differs(rt) && rt.rates.every((r) => r.cancellationPolicies?.refundableTag === 'RFN')) ?? offers.find(differs);
+  if (!pick) throw new Error('no two-room offer with two different rooms in this search; try again later');
+  const pre = await capture('prebook-mixed-rooms', 'POST', `${BOOK}/rates/prebook`, { offerId: pick.offerId, usePaymentSdk: true });
+  const guest = (n) => ({ firstName: 'Fixture', lastName: `Guest${n}`, email: `guest${n}@fixture.hotelfinder.invalid` });
+  const booked = await capture('book-mixed-rooms', 'POST', `${BOOK}/rates/book`, {
+    prebookId: pre.json.data.prebookId, holder: guest(1), payment: { method: 'ACC_CREDIT_CARD' },
+    guests: [{ occupancyNumber: 1, ...guest(1) }, { occupancyNumber: 2, ...guest(2) }],
+  });
+  const bookingId = booked.json.data?.bookingId;
+  if (bookingId) {
+    await capture('booking-get-mixed-rooms', 'GET', `${BOOK}/bookings/${bookingId}`);
+    await capture('booking-cancel-mixed-rooms', 'PUT', `${BOOK}/bookings/${bookingId}`);
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added room-split fixtures');
   process.exit(0);
 }
 
