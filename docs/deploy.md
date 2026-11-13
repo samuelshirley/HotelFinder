@@ -126,8 +126,9 @@ up.
 
 ### One-time setup (Sam)
 
-Nothing here was changed in Vercel, Neon or GitHub by the agent that wrote
-this.
+Status 2026-11-13: step 1 is done (both Preview copies removed with the
+Vercel CLI; Production keeps its own), and `NEON_API_KEY`, `LITE_API_KEY`
+and `NEON_PROJECT_ID` are set in GitHub. Only `VERCEL_TOKEN` is left.
 
 1. **Vercel, remove `DATABASE_URL` from the Preview environment** (Project
    `hotel-finder` → Settings → Environment Variables → `DATABASE_URL` → edit,
@@ -138,11 +139,14 @@ this.
    samuelshirleys-projects` lists neither.
 2. **Vercel, check the Preview `LITE_API_KEY`** is not the production key.
    The workflow overrides it, but nothing else should be holding it there.
-3. **GitHub repo secrets** (Settings → Secrets and variables → Actions):
+3. **GitHub repo secrets** (Settings → Secrets and variables → Actions).
+   `scripts/github-secrets.sh` copies all four from `.env` with `gh secret
+   set` (values on stdin, never printed; refuses a non-sandbox LiteAPI key;
+   names whatever `.env` lacks):
 
    | Name | What | Where to get it |
    |---|---|---|
-   | `VERCEL_TOKEN` | Vercel access token, scope `samuelshirleys-projects` | vercel.com → Account Settings → Tokens → Create |
+   | `VERCEL_TOKEN` | Vercel access token, scope `samuelshirleys-projects` | vercel.com/account/settings/tokens (account settings, not the project's) → Create; then `VERCEL_TOKEN=…` in `.env` and run the script |
    | `NEON_API_KEY` | Neon API key | console.neon.tech → Account settings → API keys (or a project-scoped key for `hotel-finder`); or install the Neon GitHub integration, which creates it |
    | `NEON_PROJECT_ID` | the `hotel-finder` project id (secret **or** repo variable) | Neon console → project → Settings → General, or `npx neonctl projects list` |
    | `LITE_API_KEY` | the LiteAPI **sandbox** key (`sand_…`); also used by `ci.yml` | LiteAPI dashboard, sandbox; the value in `.env` |

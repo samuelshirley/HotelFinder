@@ -163,7 +163,8 @@ only, and by the preview workflow on the PR's own Neon branch: `docs/deploy.md`)
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
 Neon URL kept in .env.neon so dev stays on embedded Postgres; production
 env only for DATABASE_URL and AUTH_SECRET), wipe-preview-db.mjs and
-delete-pr-previews.sh (run by the preview workflows: `docs/deploy.md`)
+delete-pr-previews.sh (run by the preview workflows: `docs/deploy.md`),
+github-secrets.sh (copies the CI and preview secrets from .env into GitHub)
 
 ### Agent tooling
 
