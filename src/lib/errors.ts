@@ -50,3 +50,8 @@ export type ErrorCode = keyof typeof ERROR_COPY;
 export function errorCopy(code: string | null | undefined): string {
   return code && code in ERROR_COPY ? ERROR_COPY[code as ErrorCode] : ERROR_COPY.server_error;
 }
+
+/** The copy with the server's reference appended, so a report can be matched to its log line. */
+export function withRef(copy: string, ref: string | null | undefined): string {
+  return ref ? `${copy} (Reference: ${ref})` : copy;
+}

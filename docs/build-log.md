@@ -71,6 +71,8 @@ floor while content calls are unpriced. All of it: `docs/usage.md`.
 
 ## Notes for whoever resumes
 
+- 2026-11-13 outage (migration 0005 never applied; typed searches 500): migrations now run on production builds, `/api/health`, refs on 500s, CI on PRs. `docs/deploy.md`.
+
 - Tests: `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc --noEmit`,
   `npx playwright test` (starts its own dev server on a fresh database; live
   sandbox; Jev off unless `E2E_JEV=1`).

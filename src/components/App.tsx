@@ -3,7 +3,7 @@
 import { withBase } from '@/lib/basePath';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { errorCopy } from '@/lib/errors';
+import { errorCopy, withRef } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates, formatGuests } from '@/lib/replies';
@@ -179,7 +179,10 @@ export function App() {
     cardIntoView(propertyId);
   }, []);
 
-  const fail = (err: unknown) => setError(errorCopy(err instanceof ApiError ? err.code : 'server_error'));
+  const fail = (err: unknown) => {
+    if (!(err instanceof ApiError)) console.error('[app] unexpected', err);
+    setError(withRef(errorCopy(err instanceof ApiError ? err.code : 'server_error'), err instanceof ApiError ? err.ref : null));
+  };
 
   const start = useCallback(async (fresh: boolean) => {
     setBusy('boot');

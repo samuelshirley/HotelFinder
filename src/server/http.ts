@@ -1,9 +1,11 @@
 import { BASE_PATH } from '@/lib/basePath';
 import 'server-only';
+import { randomUUID } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import type { ErrorCode } from '@/lib/errors';
+import { describeFailure } from '@/lib/pgErrors';
 import { ANON_COOKIE, mintAnonCookie, readAnonCookie } from '@/server/auth/anon';
 import { createUserSession, endUserSession, USER_COOKIE, userForToken, type SignedInUser } from '@/server/auth/user';
 import { getBooking, type Booking } from '@/server/repos/bookings';
@@ -95,14 +97,25 @@ export function resolveToday(clientToday: string, now: Date): string | null {
   return days <= 1 ? clientToday : null;
 }
 
-/** Wrap a route so an unexpected throw is logged and answered, never swallowed. */
+/**
+ * Wrap a route so an unexpected throw is logged and answered, never swallowed.
+ * The answer carries a short `ref` the UI shows; the log line carries the same
+ * ref, the route, the SQLSTATE and, for schema drift, what to do. Search the
+ * Vercel logs for the ref: `vercel logs --query <ref>`.
+ */
 export function handled<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
     try {
       return await fn(...args);
     } catch (err) {
-      console.error('[api] unhandled', err);
-      return errorResponse('server_error', 500);
+      const ref = randomUUID().slice(0, 8);
+      const req = args[0] instanceof Request ? args[0] : null;
+      // Next hands routes the path without the base path; the log names the public one.
+      const pathname = req ? new URL(req.url).pathname : '';
+      const where = req ? `${req.method} ${pathname.startsWith(BASE_PATH) ? pathname : BASE_PATH + pathname}` : 'unknown route';
+      const vercelId = req?.headers.get('x-vercel-id');
+      console.error(`[api] 500 ${where} ref=${ref}${vercelId ? ` vercel=${vercelId}` : ''} ${describeFailure(err)}`, err);
+      return errorResponse('server_error', 500, { ref });
     }
   };
 }
