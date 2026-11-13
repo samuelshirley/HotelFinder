@@ -1,3 +1,6 @@
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
+
 /**
  * Which place a typed destination means, or that we must ask (docs/entry-ux.md,
  * Sam's rule of 11 Nov 2026). Pure.
@@ -48,6 +51,8 @@ export function pickPlace<P extends PlaceLike>(query: string, places: readonly P
 
 const MONTHS = /\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i;
 const OTHER = /\b(mon|tue|wed|thu|fri|sat|sun)(day)?s?\b|\bnights?\b|\bweek(end)?s?\b|\btomorrow\b|\btonight\b|\b\d{1,2}(st|nd|rd|th)?\s*(-|–|to)\s*\d{1,2}\b|\b\d{1,2}[/.]\d{1,2}\b|\bspring|summer|autumn|fall|winter|easter|christmas\b/i;
+/** The same in Spanish (docs/i18n.md): weekdays, nights, weekends, "mañana", "del 1 al 6", the seasons. */
+const OTHER_ES = /(?<![\p{L}])(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|noches?|fin(es)? de semana|semanas?|mañana|esta noche|hoy|del \d{1,2} al \d{1,2}|\d{1,2} al \d{1,2}|primavera|verano|otoño|invierno|semana santa|navidad(es)?)(?![\p{L}])/iu;
 
 /**
  * The words talk about when, though the scan could not turn them into two
@@ -55,28 +60,30 @@ const OTHER = /\b(mon|tue|wed|thu|fri|sat|sun)(day)?s?\b|\bnights?\b|\bweek(end)
  * search defaults to tonight (Sam, 11 Nov 2026).
  */
 export function mentionsDates(text: string): boolean {
-  return MONTHS.test(text) || OTHER.test(text);
+  return MONTHS.test(text) || OTHER.test(text) || OTHER_ES.test(text);
 }
 
 /** A word for what a place is, for the suggestion list; null for a hotel (never suggested). */
-export function placeKindWord(types: readonly string[]): string | null {
+export function placeKindWord(types: readonly string[], locale: Locale = 'en'): string | null {
+  const k = copy(locale).onboarding.placeKind;
   const has = (list: string[]) => types.some((t) => list.includes(t));
   if (has(LODGING)) return null;
-  if (has(AIRPORT)) return 'Airport';
-  if (has(STATION)) return 'Station';
-  if (has(['locality', 'postal_town'])) return 'City';
-  if (has(['neighborhood', 'sublocality', 'colloquial_area'])) return 'Neighbourhood';
-  if (has(['administrative_area_level_1', 'administrative_area_level_2', 'country'])) return 'Region';
-  return 'Place';
+  if (has(AIRPORT)) return k.airport;
+  if (has(STATION)) return k.station;
+  if (has(['locality', 'postal_town'])) return k.city;
+  if (has(['neighborhood', 'sublocality', 'colloquial_area'])) return k.neighbourhood;
+  if (has(['administrative_area_level_1', 'administrative_area_level_2', 'country'])) return k.region;
+  return k.place;
 }
 
 /**
  * The "Which one?" question for several matches: "Which Lisbon?" when they
  * share a name, each choice as "Lisbon · Portugal" so the difference shows.
  */
-export function whichOne(places: readonly PlaceLike[]): { prompt: string; suggestions: Array<{ placeId: string; label: string; display: string }> } {
+export function whichOne(places: readonly PlaceLike[], locale: Locale = 'en'): { prompt: string; suggestions: Array<{ placeId: string; label: string; display: string }> } {
+  const o = copy(locale).onboarding;
   const names = new Set(places.map((p) => p.name));
-  const prompt = names.size === 1 ? `Which ${places[0].name}?` : 'Which one?';
+  const prompt = names.size === 1 ? o.whichPlace(places[0].name) : o.whichOne;
   return {
     prompt,
     // `label` becomes the search's name when picked; `display` is what the chip says.

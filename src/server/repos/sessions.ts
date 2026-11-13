@@ -18,8 +18,18 @@ export class SessionNotOwnedError extends Error {
   }
 }
 
+/**
+ * A new search starts in the currency of the owner's most recent one: a
+ * visitor who switched to dollars keeps dollars (Sam, 2026-11-13). The first
+ * search ever is the column's default.
+ */
 export async function createSession(owner: Owner): Promise<SearchSession> {
-  const values = 'userId' in owner ? { userId: owner.userId } : { anonId: owner.anonId };
+  const mine = 'userId' in owner ? eq(searchSessions.userId, owner.userId) : eq(searchSessions.anonId, owner.anonId);
+  const [last] = await db.select({ currency: searchSessions.currency }).from(searchSessions).where(mine).orderBy(desc(searchSessions.createdAt)).limit(1);
+  const values = {
+    ...('userId' in owner ? { userId: owner.userId } : { anonId: owner.anonId }),
+    ...(last ? { currency: last.currency } : {}),
+  };
   const [row] = await db.insert(searchSessions).values(values).returning();
   return row;
 }
@@ -88,6 +98,10 @@ export type StayInput = Pick<Stay, 'destinationText' | 'checkIn' | 'checkOut'> &
       | 'rooms'
       | 'priceCapMinor'
       | 'mustHaves'
+      | 'minStars'
+      | 'minRating'
+      | 'propertyTypes'
+      | 'chains'
       | 'excludedPropertyIds'
     >
   >;

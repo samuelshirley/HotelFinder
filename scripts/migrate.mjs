@@ -18,7 +18,7 @@ import postgres from 'postgres';
 
 const env = process.env.VERCEL_ENV; // production | preview | development | undefined (not on Vercel)
 if (process.env.VERCEL && env !== 'production') {
-  console.log(`[migrate] skipped: VERCEL_ENV=${env}. Previews share the production database; migrations run on production builds only.`);
+  console.log(`[migrate] skipped: VERCEL_ENV=${env}. A preview runs on its own Neon branch, migrated by the preview workflow; Vercel builds migrate production only.`);
   process.exit(0);
 }
 const url = process.env.DATABASE_URL;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { isInsideTown } from '@/lib/placePick';
 
 import { MUST_HAVES } from '@/lib/amenities';
+import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
 import type { Action } from '@/lib/store/actions';
@@ -10,7 +11,9 @@ import type { ToolDef } from './anthropic';
 
 /**
  * What the agent can do. Two lookups it may read, and a set of changes that
- * are each turned into the SAME typed actions the router emits. The agent has
+ * are each turned into the SAME typed actions the router emits. Saving a
+ * hotel is not a change to the search: it names the hotel by position and the
+ * turn saves it through the same path as the heart (server/saved.ts). The agent has
  * no write path of its own: it never sees or writes a place id, a property id,
  * an offer id or a price. It names a hotel by its position on screen and a
  * place by the reference the place search handed back in this turn.
@@ -29,13 +32,17 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'hotel_details', description: "Read one on-screen hotel's own description, facilities and notes. Use it before answering any question about a hotel.", input_schema: obj({ position }) },
   { name: 'set_destination', description: 'Search a different place. The ref must come from resolve_place in this turn.', input_schema: obj({ place_ref: { type: 'string', description: 'A ref returned by resolve_place, e.g. P1.' } }) },
   { name: 'set_dates', description: 'Change the nights. Both dates, always.', input_schema: obj({ check_in: date, check_out: date }) },
-  { name: 'set_guests', description: 'Change who is travelling. All three values, always.', input_schema: obj({ adults: { type: 'integer', minimum: 1, maximum: 12 }, children_ages: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 17 }, maxItems: 8 }, rooms: { type: 'integer', minimum: 1, maximum: 6 } }) },
+  { name: 'set_guests', description: 'Change who is travelling. All three values, always. rooms: the number the user asked for, else the rooms in <search> if they are a number, else null (the app prices the cheapest split of the party).', input_schema: obj({ adults: { type: 'integer', minimum: 1, maximum: 12 }, children_ages: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 17 }, maxItems: 8 }, rooms: { type: ['integer', 'null'], minimum: 1, maximum: 6 } }) },
   { name: 'set_price_cap', description: 'Cap the price per night for the whole party, in the search currency. Use the number the user said: "under 120" is 120. null removes the cap.', input_schema: obj({ per_night: { type: ['number', 'null'], exclusiveMinimum: 0 } }) },
   { name: 'set_priorities', description: 'What "best" means, as the WHOLE set (it replaces the current one): cheapest (low price), nicest (great reviews), closest (close to the place in <search>). Several at once balance each other, e.g. ["cheapest","closest"]. [] = no preference.', input_schema: obj({ priorities: { type: 'array', items: { type: 'string', enum: [...PRIORITY_KEYS] }, uniqueItems: true, maxItems: PRIORITY_KEYS.length } }) },
   { name: 'set_near', description: 'Measure "close" from a place the user named (the old town, a venue, the airport) instead of the destination. The ref must come from resolve_place in this turn. Does not change what "best" means: add closest with set_priorities if they want to be close.', input_schema: obj({ place_ref: { type: 'string', description: 'A ref returned by resolve_place, e.g. P1.' } }) },
   { name: 'clear_near', description: 'Measure "close" from the destination again.', input_schema: obj({}) },
   { name: 'require', description: 'Only show hotels that have this.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
   { name: 'stop_requiring', description: 'Drop a requirement added earlier.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
+  { name: 'set_min_stars', description: 'Only show hotels of at least this star class ("4 star or better" is 4, "five-star" is 5). null removes it. A hotel whose listing gives no star class is shown under the others, saying so.', input_schema: obj({ stars: { type: ['integer', 'null'], minimum: 1, maximum: 5 } }) },
+  { name: 'set_min_rating', description: 'Only show hotels with at least this guest rating out of 10, in steps of 0.5 ("rated 8 or more" is 8). null removes it.', input_schema: obj({ rating: { type: ['number', 'null'], minimum: 1, maximum: 10, multipleOf: 0.5 } }) },
+  { name: 'set_property_types', description: 'Only show these kinds of place, as the WHOLE set (it replaces the current one). [] = any kind.', input_schema: obj({ types: { type: 'array', items: { type: 'string', enum: [...PROPERTY_TYPES] }, uniqueItems: true, maxItems: PROPERTY_TYPES.length } }) },
+  { name: 'set_brands', description: 'Only show hotels of these brands, as the WHOLE set. Each must be one of the brands in <search> "brands in these results", written as the user said it. [] = any brand.', input_schema: obj({ brands: { type: 'array', items: { type: 'string' }, uniqueItems: true, maxItems: MAX_CHAINS } }) },
   { name: 'set_aside', description: 'Remove hotels the user does not want from the list.', input_schema: obj({ positions: { type: 'array', items: position, minItems: 1, maxItems: 10 } }) },
   { name: 'show_others', description: 'Set aside everything on screen and show the next best.', input_schema: obj({}) },
   { name: 'bring_back_all', description: 'Undo every set-aside.', input_schema: obj({}) },
@@ -44,6 +51,9 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'submit_idea', description: 'The user asked for something a hotel search could reasonably do but this one cannot yet (flights, price alerts, a filter it lacks, another language). Record the request so the builders see it. Not for chit-chat or things unrelated to travel.', input_schema: obj({ request: { type: 'string', description: 'What they asked for, in under 20 plain words. No names, emails or other personal details.' } }) },
   { name: 'show_map', description: 'Show or fold away the map above the hotel list. Changes nothing about the search.', input_schema: obj({ visible: { type: 'boolean' } }) },
   { name: 'mark_on_map', description: 'Show the map and mark one on-screen hotel on it, for "where is the second one?".', input_schema: obj({ position }) },
+  { name: 'show_all_hotels', description: 'Open the full list of every hotel that fits, in the same order, under the top picks, for "show me all of them". Sets nothing aside and changes nothing about the search (show_others does).', input_schema: obj({}) },
+  { name: 'save_hotel', description: 'Save one on-screen hotel to the user\'s saved hotels (the heart), for "save this one" or "keep the second for later". Changes nothing about the search.', input_schema: obj({ position }) },
+  { name: 'show_saved', description: 'List the hotels the user saved, for "show my saved hotels" or "what did I save?". Changes nothing about the search.', input_schema: obj({}) },
 ];
 
 const pos = z.number().int().min(1);
@@ -53,13 +63,17 @@ const INPUT = {
   hotel_details: z.object({ position: pos }).strict(),
   set_destination: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
   set_dates: z.object({ check_in: iso, check_out: iso }).strict(),
-  set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6) }).strict(),
+  set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6).nullable() }).strict(),
   set_price_cap: z.object({ per_night: z.number().positive().max(100_000).nullable() }).strict(),
   set_priorities: z.object({ priorities: z.array(z.enum(PRIORITY_KEYS)).max(PRIORITY_KEYS.length).refine((p) => new Set(p).size === p.length) }).strict(),
   set_near: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
   clear_near: z.object({}).strict(),
   require: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
   stop_requiring: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
+  set_min_stars: z.object({ stars: z.number().int().min(1).max(5).nullable() }).strict(),
+  set_min_rating: z.object({ rating: z.number().min(1).max(10).multipleOf(0.5).nullable() }).strict(),
+  set_property_types: z.object({ types: z.array(z.enum(PROPERTY_TYPES)).max(PROPERTY_TYPES.length).refine((t) => new Set(t).size === t.length) }).strict(),
+  set_brands: z.object({ brands: z.array(z.string().trim().min(1).max(120)).max(MAX_CHAINS) }).strict(),
   set_aside: z.object({ positions: z.array(pos).min(1).max(10) }).strict(),
   show_others: z.object({}).strict(),
   bring_back_all: z.object({}).strict(),
@@ -68,6 +82,9 @@ const INPUT = {
   submit_idea: z.object({ request: z.string().trim().min(3).max(200) }).strict(),
   show_map: z.object({ visible: z.boolean() }).strict(),
   mark_on_map: z.object({ position: pos }).strict(),
+  show_all_hotels: z.object({}).strict(),
+  save_hotel: z.object({ position: pos }).strict(),
+  show_saved: z.object({}).strict(),
 } as const;
 export type ToolName = keyof typeof INPUT;
 export const isToolName = (name: string): name is ToolName => name in INPUT;
@@ -80,7 +97,25 @@ export type ToolContext = {
   placeRefs: Map<string, { placeId: string; label: string; types?: string[] }>;
   /** The town of the running search: a place inside it is somewhere to be close to, never a new destination. */
   searchTown?: string;
+  /** The supplier's chain names among the hotels held for this search. A brand the user names must be one of these. */
+  chains?: string[];
 };
+
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * A brand as the user said it → the supplier's own chain name, or null.
+ * The same name, or the one chain whose name holds it as whole words
+ * ("Hilton" → "Hilton Hotels & Resorts"). Two candidates is no answer.
+ */
+export function matchChain(said: string, chains: readonly string[]): string | null {
+  const want = fold(said);
+  if (!want) return null;
+  const exact = chains.filter((c) => fold(c) === want);
+  if (exact.length === 1) return exact[0];
+  const within = chains.filter((c) => ` ${fold(c)} `.includes(` ${want} `));
+  return within.length === 1 ? within[0] : null;
+}
 
 /** "Manor Road, Austin, TX, USA" is in Austin; "Ribeira, Lisbon, Portugal" is not in Porto. */
 const inTown = (label: string, town: string) => label.toLowerCase().split(/,\s*/).slice(1).some((part) => part === town.toLowerCase());
@@ -94,6 +129,9 @@ export type ParsedCall =
   | { kind: 'idea'; text: string }
   | { kind: 'map'; visible: boolean }
   | { kind: 'focus'; propertyId: string }
+  | { kind: 'all' }
+  | { kind: 'save'; propertyId: string }
+  | { kind: 'show_saved' }
   | { kind: 'invalid'; reason: string };
 
 /** Pure: a tool call → what it means, or why it means nothing. Ids come from the context, never from the model. */
@@ -123,11 +161,20 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       return { kind: 'idea', text: (parsed.data as { request: string }).request };
     case 'show_map':
       return { kind: 'map', visible: (parsed.data as { visible: boolean }).visible };
+    case 'show_all_hotels':
+      return { kind: 'all' };
     case 'mark_on_map': {
       const p = (parsed.data as { position: number }).position;
       const propertyId = at(p);
       return propertyId ? { kind: 'focus', propertyId } : none(p);
     }
+    case 'save_hotel': {
+      const p = (parsed.data as { position: number }).position;
+      const propertyId = at(p);
+      return propertyId ? { kind: 'save', propertyId } : none(p);
+    }
+    case 'show_saved':
+      return { kind: 'show_saved' };
     case 'set_destination': {
       const place = ctx.placeRefs.get((parsed.data as { place_ref: string }).place_ref.toUpperCase());
       if (!place) return { kind: 'invalid', reason: 'that ref did not come from resolve_place in this turn' };
@@ -142,7 +189,7 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       return { kind: 'actions', actions: [{ type: 'set_dates', checkIn: d.check_in, checkOut: d.check_out }] };
     }
     case 'set_guests': {
-      const g = parsed.data as { adults: number; children_ages: number[]; rooms: number };
+      const g = parsed.data as { adults: number; children_ages: number[]; rooms: number | null };
       return { kind: 'actions', actions: [{ type: 'set_guests', adults: g.adults, childrenAges: g.children_ages, rooms: g.rooms }] };
     }
     case 'set_price_cap': {
@@ -164,6 +211,22 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       return { kind: 'actions', actions: [{ type: 'add_must_have', mustHave: (parsed.data as { must_have: (typeof MUST_HAVES)[number] }).must_have }] };
     case 'stop_requiring':
       return { kind: 'actions', actions: [{ type: 'remove_must_have', mustHave: (parsed.data as { must_have: (typeof MUST_HAVES)[number] }).must_have }] };
+    case 'set_min_stars':
+      return { kind: 'actions', actions: [{ type: 'set_min_stars', stars: (parsed.data as { stars: number | null }).stars }] };
+    case 'set_min_rating':
+      return { kind: 'actions', actions: [{ type: 'set_min_rating', rating: (parsed.data as { rating: number | null }).rating }] };
+    case 'set_property_types':
+      return { kind: 'actions', actions: [{ type: 'set_property_types', types: (parsed.data as { types: Array<(typeof PROPERTY_TYPES)[number]> }).types }] };
+    case 'set_brands': {
+      // The chain name sent on is the supplier's own, from the held listings; never the model's spelling.
+      const chains: string[] = [];
+      for (const said of (parsed.data as { brands: string[] }).brands) {
+        const chain = matchChain(said, ctx.chains ?? []);
+        if (!chain) return { kind: 'invalid', reason: `no hotel in these results is listed under the brand "${said.slice(0, 60)}"` };
+        if (!chains.includes(chain)) chains.push(chain);
+      }
+      return { kind: 'actions', actions: [{ type: 'set_chains', chains }] };
+    }
     case 'set_aside': {
       const actions: Action[] = [];
       for (const p of new Set((parsed.data as { positions: number[] }).positions)) {

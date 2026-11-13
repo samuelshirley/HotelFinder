@@ -1,4 +1,5 @@
 import type { Amenity } from '@/lib/amenities';
+import type { ListedPropertyType } from '@/lib/filters';
 import type { Money } from '@/lib/money';
 
 /**
@@ -80,7 +81,14 @@ export type PropertyDetails = SupplierProperty & {
 };
 
 /** The amenities a hotel is known to have. A hotel missing from the answer is unknown, not amenity-free. */
-export type StaticFacts = { supplierHotelId: string; amenities: Amenity[] };
+export type StaticFacts = {
+  supplierHotelId: string;
+  amenities: Amenity[];
+  /** What kind of place the listing says it is. null = it does not say. */
+  propertyType: ListedPropertyType | null;
+  /** The supplier's chain name, as listed. null = the listing names none (which is not the same as "independent"). */
+  chain: string | null;
+};
 
 export type Fee = { description: string; amount: Money; included: boolean };
 
@@ -156,6 +164,12 @@ export type RateCheck = {
   cancellation: CancellationPolicy | null;
   cancellationChanged: boolean;
   boardChanged: boolean;
+  /**
+   * The rooms the supplier holds for this prebook, in occupancy order, and who
+   * each is for. Empty when the response did not say. Checkout compares them
+   * with the offer the user picked before anyone pays.
+   */
+  rooms: OfferRoom[];
   checkedAt: Date;
 };
 
@@ -174,6 +188,11 @@ export type BookRequest = {
    * mock wallet); the adapter refuses it for any key that is not a sandbox key.
    */
   payment: 'transaction_id' | 'sandbox_test';
+  /**
+   * The guest's own words for the hotel, already cleaned (lib/checkout.ts), or
+   * null. Sent with every room; the hotel may not honour it. Never logged.
+   */
+  specialRequest?: string | null;
 };
 
 export type SupplierBookingStatus = 'confirmed' | 'cancelled' | 'other';

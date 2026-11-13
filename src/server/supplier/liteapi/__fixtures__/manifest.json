@@ -609,6 +609,537 @@
       "bytes": 144,
       "redactedFields": [],
       "sha256": "421886107242c238152dde9bf597d8fe296153d9aac817a7f1a3f31bc8269ebb"
+    },
+    "rates-city-porto-payment-types.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-13",
+        "checkout": "2026-12-15",
+        "cityName": "Porto",
+        "countryCode": "PT",
+        "maxRatesPerHotel": 5,
+        "limit": 30
+      },
+      "status": 200,
+      "latencyMs": 3427,
+      "bytes": 455075,
+      "redactedFields": [],
+      "sha256": "1a50ccae8b8c39ebd43dc05da9c496d0749a3ecab3dd1b8cde21479cc7158f94"
+    },
+    "prebook-checkout-extras.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/prebook",
+      "request": {
+        "offerId": "AwJ2MQAAAABq-EDHz8QUUaEXMQVQFo_m64qWgXCCNbJNJ_VQvMLvyk-uk7bmLH3TRdB4EPaW55pTT19cjVvWdPc8m2S29T0uFm2nuizx5h317Brqig8c8ktLgaiMkyq5pehMsSaDIqwHLHx9vQZ5BTwxCnID46LRtUYGwIL7LaIQjd5T26qYe7xlbh73gnAyYJQgoaVqV-8nzMUH_qAmAPj5-9gxy9dyzkBaB-vv82sm1w7YXQTdo1HpqUGHe1QaStCsUJvZVLiPFVLDCx7VuKoFQRUVUtYzvuRJClXLfPizhSmGUl76FV-QNk1VVsbeSzxm4TXhyPpbABasIA3RCQGCOM3au4j3GnAOokswUPk9WUlPn8b2u0FxmYUKE8azfMJZ2vkeiVUWqxT91p5cR9r_JaqaOOXeqCr_rB__YbYe0mvVur7GAie-pn8F2lXmjV3_Eya4Yfv-rp1eoSrb2i6YXPUKVYrcEAPeLkEYOh_ctFy6NsLWXBlujmvPxEzSqLZN2fM0AsfApUesUaSifDBwGoF7ciW5-AWhXO9nkxxqhNkIP6jtryD6sBjYBgOUk-WzbxL-I-IJzY-yRFZsDp-zGm5BdG8rI0iYpI97HKxNTSgfbXKdxstrXQpTuxVIEmUCKZAoetJqiA5mAaFm4DYcZAqNKMeIL32rgR8Ps3c8by89SZLotLgL80FXOeahHrrD_FhW-8etmoOL5o58hnTiPD3bvXuFhpLgYKoG8QTO0JeeFpAV_ulvDOoT61RRE1wtEfpeVFQ2D2FADrZ0bn-Tt0ZGsd35eJI8uWmXMlJSFqu5QqE3B6nf_DwuI7QSr2gDrD8S2bhc6ZVPUCsN0kZbLTx0D0ueIXqu1gONDWz6dXiZwEB0x75aqwXtiPPTZ9CA5wzo3zsAsRSOBd0wQkM2EIrG2d5Kku_3OrqhaWCUpUy3sHtl9dP_iK3M8UbSP7OidoVM0At8HrTwDLY5KkvrFTmsjFKF_z7jdgObgI9pTt3MdwzYs5jvjZYJSz8KS5j88EFfa_N1SU4unNpcvDLliDOXx2aAoK1SfQ3vA66WeGGHpq9w5zr0639ES3SjyI1duBYFC9yg6E3-cAdVnX8J9H2Ppjsabd3BVg==",
+        "usePaymentSdk": true
+      },
+      "status": 200,
+      "latencyMs": 1152,
+      "bytes": 3106,
+      "redactedFields": [
+        "secretKey"
+      ],
+      "sha256": "af72438ad7f0a9c21a2afb1b98b849d3dff0ad4a608c4381d6c09b10e185ac53"
+    },
+    "prebook-get.json": {
+      "method": "GET",
+      "url": "https://book.liteapi.travel/v3.0/prebooks/h3nXKqEIY",
+      "request": null,
+      "status": 200,
+      "latencyMs": 450,
+      "bytes": 2836,
+      "redactedFields": [
+        "secretKey"
+      ],
+      "sha256": "53ffca7cb8b7aff99e2e11956f112f9ddc2689464f94cd475eeb55f65e2fe970"
+    },
+    "book-with-remarks.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/book",
+      "request": {
+        "prebookId": "h3nXKqEIY",
+        "holder": {
+          "firstName": "Fixture",
+          "lastName": "Guest",
+          "email": "guest@fixture.hotelfinder.invalid"
+        },
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Fixture",
+            "lastName": "Guest",
+            "email": "guest@fixture.hotelfinder.invalid",
+            "remarks": "Fixture request: a quiet room on a high floor, if possible."
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3567,
+      "bytes": 4403,
+      "redactedFields": [],
+      "sha256": "2c54ec78b95d1d6b27b83367dd172e8f5478883b2e5bd8f9f6b6f9119d0a0304"
+    },
+    "booking-get-with-remarks.json": {
+      "method": "GET",
+      "url": "https://book.liteapi.travel/v3.0/bookings/6Oo8sSzlt",
+      "request": null,
+      "status": 200,
+      "latencyMs": 274,
+      "bytes": 4223,
+      "redactedFields": [],
+      "sha256": "44d8af6f2d1ba5f52b8ac64ebdfb53645e7dcb749f954031d865f0b3b8e87dce"
+    },
+    "booking-cancel-with-remarks.json": {
+      "method": "PUT",
+      "url": "https://book.liteapi.travel/v3.0/bookings/6Oo8sSzlt",
+      "request": null,
+      "status": 200,
+      "latencyMs": 189,
+      "bytes": 131,
+      "redactedFields": [],
+      "sha256": "bd97deb39859734760e41c84a2d9b1af4221781de953be367626cfd03334e9b5"
+    },
+    "hotel-types.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotelTypes",
+      "request": null,
+      "status": 200,
+      "latencyMs": 215,
+      "bytes": 1658,
+      "redactedFields": [],
+      "sha256": "afa493d3c99e30382ca9bf369df2d782509c882582e195ac6c990e7f98bdc661"
+    },
+    "hotels-static-porto-mixed.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotels?countryCode=PT&cityName=Porto&limit=25&offset=300",
+      "request": null,
+      "status": 200,
+      "latencyMs": 194,
+      "bytes": 46912,
+      "redactedFields": [],
+      "sha256": "0c9faa993d20761380263c664c1fed2785b49ea86a5c88710ce02d29e29e27cd"
+    },
+    "currencies.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/currencies",
+      "request": null,
+      "status": 200,
+      "latencyMs": 202,
+      "bytes": 10842,
+      "redactedFields": [],
+      "sha256": "e4bcf18a3a438e594159e9e53ddb4d2d438c1a2b11b044666d6116c60a5150f6"
+    },
+    "rates-city-porto-usd.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "currency": "USD"
+      },
+      "status": 200,
+      "latencyMs": 3379,
+      "bytes": 66839,
+      "redactedFields": [],
+      "sha256": "d8bbca67149cd5e89bb7a6d1b29364db27dc2dcde8c539d2b8780b23bfc71183"
+    },
+    "rates-currency-unknown.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "currency": "XQZ"
+      },
+      "status": 200,
+      "latencyMs": 2967,
+      "bytes": 57,
+      "redactedFields": [],
+      "sha256": "abfe80628a02e9ec0517138c113f63f1e134061eaf176e221c3aae4644a9a679"
+    },
+    "rates-four-adults-one-room.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "margin": 15,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "occupancies": [
+          {
+            "adults": 4
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3462,
+      "bytes": 21088,
+      "redactedFields": [],
+      "sha256": "ef6dcd7573c152b9a13c02ce1dd2aca8806dca2a7467e467b189df69a3800901"
+    },
+    "rates-four-adults-two-rooms.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "margin": 15,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "occupancies": [
+          {
+            "adults": 2
+          },
+          {
+            "adults": 2
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3292,
+      "bytes": 224524,
+      "redactedFields": [],
+      "sha256": "da9a7167162b033b13b6a1a60b4db61f9b869dc0cd03aa200ae806acaa86ff51"
+    },
+    "rates-family-one-room.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "margin": 15,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "occupancies": [
+          {
+            "adults": 2,
+            "children": [
+              4,
+              9
+            ]
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 2978,
+      "bytes": 32964,
+      "redactedFields": [],
+      "sha256": "949a0b7e327958f1626391d31bf1bb84ea37dfe3cae2edf7a4aa2517d7b5a5d1"
+    },
+    "rates-family-two-rooms-split.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "margin": 15,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "occupancies": [
+          {
+            "adults": 1,
+            "children": [
+              4
+            ]
+          },
+          {
+            "adults": 1,
+            "children": [
+              9
+            ]
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3066,
+      "bytes": 217430,
+      "redactedFields": [],
+      "sha256": "d8b6c129a1c1ba58770fe7d43fce5251c4a5e16444658b1ccf5de61ded97dc7f"
+    },
+    "rates-mixed-rooms.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "margin": 15,
+        "maxRatesPerHotel": 5,
+        "includeHotelData": false,
+        "occupancies": [
+          {
+            "adults": 2
+          },
+          {
+            "adults": 1
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 2746,
+      "bytes": 562913,
+      "redactedFields": [],
+      "sha256": "1495c3f1e773ab54088b13db6c00c35710e7fe09e474cace51b7a7a957bd4761"
+    },
+    "prebook-mixed-rooms.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/prebook",
+      "request": {
+        "offerId": "AwJ2MQAAAABq-EGMhs3oXSmx95BTjsrV9UHlgUVg74NGcwgbBCRC5wCud8HM6xk8tHUsDTipdLQQesyfcrQZGpL0ZP6RouW2ZtQFeUxsnRy9BgESlJr6xh5pJmPZZ6uLumsdRKmdD1AzwvsZDtCsrO3XgPICKfutSC6yxtXC7yP_mFxR_T2CIr4v85-qNDYE8PHaf8IkEE-4qIJErV-Q3F-kLNS2rTAtsqHN07HXCpmx3nBeKCrzpyYmgmHi42_IOoFJIn5j7cXIJS6y1-6tU1ABaLaPPgOFsYnnlBbM7_P7pjuyuIh60pZ-uQwSILwH7815EYAN8poJABKxIFL2lBth1e8kvzUaRO2_ql21iBrn3KsfEOToORxZbqVcD-_QQfMuZV8eF5az6kdgM9U4RVfd5jf2CR0QpCIBlVyu-TJ1Gy-S1YTKSolZgH0fwC-sKXP0_BU5XaSnf_pz7JVEkrkHsbqWCeW7XnuislFdcdt_9MaqYZBUnWgISLd-go058wusrqyzGQ2Ow14X9PylInsw3c5oSMzL6_HlngvArI_aMECcNgBWCYQCEtcETvDHLPdzr9oP_ih70iWKuFkHQuZIhFwIcuba62ON4bu9dEEDwzBetXY3gOUByIpLElnS1pRstlgHv_V0_SZB0KWb94dAJSsSQEsFBWGvdAjYhrDFfLKqHPHAM53NG4NGsyhczwzrkAp_qSqHFUWOWmkN_GndW1gAz7_x83qcVMfFrWlus5bSM6vAnmOyL1szuCkkY8Xnsy4eXvgsU2005mRxLOHGJOyzkrwGcwsP_yzdKC6rnS6aDl7wN4lpp_OD7dFZa-xr3F11VHb9hjWyfX-geFcwmhrAPtJEmZ90L9eHYhgafTfwgV2d5ijv2kYE275LA9x5TnnIFkVBaeRtEnOqmlD7GAfU_e85s9jIYWtuHf5_ELH3UJ_eKVnDFLVM9g_LkzEVb_Kd0_1mQ2jb1m3yjiECJibVF304SDmdCJWFC1XJGenUiO_CJAty42oASmvnWAAGjStFnKW-qwEP1_sX2jZPNKCSOY6wq9fjADCS2QNLD-hgfUd0wZl2NkX7dnogSmoedtyn0GKURYnLhcoZ7dEwX9D1MlqFFbugzi82PUfoNzU98f08WyEKVfEThMRbXRCiJyu2G2QX8zqirJStXp8h8sSm-6J5wViybiIgnZFjvD-5BSE4aQ6lih6WCpg8XZt9TXWPJDBaSDGpJd4ninwuqe_VGnoiLkYbMIpoZikOXGK9zeMFeve5cyOBVxyNFOSmM7jCDTjZkVeV5T_B2_HjpxBTyXopVm8rnSm-QEAm9wItRWbUxzsURVVcabtZntMKFAw1nb7Vcivsxz3gcaGXeYoeZILgT8ggeKYJXlV1y9jiKD-3yXvtRueB8XSoHnrGAYjkZ5NGl3-ecw7PT9x2ZjrK1k3P5ygb-_FVIyscO11cZaGoW5NAXFpTI0_aJ1BLQcpuHdLVpQNpB0NcqGTn_Kx7ptdjdJcdUxOpd4M-4VcustGyxrNaiDLcTI8FBZsSSig1-q6HTL6eCRY5tZEhbWJmrrj5n0RY2P0zcuQgxNpqUMIF2vNBRKyj_6Q8joJEmByCMUmmpjhzoW0t8hMNgkXOQ5YaB-pDsAII2_cCqns2UxkByww1-axO6SiWSIHjlxAJTZPK3aVFUFr1daf2K2ihMEfFjUG5viui8USBmP8aUAXpxmNKdbVk5Nio24Oi2q0jWybNtXVx0aMbtOSQ5Gwzl8T_EvmBB_bM2S66kGdg3Q-F_JS9RV0zhuVfeKQH5jJ_Pgl83ZRrbZEOKCsqkTnccCd8P59yqkyXLNmQW3CowNMBM7wYzFlVUJCQIdzFK11W1mmkKfxuVy4fSWef3PHTpCqvJYgl",
+        "usePaymentSdk": true
+      },
+      "status": 200,
+      "latencyMs": 1300,
+      "bytes": 5327,
+      "redactedFields": [
+        "secretKey"
+      ],
+      "sha256": "b8619f5fc0970abc94907a5bca97f9834f38fb4535d604defda726e89ab7596c"
+    },
+    "book-mixed-rooms.json": {
+      "method": "POST",
+      "url": "https://book.liteapi.travel/v3.0/rates/book",
+      "request": {
+        "prebookId": "jsNxJQQ2x",
+        "holder": {
+          "firstName": "Fixture",
+          "lastName": "Guest1",
+          "email": "guest1@fixture.hotelfinder.invalid"
+        },
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Fixture",
+            "lastName": "Guest1",
+            "email": "guest1@fixture.hotelfinder.invalid"
+          },
+          {
+            "occupancyNumber": 2,
+            "firstName": "Fixture",
+            "lastName": "Guest2",
+            "email": "guest2@fixture.hotelfinder.invalid"
+          }
+        ]
+      },
+      "status": 200,
+      "latencyMs": 3575,
+      "bytes": 6539,
+      "redactedFields": [],
+      "sha256": "91139b22fa53600dea062cf143630c8d09681e078387d4cd8527370b6f47b683"
+    },
+    "booking-get-mixed-rooms.json": {
+      "method": "GET",
+      "url": "https://book.liteapi.travel/v3.0/bookings/hMt2HdnXq",
+      "request": null,
+      "status": 200,
+      "latencyMs": 278,
+      "bytes": 5642,
+      "redactedFields": [],
+      "sha256": "00ed75c5bdf89a285c51f45ef661184c8bec8ff766f38bbea7bdedcd31f66398"
+    },
+    "booking-cancel-mixed-rooms.json": {
+      "method": "PUT",
+      "url": "https://book.liteapi.travel/v3.0/bookings/hMt2HdnXq",
+      "request": null,
+      "status": 200,
+      "latencyMs": 178,
+      "bytes": 131,
+      "redactedFields": [],
+      "sha256": "e2fa9b2d54f9c571bc817e4b8af54c20d6f28260cd2d17b3cca0b2061d39036c"
     }
   }
 }

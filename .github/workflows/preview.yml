@@ -1,0 +1,246 @@
+# One preview environment per PR: its own Neon database branch, its own
+# Vercel preview deployment, one sticky PR comment with the link. Torn down by
+# preview-cleanup.yml when the PR closes. docs/deploy.md has the why and the
+# one-time setup.
+#
+#   1. Neon branch `preview/pr-<N>`, recreated on every push as a
+#      copy-on-write clone of production, so the migrations below are
+#      rehearsed against production's real schema, journal and rows.
+#   2. This PR's migrations applied to it. A migration that fails here never
+#      reaches production.
+#   3. The branch EMPTIED (scripts/wipe-preview-db.mjs) and checked empty,
+#      BEFORE any deployment exists: a preview runs unreviewed code at a URL,
+#      and no production user, trip, chat or booking may sit behind it. Fail
+#      closed: a failed wipe stops the job, so no URL ever points at real rows.
+#   4. `vercel build` + `vercel deploy --prebuilt` as a PREVIEW (never --prod),
+#      with DATABASE_URL pointed at the branch for this deployment only (build
+#      env and runtime env), the LiteAPI SANDBOX key (checked `sand_`; with it
+#      payments are test stand-ins too) and a per-run AUTH_SECRET, so a preview
+#      can never sign a cookie production accepts.
+#   5. The link (the app is at <url>/hotels) as ONE sticky comment, deleted and
+#      reposted on every push so the newest is at the bottom; this PR's older
+#      previews (pointing at the deleted branch) are deleted.
+#
+# The production DATABASE_URL is not used here, by name or by value:
+# src/lib/previewGuard.test.ts fails if it ever is, and checks the order
+# migrate → wipe → deploy.
+#
+# Repo secrets (Settings → Secrets and variables → Actions): NEON_API_KEY,
+# NEON_PROJECT_ID (a secret or a repo variable), VERCEL_TOKEN, LITE_API_KEY
+# (the sandbox key, shared with ci.yml). Without any of them the job skips
+# with a warning; with only some, it fails and names the missing ones.
+name: Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    # A docs-only PR deploys nothing. For pull_request events GitHub compares
+    # the whole PR against its base, so a PR with any code change still runs.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+# One run per PR: a new push cancels the in-flight run rather than racing it
+# for the same Neon branch. preview-cleanup.yml shares the group, so closing a
+# PR cancels its in-flight preview before tearing it down.
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  NEON_BRANCH: preview/pr-${{ github.event.pull_request.number }}
+  # Not secrets: identifiers, useless without VERCEL_TOKEN (setup-hosting.sh
+  # names the same team and project).
+  VERCEL_ORG_ID: team_h4OSdARxBO7dHsgUYxNp0I7h
+  VERCEL_PROJECT_ID: prj_zvbq13oHPmfm6J3Xy0zwLmdMWHNl
+
+jobs:
+  preview:
+    name: Deploy the PR preview
+    # A fork's PR gets no secrets; it has nothing to deploy with.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID || secrets.NEON_PROJECT_ID }}
+    steps:
+      - name: The secrets are set
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          LITE_API_KEY: ${{ secrets.LITE_API_KEY }}
+        run: |
+          missing=""
+          count=0
+          for v in NEON_API_KEY NEON_PROJECT_ID VERCEL_TOKEN LITE_API_KEY; do
+            [ -n "${!v}" ] || { missing="$missing $v"; count=$((count + 1)); }
+          done
+          if [ "$count" = 4 ]; then
+            echo "::warning::Preview environments are not set up yet (docs/deploy.md): no preview for this PR."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          elif [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing (docs/deploy.md)."
+            exit 1
+          fi
+          # Never a production supplier key behind a preview: sandbox bookings
+          # are not real, and the app keys test payments off the same prefix.
+          if [ -z "$missing" ] && [[ "$LITE_API_KEY" != sand_* ]]; then
+            echo "::error::LITE_API_KEY must be the LiteAPI SANDBOX key (it starts sand_). Refusing to deploy a preview with any other."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        if: env.SKIP != '1'
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with: { node-version: 22, cache: npm }
+      - if: env.SKIP != '1'
+        run: npm ci
+
+      # Drop the previous push's branch (absent on the first push: fine), so
+      # every push rehearses its migrations on CURRENT production.
+      - name: Delete this PR's previous Neon branch
+        if: env.SKIP != '1'
+        continue-on-error: true
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: ${{ env.NEON_BRANCH }}
+      - name: Expiry for the new branch
+        if: env.SKIP != '1'
+        # A backstop if preview-cleanup.yml never runs: Neon deletes it itself.
+        run: echo "EXPIRES_AT=$(date -u -d '+14 days' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+      - name: Create the Neon branch from production
+        id: neon
+        if: env.SKIP != '1'
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch_name: ${{ env.NEON_BRANCH }}
+          expires_at: ${{ env.EXPIRES_AT }}
+      - name: The branch gave connection strings
+        if: env.SKIP != '1'
+        env:
+          DIRECT: ${{ steps.neon.outputs.db_url }}
+          POOLED: ${{ steps.neon.outputs.db_url_pooled }}
+        run: |
+          [ -n "$DIRECT" ] && [ -n "$POOLED" ] || { echo "::error::create-branch-action returned no connection string."; exit 1; }
+          echo "::add-mask::$DIRECT"
+          echo "::add-mask::$POOLED"
+
+      # The rehearsal. scripts/migrate.mjs when this checkout has it (it skips
+      # only on Vercel builds, and this is not one), else drizzle-kit.
+      - name: Apply this PR's migrations to the branch
+        if: env.SKIP != '1'
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: |
+          if [ -f scripts/migrate.mjs ]; then node scripts/migrate.mjs; else npx drizzle-kit migrate; fi
+
+      # No continue-on-error and no extra condition: see step 3 in the header.
+      - name: Empty the branch (no production data on a preview)
+        if: env.SKIP != '1'
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          PREVIEW_DB_WIPE_CONFIRM: ${{ env.NEON_BRANCH }}
+        run: node scripts/wipe-preview-db.mjs
+
+      - name: Install the Vercel CLI
+        if: env.SKIP != '1'
+        run: npm i -g vercel@latest
+
+      - name: Build and deploy the preview
+        id: deploy
+        if: env.SKIP != '1'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          LITE_API_KEY: ${{ secrets.LITE_API_KEY }}
+          PREVIEW_DB_URL: ${{ steps.neon.outputs.db_url_pooled }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          PREVIEW_AUTH_SECRET="$(openssl rand -base64 32)"
+          echo "::add-mask::$PREVIEW_AUTH_SECRET"
+
+          # The project's Preview environment (Jev, Anthropic, Resend keys …).
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+
+          # Build env: replace whatever the Preview environment holds for these
+          # three with this PR's values. Until Sam removes it, the Preview
+          # environment still carries production's DATABASE_URL; it must not
+          # reach this build.
+          ENV_FILE=.vercel/.env.preview.local
+          touch "$ENV_FILE"
+          grep -vE '^(DATABASE_URL|LITE_API_KEY|AUTH_SECRET)=' "$ENV_FILE" > "$ENV_FILE.tmp" || true
+          mv "$ENV_FILE.tmp" "$ENV_FILE"
+          {
+            printf 'DATABASE_URL="%s"\n' "$PREVIEW_DB_URL"
+            printf 'LITE_API_KEY="%s"\n' "$LITE_API_KEY"
+            printf 'AUTH_SECRET="%s"\n' "$PREVIEW_AUTH_SECRET"
+          } >> "$ENV_FILE"
+          [ "$(grep -c '^DATABASE_URL=' "$ENV_FILE")" = 1 ] || { echo "::error::build env has more than one DATABASE_URL"; exit 1; }
+
+          vercel build --token="$VERCEL_TOKEN"
+
+          # Runtime env: the same three, for this deployment only (-e).
+          # --meta previewPr lets scripts/delete-pr-previews.sh find it later.
+          URL="$(vercel deploy --prebuilt --token="$VERCEL_TOKEN" \
+            --meta previewPr="$PR" \
+            -e DATABASE_URL="$PREVIEW_DB_URL" \
+            -e LITE_API_KEY="$LITE_API_KEY" \
+            -e AUTH_SECRET="$PREVIEW_AUTH_SECRET")"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Preview"
+            echo "$URL/hotels"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Preview: $URL/hotels"
+
+      # Delete and REPOST rather than edit: an edited comment stays where it
+      # was first written, often pages up, and GitHub does not say it changed.
+      - name: Post the preview link on the PR
+        if: env.SKIP != '1'
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const url = `${process.env.PREVIEW_URL}/hotels`;
+            const branch = process.env.NEON_BRANCH;
+            const sha = pr.head.sha.slice(0, 7);
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const marker = '<!-- hotel-finder-preview -->';
+            const body = [
+              marker,
+              '### Preview for this PR',
+              '',
+              `**${url}**`,
+              '',
+              `Its own database (Neon branch \`${branch}\`): production's schema with this PR's migrations applied, then emptied, so no production users, trips or bookings. LiteAPI **sandbox**: bookings are test bookings and payments are test stand-ins. Rebuilt on every push and deleted when this PR closes; nothing done here touches production.`,
+              '',
+              'Use this link, not one from an earlier push: each push recreates the database, and older previews are deleted. If Vercel asks you to sign in, that is its Deployment Protection.',
+              '',
+              `Built from \`${sha}\` · [run](${run})`,
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo, issue_number: pr.number, per_page: 100,
+            });
+            for (const c of comments.filter((c) => c.body?.includes(marker))) {
+              await github.rest.issues.deleteComment({ ...context.repo, comment_id: c.id });
+            }
+            await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body });
+
+      - name: Delete this PR's older previews
+        if: env.SKIP != '1'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: bash scripts/delete-pr-previews.sh "${{ github.event.pull_request.number }}" "${{ steps.deploy.outputs.url }}"

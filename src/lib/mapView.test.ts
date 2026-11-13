@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutPins, fitKeyFor, fitPoints, framePadding, PIN_HALF_PX, STACK_OFFSETS, SIDE_OFFSETS, COMPACT_PX, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
+import { layoutPins, fitKeyFor, fitPoints, framePadding, PIN_HALF_PX, STACK_OFFSETS, COMPACT_PX, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
 
 const row = (id: string, rank: number, lat: number | null, lng: number | null, over: Record<string, unknown> = {}) => ({
   rank,
@@ -73,6 +73,22 @@ describe('what the camera frames', () => {
     const misses = [pin('m1', null, 41.14, -8.61), pin('m2', null, 41.15, -8.6)];
     expect(fitPoints(misses, null)).toEqual(misses);
   });
+
+  it('with the full list open, the page on screen alone, not the picks or the anchor', () => {
+    const page = [pin('p6', 6, 41.146, -8.611), pin('p7', 7, 41.148, -8.609)];
+    const airport = pin('a1', 1, 41.237, -8.67);
+    expect(fitPoints([airport, ...ranked, ...page], { latitude: 41.24, longitude: -8.67 }, ['p6', 'p7'])).toEqual(page);
+    // A page whose hotels have no pin (no location): the usual frame.
+    expect(fitPoints([...ranked], null, ['p9'])).toEqual(ranked);
+    expect(fitPoints([...ranked], null, [])).toEqual(ranked);
+  });
+});
+
+describe('a row of the full list becomes a ranked pin', () => {
+  it('with its rank and its total, like a top pick', () => {
+    const [p] = pinsFor([row('t', 14, 41.15, -8.61, { reason: { kind: 'full_list', distance_km: 1.2, per_night_minor: 13400 } })], words);
+    expect(p).toMatchObject({ rank: 14, price: 'EUR 268', miss: null });
+  });
 });
 
 describe('when the camera may move', () => {
@@ -87,15 +103,21 @@ describe('when the camera may move', () => {
     expect(fitKeyFor([a], null)).not.toBe(fitKeyFor([a, b], null));
     expect(fitKeyFor([a, b], { latitude: 41.14, longitude: -8.61 })).not.toBe(fitKeyFor([a, b], null));
   });
+
+  it('another page of the full list changes it; the same page in another order does not', () => {
+    expect(fitKeyFor([a, b], null, ['b'])).not.toBe(fitKeyFor([a, b], null, ['a']));
+    expect(fitKeyFor([a, b], null, ['a', 'b'])).toBe(fitKeyFor([a, b], null, ['b', 'a']));
+    expect(fitKeyFor([a, b], null, [])).toBe(fitKeyFor([a, b], null));
+  });
 });
 
 describe('labels never cover each other', () => {
   const box = (id: string, rank: number | null, x: number, y: number) => ({ id, rank, x, y, width: 102, height: 28 });
-  const rects = (boxes: ReturnType<typeof box>[]) => {
-    const places = layoutPins(boxes);
+  const rects = (boxes: ReturnType<typeof box>[], view: { width: number; height: number } | null = null) => {
+    const places = layoutPins(boxes, view);
     return boxes.flatMap((b) => {
       const p = places.get(b.id);
-      return p ? [{ id: b.id, x: b.x, y: b.y + p.dy, w: p.compact ? 28 : b.width, h: b.height }] : [];
+      return p ? [{ id: b.id, x: b.x + p.dx, y: b.y + p.dy, w: p.compact ? 28 : b.width, h: b.height }] : [];
     });
   };
   const overlapping = (rs: ReturnType<typeof rects>) =>
@@ -123,6 +145,36 @@ describe('labels never cover each other', () => {
     expect(places.get('h6')!.compact).toBe(true);
   });
 
+  it('a label moved to make room stays inside the map: near the bottom edge it stacks above, not past the edge', () => {
+    // The band in e2e/map.spec is 274 px tall; the fit leaves 72 px around the hotels,
+    // so a hotel can sit 72 px from the bottom, and 64 px below that is outside.
+    const view = { width: 1360, height: 274 };
+    const boxes = [box('a', 1, 600, 202), box('b', 2, 600, 202), box('c', 3, 600, 202), box('d', 4, 600, 202)];
+    const rs = rects(boxes, view);
+    expect(overlapping(rs)).toEqual([]);
+    for (const r of rs) {
+      expect(r.y - r.h / 2).toBeGreaterThanOrEqual(0);
+      expect(r.y + r.h / 2).toBeLessThanOrEqual(view.height);
+    }
+    // Without the edge the same pile used the slot past it.
+    expect(rects(boxes).some((r) => r.y + r.h / 2 > view.height)).toBe(true);
+  });
+
+  it('a rank alone that would still cover a pin steps aside instead (Porto, 13 Nov 2026: 4 under 5)', () => {
+    const view = { width: 1360, height: 274 };
+    // Seven on one spot: five full labels fill the stack, the last two are ranks alone, beside it.
+    const boxes = Array.from({ length: 7 }, (_, i) => box(`h${i + 1}`, i + 1, 600, 137));
+    const rs = rects(boxes, view);
+    expect(overlapping(rs)).toEqual([]);
+    expect(rs.filter((r) => r.w === 28).map((r) => r.id)).toEqual(['h6', 'h7']);
+    for (const r of rs) expect(r.x - r.w / 2).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a hotel near the edge keeps its own spot: the camera, not the layout, decides where it is', () => {
+    const places = layoutPins([box('a', 1, 600, 268)], { width: 1360, height: 274 });
+    expect(places.get('a')).toEqual({ dx: 0, dy: 0, compact: false });
+  });
+
   it('near-misses are rings, not labels: never moved, never in the way', () => {
     const places = layoutPins([box('m', null, 100, 100), box('a', 1, 100, 100)]);
     expect(places.has('m')).toBe(false);
@@ -136,7 +188,7 @@ describe('framePadding', () => {
     const reach = Math.max(...STACK_OFFSETS.map(Math.abs)) + PIN_HALF_PX;
     expect(p.top).toBeGreaterThan(reach);
     expect(p.bottom).toBeGreaterThan(reach);
-    expect(p.left).toBeGreaterThan(Math.max(...SIDE_OFFSETS.map(Math.abs)) + COMPACT_PX / 2);
+    expect(p.left).toBe(72);
   });
   it('never takes more than a third of a side, so MapLibre can still fit', () => {
     const p = framePadding(150, 200);

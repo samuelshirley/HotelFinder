@@ -1,22 +1,31 @@
 import 'server-only';
 
+import type { Locale } from '@/lib/i18n/locale';
+import { filterOptions, readChain, readPropertyType, stayFilters } from '@/lib/filters';
+import { roomsOf } from '@/lib/finder/rooms';
 import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
+import { listLiveOffersForRanking } from '@/server/repos/offers';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
+import { countFullList, listShortlist } from '@/server/repos/shortlist';
 
 /**
  * Everything the client renders for one session, built from the database.
  * Prices, fees and cancellation terms come from offer rows and nowhere else.
  * Supplier ids and internal trace data are not included.
  */
-export async function buildSessionView(session: SearchSession) {
+export async function buildSessionView(session: SearchSession, locale: Locale = 'en', now: Date = new Date()) {
   const audience = audienceFor(session);
   const stay = (await listStays(session.id))[0] ?? null;
-  const [messages, shortlist] = await Promise.all([
+  const [messages, shortlist, held, fullCount] = await Promise.all([
     listMessages(session.id),
     stay ? listShortlist(session.id, stay.id, audience) : Promise.resolve([]),
+    // What the type and brand editors may offer: the hotels the finder ranks over.
+    stay ? listLiveOffersForRanking(session.id, stay.id, audience, now) : Promise.resolve([]),
+    stay ? countFullList(session.id, stay.id, audience) : Promise.resolve(0),
   ]);
+  const heldHotels = new Map(held.map((r) => [r.property.id, r.property]));
 
   return {
     session: {
@@ -38,7 +47,7 @@ export async function buildSessionView(session: SearchSession) {
           pets: session.draft.scanned?.mustHaves?.includes('pets_allowed') ?? false,
           priorities: session.priorities ?? session.draft.scanned?.priorities ?? null,
           nearLabel: session.draft.destination
-            ? nearLabel({ destinationText: session.draft.destination.label, destKind: session.draft.destination.point?.kind ?? 'area', near: null })
+            ? nearLabel({ destinationText: session.draft.destination.label, destKind: session.draft.destination.point?.kind ?? 'area', near: null }, locale)
             : 'the centre',
         },
     stay: stay && {
@@ -51,9 +60,11 @@ export async function buildSessionView(session: SearchSession) {
       rooms: stay.rooms,
       priceCapMinor: stay.priceCapMinor,
       mustHaves: stay.mustHaves,
+      filters: stayFilters(stay),
+      filterOptions: filterOptions([...heldHotels.values()].map((p) => ({ propertyType: readPropertyType(p.content), chain: readChain(p.content) }))),
       excludedCount: stay.excludedPropertyIds.length,
       /** Where "close" is measured from, in words. */
-      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }),
+      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }, locale),
       nearIsNamed: stay.nearLabel !== null,
       /**
        * The point distances are measured from, for the map: the place the user
@@ -64,7 +75,7 @@ export async function buildSessionView(session: SearchSession) {
         stay.nearLabel !== null && stay.latitude !== null && stay.longitude !== null
           ? { latitude: stay.latitude, longitude: stay.longitude, label: stay.nearLabel }
           : stay.destKind === 'point' && stay.destLatitude !== null && stay.destLongitude !== null
-            ? { latitude: stay.destLatitude, longitude: stay.destLongitude, label: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) }
+            ? { latitude: stay.destLatitude, longitude: stay.destLongitude, label: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }, locale) }
             : null,
     },
     messages: messages.map((m) => ({
@@ -75,39 +86,54 @@ export async function buildSessionView(session: SearchSession) {
       meta: m.meta ?? null,
       createdAt: m.createdAt.toISOString(),
     })),
-    shortlist: shortlist.map(({ entry, property, offer }) => ({
-      entryId: entry.id,
-      rank: entry.rank,
-      source: entry.source,
-      reason: entry.reason,
-      property: {
-        id: property.id,
-        name: property.name,
-        photo: property.mainPhoto,
-        address: property.address,
-        stars: property.stars,
-        rating: property.rating,
-        reviewCount: property.reviewCount,
-        latitude: property.latitude,
-        longitude: property.longitude,
-      },
-      offer: offer && {
-        id: offer.id,
-        currency: offer.currency,
-        totalMinor: offer.totalMinor,
-        payAtPropertyMinor: offer.payAtPropertyMinor,
-        suggestedSellingMinor: offer.suggestedSellingMinor,
-        audience: offer.audience,
-        roomName: offer.roomName,
-        boardName: offer.boardName,
-        refundable: offer.refundableTag === 'RFN',
-        freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
-        penalties: offerPenalties(offer.cancellation),
-        fees: offerFees(offer.taxesAndFees),
-        fetchedAt: offer.fetchedAt.toISOString(),
-        expiresAt: offer.expiresAt.toISOString(),
-      },
-    })),
+    shortlist: shortlist.map(viewRow),
+    /**
+     * "Show all N hotels": every hotel that fits, the top picks included. The
+     * rows after the top picks are read a page at a time (api/session/[id]/hotels).
+     */
+    fullList: { total: shortlist.filter((r) => r.entry.source === 'finder' && r.entry.reason?.kind !== 'near_miss').length + fullCount, more: fullCount, pageSize: FULL_LIST_PAGE_SIZE },
+  };
+}
+
+type ListedRow = Awaited<ReturnType<typeof listShortlist>>[number];
+
+/** One row as the client renders it, on the shortlist or a page of the full list. */
+export function viewRow({ entry, property, offer }: ListedRow) {
+  return {
+    entryId: entry.id,
+    rank: entry.rank,
+    source: entry.source,
+    reason: entry.reason,
+    property: {
+      id: property.id,
+      name: property.name,
+      photo: property.mainPhoto,
+      address: property.address,
+      stars: property.stars,
+      rating: property.rating,
+      reviewCount: property.reviewCount,
+      latitude: property.latitude,
+      longitude: property.longitude,
+    },
+    offer: offer && {
+      id: offer.id,
+      currency: offer.currency,
+      totalMinor: offer.totalMinor,
+      payAtPropertyMinor: offer.payAtPropertyMinor,
+      suggestedSellingMinor: offer.suggestedSellingMinor,
+      audience: offer.audience,
+      /** What the price is for: one room's name, or "2 rooms: Double + Twin". */
+      roomName: offer.roomName,
+      /** How many rooms the price is for. */
+      rooms: roomsOf(offer.rooms)?.length ?? 1,
+      boardName: offer.boardName,
+      refundable: offer.refundableTag === 'RFN',
+      freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
+      penalties: offerPenalties(offer.cancellation),
+      fees: offerFees(offer.taxesAndFees),
+      fetchedAt: offer.fetchedAt.toISOString(),
+      expiresAt: offer.expiresAt.toISOString(),
+    },
   };
 }
 

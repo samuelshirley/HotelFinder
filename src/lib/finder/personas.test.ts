@@ -280,7 +280,7 @@ describe('the picks a person would recognise as right', () => {
   it('impossible budget: nothing, and it says why', () => {
     const { result } = pick('impossible-budget');
     expect(result.shortlist).toEqual([]);
-    expect(result.rejected).toEqual({ over_price_cap: 20, missing_must_have: 0, below_public_price: 0, excluded_by_user: 0 });
+    expect(result.rejected).toEqual({ over_price_cap: 20, missing_must_have: 0, filtered_out: 0, below_public_price: 0, excluded_by_user: 0 });
   });
 
   it('dog and flexible: no hotel that takes dogs is refundable on these dates', () => {

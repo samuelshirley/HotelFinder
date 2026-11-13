@@ -123,7 +123,17 @@ export const placeDetailsResponse = z
 
 export const hotelListResponse = z
   .object({
-    data: z.array(z.object({ id: z.string().min(1), facilityIds: z.array(z.number().int()).nullish() }).passthrough()),
+    data: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          facilityIds: z.array(z.number().int()).nullish(),
+          // Facts for the filters (docs/finder.md). A malformed one is unknown, never a failed search.
+          hotelTypeId: z.number().int().nullish().catch(null),
+          chain: z.string().nullish().catch(null),
+        })
+        .passthrough(),
+    ),
   })
   .passthrough();
 
@@ -193,7 +203,27 @@ export const prebookResponse = z
         cancellationChanged: z.boolean().nullish(),
         boardChanged: z.boolean().nullish(),
         roomTypes: z
-          .array(z.object({ rates: z.array(z.object({ cancellationPolicies }).passthrough()).min(1) }).passthrough())
+          .array(
+            z
+              .object({
+                rates: z
+                  .array(
+                    z
+                      .object({
+                        cancellationPolicies,
+                        // Which room, and for whom: compared with the offer before payment.
+                        occupancyNumber: z.number().int().nullish(),
+                        name: z.string().nullish(),
+                        boardName: z.string().nullish(),
+                        adultCount: z.number().int().nullish(),
+                        childrenAges: z.array(z.number().int()).nullish(),
+                      })
+                      .passthrough(),
+                  )
+                  .min(1),
+              })
+              .passthrough(),
+          )
           .nullish(),
       })
       .passthrough(),

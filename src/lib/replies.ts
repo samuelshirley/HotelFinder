@@ -1,9 +1,13 @@
 import type { MustHave } from '@/lib/amenities';
+import { chainsChip, eitherOf, hasFilters, typePlural, type StayFilters } from '@/lib/filters';
 import type { Answer, RankValue } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
 import { canonicalPriorities, type DistanceFrom, type PriorityKey } from '@/lib/finder/rank';
-import { centreLabel, placeName } from '@/lib/finder/searchPlan';
-import type { SearchField, Superlative } from '@/lib/router/catalogue';
+import { placeName } from '@/lib/finder/searchPlan';
+import { copy, formatCount, joinList } from '@/lib/i18n';
+import { en } from '@/lib/i18n/catalogue/en';
+import { INTL, type Locale } from '@/lib/i18n/locale';
+import type { SearchField } from '@/lib/router/catalogue';
 import type { FactAsk } from '@/lib/router/route';
 import type { ResolvedAction } from '@/lib/store/actions';
 import type { Applied, Rejection, SearchState } from '@/lib/store/reduce';
@@ -13,68 +17,51 @@ import type { Applied, Rejection, SearchState } from '@/lib/store/reduce';
  * over typed values. A line states what changed and how many hotels fit;
  * prices and terms stay on the cards, which render them from offer rows.
  * Copy rule: every line tells the user something they cannot already see.
+ *
+ * Every function takes the locale last (English when left out). The words
+ * come from the catalogues (lib/i18n/catalogue); which words make a line is
+ * decided here, once, for every language.
  */
 
-export const MUST_HAVE_LABEL: Record<MustHave, string> = {
-  pets_allowed: 'pets allowed',
-  parking: 'parking',
-  free_parking: 'free parking',
-  pool: 'a pool',
-  air_conditioning: 'air conditioning',
-  wifi: 'wifi',
-  lift: 'a lift',
-  wheelchair_accessible: 'wheelchair access',
-  family_rooms: 'family rooms',
-  soundproof_rooms: 'soundproofed rooms',
-  fitness: 'a gym',
-  airport_shuttle: 'an airport shuttle',
-  free_cancellation: 'free cancellation',
-  breakfast_included: 'breakfast included',
-};
+/** English tables, for callers and tests that only ever speak English. */
+export const MUST_HAVE_LABEL: Record<MustHave, string> = en.replies.mustHave;
+export const PRIORITY_CHIP: Record<PriorityKey, string> = en.replies.priorityChip;
+export const REJECTION_LINE: Record<Rejection, string> = en.replies.rejection;
+/** Fixed lines for messages the app handles without a model (English; `fixedLine` for any language). */
+export const FIXED_LINES = en.replies.fixed;
+export type FixedLine = keyof typeof FIXED_LINES;
 
-/** The chip words for each priority (docs/onboarding.md §3.1). "Close to" takes its target. */
-export const PRIORITY_CHIP: Record<PriorityKey, string> = {
-  cheapest: 'Low price',
-  nicest: 'Great reviews',
-  closest: 'Close to',
-};
+export const mustHaveLabel = (m: MustHave, locale: Locale = 'en'): string => copy(locale).replies.mustHave[m];
+export const rejectionLine = (r: Rejection, locale: Locale = 'en'): string => copy(locale).replies.rejection[r];
+export const fixedLine = (key: FixedLine, locale: Locale = 'en'): string => copy(locale).replies.fixed[key];
 
 /** Where "close" is measured from, in words: the place named, else the destination's centre (or the point itself). */
-export function nearLabel(stay: { destinationText: string; destKind: 'area' | 'point' | null; near: { label: string } | null }): string {
+export function nearLabel(stay: { destinationText: string; destKind: 'area' | 'point' | null; near: { label: string } | null }, locale: Locale = 'en'): string {
   if (stay.near) return stay.near.label;
-  return stay.destKind === 'point' ? placeName(stay.destinationText) : centreLabel(stay.destinationText);
+  return stay.destKind === 'point' ? placeName(stay.destinationText) : copy(locale).words.centre(placeName(stay.destinationText));
 }
 
 /** "Low price · Close to Annecy centre", or "Balanced" for no preference. */
-export function prioritiesLabel(priorities: readonly PriorityKey[], near: string): string {
+export function prioritiesLabel(priorities: readonly PriorityKey[], near: string, locale: Locale = 'en'): string {
+  const c = copy(locale).replies;
   const set = canonicalPriorities(priorities);
-  if (set.length === 0) return 'Balanced';
-  return set.map((k) => (k === 'closest' ? `Close to ${near}` : PRIORITY_CHIP[k])).join(' · ');
+  if (set.length === 0) return c.balanced;
+  return set.map((k) => (k === 'closest' ? c.closeTo(near) : c.priorityChip[k])).join(' · ');
 }
 
 /** The reply line for a changed set of priorities. */
-export function prioritiesLine(priorities: readonly PriorityKey[], near: string): string {
+export function prioritiesLine(priorities: readonly PriorityKey[], near: string, locale: Locale = 'en'): string {
+  const c = copy(locale).replies;
   const set = canonicalPriorities(priorities);
-  if (set.length === 0) return 'Balanced: price, rating and distance.';
-  const words: Record<PriorityKey, string> = { cheapest: 'low price', nicest: 'great reviews', closest: `being close to ${near}` };
-  const parts = set.map((k) => words[k]);
-  return `Ranked for ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`}.`;
+  if (set.length === 0) return c.balancedLine;
+  return c.rankedFor(joinList(set.map((k) => (k === 'closest' ? c.beingCloseTo(near) : c.priorityWord[k])), locale));
 }
 
-export const REJECTION_LINE: Record<Rejection, string> = {
-  dates_in_past: 'Those dates are in the past.',
-  checkout_not_after_checkin: 'Check-out has to be after check-in.',
-  stay_too_long: 'Stays are limited to 30 nights.',
-  more_rooms_than_adults: 'Each room needs at least one adult.',
-  near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
-  place_unavailable: 'The place lookup did not answer. Try again in a moment.',
-  no_change: 'That is already how the search is set.',
-};
-
-export function formatMoney(amountMinor: number, currency: string): string {
-  const digits = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
+export function formatMoney(amountMinor: number, currency: string, locale: Locale = 'en'): string {
+  const tag = INTL[locale].number;
+  const digits = new Intl.NumberFormat(tag, { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
   const value = amountMinor / 10 ** digits;
-  return new Intl.NumberFormat('en', {
+  return new Intl.NumberFormat(tag, {
     style: 'currency',
     currency,
     minimumFractionDigits: Number.isInteger(value) ? 0 : digits,
@@ -82,81 +69,102 @@ export function formatMoney(amountMinor: number, currency: string): string {
   }).format(value);
 }
 
-export function formatDates(checkIn: string, checkOut: string): string {
-  const fmt = (iso: string, withMonth: boolean) =>
-    new Intl.DateTimeFormat('en-GB', { day: 'numeric', ...(withMonth ? { month: 'short' } : {}), timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
-  const nights = nightsBetween(checkIn, checkOut);
-  const sameMonth = checkIn.slice(0, 7) === checkOut.slice(0, 7);
-  return `${fmt(checkIn, !sameMonth)}–${fmt(checkOut, true)}, ${nights} night${nights === 1 ? '' : 's'}`;
+/** One day in the locale's short form: "11 Dec", "11 dic". */
+export function formatDay(iso: string, locale: Locale = 'en', withMonth = true): string {
+  return new Intl.DateTimeFormat(INTL[locale].date, { day: 'numeric', ...(withMonth ? { month: 'short' } : {}), timeZone: 'UTC' })
+    .format(new Date(`${iso}T00:00:00Z`))
+    .replace(/\.$/, '');
 }
 
-export function formatGuests(adults: number, childrenAges: number[], rooms: number): string {
-  const parts = [`${adults} adult${adults === 1 ? '' : 's'}`];
-  if (childrenAges.length > 0) parts.push(`${childrenAges.length} child${childrenAges.length === 1 ? '' : 'ren'} (${childrenAges.join(', ')})`);
-  if (rooms > 1) parts.push(`${rooms} rooms`);
+export function formatDates(checkIn: string, checkOut: string, locale: Locale = 'en'): string {
+  const nights = nightsBetween(checkIn, checkOut);
+  const sameMonth = checkIn.slice(0, 7) === checkOut.slice(0, 7);
+  return `${formatDay(checkIn, locale, !sameMonth)}–${formatDay(checkOut, locale)}, ${copy(locale).words.nights(nights)}`;
+}
+
+/** A rooms stepper's value: "Best price" until the user picks a number (lib/finder/rooms.ts). */
+export function roomsShown(rooms: number | null, locale: Locale = 'en'): string {
+  return rooms === null ? copy(locale).replies.bestPrice : String(rooms);
+}
+
+/** `rooms` null: nobody fixed the rooms, and each hotel's card says which it priced. */
+export function formatGuests(adults: number, childrenAges: number[], rooms: number | null, locale: Locale = 'en'): string {
+  const w = copy(locale).words;
+  const parts = [w.adults(adults)];
+  if (childrenAges.length > 0) parts.push(w.children(childrenAges.length, childrenAges.join(', ')));
+  if (rooms !== null && rooms > 1) parts.push(w.rooms(rooms));
   return parts.join(', ');
 }
 
-function actionLine(action: ResolvedAction, state: SearchState, currency: string): string {
+function actionLine(action: ResolvedAction, state: SearchState, currency: string, locale: Locale): string {
+  const c = copy(locale).replies;
   switch (action.type) {
     case 'set_priorities':
-      return prioritiesLine(action.priorities, nearLabel(state.stay));
+      return prioritiesLine(action.priorities, nearLabel(state.stay, locale), locale);
     case 'set_near':
-      return `Close to ${action.near.label}.`;
+      return c.closeToLine(action.near.label);
     case 'clear_near':
-      return `Close to ${nearLabel(state.stay)} again.`;
+      return c.closeAgain(nearLabel(state.stay, locale));
     case 'set_price_cap':
-      return action.perNightMinor === null ? 'Price cap removed.' : `Capped at ${formatMoney(action.perNightMinor, currency)} a night.`;
+      return action.perNightMinor === null ? c.capRemoved : c.cappedAt(formatMoney(action.perNightMinor, currency, locale));
     case 'add_must_have':
-      return `Must have ${MUST_HAVE_LABEL[action.mustHave]}.`;
+      return c.mustHaveLine(c.mustHave[action.mustHave]);
     case 'remove_must_have':
-      return `No longer requiring ${MUST_HAVE_LABEL[action.mustHave]}.`;
+      return c.noLongerRequiring(c.mustHave[action.mustHave]);
+    case 'set_min_stars':
+      return action.stars === null ? c.anyStars : c.only(starsFloor(action.stars, locale));
+    case 'set_min_rating':
+      return action.rating === null ? c.anyRating : c.only(ratingFloor(action.rating, locale));
+    case 'set_property_types':
+      return action.types.length === 0 ? c.anyKind : c.only(eitherOf(state.stay.filters.propertyTypes.map((t) => typePlural(t, locale)), locale));
+    case 'set_chains':
+      return action.chains.length === 0 ? c.anyBrand : c.only(chainsChip(state.stay.filters.chains, locale));
     case 'set_guests':
-      return `${formatGuests(action.adults, action.childrenAges, action.rooms)}.`;
+      return `${formatGuests(action.adults, action.childrenAges, action.rooms, locale)}.`;
     case 'set_dates':
-      return `${formatDates(action.checkIn, action.checkOut)}.`;
+      return `${formatDates(action.checkIn, action.checkOut, locale)}.`;
     case 'set_destination':
-      return `Searching ${state.stay.destinationText}.`;
+      return c.searching(state.stay.destinationText);
     case 'set_nationality':
       return '';
+    case 'set_currency':
+      return c.pricesIn(action.code);
     case 'exclude_property':
-      return 'Set aside.';
+      return c.setAside;
     case 'more_options':
-      return 'Those are set aside.';
+      return c.thoseSetAside;
     case 'reset_exclusions':
-      return 'Everything is back in.';
+      return c.everythingBack;
   }
 }
 
 export type OutcomeForReply =
-  | { kind: 'ok'; shortlisted: number; nearMisses?: number; eligible: number; rejected: Record<string, number>; uncheckable: number; amenityFactsMissing: boolean }
+  | { kind: 'ok'; shortlisted: number; nearMisses?: number; eligible: number; rejected: Record<string, number>; uncheckable: number; filterUnknown?: number; amenityFactsMissing: boolean }
   | { kind: 'no_availability' | 'needs_place' | 'needs_nationality' | 'not_found' }
   | { kind: 'supplier_error'; error: { retryable: boolean } };
 
-export function outcomeLine(outcome: OutcomeForReply | null): string {
+export function outcomeLine(outcome: OutcomeForReply | null, locale: Locale = 'en'): string {
   if (!outcome) return '';
+  const c = copy(locale).replies;
   switch (outcome.kind) {
     case 'ok': {
       const considered = outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0);
-      const near = nearMissLine(outcome.nearMisses ?? 0, outcome.eligible);
-      if (outcome.eligible > 0) return `${outcome.eligible} of ${considered} hotels fit.${near}`;
+      const near = nearMissLine(outcome.nearMisses ?? 0, outcome.eligible, locale);
+      if (outcome.eligible > 0) return `${c.fit(outcome.eligible, considered)}${near}`;
       const why: string[] = [];
-      if (outcome.rejected.over_price_cap) why.push(`${outcome.rejected.over_price_cap} are over the price cap`);
+      if (outcome.rejected.over_price_cap) why.push(c.whyOverCap(outcome.rejected.over_price_cap));
       if (outcome.rejected.missing_must_have) {
-        why.push(
-          outcome.amenityFactsMissing
-            ? `the must-haves could not be checked for ${outcome.uncheckable}`
-            : `${outcome.rejected.missing_must_have} lack a must-have`,
-        );
+        why.push(outcome.amenityFactsMissing ? c.whyUncheckable(outcome.uncheckable) : c.whyLackMust(outcome.rejected.missing_must_have));
       }
-      if (outcome.rejected.excluded_by_user) why.push(`${outcome.rejected.excluded_by_user} you set aside`);
-      if (outcome.rejected.below_public_price) why.push(`${outcome.rejected.below_public_price} have a member price only`);
-      return `None of ${considered} hotels fit${why.length ? `: ${why.join(', ')}` : ''}.${near}`;
+      if (outcome.rejected.filtered_out) why.push(c.whyFilteredOut(outcome.rejected.filtered_out, outcome.filterUnknown ?? 0));
+      if (outcome.rejected.excluded_by_user) why.push(c.whyYouSetAside(outcome.rejected.excluded_by_user));
+      if (outcome.rejected.below_public_price) why.push(c.whyMemberOnly(outcome.rejected.below_public_price));
+      return `${c.noneFit(considered, why.join(', '))}${near}`;
     }
     case 'no_availability':
-      return 'No rooms came back for these dates. Send the message again or change the dates.';
+      return c.noAvailability;
     case 'supplier_error':
-      return outcome.error.retryable ? 'The hotel search did not answer. Send that again.' : 'The hotel search refused the request.';
+      return outcome.error.retryable ? c.supplierRetry : c.supplierRefused;
     case 'needs_place':
     case 'needs_nationality':
     case 'not_found':
@@ -164,45 +172,58 @@ export function outcomeLine(outcome: OutcomeForReply | null): string {
   }
 }
 
+/** "4 stars and up", "5 stars". */
+export const starsFloor = (min: number, locale: Locale = 'en') => copy(locale).replies.starsFloor(min);
+/** "Rated 8 and up". */
+export const ratingFloor = (min: number, locale: Locale = 'en') => copy(locale).replies.ratingFloor(min);
+
+/** The filters in one sentence, for "what is my search set to?". null when none is set. */
+export function filtersLine(f: StayFilters, locale: Locale = 'en'): string | null {
+  if (!hasFilters(f)) return null;
+  const c = copy(locale).replies;
+  const parts: string[] = [];
+  if (f.minStars !== null) parts.push(starsFloor(f.minStars, locale).toLowerCase());
+  if (f.minRating !== null) parts.push(ratingFloor(f.minRating, locale).toLowerCase());
+  if (f.propertyTypes.length) parts.push(eitherOf(f.propertyTypes.map((t) => typePlural(t, locale)), locale));
+  if (f.chains.length) parts.push(c.fromBrands(chainsChip(f.chains, locale)));
+  return c.showingOnly(parts.join(', '));
+}
+
 /** Said when the list is topped up with hotels that miss something (finder/rank.ts MIN_SHOWN). */
-export function nearMissLine(nearMisses: number, eligible: number): string {
+export function nearMissLine(nearMisses: number, eligible: number, locale: Locale = 'en'): string {
   if (nearMisses <= 0) return '';
-  const what = nearMisses === 1 ? 'the closest miss is' : `the ${nearMisses} closest misses are`;
-  return eligible > 0
-    ? ` Under ${eligible === 1 ? 'it' : 'them'}, ${what} listed, each saying what it misses.`
-    : ` ${what.charAt(0).toUpperCase()}${what.slice(1)} listed, each saying what it misses.`;
+  return copy(locale).replies.nearMiss(nearMisses, eligible);
 }
 
 /** The whole reply for a set of applied actions and what the finder then found. */
-export function describeChange(results: Applied[], state: SearchState, currency: string, outcome: OutcomeForReply | null): string {
+export function describeChange(results: Applied[], state: SearchState, currency: string, outcome: OutcomeForReply | null, locale: Locale = 'en'): string {
   const lines: string[] = [];
-  for (const r of results) lines.push(r.ok ? actionLine(r.action, state, currency) : REJECTION_LINE[r.rejection]);
-  if (results.some((r) => r.ok)) lines.push(outcomeLine(outcome));
+  for (const r of results) lines.push(r.ok ? actionLine(r.action, state, currency, locale) : rejectionLine(r.rejection, locale));
+  if (results.some((r) => r.ok)) lines.push(outcomeLine(outcome, locale));
   return lines.filter(Boolean).join(' ');
 }
 
-/** Fixed lines for messages the app handles without a model. */
-export const FIXED_LINES = {
-  greeting: 'Tell me what to change: the price, what the hotel must have, or which one to drop.',
-  adjacent: 'I only search hotels, so I cannot help with that.',
-  cannot_yet: 'I could not work that one out. Try one change at a time, such as "under 120 a night", "needs parking" or "not the second one".',
-  router_unavailable: 'The router that handles simple changes did not answer, so nothing was changed. Send that again.',
-  router_not_configured: 'Messages are handled by Jev, and JEV_API_KEY is not set on this server, so nothing was changed.',
-  use_the_form: 'Pick one of the options above to continue.',
-  tap_the_nights: 'That did not give two dates. Tap the first night above, or say it another way: 12 to 15 March.',
-  agent_unavailable: 'The assistant did not answer, so nothing was changed. Send that again.',
-  agent_misconfigured: 'The assistant is set up wrongly on this server (its API key was refused), so nothing was changed. Sending again will not help.',
-  agent_not_configured: 'That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.',
-  ai_budget: 'This search has used its allowance for typed requests today. The buttons and filters still work.',
-  which_place: 'Which city or area?',
-  confirm: 'Shall I go ahead with that?',
-  stage_dropped: 'Left as it was.',
-  stage_lapsed: 'The search has changed since I asked, so I have not applied that. Say what you want and I will do it.',
-  out_of_time: 'That took too long, so I stopped before changing anything. Send it again.',
-  idea_noted: 'I cannot do that yet. I have passed it on to the people who build this.',
-  map_shown: 'The map is showing.',
-  map_hidden: 'The map is folded away. Say "show the map" to bring it back.',
-} as const;
+/**
+ * "Show me all of them" (lib/fullList.ts). Counts come from the finder's rows:
+ * `fits` top picks on screen, `more` stored after them.
+ */
+export function fullListLine(fits: number, more: number, locale: Locale = 'en'): string {
+  const c = copy(locale).replies;
+  if (more === 0) return fits === 1 ? c.fullListOnlyOne : c.fullListOnScreen(formatCount(fits, locale));
+  return c.fullListListed(formatCount(fits + more, locale));
+}
+
+/** "save this one": said after the row is written, never before. */
+export function savedLine(name: string, locale: Locale = 'en'): string {
+  return copy(locale).replies.saved(name);
+}
+
+/** "show my saved hotels": names only. Prices are on the list itself, each marked as the last one found. */
+export function savedListLine(names: string[], locale: Locale = 'en'): string {
+  if (names.length === 0) return fixedLine('saved_none', locale);
+  const shown = names.slice(0, 5);
+  return copy(locale).replies.savedList(names.length, listNames(shown, locale), names.length - shown.length);
+}
 
 /* ------------------------------------------------------------------------
  * Answers to questions about what is on screen (lib/answers.ts). Each line is
@@ -211,87 +232,56 @@ export const FIXED_LINES = {
  * term or a facility that no row gave.
  * ---------------------------------------------------------------------- */
 
-const nightsText = (n: number) => `${n} night${n === 1 ? '' : 's'}`;
-const fromText = (from: DistanceFrom, label: string | null) =>
-  from === 'search_centre' ? 'the middle of the results' : (label ?? (from === 'place' ? 'the place you named' : 'the place you searched'));
-const km = (v: number) => (v < 1 ? `${Math.round(v * 1000)} m` : `${v.toFixed(1)} km`);
-const starsText = (n: number) => `${n} star${n === 1 ? '' : 's'}`;
-const count = (n: number) => n.toLocaleString('en');
+const km = (v: number, locale: Locale) => (v < 1 ? `${Math.round(v * 1000)} m` : `${v.toLocaleString(INTL[locale].number, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`);
 
-export function formatDeadline(iso: string): string {
-  const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso));
-  return `${when} UTC`;
+function fromText(from: DistanceFrom, label: string | null, locale: Locale): string {
+  const a = copy(locale).answers;
+  return from === 'search_centre' ? a.fromSearchCentre : (label ?? (from === 'place' ? a.fromPlace : a.fromDestination));
+}
+
+export function formatDeadline(iso: string, locale: Locale = 'en'): string {
+  const when = new Intl.DateTimeFormat(INTL[locale].date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso));
+  return copy(locale).words.deadline(when);
 }
 
 /** "A", "A and B", "A, B and C". */
-export function listNames(names: string[]): string {
-  return names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+export function listNames(names: string[], locale: Locale = 'en'): string {
+  return joinList(names, locale);
 }
 
 /** What a row was silent about, in the user's terms. */
-function notHeldLine(name: string, ask: FactAsk): string {
-  switch (ask.fact) {
-    case 'price':
-      return `No price is held for ${name} on these dates.`;
-    case 'cancellation':
-      return `The listing for ${name} does not say whether it can be cancelled.`;
-    case 'breakfast':
-      return `The listing for ${name} does not say which meals are included.`;
-    case 'rating':
-      return `The listing for ${name} does not give a guest rating.`;
-    case 'stars':
-      return `The listing for ${name} does not give a star category.`;
-    case 'room':
-      return `The listing for ${name} does not name the room.`;
-    case 'distance':
-      return `The listing for ${name} does not give its position, so there is no distance.`;
-    case 'facility':
-      return `The listing for ${name} does not say whether it has ${MUST_HAVE_LABEL[ask.amenity]}.`;
-  }
+function notHeldLine(name: string, ask: FactAsk, locale: Locale): string {
+  const n = copy(locale).answers.notHeld;
+  return ask.fact === 'facility' ? n.facility(name, mustHaveLabel(ask.amenity, locale)) : n[ask.fact](name);
 }
 
-const RANKING_HEAD: Record<Superlative, string> = {
-  cheapest: 'Cheapest',
-  priciest: 'Most expensive',
-  closest: 'Closest',
-  furthest: 'Furthest',
-  best_rated: 'Best rated',
-  most_reviews: 'Most reviews',
-  most_stars: 'Most stars',
-};
-
-const RANKING_MISSING: Record<Superlative, string> = {
-  cheapest: 'no price',
-  priciest: 'no price',
-  closest: 'no position',
-  furthest: 'no position',
-  best_rated: 'no guest rating',
-  most_reviews: 'no review count',
-  most_stars: 'no star category',
-};
-
-function rankValueText(v: RankValue, currency: string): string {
+function rankValueText(v: RankValue, currency: string, locale: Locale): string {
+  const a = copy(locale).answers;
+  const w = copy(locale).words;
   switch (v.on) {
     case 'price':
-      return `${formatMoney(v.totalMinor, currency)} for ${nightsText(v.nights)}`;
+      return a.priceFor(formatMoney(v.totalMinor, currency, locale), w.nights(v.nights));
     case 'distance':
-      return `${km(v.km)} from ${fromText(v.from, v.label)}`;
+      return a.kmFrom(km(v.km, locale), fromText(v.from, v.label, locale));
     case 'rating':
-      return v.reviews === null ? `rated ${v.rating}` : `rated ${v.rating} from ${count(v.reviews)} reviews`;
+      return v.reviews === null ? a.rated(v.rating) : a.ratedFrom(v.rating, formatCount(v.reviews, locale));
     case 'reviews':
-      return `${count(v.reviews)} reviews`;
+      return w.reviews(formatCount(v.reviews, locale));
     case 'stars':
-      return starsText(v.stars);
+      return w.stars(v.stars);
   }
 }
 
-function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['search'], currency: string): string {
-  const dates = `${formatDates(s.checkIn, s.checkOut)}.`;
-  const guests = `${formatGuests(s.adults, s.childrenAges, s.rooms)}.`;
-  const place = `Searching ${s.destinationText}.`;
-  const cap = s.priceCapMinor === null ? null : `Capped at ${formatMoney(s.priceCapMinor, currency)} a night.`;
-  const musts = s.mustHaves.length === 0 ? null : `Must have ${listNames(s.mustHaves.map((m) => MUST_HAVE_LABEL[m]))}.`;
-  const order = s.priorities === null ? null : prioritiesLine(s.priorities, s.nearLabel);
+function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['search'], currency: string, locale: Locale): string {
+  const a = copy(locale).answers;
+  const r = copy(locale).replies;
+  const dates = `${formatDates(s.checkIn, s.checkOut, locale)}.`;
+  const guests = `${formatGuests(s.adults, s.childrenAges, s.rooms, locale)}.`;
+  const place = r.searching(s.destinationText);
+  const cap = s.priceCapMinor === null ? null : r.cappedAt(formatMoney(s.priceCapMinor, currency, locale));
+  const musts = s.mustHaves.length === 0 ? null : r.mustHaveLine(listNames(s.mustHaves.map((m) => mustHaveLabel(m, locale)), locale));
+  const order = s.priorities === null ? null : prioritiesLine(s.priorities, s.nearLabel, locale);
+  const filters = s.filters ? filtersLine(s.filters, locale) : null;
   switch (field) {
     case 'dates':
       return dates;
@@ -300,64 +290,64 @@ function searchLine(field: SearchField, s: Extract<Answer, { kind: 'search' }>['
     case 'destination':
       return place;
     case 'budget':
-      return cap ?? 'No price cap is set.';
+      return cap ?? a.noCap;
     case 'must_haves':
-      return musts ?? 'Nothing is required of the hotel yet.';
+      return [musts ?? a.noMusts, filters].filter(Boolean).join(' ');
     case 'priority':
-      return order ?? 'No order is set.';
+      return order ?? a.noOrder;
     case 'everything':
-      return [place, dates, guests, cap, musts, order].filter(Boolean).join(' ');
+      return [place, dates, guests, cap, musts, filters, order].filter(Boolean).join(' ');
   }
 }
 
 /** The words for an answer. Every number and term in it came from a row. */
-export function answerLine(a: Answer, currency: string): string {
+export function answerLine(a: Answer, currency: string, locale: Locale = 'en'): string {
+  const t = copy(locale).answers;
+  const w = copy(locale).words;
+  const money = (minor: number) => formatMoney(minor, currency, locale);
   switch (a.kind) {
     case 'price': {
-      const extra = a.payAtPropertyMinor > 0 ? `, plus ${formatMoney(a.payAtPropertyMinor, currency)} paid at the hotel` : '';
-      return `${a.name}: ${formatMoney(a.totalMinor, currency)} for ${nightsText(a.nights)}, ${formatMoney(a.perNightMinor, currency)} a night${extra}.`;
+      const extra = a.payAtPropertyMinor > 0 ? t.plusPaidAtHotel(money(a.payAtPropertyMinor)) : '';
+      return t.price(a.name, money(a.totalMinor), w.nights(a.nights), money(a.perNightMinor), extra);
     }
     case 'cancellation':
-      if (!a.refundable) return `${a.name}: non-refundable at this price.`;
-      return a.until === null
-        ? `${a.name}: refundable, but the listing does not give the deadline.`
-        : `${a.name}: free cancellation until ${formatDeadline(a.until)}.`;
+      if (!a.refundable) return t.nonRefundable(a.name);
+      return a.until === null ? t.refundableNoDeadline(a.name) : t.freeCancellationUntil(a.name, formatDeadline(a.until, locale));
     case 'breakfast':
-      return a.included ? `${a.name}: breakfast is included (${a.boardName}).` : `${a.name}: breakfast is not included; the rate is ${a.boardName}.`;
+      return a.included ? t.breakfastIncluded(a.name, a.boardName) : t.breakfastNotIncluded(a.name, a.boardName);
     case 'rating':
-      return a.reviews === null ? `${a.name}: rated ${a.rating}; the listing gives no review count.` : `${a.name}: rated ${a.rating} from ${count(a.reviews)} reviews.`;
+      return a.reviews === null ? t.ratingNoCount(a.name, a.rating) : t.rating(a.name, a.rating, formatCount(a.reviews, locale));
     case 'stars':
-      return `${a.name}: ${starsText(a.stars)}.`;
+      return t.stars(a.name, w.stars(a.stars));
     case 'room':
-      return `${a.name}: the price is for ${a.roomName}.`;
+      return t.room(a.name, a.roomName);
     case 'distance':
-      return `${a.name}: ${km(a.km)} from ${fromText(a.from, a.label)}.`;
+      return t.distance(a.name, km(a.km, locale), fromText(a.from, a.label, locale));
     case 'facility':
       // "Lists", not "has": this is the supplier's facility list, and its silence is not a no.
-      return a.listed ? `${a.name} lists ${MUST_HAVE_LABEL[a.amenity]}.` : `${a.name} does not list ${MUST_HAVE_LABEL[a.amenity]}.`;
+      return a.listed ? t.facilityListed(a.name, mustHaveLabel(a.amenity, locale)) : t.facilityNotListed(a.name, mustHaveLabel(a.amenity, locale));
     case 'not_held':
-      return notHeldLine(a.name, a.ask);
+      return notHeldLine(a.name, a.ask, locale);
     case 'across': {
       const [yes, no] =
         a.ask.fact === 'facility'
-          ? [`Listing ${MUST_HAVE_LABEL[a.ask.amenity]}`, 'Not listing it']
+          ? [t.acrossListing(mustHaveLabel(a.ask.amenity, locale)), t.acrossNotListing]
           : a.ask.fact === 'breakfast'
-            ? ['Breakfast included', 'Not included']
-            : ['Refundable', 'Non-refundable'];
+            ? [t.acrossBreakfast, t.acrossNoBreakfast]
+            : [t.acrossRefundable, t.acrossNonRefundable];
       const parts: string[] = [];
-      if (a.yes.length > 0) parts.push(`${yes}: ${listNames(a.yes)}.`);
-      if (a.no.length > 0) parts.push(`${no}: ${listNames(a.no)}.`);
-      if (a.unknown.length > 0) parts.push(`The listing does not say for ${listNames(a.unknown)}.`);
+      if (a.yes.length > 0) parts.push(t.acrossGroup(yes, listNames(a.yes, locale)));
+      if (a.no.length > 0) parts.push(t.acrossGroup(no, listNames(a.no, locale)));
+      if (a.unknown.length > 0) parts.push(t.acrossUnknown(listNames(a.unknown, locale)));
       return parts.join(' ');
     }
     case 'ranking': {
-      const tied = a.winners.length > 1 ? ', tied' : '';
-      const missing = a.missing > 0 ? ` ${a.missing} ${a.missing === 1 ? 'has' : 'have'} ${RANKING_MISSING[a.superlative]} listed.` : '';
-      return `${RANKING_HEAD[a.superlative]} of the ${a.of} listed${tied}: ${listNames(a.winners)}, ${rankValueText(a.value, currency)}.${missing}`;
+      const missing = a.missing > 0 ? t.rankingMissingCount(a.missing, t.rankingMissing[a.superlative]) : '';
+      return `${t.ranking(t.rankingHead[a.superlative], a.of, a.winners.length > 1, listNames(a.winners, locale), rankValueText(a.value, currency, locale))}${missing}`;
     }
     case 'ranking_not_held':
-      return `None of the ${a.of} listed has ${RANKING_MISSING[a.superlative].replace(/^no /, 'a ')} in its listing.`;
+      return t.rankingNotHeld(a.of, t.rankingHas[a.superlative]);
     case 'search':
-      return searchLine(a.field, a.search, currency);
+      return searchLine(a.field, a.search, currency, locale);
   }
 }
