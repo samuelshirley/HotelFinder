@@ -43,6 +43,13 @@
       "when": 1794478544905,
       "tag": "0005_tiresome_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794569804633,
+      "tag": "0006_vio_parity",
+      "breakpoints": true
     }
   ]
 }

@@ -50,7 +50,8 @@ export const formAnswerSchema = z.discriminatedUnion('field', [
       field: z.literal('guests'),
       adults: z.number().int().min(1).max(12),
       childrenAges: z.array(z.number().int().min(0).max(17)).max(8),
-      rooms: z.number().int().min(1).max(6),
+      /** null = not said: the finder prices the cheapest split of the party. */
+      rooms: z.number().int().min(1).max(6).nullable(),
       /** Travelling with a pet: only hotels that take them are shown. */
       pets: z.boolean(),
     })
@@ -216,7 +217,7 @@ export async function answerForm(args: {
       break;
     }
     case 'guests':
-      if (answer.rooms > answer.adults) return { ok: false, error: 'more_rooms_than_adults' };
+      if (answer.rooms !== null && answer.rooms > answer.adults) return { ok: false, error: 'more_rooms_than_adults' };
       stay = await updateStay(stay!.id, sessionId, {
         adults: answer.adults,
         childrenAges: answer.childrenAges,

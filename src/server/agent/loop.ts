@@ -43,10 +43,16 @@ export type AgentResult = {
   focus: string | null;
   /** The map shown or folded away. */
   map: 'show' | 'hide' | null;
+  /** The full list of every hotel that fits opened under the top picks. */
+  all: boolean;
   /** The agent asked a yes/no question about the changes it queued: stage them, do not apply them (lib/stagedPlan.ts). */
   hold: boolean;
   /** A request the app cannot serve yet, for the builders. The caller stores it. */
   idea: string | null;
+  /** A hotel to save (the heart). The caller saves it; the agent writes nothing. */
+  save: string | null;
+  /** The user asked to see their saved hotels. */
+  showSaved: boolean;
   /** The turn ran out of time before the model could be asked (again). Nothing queued may be applied. */
   outOfTime: boolean;
   /** The model's own reply, already guarded. '' when there is none to show. */
@@ -59,13 +65,13 @@ export type AgentResult = {
 
 export async function runAgent(input: AgentInput & { shortlist: ToolContext['shortlist'] }, deps: AgentDeps): Promise<AgentResult> {
   // The agent only ever runs on a search that is already running (onboarding uses the scan).
-  const ctx: ToolContext = { currency: input.currency, shortlist: input.shortlist, placeRefs: new Map(), searchTown: placeName(input.state.stay.destinationText) };
+  const ctx: ToolContext = { currency: input.currency, shortlist: input.shortlist, placeRefs: new Map(), searchTown: placeName(input.state.stay.destinationText), chains: input.brands ?? [] };
   const first = buildUserTurn(input);
   const messages: Turn[] = [{ role: 'user', content: first }];
   let grounding = first;
   let working = input.state;
 
-  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, hold: false, idea: null, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
+  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, all: false, hold: false, idea: null, save: null, showSaved: false, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
   let modelText = '';
   /** Why the reply whose text may be shown ended. */
   let stopReason: string | null = null;
@@ -155,6 +161,18 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
         case 'focus':
           result.focus = parsed.propertyId;
           answer('marked');
+          break;
+        case 'all':
+          result.all = true;
+          answer('opened the full list');
+          break;
+        case 'save':
+          result.save = parsed.propertyId;
+          answer('saved');
+          break;
+        case 'show_saved':
+          result.showSaved = true;
+          answer('listed');
           break;
         case 'actions': {
           const notes: string[] = [];

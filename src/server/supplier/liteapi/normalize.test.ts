@@ -294,3 +294,41 @@ describe('the rest of the recorded responses', () => {
     expect(again.bookingId).not.toBe(first.bookingId);
   });
 });
+
+/** Every key anywhere in a recorded body. */
+function keysOf(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) for (const v of value) keysOf(v, out);
+  else if (value && typeof value === 'object')
+    for (const [k, v] of Object.entries(value)) {
+      out.push(k);
+      keysOf(v, out);
+    }
+  return out;
+}
+
+describe('evidence for the checkout (docs/supplier.md, "Checkout extras")', () => {
+  it('a prebook carries no expiry: not in the prebook, not in the prebook read back', () => {
+    for (const name of ['prebook-checkout-extras', 'prebook-get', 'prebook-payment-sdk', 'prebook-for-booking', 'prebook-nonrefundable']) {
+      const keys = keysOf(fixture(name));
+      expect(keys.length, name).toBeGreaterThan(40);
+      expect(
+        keys.filter((k) => /expir|ttl|valid|hold|lock|deadline|until/i.test(k)),
+        name,
+      ).toEqual([]);
+    }
+    expect(normalizePrebook(prebookResponse.parse(fixture('prebook-checkout-extras')), AT)).toMatchObject({ total: { amountMinor: 14384, currency: 'EUR' } });
+  });
+
+  it('no rate in a 30-hotel search is pay-later or paid at the property: every one is "now", by the supplier’s own payment', () => {
+    const raw = fixture('rates-city-porto-payment-types');
+    const roomTypes = keysOf(raw).filter((k) => k === 'paymentSchedule').length;
+    const text = JSON.stringify(raw);
+    expect(roomTypes).toBeGreaterThan(100);
+    expect([...new Set(text.match(/"paymentSchedule":"[^"]*"/g))]).toEqual(['"paymentSchedule":"now"']);
+    expect(text).not.toMatch(/PROPERTY_PAY|CREDIT_CARD_SCHEDULED|"later"/);
+    // What is paid at the hotel is the charges marked not included, and the schema still reads this search.
+    const result = normalizeRates(ratesResponse.parse(raw), 0, AT);
+    expect(result.offers.length).toBe(roomTypes);
+    expect(result.offers.some((o) => o.payAtProperty.amountMinor > 0)).toBe(true);
+  });
+});

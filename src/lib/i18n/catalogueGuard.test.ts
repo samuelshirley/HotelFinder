@@ -27,6 +27,7 @@ const say = (fn: (...args: string[]) => unknown) => String(fn(...Array.from({ le
 const SAME_ON_PURPOSE: Record<string, string> = {
   'replies.mustHave.wifi': '"wifi" is the Spanish word too',
   'ui.chat': '"chat" is the Spanish word too',
+  'filters.typeLabel.hotel': '"hotel" is the Spanish word too',
   'words.deadline': 'a time and "UTC" only',
   'answers.stars': 'a name and the star words, which are translated in words.stars',
   'answers.acrossGroup': 'a heading and names, both translated where they are made',

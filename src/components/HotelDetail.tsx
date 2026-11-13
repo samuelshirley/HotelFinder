@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { errorCopy } from '@/lib/errors';
 import { curateFacilities, goodToKnow, ratingWord } from '@/lib/facilities';
+import { hotelFaq, type FaqEntry } from '@/lib/hotelFaq';
 import { formatKm } from '@/lib/reasonText';
 import { formatMoney } from '@/lib/replies';
 import type { SessionView } from '@/server/view';
 import { ApiError, loadProperty, loadRates, type HotelRate, type PropertyDetails } from './api';
 import styles from './HotelDetail.module.css';
+import { Heart, type SaveLink } from './Heart';
 import { Spinner } from './Spinner';
 
 /**
@@ -26,6 +28,8 @@ type Props = {
   booking: string | null;
   onBook: (offerId: string) => void;
   onClose: () => void;
+  /** The heart beside the name. The expanded card has its own. */
+  save?: SaveLink;
 };
 
 const nightsOf = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000));
@@ -49,7 +53,7 @@ function fromRow(row: Row): HotelRate | null {
   };
 }
 
-export function HotelDetail({ view, row, mode, booking, onBook, onClose }: Props) {
+export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }: Props) {
   const [details, setDetails] = useState<PropertyDetails | null>(null);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [rates, setRates] = useState<HotelRate[] | null>(null);
@@ -94,9 +98,12 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose }: Props
 
       {/* The expanded card already shows the name and rating above. */}
       <header className={styles.head} hidden={mode === 'expand'}>
-        <h2 className={styles.name} tabIndex={-1} data-detail-heading>
-          {name}
-        </h2>
+        <div className={styles.nameRow}>
+          <h2 className={styles.name} tabIndex={-1} data-detail-heading>
+            {name}
+          </h2>
+          {save && <Heart propertyId={row.property.id} name={name} link={save} />}
+        </div>
         <p className={styles.meta}>
           {row.property.rating !== null && (
             <span className={styles.score}>
@@ -126,6 +133,21 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose }: Props
       <Rates rates={rates} error={ratesError} onRetry={fetchRates} selected={selected} rooms={details?.rooms ?? []} onChoose={choose} />
 
       {details && <GoodToKnow text={details.importantInformation} />}
+      {/* Only once the listing is loaded: before that, "the listing does not say" would not be true. */}
+      {details && (
+        <Faq
+          entries={hotelFaq({
+            propertyId,
+            name,
+            rate: selected,
+            amenities: details.amenities,
+            checkInFrom: details.checkInFrom,
+            checkOutUntil: details.checkOutUntil,
+            nights,
+            currency: view.session.currency,
+          })}
+        />
+      )}
       {details && details.allFacilities.length > 0 && <Amenities details={details} />}
       {details?.description && <About text={details.description} />}
       {details?.address && (
@@ -523,6 +545,31 @@ function GoodToKnow({ text }: { text: string | null }) {
           <p key={i}>{p}</p>
         ))}
       </details>
+    </section>
+  );
+}
+
+/** The questions the chat answers without a model, answered from the same rows (lib/hotelFaq.ts). */
+function Faq({ entries }: { entries: FaqEntry[] }) {
+  const [all, setAll] = useState(false);
+  const FIRST = 8;
+  return (
+    <section className={styles.section} aria-label="Questions about this hotel">
+      <h3>Questions about this hotel</h3>
+      <dl className={styles.faq}>
+        {(all ? entries : entries.slice(0, FIRST)).map((e) => (
+          <div key={e.id} data-held={e.held}>
+            <dt>{e.question}</dt>
+            <dd>{e.answer}</dd>
+          </div>
+        ))}
+      </dl>
+      {entries.length > FIRST && (
+        <button type="button" className={styles.link} onClick={() => setAll((a) => !a)}>
+          {all ? 'Show fewer questions' : `Show all ${entries.length} questions`}
+        </button>
+      )}
+      <p className={styles.small}>Answered from the hotel&apos;s listing and this rate. Ask in the chat for anything else.</p>
     </section>
   );
 }

@@ -96,6 +96,7 @@ export async function askJev(
         fact: readChoice(answers, 'fact', LABELS.fact),
         superlative: readChoice(answers, 'superlative', LABELS.superlative),
         searchField: readChoice(answers, 'search_field', LABELS.search_field),
+        filterKind: readChoice(answers, 'filter_kind', LABELS.filter_kind),
       },
       failure: null,
       latencyMs: elapsed(),

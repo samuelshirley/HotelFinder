@@ -1,4 +1,5 @@
 import { END, numberGroup, ORDINAL_WORDS, START, toNumber } from './lexicon';
+import type { PropertyType } from '@/lib/filters';
 
 /**
  * Values are extracted by CODE, never by Jev (it only picks among labels) and
@@ -188,6 +189,20 @@ export function addDays(isoDate: string, days: number): string {
 }
 
 /**
+ * For the `more` intent: does the message want every hotel found ("show me all
+ * of them", "the full list") rather than the next few in place of these? Read
+ * only after Jev picked the intent; a value for an intent, never a way to choose one.
+ */
+export function wantsWholeList(message: string): boolean {
+  const english = /\b(all|every|everything|entire|whole|full)\b/i.test(message) && !/\b(all|every)\s+(?:the\s+)?(?:other|others|different|new)\b/i.test(message);
+  // Spanish: "enséñamelos todos", "la lista completa"; not "todos los demás" (that is "others").
+  const spanish =
+    es(String.raw`${START}(tod[oa]s?|completa|entera)${END}`).test(message) &&
+    !es(String.raw`${START}tod[oa]s\s+(?:l[oa]s\s+)?(?:otr[oa]s|dem[aá]s|distint[oa]s|nuev[oa]s)${END}`).test(message);
+  return english || spanish;
+}
+
+/**
  * For the `map` intent: does the message want the map away? Anything else
  * about the map means show it. Read only after Jev picked the intent; this is
  * a value for an intent, never a way to choose one.
@@ -197,4 +212,85 @@ export function wantsMapHidden(message: string): boolean {
     /\b(hide|close|remove|collapse|fold|lose|get rid of|turn off|switch off|no|without|don'?t (?:need|want|show))\b/i.test(message) ||
     es(String.raw`${START}(oculta|ocultar|ocúltalo|esconde|esconder|quita|quitar|quítalo|cierra|cerrar|ciérralo|pliega|plegar|recoge|recoger|apaga|sin|fuera|no\s+(?:quiero|necesito|me\s+hace\s+falta))${END}`).test(message)
   );
+}
+
+const STAR_WORD: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5 };
+
+/**
+ * For the `filter` intent, stars: "4 stars or more", "4+ stars", "five-star",
+ * "at least 4*". Exactly one class, 1 to 5, or null.
+ */
+export function extractMinStars(message: string): number | null {
+  const found = new Set<number>();
+  for (const m of message.matchAll(/\b([1-5]|one|two|three|four|five)\s*(?:\+\s*)?(?:-\s*)?(?:stars?\b|\*|★)/gi)) {
+    found.add(/^\d$/.test(m[1]) ? Number(m[1]) : STAR_WORD[m[1].toLowerCase()]);
+  }
+  // Spanish: "4 estrellas", "cuatro estrellas o más".
+  for (const m of message.matchAll(new RegExp(String.raw`${START}([1-5]|una|dos|tres|cuatro|cinco)\s*(?:\+\s*)?estrellas?${END}`, 'giu'))) {
+    found.add(/^\d$/.test(m[1]) ? Number(m[1]) : STAR_WORD[m[1].toLowerCase()]);
+  }
+  if (found.size !== 1) return null;
+  const [n] = [...found];
+  // "3 or 4 stars" names two classes in one sentence: not one minimum.
+  if (/\b[1-5]\s*(?:or|to|-)\s*[1-5]\s*stars?\b/i.test(message)) return null;
+  if (es(String.raw`${START}[1-5]\s*(?:o|a|-)\s*[1-5]\s*estrellas${END}`).test(message)) return null;
+  return n;
+}
+
+/**
+ * For the `filter` intent, rating: "rated 8 or above", "a score of 8.5+",
+ * "8/10 or better", "reviews over 9". Exactly one value from 1 to 10 in halves,
+ * said next to a rating word, or null.
+ */
+export function extractMinRating(message: string): number | null {
+  const ratingWord = /\b(rat(ed|ing)|scor(e|ed|ing)|reviews?|reviewed|out of 10)\b|\/\s*10\b/i.test(message) || es(String.raw`${START}(valoraci[oó]n|valorad[oa]s?|nota|puntuaci[oó]n|opiniones|sobre\s+10)${END}`).test(message);
+  if (!ratingWord) return null;
+  // Not a star class, a price or a count of nights.
+  const text = message
+    .replace(/\b\d\s*(?:\+\s*)?(?:-\s*)?(?:stars?\b|\*|★)/gi, ' ')
+    .replace(/\/\s*10\b/g, ' ')
+    // Spanish: a star class, "sobre 10", and counts of nights, people or rooms are not a rating.
+    .replace(new RegExp(String.raw`${START}\d\s*(?:\+\s*)?estrellas?${END}|${START}sobre\s+10${END}|${START}\d+\s*(?:noches?|adult[oa]s?|personas?|ni[ñn][oa]s?|habitaci[oó]n(?:es)?)${END}`, 'giu'), ' ');
+  const values = [...text.matchAll(/(?<![\d.,])(10|[1-9](?:[.,]\d)?)(?![\d.,]*\d)(?!\s*(?:nights?|adults?|people|kids?|children|rooms?|€|eur|euros?|\$|usd|£|gbp)\b)/gi)].map((m) => Number(m[1].replace(',', '.')));
+  const distinct = [...new Set(values)];
+  if (distinct.length !== 1) return null;
+  const v = distinct[0];
+  return v >= 1 && v <= 10 && Number.isInteger(v * 2) ? v : null;
+}
+
+const KIND_WORDS: Array<[RegExp, PropertyType]> = [
+  // Spanish first where its words contain an English one ("apartahotel").
+  [/(?<![\p{L}])apartahotel(?:es)?(?![\p{L}])/iu, 'aparthotel'],
+  [/(?<![\p{L}])(apartamentos?|pisos?)(?![\p{L}])/iu, 'apartment'],
+  [/(?<![\p{L}])albergues?(?![\p{L}])/iu, 'hostel'],
+  [/(?<![\p{L}])(casas? de hu[eé]spedes|pensi[oó]n(es)?|hostal(es)?)(?![\p{L}])/iu, 'guest_house'],
+  [/(?<![\p{L}])(casas? (?:rural(?:es)?|vacacional(?:es)?)|chal[eé]s?|chalets?)(?![\p{L}])/iu, 'holiday_home'],
+  [/(?<![\p{L}])hoteles(?![\p{L}])/iu, 'hotel'],
+  [/\baparthotels?\b/i, 'aparthotel'],
+  [/\b(apartments?|flats?)\b/i, 'apartment'],
+  [/\b(hostels?|backpackers?)\b/i, 'hostel'],
+  [/\b(b\s*&\s*bs?|b and bs?|bnbs?|bed and breakfasts?|bed & breakfasts?)\b/i, 'bed_and_breakfast'],
+  [/\b(guest ?houses?|pensions?|pensi[oó]n|pensao|pensão)\b/i, 'guest_house'],
+  [/\b(holiday homes?|holiday rentals?|vacation (?:homes?|rentals?)|villas?)\b/i, 'holiday_home'],
+  [/\bhotels?\b/i, 'hotel'],
+];
+
+/**
+ * For the `filter` intent, kinds of place: "apartments only", "a hostel or a
+ * guest house". The kinds named, or null when none is, or when the message
+ * says one is NOT wanted ("a hotel, not an apartment": the agent decides).
+ */
+export function extractPropertyTypes(message: string): PropertyType[] | null {
+  if (/\b(not|no|never|without|except|rather than|instead of|other than|anything but|don'?t)\b/i.test(message)) return null;
+  if (es(String.raw`${START}(sin|nunca|excepto|salvo|en\s+vez\s+de|en\s+lugar\s+de|nada\s+de)${END}`).test(message)) return null;
+  // "aparthotel" also contains "hotel": read the longer words first, then take them out.
+  let text = message;
+  const found: PropertyType[] = [];
+  for (const [re, type] of KIND_WORDS) {
+    if (re.test(text)) {
+      found.push(type);
+      text = text.replace(new RegExp(re.source, `g${re.flags.replace('g', '')}`), ' ');
+    }
+  }
+  return found.length ? found : null;
 }

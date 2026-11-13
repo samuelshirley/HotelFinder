@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isPlainNo, isPlainYes } from '@/lib/stagedPlan';
 import { addsToCurrent } from './route';
-import { extractGuests, extractNightsShift, extractPriceCap, extractTarget, wantsMapHidden } from './slots';
+import { extractGuests, extractMinRating, extractMinStars, extractNightsShift, extractPriceCap, extractPropertyTypes, extractTarget, wantsMapHidden, wantsWholeList } from './slots';
 
 /**
  * The same extractors, read in Spanish (docs/i18n.md). Each case mirrors an
@@ -115,5 +115,36 @@ describe('the map, yes and no, and "also", in Spanish', () => {
     expect(addsToCurrent('y también bien valorado')).toBe(true);
     expect(addsToCurrent('además, céntrico')).toBe(true);
     expect(addsToCurrent('solo lo más barato')).toBe(false);
+  });
+});
+
+describe('the filters and the full list, in Spanish', () => {
+  it('a star class', () => {
+    expect(extractMinStars('solo de 4 estrellas o más')).toBe(4);
+    expect(extractMinStars('cinco estrellas')).toBe(5);
+    expect(extractMinStars('3 o 4 estrellas')).toBeNull();
+    expect(extractMinStars('algo bonito')).toBeNull();
+  });
+
+  it('a guest rating, not a star class, a night count or a price', () => {
+    expect(extractMinRating('con una valoración de 8 o más')).toBe(8);
+    expect(extractMinRating('nota de 8,5 para arriba')).toBe(8.5);
+    expect(extractMinRating('4 estrellas y valoración de 9')).toBe(9);
+    expect(extractMinRating('valorado, 3 noches')).toBeNull();
+    expect(extractMinRating('menos de 8 euros')).toBeNull();
+  });
+
+  it('kinds of place, and none when one is refused', () => {
+    expect(extractPropertyTypes('solo apartamentos')).toEqual(['apartment']);
+    expect(extractPropertyTypes('un apartahotel o un albergue')).toEqual(['aparthotel', 'hostel']);
+    expect(extractPropertyTypes('hoteles o casas rurales')).toEqual(['holiday_home', 'hotel']);
+    expect(extractPropertyTypes('un hotel, sin apartamentos')).toBeNull();
+  });
+
+  it('the whole list, and not "the others"', () => {
+    expect(wantsWholeList('enséñamelos todos')).toBe(true);
+    expect(wantsWholeList('la lista completa')).toBe(true);
+    expect(wantsWholeList('enséñame todos los demás')).toBe(false);
+    expect(wantsWholeList('enséñame otros')).toBe(false);
   });
 });

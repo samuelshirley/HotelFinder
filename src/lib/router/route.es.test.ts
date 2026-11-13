@@ -1,3 +1,4 @@
+import { NO_FILTERS } from '@/lib/filters';
 import { describe, expect, it } from 'vitest';
 
 import type { SearchState } from '@/lib/store/reduce';
@@ -21,6 +22,7 @@ const shortlist: ShortlistRow[] = [
 const state: SearchState = {
   priorities: ['cheapest'],
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Oporto',
     placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
@@ -32,6 +34,7 @@ const state: SearchState = {
     priceCapMinor: null,
     mustHaves: [],
     excludedPropertyIds: [],
+    filters: NO_FILTERS,
   },
 };
 const sure = <L extends string>(choice: L) => ({ choice, top: 0.97, margin: 0.9 });

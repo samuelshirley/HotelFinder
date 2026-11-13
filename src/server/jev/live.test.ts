@@ -5,6 +5,7 @@ vi.mock('server-only', () => ({}));
 import { routeMessage } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
 import { askJev } from './index';
+import { NO_FILTERS } from '@/lib/filters';
 
 /**
  * The router's questions against the REAL Jev. Skipped unless LIVE_JEV=1;
@@ -19,7 +20,8 @@ const live = process.env.LIVE_JEV === '1';
 const state: SearchState = {
   priorities: null,
   guestNationality: 'ES',
-  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
+  currency: 'EUR',
+  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], filters: NO_FILTERS, excludedPropertyIds: [] },
 };
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const shortlist = [
@@ -28,7 +30,7 @@ const shortlist = [
   { propertyId: P(3), offerId: 'o3', name: 'Hotel Carris Porto Ribeira' },
 ];
 const jevState = {
-  search: { destination: 'Porto, Portugal', check_in: '2026-12-11', check_out: '2026-12-13', adults: 2, children_ages: [], rooms: 1, priorities: null, must_haves: [], price_cap_per_night: null, currency: 'EUR' },
+  search: { destination: 'Porto, Portugal', check_in: '2026-12-11', check_out: '2026-12-13', adults: 2, children_ages: [], rooms: 1, priorities: null, must_haves: [], price_cap_per_night: null, filters: 'none', currency: 'EUR' },
   hotels_on_screen: shortlist.map((r, i) => `${i + 1}. ${r.name}`),
 };
 
@@ -81,8 +83,26 @@ const CASES: Array<[string, string]> = [
   ['can I see them on a map?', 'ui:map:show'],
   ['where is the second one on the map?', 'ui:focus'],
   ['show the yotel on the map', 'ui:focus'],
+  // The full list (lib/fullList.ts): every hotel that fits, opened under the picks. Added 2026-11-13.
+  ['show me all of them', 'ui:all'],
+  ['can I see the full list of hotels?', 'ui:all'],
+  ['list every hotel you found', 'ui:all'],
+  // Saved hotels (docs/saved.md): the agent's save_hotel and show_saved tools. Added 2026-11-13.
+  ['save the second one for later', 'defer'],
+  ['show my saved hotels', 'defer'],
   // Asking is not requiring, and requiring is not asking.
   ['it has to have parking', 'actions:add_must_have'],
+  // Filters (docs/finder.md, "Filters"). Added 2026-11-13.
+  ['only 4 stars or more', 'actions:set_min_stars'],
+  ['five-star hotels only', 'actions:set_min_stars'],
+  ['only places rated 8 or above', 'actions:set_min_rating'],
+  ['apartments only please', 'actions:set_property_types'],
+  ['I would rather stay in a hostel', 'actions:set_property_types'],
+  // Measured 2026-11-13: intent filter at 0.62, and `removing` read 0.13 (not a removal), so it goes to
+  // the agent. The safe direction; the bar is not lowered to win it.
+  ['any star rating is fine', 'defer'],
+  // A brand needs the chains in the results: the agent's.
+  ['only Hilton hotels', 'defer'],
   // No listing field answers these: the agent's.
   ['is the second one quiet?', 'defer'],
   ['which one would you pick?', 'defer'],
@@ -130,6 +150,7 @@ describe.runIf(live)('Jev, live', () => {
         fact: outcome.readings?.fact,
         superlative: outcome.readings?.superlative,
         search_field: outcome.readings?.searchField,
+        filter_kind: outcome.readings?.filterKind,
       }),
     );
     expect(outcome.failure).toBeNull();
@@ -143,7 +164,9 @@ describe.runIf(live)('Jev, live', () => {
             ? `ui:map:${decision.hint.map}`
             : decision.kind === 'ui' && 'focus' in decision.hint
               ? 'ui:focus'
-              : decision.kind;
+              : decision.kind === 'ui' && 'all' in decision.hint
+                ? 'ui:all'
+                : decision.kind;
     expect(got).toBe(expected);
   }, 20_000);
 });

@@ -286,7 +286,10 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
           // The guest paid the supplier's own form, and this id says so; or, in
           // the sandbox only, a test payment. Card data never passes through here.
           payment: request.payment === 'transaction_id' ? { method: 'TRANSACTION_ID', transactionId: request.transactionId } : { method: 'ACC_CREDIT_CARD' },
-          guests: request.guests.map((g, i) => ({ occupancyNumber: i + 1, ...g })),
+          // A special request is per room at the supplier (`guests[].remarks`,
+          // kept and read back in the sandbox: book-with-remarks.json). The
+          // guest typed one for the stay, so every room carries it.
+          guests: request.guests.map((g, i) => ({ occupancyNumber: i + 1, ...g, ...(request.specialRequest ? { remarks: request.specialRequest } : {}) })),
         },
         timeoutMs: TIMEOUTS.book,
         schema: bookingResponse,

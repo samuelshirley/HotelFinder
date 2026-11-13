@@ -88,6 +88,10 @@ export type StayInput = Pick<Stay, 'destinationText' | 'checkIn' | 'checkOut'> &
       | 'rooms'
       | 'priceCapMinor'
       | 'mustHaves'
+      | 'minStars'
+      | 'minRating'
+      | 'propertyTypes'
+      | 'chains'
       | 'excludedPropertyIds'
     >
   >;

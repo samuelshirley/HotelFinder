@@ -33,6 +33,16 @@ describe('error copy', () => {
     for (const m of turn.matchAll(/(?:code|errorCode): '([a-z_]+)'/g)) expect(m[1] in ERROR_COPY, m[1]).toBe(true);
   });
 
+  it('every Deal Freeze error the server can produce has copy', () => {
+    const freeze = sources.find((s) => s.file === 'server/freeze.ts')!.text;
+    const codes = ['FreezeError', 'KeepError', 'ReleaseError'].flatMap((name) => {
+      const union = new RegExp(`export type ${name} =([^;]+);`).exec(freeze)![1];
+      return [...union.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    });
+    expect(codes.length).toBeGreaterThan(15);
+    expect(codes.filter((c) => !(c in ERROR_COPY))).toEqual([]);
+  });
+
   it('an unknown code still gets a sentence, and no copy is empty or generic', () => {
     expect(errorCopy('never_heard_of_it')).toBe(ERROR_COPY.server_error);
     expect(errorCopy(null)).toBe(ERROR_COPY.server_error);

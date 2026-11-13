@@ -61,15 +61,22 @@ if [ -z "$AUTH_SECRET" ]; then
   printf 'AUTH_SECRET=%s\n' "$AUTH_SECRET" >> .env.neon
 fi
 
-put() { # name value — production and preview, sensitive, overwriting
+put() { # name value [target…] — default production and preview; sensitive, overwriting
   [ -n "$2" ] || { echo "skip $1 (empty)"; return; }
-  for target in production preview; do
-    printf '%s' "$2" | $VERCEL env add "$1" "$target" --sensitive --force --scope "$TEAM" >/dev/null
+  local name="$1" value="$2"
+  shift 2
+  local targets="${*:-production preview}"
+  for t in $targets; do
+    printf '%s' "$value" | $VERCEL env add "$name" "$t" --sensitive --force --scope "$TEAM" >/dev/null
   done
-  echo "set $1"
+  echo "set $name"
 }
-put DATABASE_URL "$DATABASE_URL"
-put AUTH_SECRET "$AUTH_SECRET"
+# PRODUCTION ONLY, both. A preview gets its own Neon branch and a per-run
+# secret from .github/workflows/preview.yml; production's database and
+# signing secret must never sit behind a preview URL running unreviewed code
+# (docs/deploy.md). src/lib/previewGuard.test.ts holds these two lines.
+put DATABASE_URL "$DATABASE_URL" production
+put AUTH_SECRET "$AUTH_SECRET" production
 # /hotels/admin: who may open it (comma-separated). Read from .env, or asked once and saved there.
 ADMIN_EMAILS="$(envval ADMIN_EMAILS .env)"
 if [ -z "$ADMIN_EMAILS" ]; then

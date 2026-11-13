@@ -1,4 +1,5 @@
 import { isMustHave } from '@/lib/amenities';
+import { aKind, eitherOf, isListedPropertyType, isPropertyType } from '@/lib/filters';
 import { copy, formatCount, joinList } from '@/lib/i18n';
 import { INTL, type Locale } from '@/lib/i18n/locale';
 import { formatMoney, mustHaveLabel } from '@/lib/replies';
@@ -70,7 +71,7 @@ export function reasonText(reason: ReasonLike | null, ctx: { currency: string; h
 export function missText(misses: unknown, currency: string, locale: Locale = 'en'): string {
   const t = copy(locale).reasons;
   const parts = (Array.isArray(misses) ? misses : []).flatMap((m): string[] => {
-    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown };
+    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown; min?: unknown; stars?: unknown; rating?: unknown; wanted?: unknown; listed?: unknown };
     switch (miss.kind) {
       case 'over_price_cap': {
         const over = num(miss.over_by_minor);
@@ -84,6 +85,25 @@ export function missText(misses: unknown, currency: string, locale: Locale = 'en
       }
       case 'member_price':
         return [t.memberPrice];
+      // The filters (lib/filters.ts). A silent listing is said as exactly that, never as a "no".
+      case 'below_stars': {
+        const stars = num(miss.stars);
+        return [stars === null ? t.noStarClass : t.starClass(stars)];
+      }
+      case 'below_rating': {
+        const rating = num(miss.rating);
+        return [rating === null ? t.noRating : t.ratedOnly(rating)];
+      }
+      case 'not_property_type': {
+        const listed = isListedPropertyType(miss.listed) ? miss.listed : null;
+        const wanted = (Array.isArray(miss.wanted) ? miss.wanted : []).filter(isPropertyType).map((k) => aKind(k, locale));
+        if (listed === null) return [t.noKind];
+        return [listed === 'other' ? t.notKinds(eitherOf(wanted, locale)) : t.itIs(aKind(listed, locale))];
+      }
+      case 'not_chain': {
+        const listed = typeof miss.listed === 'string' && miss.listed ? miss.listed : null;
+        return [listed === null ? t.noBrand : t.itIs(listed)];
+      }
       default:
         return [];
     }

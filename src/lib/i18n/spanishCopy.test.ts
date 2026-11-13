@@ -1,8 +1,9 @@
+import { NO_FILTERS } from '@/lib/filters';
 import { describe, expect, it } from 'vitest';
 
 import { errorCopy } from '@/lib/errors';
 import { missText, reasonText } from '@/lib/reasonText';
-import { answerLine, describeChange, fixedLine, formatDates, formatGuests, formatMoney, nearLabel, outcomeLine, prioritiesLabel, prioritiesLine } from '@/lib/replies';
+import { answerLine, describeChange, filtersLine, fixedLine, formatDates, formatGuests, formatMoney, fullListLine, nearLabel, outcomeLine, prioritiesLabel, prioritiesLine, roomsShown, savedLine, savedListLine } from '@/lib/replies';
 import type { SearchState } from '@/lib/store/reduce';
 
 /**
@@ -14,10 +15,11 @@ import type { SearchState } from '@/lib/store/reduce';
 const state: SearchState = {
   priorities: ['cheapest'],
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Oporto, Portugal',
     placeId: 'p', destPoint: null, destKind: 'area', destCountry: 'PT', near: null,
-    checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [],
+    checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [], filters: NO_FILTERS,
   },
 };
 
@@ -78,5 +80,23 @@ describe('Spanish lines', () => {
     expect(fixedLine('map_hidden', 'es')).toBe('El mapa está plegado. Di "muestra el mapa" para que vuelva.');
     expect(errorCopy('rate_limited', 'es')).toBe('Demasiadas peticiones en poco tiempo. Espera un minuto y continúa.');
     expect(errorCopy('never_heard_of_it', 'es')).toBe(errorCopy('server_error', 'es'));
+  });
+
+  it('the filters, the full list, saved hotels and the rooms', () => {
+    expect(filtersLine({ minStars: 4, minRating: 8, propertyTypes: ['hotel', 'apartment'], chains: ['Mercure'] }, 'es')).toBe(
+      'Se muestran solo 4 estrellas o más, valoración de 8 o más, hoteles o apartamentos, de Mercure.',
+    );
+    expect(describeChange([{ ok: true, action: { type: 'set_min_stars', stars: 4 } }], state, 'EUR', null, 'es')).toBe('Solo 4 estrellas o más.');
+    expect(fullListLine(5, 30, 'es')).toBe('Los 35 hoteles que encajan aparecen debajo de los mejores, en el mismo orden.');
+    expect(savedLine('YOTEL Porto', 'es')).toBe('YOTEL Porto está guardado. Tus hoteles guardados aparecen junto a tus viajes.');
+    expect(savedListLine([], 'es')).toBe(fixedLine('saved_none', 'es'));
+    expect(savedListLine(['A', 'B'], 'es')).toBe('Has guardado 2 hoteles: A y B. Aparecen junto a tus viajes.');
+    expect(roomsShown(null, 'es')).toBe('Mejor precio');
+    expect(formatGuests(4, [], null, 'es')).toBe('4 adultos');
+    expect(missText([{ kind: 'below_stars', stars: 3 }, { kind: 'not_property_type', listed: 'hostel', wanted: ['hotel'] }], 'EUR', 'es')).toBe('Le falta: 3 estrellas; es un albergue');
+    expect(outcomeLine({ kind: 'ok', shortlisted: 0, eligible: 0, rejected: { filtered_out: 6 }, filterUnknown: 2, uncheckable: 0, amenityFactsMissing: false }, 'es')).toBe(
+      'Ninguno de los 6 hoteles encaja: 6 no pasan un filtro (de 2 el anuncio no lo dice).',
+    );
+    expect(errorCopy('freeze_limit', 'es')).toBe('Ya tienes 3 habitaciones congeladas. Confirma o libera una de ellas primero.');
   });
 });

@@ -9,6 +9,7 @@ import { ANON_COOKIE, mintAnonCookie, readAnonCookie } from '@/server/auth/anon'
 import { createUserSession, endUserSession, USER_COOKIE, userForToken, type SignedInUser } from '@/server/auth/user';
 import { getBooking, type Booking } from '@/server/repos/bookings';
 import { countRequest } from '@/server/repos/rateLimit';
+import { adoptAnonymousSaved } from '@/server/repos/saved';
 import { adoptAnonymousSessions, assertSessionOwned, SessionNotOwnedError, type Owner, type SearchSession } from '@/server/repos/sessions';
 
 /** Shared by every route: who is asking, error responses, the per-IP limit. */
@@ -61,12 +62,15 @@ export async function ensureOwner(): Promise<Owner> {
   return { anonId };
 }
 
-/** Signs the browser in as `userId` and hands it this browser's anonymous searches. */
+/** Signs the browser in as `userId` and hands it this browser's anonymous searches and saved hotels. */
 export async function signInBrowser(userId: string, now: Date): Promise<void> {
   const { token, expires } = await createUserSession(userId, now);
   cookies().set(USER_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: BASE_PATH, expires });
   const anonId = currentAnonId();
-  if (anonId) await adoptAnonymousSessions(anonId, userId);
+  if (anonId) {
+    await adoptAnonymousSessions(anonId, userId);
+    await adoptAnonymousSaved(anonId, userId);
+  }
 }
 
 export async function signOutBrowser(): Promise<void> {

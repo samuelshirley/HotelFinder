@@ -1,4 +1,5 @@
 import type { MustHave } from '@/lib/amenities';
+import type { ListedPropertyType, PropertyType } from '@/lib/filters';
 import type { PriorityKey } from '@/lib/finder/rank';
 import type { Superlative } from '@/lib/router/catalogue';
 import type { Rejection } from '@/lib/store/reduce';
@@ -74,6 +75,37 @@ const rankingHas: Record<Superlative, string> = {
 
 const priorityChip: Record<PriorityKey, string> = { cheapest: 'Low price', nicest: 'Great reviews', closest: 'Close to' };
 
+/** Kinds of place (lib/filters.ts). */
+const typeLabel: Record<ListedPropertyType, string> = {
+  hotel: 'hotel',
+  aparthotel: 'aparthotel',
+  apartment: 'apartment',
+  hostel: 'hostel',
+  bed_and_breakfast: 'B&B',
+  guest_house: 'guest house',
+  holiday_home: 'holiday home',
+  other: 'another kind of place',
+};
+const typeWithArticle: Record<ListedPropertyType, string> = {
+  hotel: 'a hotel',
+  aparthotel: 'an aparthotel',
+  apartment: 'an apartment',
+  hostel: 'a hostel',
+  bed_and_breakfast: 'a B&B',
+  guest_house: 'a guest house',
+  holiday_home: 'a holiday home',
+  other: 'another kind of place',
+};
+const typePlural: Record<PropertyType, string> = {
+  hotel: 'hotels',
+  aparthotel: 'aparthotels',
+  apartment: 'apartments',
+  hostel: 'hostels',
+  bed_and_breakfast: 'B&Bs',
+  guest_house: 'guest houses',
+  holiday_home: 'holiday homes',
+};
+
 export const en = {
   errors: {
     invalid_request: 'That request was not understood. Reload the page and try again.',
@@ -86,6 +118,7 @@ export const en = {
     stay_too_long: 'Stays are limited to 30 nights.',
     more_rooms_than_adults: 'Each room needs at least one adult.',
     unknown_country: 'That country is not in the list. Pick it from the menu.',
+    unknown_currency: 'That currency is not in the list. Pick it from the menu.',
     place_unavailable: 'The place lookup did not answer. Try again in a moment.',
     near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
     empty_brief: 'Type where you are going, or pick a place, then search.',
@@ -104,6 +137,7 @@ export const en = {
     email_unavailable: 'Sign-in emails cannot be sent right now. Try again in a few minutes.',
     signed_out: 'Sign in with your email to see this.',
     name_missing: "Add the guest's first and last name as on their ID.",
+    request_too_long: 'The special request is too long. Keep it to 500 characters.',
     rate_gone: 'The hotel no longer has this room at this price. Pick another hotel or search again.',
     price_stale: 'That price check is more than 20 minutes old. Check the price again before paying.',
     price_changed: 'The price changed. Check the new price, then pay.',
@@ -114,6 +148,13 @@ export const en = {
     payment_unavailable: 'Payments are not set up here yet.',
     cancel_failed: 'The hotel did not confirm the cancellation. Reload this page in a minute to see where the booking stands before trying again.',
     not_cancellable: 'This booking cannot be cancelled here.',
+    freeze_unavailable: 'Holding a room without paying is only set up in the test sandbox, so this one cannot be frozen. Book it now instead.',
+    freeze_not_eligible: 'Only a free-cancellation rate with at least three days left to cancel can be frozen. Book it now, or pick a refundable rate.',
+    freeze_limit: 'You already have 3 frozen rooms. Confirm or release one of them first.',
+    freeze_terms_changed: 'The hotel booked this room on terms that cannot be frozen, so it is being released and nothing is held. Nothing was paid.',
+    freeze_expired: 'The hold on this room has ended, so it is being released. Search again to book it.',
+    release_unknown: 'The hotel has not confirmed the release yet. Do not release it again: reload this page in a minute.',
+    not_allowed: 'This is not available here.',
     network: 'No connection to the server. Check the network; your message was not lost if it already appears above.',
   },
 
@@ -160,11 +201,29 @@ export const en = {
     setAside: 'Set aside.',
     thoseSetAside: 'Those are set aside.',
     everythingBack: 'Everything is back in.',
+    anyStars: 'Any star class.',
+    anyRating: 'Any guest rating.',
+    anyKind: 'Any kind of place.',
+    anyBrand: 'Any brand.',
+    only: (what: string) => `${what.charAt(0).toUpperCase()}${what.slice(1)} only.`,
+    pricesIn: (code: string) => `Prices in ${code}.`,
+    starsFloor: (min: number) => (min >= 5 ? '5 stars' : `${min} stars and up`),
+    ratingFloor: (min: number) => `Rated ${min} and up`,
+    fromBrands: (brands: string) => `from ${brands}`,
+    showingOnly: (parts: string) => `Showing only ${parts}.`,
+    bestPrice: 'Best price',
+    fullListOnlyOne: 'That is the only hotel that fits; it is on screen.',
+    fullListOnScreen: (n: string) => `All ${n} hotels that fit are already on screen.`,
+    fullListListed: (n: string) => `All ${n} hotels that fit are listed under the top picks, in the same order.`,
+    saved: (name: string) => `${name} is saved. Your saved hotels are listed beside your trips.`,
+    savedList: (n: number, names: string, more: number) =>
+      `You have saved ${n === 1 ? 'one hotel' : `${n} hotels`}: ${names}${more > 0 ? ` and ${more} more` : ''}. They are listed beside your trips.`,
     fit: (eligible: number, considered: number) => `${eligible} of ${considered} hotels fit.`,
     noneFit: (considered: number, why: string) => `None of ${considered} hotels fit${why ? `: ${why}` : ''}.`,
     whyOverCap: (n: number) => `${n} are over the price cap`,
     whyUncheckable: (n: number) => `the must-haves could not be checked for ${n}`,
     whyLackMust: (n: number) => `${n} lack a must-have`,
+    whyFilteredOut: (n: number, silent: number) => (silent > 0 ? `${n} miss a filter (for ${silent} the listing does not say)` : `${n} miss a filter`),
     whyYouSetAside: (n: number) => `${n} you set aside`,
     whyMemberOnly: (n: number) => `${n} have a member price only`,
     noAvailability: 'No rooms came back for these dates. Send the message again or change the dates.',
@@ -200,6 +259,8 @@ export const en = {
       idea_noted: 'I cannot do that yet. I have passed it on to the people who build this.',
       map_shown: 'The map is showing.',
       map_hidden: 'The map is folded away. Say "show the map" to bring it back.',
+      saved_none: 'You have not saved any hotels yet. Press the heart on one to keep it.',
+      save_failed: 'That hotel is no longer in this search, so it was not saved.',
     },
   },
 
@@ -283,6 +344,14 @@ export const en = {
     lacks: (list: string) => `no ${list}`,
     notSaid: (list: string) => `the listing does not say if it has ${list}`,
     memberPrice: 'its rate is a member price, not shown before you sign in',
+    noStarClass: 'the listing does not give a star class',
+    starClass: (n: number) => `${n} ${s(n, 'star', 'stars')}`,
+    noRating: 'the listing does not give a guest rating',
+    ratedOnly: (rating: number) => `rated ${rating}`,
+    noKind: 'the listing does not say what kind of place it is',
+    notKinds: (kinds: string) => `not ${kinds}`,
+    itIs: (what: string) => `it is ${what}`,
+    noBrand: 'the listing names no brand',
     misses: (parts: string) => `Misses: ${parts}`,
     placeNamed: 'the place you named',
     placeSearched: 'the place you searched',
@@ -333,6 +402,15 @@ export const en = {
   example: {
     caption: 'Example from a real search: Porto, 2 nights, low price and great reviews',
     fromMiddle: (km: string) => `${km} from the middle of the results`,
+  },
+
+  /** The filters (lib/filters.ts): kinds of place and the chips. */
+  filters: {
+    typeLabel,
+    typeWithArticle,
+    typePlural,
+    starsChip: (min: number) => (min >= 5 ? '5 stars' : `${min}+ stars`),
+    ratingChip: (min: number) => `Rated ${min}+`,
   },
 
   /** Screen copy (src/components). */
@@ -475,6 +553,54 @@ export const en = {
     recentre: 'Recentre',
     measureFrom: (name: string) => `Measure from ${name}`,
     missesSomething: 'Misses something you asked for',
+    // Saved hotels, the heart, bookings (App, Heart)
+    savedHotels: 'Saved hotels',
+    savedEmpty: 'Press the heart on a hotel to keep it here.',
+    openSavedFrom: 'Open the search it was saved from',
+    savedFromGone: 'The search it was saved from is gone',
+    noPriceYet: 'No price found yet',
+    lastPriceFound: (money: string, dates: string, day: string) => `Last price found: ${money} for ${dates}, on ${day}`,
+    saveHotel: (name: string) => `Save ${name}`,
+    unsaveHotel: (name: string) => `Remove ${name} from saved hotels`,
+    savedTitle: 'Saved. Press to remove it from your saved hotels',
+    saveTitle: 'Save this hotel for later',
+    bookingFrozen: ' · frozen',
+    bookingReleasing: ' · releasing',
+    // The full list
+    fullList: 'Full list',
+    showAll: (n: number) => `Show all ${n} hotels`,
+    allThatFit: (n: number) => `All ${n} hotels that fit`,
+    topPicksOnly: 'Top picks only',
+    fullRange: (from: number, to: number, of: number) => `Hotels ${from}–${to} of ${of}, in the same order as the picks above.`,
+    loadingList: 'Loading the list…',
+    tryAgain: 'Try again',
+    fullListPages: 'Pages of the full list',
+    previous: 'Previous',
+    next: 'Next',
+    pageOf: (page: number, pages: number) => `Page ${page} of ${pages}`,
+    // Filters and the currency
+    filters: 'Filters',
+    starClass: 'star class',
+    anyStars: 'Any stars',
+    anyStarClass: 'Any star class',
+    starsNote: 'A hotel whose listing gives no star class is shown under the others, saying so.',
+    guestRating: 'guest rating',
+    anyRating: 'Any rating',
+    anyGuestRating: 'Any guest rating',
+    ratingNote: 'Guest ratings are out of 10, as the listing gives them.',
+    kindOfPlace: 'kind of place',
+    anyKind: 'Any kind of place',
+    brandFilter: 'brand',
+    anyBrand: 'Any brand',
+    kindSilent: (n: number) => `${n} ${n === 1 ? 'hotel' : 'hotels'} here ${n === 1 ? 'does' : 'do'} not say what kind of place ${n === 1 ? 'it is' : 'they are'}; with a kind picked they are shown under the others, saying so.`,
+    brandSilent: (n: number) => `${n} ${n === 1 ? 'hotel' : 'hotels'} here ${n === 1 ? 'names' : 'name'} no brand; with a brand picked they are shown under the others, saying so.`,
+    noneTickedKind: 'None ticked shows every kind.',
+    noneTickedBrand: 'None ticked shows every brand.',
+    currencyChip: (code: string) => `Prices in ${code}`,
+    currencyName: 'currency',
+    currency: 'Currency',
+    currencySearchedAgain: 'The hotels are searched again and priced in this currency.',
+    currencyRemovesCap: (code: string) => `Changing it removes the price cap, which is in ${code}.`,
     // SlideOut
     close: 'Close',
   },

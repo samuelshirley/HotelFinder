@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PriorityKey } from '@/lib/finder/rank';
 import { mentionsDates } from '@/lib/placePick';
 import { INTL, type Locale } from '@/lib/i18n/locale';
-import { formatGuests } from '@/lib/replies';
+import { formatGuests, roomsShown } from '@/lib/replies';
 import type { Brief } from '@/server/brief';
 import { loadExample, searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
@@ -58,15 +58,15 @@ export function TripBox({ busy, onSubmit }: Props) {
   const [placeholder, setPlaceholder] = useState(0);
   const [place, setPlace] = useState<{ placeId: string; label: string } | null>(null);
   const [dates, setDates] = useState<{ checkIn: string; checkOut: string } | null>(null);
-  const [guests, setGuests] = useState<{ adults: number; childrenAges: number[]; rooms: number; pets: boolean } | null>(null);
+  const [guests, setGuests] = useState<{ adults: number; childrenAges: number[]; rooms: number | null; pets: boolean } | null>(null);
   const [priorities, setPriorities] = useState<PriorityKey[]>([]);
   const [open, setOpen] = useState<null | 'where' | 'when' | 'who'>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [lookup, setLookup] = useState<'idle' | 'failed'>('idle');
   const focused = useRef(false);
   const [example, setExample] = useState<Example | null>(null);
-  // Again on a new language: the server writes the example's words (the response varies on the cookie).
   useEffect(() => {
+    // Again on a new language: the server writes the example's words (the response varies on the cookie).
     loadExample().then(setExample).catch(() => setExample(null));
   }, [locale]);
 
@@ -97,7 +97,7 @@ export function TripBox({ busy, onSubmit }: Props) {
   const shownDates = dates ?? { checkIn: today, checkOut: addDays(today, 1) };
   const nights = Math.round((Date.parse(shownDates.checkOut) - Date.parse(shownDates.checkIn)) / 86_400_000);
   const whenLabel = dates ? `${dayName(dates.checkIn, locale)} – ${dayName(dates.checkOut, locale)} · ${t.words.nights(nights)}` : t.ui.tonightOneNight;
-  const g = guests ?? { adults: 2, childrenAges: [], rooms: 1, pets: false };
+  const g = guests ?? { adults: 2, childrenAges: [], rooms: null, pets: false };
   const whoLabel = `${formatGuests(g.adults, g.childrenAges, g.rooms, locale)}${g.pets ? t.words.pet : ''}`;
 
   const pick = (p: PlaceSuggestion) => {
@@ -222,7 +222,7 @@ export function TripBox({ busy, onSubmit }: Props) {
             )}
             {open === 'who' && (
               <div className={styles.when}>
-                <Stepper label={t.ui.adults} value={g.adults} min={1} max={12} onChange={(n) => setGuests({ ...g, adults: n, rooms: Math.min(g.rooms, n) })} />
+                <Stepper label={t.ui.adults} value={g.adults} min={1} max={12} onChange={(n) => setGuests({ ...g, adults: n, rooms: g.rooms === null ? null : Math.min(g.rooms, n) })} />
                 <Stepper label={t.ui.children} value={g.childrenAges.length} min={0} max={8} onChange={(n) => setGuests({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) })} />
                 {g.childrenAges.length > 0 && (
                   <div className={styles.dateRow}>
@@ -240,7 +240,8 @@ export function TripBox({ busy, onSubmit }: Props) {
                     ))}
                   </div>
                 )}
-                <Stepper label={t.ui.rooms} value={g.rooms} min={1} max={Math.min(6, g.adults)} onChange={(n) => setGuests({ ...g, rooms: n })} />
+                {/* 0 is "Best price": we price the sensible splits and show each hotel's cheapest. */}
+                <Stepper label={t.ui.rooms} value={g.rooms ?? 0} shown={roomsShown(g.rooms, locale)} min={0} max={Math.min(6, g.adults)} onChange={(n) => setGuests({ ...g, rooms: n === 0 ? null : n })} />
                 <label className={styles.check}>
                   <input type="checkbox" checked={g.pets} onChange={(e) => setGuests({ ...g, pets: e.target.checked })} />
                   {t.ui.bringingPet}
@@ -296,7 +297,7 @@ export function TripBox({ busy, onSubmit }: Props) {
   );
 }
 
-function Stepper({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (n: number) => void }) {
+function Stepper({ label, value, shown = value, min, max, onChange }: { label: string; value: number; shown?: string | number; min: number; max: number; onChange: (n: number) => void }) {
   const { t } = useLocale();
   return (
     <div className={styles.stepper}>
@@ -304,7 +305,7 @@ function Stepper({ label, value, min, max, onChange }: { label: string; value: n
       <button type="button" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={t.ui.fewer(label)}>
         −
       </button>
-      <output>{value}</output>
+      <output>{shown}</output>
       <button type="button" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={t.ui.more(label)}>
         +
       </button>

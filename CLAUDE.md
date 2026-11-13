@@ -13,6 +13,8 @@
 **feraltravels.com/hotels**: every browser-side URL goes through `withBase`
 (`lib/basePath.ts`), guarded by `basePathGuard`. What works, what is not built and what
 has never been verified: **`docs/build-log.md`**. Read that first.
+Every PR gets its own preview (own Neon branch, emptied; sandbox key):
+`.github/workflows/preview.yml`, `docs/deploy.md`.
 
 ## Scope — hold the line
 
@@ -86,6 +88,7 @@ src/
     agent/        BOUNDED — index.ts is the only public surface; the only
                   importer of the Anthropic SDK (docs/agent.md)
     spend.ts      the 24-hour caps checked before every model call
+    saved.ts      the heart: save from a search, the saved list (docs/saved.md)
     breakers.ts   kill switch + flood breaker before a turn: 503 circuit_open, fail closed
     propertyDetails.ts  one hotel's listing as plain text
     auth/anon.ts  the signed anonymous cookie
@@ -100,26 +103,28 @@ docs/             every "why"
 ```
 api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  api/session/[id]/form
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
-api/session/[id]/turns  api/auth/verify (sign in with a code outside checkout)
+api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/auth/verify (sign in with a code outside checkout)
+api/saved (POST the heart, GET this visitor's saved hotels: `docs/saved.md`)
 ```
 
 Pages (all under `/hotels`): `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
 search; `ADMIN_EMAILS` only, sign-in form otherwise, 404 to non-admins):
 `docs/usage.md`.
 
-### Schema (18 tables in `src/server/db/schema.ts`)
+### Schema (19 tables in `src/server/db/schema.ts`)
 
 Rules each table carries, and what broke while building them:
 **`docs/schema.md`**.
 
 users, accounts, sessions, verificationTokens, emailOtpCodes, searchSessions,
 stays, agentTurns, chatHistory, properties, offers, shortlistEntries,
-userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas
+userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas,
+savedHotels
 
 ### Repos (`src/server/repos/`)
 
 sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
-ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit
+ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit, saved
 
 ### Guard tests
 
@@ -130,16 +135,19 @@ empty catch) · `basePathGuard` (no root path in a fetch, href, src or
 navigation; `<Link>` exempt, never wrapped in withBase) · `meterGuard` (only
 five server files call out, each writes the usage ledger; every supplier op
 priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `mapPointGuard` (a map
-point enters only from the map: `docs/design/map.md`) · `devDatabase` (migrations build exactly the schema). Mutation
-logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
+point enters only from the map: `docs/design/map.md`) · `devDatabase` (migrations build exactly the schema) · `previewGuard`
+(a preview never reaches the production database: `docs/deploy.md`). Mutation
+logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`, `docs/deploy.md`.
 
 ### Agent tools (`src/server/agent/tools.ts`)
 
 resolve_place, hotel_details (lookups) · set_destination, set_dates,
-set_guests, set_price_cap, set_priority, require, stop_requiring, set_aside,
+set_guests, set_price_cap, set_priority, require, stop_requiring,
+set_min_stars, set_min_rating, set_property_types, set_brands, set_aside,
 show_others, bring_back_all (each becomes typed actions) · open_hotel,
-show_map, mark_on_map (the screen only) · hold_for_confirmation (stage the
-queued changes for a yes) · submit_idea.
+show_map, mark_on_map, show_all_hotels (the screen only) · hold_for_confirmation (stage the
+queued changes for a yes) · submit_idea · save_hotel, show_saved (saved
+hotels: `docs/saved.md`).
 The agent names a hotel by position and a place by a ref from this turn's
 lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
@@ -148,7 +156,9 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
 agent-live.sh (20 real cases against Anthropic, 6 in Spanish; prints the cost),
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
-Neon URL kept in .env.neon so dev stays on embedded Postgres)
+Neon URL kept in .env.neon so dev stays on embedded Postgres; production
+env only for DATABASE_URL and AUTH_SECRET), wipe-preview-db.mjs and
+delete-pr-previews.sh (run by the preview workflows: `docs/deploy.md`)
 
 ### Agent tooling
 
@@ -162,7 +172,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map, spanish
+search, book, admin, map, filters, full-list, saved, checkout, freeze, spanish
 
 ## Lockdown invariants (load-bearing)
 
@@ -184,6 +194,8 @@ The ones most easily broken:
   the `paid → booking` claim, and never retry it: `docs/supplier.md`.
 - Card data never reaches our server.
 - `JEV_BASE_URL` is server-only and a privacy boundary.
+- A preview never reaches the production database, and no production row
+  sits behind a preview URL (`previewGuard`, `docs/deploy.md`).
 
 ## Working rules
 
