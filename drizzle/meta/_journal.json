@@ -43,6 +43,13 @@
       "when": 1794478544905,
       "tag": "0005_tiresome_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794568139010,
+      "tag": "0006_bookings_requests_and_hotel_fees",
+      "breakpoints": true
     }
   ]
 }

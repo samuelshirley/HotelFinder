@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { HotelCharge } from '@/lib/checkout';
 import type { ScannedTrip } from '@/lib/scannedTrip';
 import {
   bigint,
@@ -430,6 +431,18 @@ export const bookings = pgTable(
     childrenAges: jsonb('children_ages').$type<number[]>(),
     rooms: integer('rooms'),
     payAtPropertyMinor: integer('pay_at_property_minor'),
+    /**
+     * The charges the offer marks not included, each in its own currency, as
+     * the supplier names them: what the guest pays at the hotel. Null on rows
+     * written before it was kept.
+     */
+    payAtPropertyFees: jsonb('pay_at_property_fees').$type<HotelCharge[]>(),
+    /**
+     * The guest's special request, as typed at checkout (cleaned, at most 500
+     * characters). Sent to the supplier with book as each room's `remarks`; the
+     * hotel may not honour it. Data, never instructions.
+     */
+    specialRequest: text('special_request'),
     /** The cancellation terms the supplier confirmed at prebook (normalized CancellationPolicy). */
     cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
     /** Who the room is booked for, as typed at checkout. */
