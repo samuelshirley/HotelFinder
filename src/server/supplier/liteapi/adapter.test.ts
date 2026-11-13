@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { SearchRequest, SupplierMeterEvent } from '../types';
 import { createLiteApiAdapter } from './adapter';
-import { replay, type Loose } from './fixtures';
+import { fixture, manifest, replay, type Loose } from './fixtures';
 import type { FetchLike } from './http';
 
 const KEY = 'sand_test-key-never-real';
@@ -289,6 +289,40 @@ describe('recheckRate, book, getBooking, cancel', () => {
     });
     expect(result.ok && result.value).toMatchObject({ supplierBookingId: 'yzAvfyYq5', status: 'confirmed' });
     expect(events[0]).toMatchObject({ provider: 'liteapi:book', success: true, meta: { status: 'CONFIRMED' } });
+  });
+
+  it('a special request goes to the hotel as every room’s remarks, and never into the ledger', async () => {
+    const { fetchImpl, calls } = replay('book-with-remarks');
+    const { supplier, events } = adapter(fetchImpl);
+    const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+    const request = 'A quiet room on a high floor, if possible.';
+    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder, guests: [holder, holder], payment: 'transaction_id', specialRequest: request });
+    expect(result).toMatchObject({ ok: true, value: { status: 'confirmed' } });
+    expect((calls[0].body as { guests: unknown[] }).guests).toEqual([
+      { occupancyNumber: 1, ...holder, remarks: request },
+      { occupancyNumber: 2, ...holder, remarks: request },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('quiet room');
+  });
+
+  it('no special request sends no remarks at all', async () => {
+    for (const specialRequest of [undefined, null, '']) {
+      const { fetchImpl, calls } = replay('book-confirmed');
+      const holder = { firstName: 'Fixture', lastName: 'Guest', email: 'guest@fixture.hotelfinder.invalid' };
+      await adapter(fetchImpl).supplier.book({ prebookId: 'p', transactionId: 't', holder, guests: [holder], payment: 'transaction_id', specialRequest });
+      expect((calls[0].body as { guests: object[] }).guests[0]).not.toHaveProperty('remarks');
+    }
+  });
+
+  it('the sandbox keeps a request sent in guests[].remarks: the booking read back carries it', () => {
+    const sent = (manifest.files['book-with-remarks.json'].request as { guests: Array<{ remarks: string }> }).guests[0].remarks;
+    expect(sent.length).toBeGreaterThan(0);
+    const booked = fixture('book-with-remarks').data;
+    const readBack = fixture('booking-get-with-remarks').data;
+    expect(String(booked.status)).toBe('CONFIRMED');
+    expect(String(readBack.remarks)).toBe(sent);
+    expect(String(readBack.bookedRooms[0].guests[0].remarks)).toBe(sent);
+    expect(String(fixture('booking-cancel-with-remarks').data.status)).toBe('CANCELLED');
   });
 
   it('a test payment books with the sandbox card method, and only with a sandbox key', async () => {

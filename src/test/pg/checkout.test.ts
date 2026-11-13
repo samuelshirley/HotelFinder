@@ -243,6 +243,47 @@ describe('checkout', () => {
     expect(await confirmWith(t, { firstName: '<script>' })).toMatchObject({ ok: false, error: 'name_missing' });
   });
 
+  it('a special request is cleaned, kept on the booking, sent with book once, and shown back', async () => {
+    const t = await started();
+    const r = await confirmWith(t, { code: await codeFor(), specialRequest: '  Late arrival, about 23:00.\r\n\r\n\r\nA cot, please.\u0000 ' });
+    expect(r).toMatchObject({ ok: true });
+    const cleaned = 'Late arrival, about 23:00.\n\nA cot, please.';
+    expect(t.books).toHaveLength(1);
+    expect(t.books[0].specialRequest).toBe(cleaned);
+    const row = (await getBooking(t.booking.id))!;
+    expect(row.specialRequest).toBe(cleaned);
+    expect(bookingView(row, RECORDED_AT).specialRequest).toBe(cleaned);
+  });
+
+  it('no special request is null all the way to the supplier', async () => {
+    const t = await started();
+    expect(await confirmWith(t, { code: await codeFor(), specialRequest: '  \n ' })).toMatchObject({ ok: true });
+    expect(t.books[0].specialRequest).toBeNull();
+    expect((await getBooking(t.booking.id))!.specialRequest).toBeNull();
+  });
+
+  it('a special request over the limit stops before the code, the payment and the hotel', async () => {
+    const t = await started();
+    const code = await codeFor();
+    expect(await confirmWith(t, { code, specialRequest: 'a'.repeat(501) })).toMatchObject({ ok: false, error: 'request_too_long', signedInAs: null });
+    expect((await getBooking(t.booking.id))!).toMatchObject({ status: 'prebooked', paidWith: null, specialRequest: null });
+    expect(t.books).toHaveLength(0);
+    // The code was not spent: the same one still works.
+    expect(await confirmWith(t, { code, specialRequest: 'a'.repeat(500) })).toMatchObject({ ok: true });
+  });
+
+  it('what is paid at the hotel is kept with the booking, each charge named and in its own currency', async () => {
+    const t = await started();
+    const view = bookingView(t.booking, RECORDED_AT);
+    const atHotel = t.offer.fees.filter((f) => !f.included);
+    expect(atHotel.length).toBeGreaterThan(0);
+    expect(view.payAtPropertyFees).toEqual(atHotel.map(({ description, amountMinor, currency }) => ({ description, amountMinor, currency })));
+    // The sum already on the row is the same charges, in the offer's currency.
+    expect(view.payAtPropertyMinor).toBe(atHotel.filter((f) => f.currency === t.offer.currency).reduce((n, f) => n + f.amountMinor, 0));
+    // A booking from before the charges were kept says so with null, not with "nothing".
+    expect(bookingView({ ...t.booking, payAtPropertyFees: null }, RECORDED_AT).payAtPropertyFees).toBeNull();
+  });
+
   it('cancel: through the supplier, with the refund it reports', async () => {
     const t = await started();
     await confirmWith(t, { code: await codeFor() });

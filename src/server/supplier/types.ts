@@ -174,6 +174,11 @@ export type BookRequest = {
    * mock wallet); the adapter refuses it for any key that is not a sandbox key.
    */
   payment: 'transaction_id' | 'sandbox_test';
+  /**
+   * The guest's own words for the hotel, already cleaned (lib/checkout.ts), or
+   * null. Sent with every room; the hotel may not honour it. Never logged.
+   */
+  specialRequest?: string | null;
 };
 
 export type SupplierBookingStatus = 'confirmed' | 'cancelled' | 'other';

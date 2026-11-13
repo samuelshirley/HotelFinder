@@ -37,7 +37,7 @@ test('book a hotel: re-check, sign in with a code, Apple Pay (test), booked, the
   const stay = page.getByRole('region', { name: 'Your stay' });
   await expect(stay.getByRole('heading', { name: hotel })).toBeVisible();
   await expect(stay).toContainText(/Fri \d+ – Sun \d+ \w{3} · 2 nights · 2 adults/);
-  await expect(stay).toContainText('Total, taxes in');
+  await expect(stay).toContainText('Pay now, taxes in');
   await expect(stay).toContainText(/Price re-checked with the hotel just now|The price changed: it was/);
   const total = (await stay.locator('dd strong').textContent())!;
   if ((await stay.getByText(/The price changed/).count()) === 0) expect(total).toBe(cardTotal);

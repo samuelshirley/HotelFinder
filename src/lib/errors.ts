@@ -32,6 +32,7 @@ export const ERROR_COPY = {
   email_unavailable: 'Sign-in emails cannot be sent right now. Try again in a few minutes.',
   signed_out: 'Sign in with your email to see this.',
   name_missing: "Add the guest's first and last name as on their ID.",
+  request_too_long: 'The special request is too long. Keep it to 500 characters.',
   rate_gone: 'The hotel no longer has this room at this price. Pick another hotel or search again.',
   price_stale: 'That price check is more than 20 minutes old. Check the price again before paying.',
   price_changed: 'The price changed. Check the new price, then pay.',

@@ -41,7 +41,7 @@ export async function lastHolderFor(userId: string): Promise<{ firstName: string
 export async function transitionBooking(
   id: string,
   to: BookingStatus,
-  details: Partial<Pick<Booking, 'userId' | 'supplierBookingId' | 'hotelConfirmationCode' | 'holderFirstName' | 'holderLastName' | 'holderEmail' | 'paidWith' | 'testPayment' | 'failureCode' | 'refundMinor' | 'cancelFeeMinor'>> = {},
+  details: Partial<Pick<Booking, 'userId' | 'supplierBookingId' | 'hotelConfirmationCode' | 'holderFirstName' | 'holderLastName' | 'holderEmail' | 'paidWith' | 'specialRequest' | 'testPayment' | 'failureCode' | 'refundMinor' | 'cancelFeeMinor'>> = {},
 ): Promise<Booking | null> {
   const from = sourcesFor(to);
   if (from.length === 0) return null;
