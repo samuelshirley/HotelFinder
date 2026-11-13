@@ -149,6 +149,26 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     await expect(co.heading()).toHaveText('Book it');
   });
 
+  test('sign in first: email, code, Sign in, and the checkout is signed in with the names kept', async ({ page, prebooked }) => {
+    // Sam, 2026-11-13: sign in on the payment screen with an email and a 6-digit code; the page refreshes signed in.
+    const co = new CheckoutPage(page);
+    await co.goto(prebooked.bookingId);
+    const signIn = co.form().getByRole('button', { name: 'Sign in', exact: true });
+    await expect(signIn).toBeDisabled();
+    const email = uniqueEmail('first');
+    await co.email().fill(email);
+    await co.first().fill('Ana');
+    await co.sendCode().click();
+    const code = await co.readCode();
+    await co.code().fill(code);
+    await signIn.click();
+    await expect(co.form().getByText(`Signed in as ${email.toLowerCase()}`)).toBeVisible();
+    await expect(co.email()).toHaveCount(0);
+    await expect(co.code()).toHaveCount(0);
+    await expect(co.first()).toHaveValue('Ana');
+    await expect(co.pay('Apple Pay')).toBeEnabled();
+  });
+
   test('book with Apple Pay (test), keep it once, then cancel it', async ({ page, app, prebooked }) => {
     test.setTimeout(240_000);
     // As a person gets here: the search open in this browser, then its checkout.

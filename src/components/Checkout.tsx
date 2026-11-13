@@ -11,6 +11,7 @@ import {
   confirmBooking,
   loadBooking,
   sendSignInCode,
+  verifySignInCode,
   signOut,
   startCheckout,
   type BookingPage,
@@ -128,6 +129,21 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
   const [sending, setSending] = useState(false);
   const [sheet, setSheet] = useState<Wallet | null>(null);
   const [rechecking, setRechecking] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  /** Sign in now, before paying: the page reloads signed in, the names kept (Sam, 2026-11-13). */
+  const signInNow = async () => {
+    setVerifying(true);
+    setError(null);
+    try {
+      await verifySignInCode(codeSentTo ?? email.trim(), code.trim());
+      await onReload();
+    } catch (err) {
+      setError({ code: codeOf(err), field: fieldOf(codeOf(err)) });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const fieldOf = (c: string): 'email' | 'code' | 'name' | 'pay' =>
     c === 'email_invalid' || c === 'too_many_codes' || c === 'email_unavailable' ? 'email' : c === 'code_wrong' || c === 'code_expired' ? 'code' : c === 'name_missing' ? 'name' : 'pay';
@@ -255,7 +271,12 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
             </div>
             <div className={styles.field}>
               <label htmlFor="code">6-digit code</label>
-              <input id="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" className={styles.code} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-invalid={error?.field === 'code'} />
+              <div className={styles.row}>
+                <input id="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" className={styles.code} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-invalid={error?.field === 'code'} />
+                <button type="button" className={styles.secondary} disabled={verifying || !codeSentTo || !/^\d{6}$/.test(code)} onClick={() => void signInNow()}>
+                  {verifying ? 'Signing in…' : 'Sign in'}
+                </button>
+              </div>
               {error?.field === 'code' && <p className={styles.error}>{error.code === 'code_expired' && !codeSentTo ? 'Send yourself a code first.' : errorCopy(error.code)}</p>}
             </div>
           </>
