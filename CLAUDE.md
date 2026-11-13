@@ -165,9 +165,14 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map, smoke (health + both search paths; also run against
-each deployment with `E2E_BASE_URL`). CI: `.github/workflows/ci.yml` on every PR,
-`deployed.yml` after every Vercel deploy: `docs/deploy.md`.
+`ui/` (first-screen, onboarding, results, detail, map, chat, booking, admin,
+errors), `api/` (public, auth, session, turn, property, booking), `content/pages`,
+smoke (`@smoke`; also run against each deployment with `E2E_BASE_URL`). Guards:
+`guards/controls.spec.ts` (every control is claimed by a test) and
+`api/coverage.spec.ts` (every route and method has a describe). Tests assert
+intended behaviour, never today's output. CI: `.github/workflows/ci.yml` on
+every PR, 3 shards merged into one report; `deployed.yml` after every Vercel
+deploy: `docs/testing.md`, `docs/deploy.md`.
 
 ## Lockdown invariants (load-bearing)
 
