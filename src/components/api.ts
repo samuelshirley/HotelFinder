@@ -7,7 +7,11 @@ import type { SessionView } from '@/server/view';
 /** The browser's calls to the API. Every failure becomes an error code the UI has copy for. */
 
 export class ApiError extends Error {
-  constructor(public code: string) {
+  /** `ref` ties a server_error to its log line (src/server/http.ts handled()). */
+  constructor(
+    public code: string,
+    public ref: string | null = null,
+  ) {
     super(code);
   }
 }
@@ -24,8 +28,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiError('network');
   }
-  const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!res.ok || !body) throw new ApiError(body?.error ?? 'server_error');
+  const body = (await res.json().catch(() => null)) as (T & { error?: string; ref?: string }) | null;
+  // No JSON at all (a platform 500 or 504 page): keep the status, so the reference says what happened.
+  if (!res.ok || !body) throw new ApiError(body?.error ?? 'server_error', body?.ref ?? (body ? null : `http-${res.status}`));
   return body;
 }
 
