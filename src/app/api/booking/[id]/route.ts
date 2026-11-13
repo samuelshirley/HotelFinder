@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { mailConfigured } from '@/server/auth/mailer';
 import { bookingView } from '@/server/checkout';
 import { settleFreeze } from '@/server/freeze';
-import { currentUser, handled, ownedBooking } from '@/server/http';
+import { checkoutInMySearch, currentUser, errorResponse, handled, ownedBooking } from '@/server/http';
 import { paymentMode } from '@/server/payments';
 import { lastHolderFor } from '@/server/repos/bookings';
 import { getSupplier } from '@/server/supplier';
@@ -15,7 +15,15 @@ export const maxDuration = 60;
 /** The checkout, or the receipt once paid. A frozen booking whose hold has ended is released first. */
 export const GET = handled(async (_req: Request, ctx: { params: { id: string } }) => {
   const owned = await ownedBooking(ctx.params.id);
-  if (owned instanceof NextResponse) return owned;
+  if (owned instanceof NextResponse) {
+    // A checkout in this visitor's search priced for someone else ("Not you?"):
+    // nothing of it is shown. Signed out, the page asks for an email; signed
+    // in, it prices the same room for this account (POST .../reprice).
+    if (!(await checkoutInMySearch(ctx.params.id) instanceof NextResponse)) {
+      return (await currentUser()) ? errorResponse('reprice_needed', 409) : errorResponse('signed_out', 401);
+    }
+    return owned;
+  }
   const now = new Date();
   const booking = await settleFreeze(owned, getSupplier({ sessionId: owned.sessionId, userId: owned.userId }), now);
   const user = await currentUser();

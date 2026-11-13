@@ -1,6 +1,7 @@
 import 'server-only';
 
-import type { CancellationPolicy, SupplierAdapter } from '@/server/supplier';
+import type { CancellationPolicy, SupplierAdapter, SupplierOffer } from '@/server/supplier';
+import { isCountryCode } from '@/lib/countries';
 import { cleanSpecialRequest, payAtHotelCharges, type HotelCharge } from '@/lib/checkout';
 import { freezeTerms } from '@/lib/freeze';
 import { formatDates } from '@/lib/replies';
@@ -9,11 +10,15 @@ import { userForVerifiedEmail } from '@/server/auth/user';
 import { paymentMode, takePayment, type Wallet } from '@/server/payments';
 import { createPrebooked, getBooking, transitionBooking, type Booking } from '@/server/repos/bookings';
 import { appendMessage } from '@/server/repos/chat';
-import { getOffer } from '@/server/repos/offers';
+import { getOffer, insertOffers, type Offer } from '@/server/repos/offers';
+import { getPreferences } from '@/server/repos/preferences';
+import { dispatchActions } from '@/server/dispatch';
+import { MAX_RATES } from '@/server/hotelRates';
+import { offerRow } from '@/server/offerRows';
 import { getProperty } from '@/server/repos/properties';
 import { roomsLabel, roomsOf, sameOccupancies } from '@/lib/finder/rooms';
-import { isMemberOnlyPrice } from '@/lib/pricing';
-import { audienceFor, getStay, type SearchSession } from '@/server/repos/sessions';
+import { isMemberOnlyPrice, OFFER_TTL_MS, searchMarginPct } from '@/lib/pricing';
+import { audienceFor, getSession, getStay, listStays, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { offerFees } from '@/server/view';
 
 /**
@@ -32,22 +37,64 @@ export const PRICE_CHECK_TTL_MS = 20 * 60_000;
 
 export type StartError = 'property_not_found' | 'rate_gone' | 'supplier_unavailable';
 
-export async function startCheckout(args: { session: SearchSession; offerId: string; supplier: SupplierAdapter }): Promise<{ ok: true; booking: Booking } | { ok: false; error: StartError }> {
+/**
+ * "Book": the supplier re-checks the rate (prebook) and the booking row is
+ * written before any payment sheet. Priced for whoever is looking now:
+ *
+ *   - signed in, the member rate;
+ *   - signed out, the hotel's public price. A public row whose rate is lower
+ *     for members holds a member-priced supplier offer, so it is never
+ *     prebooked as it is: the same room is fetched again at the margin that
+ *     reaches the hotel's public price (`publicRoom`), and that is prebooked.
+ *
+ * `quotedTotalMinor` is the price the person last saw (the card, or the
+ * checkout before they signed in or said "Not you?"). The checkout shows
+ * both numbers when the check differs from it.
+ */
+export async function startCheckout(args: {
+  session: SearchSession;
+  offerId: string;
+  supplier: SupplierAdapter;
+  quotedTotalMinor?: number;
+  /** Fetch the room again even if the offer could be prebooked as it is (the nationality changed). */
+  refetch?: boolean;
+  now?: Date;
+}): Promise<{ ok: true; booking: Booking } | { ok: false; error: StartError }> {
   const { session, supplier } = args;
-  const offer = await getOffer(args.offerId, session.id, audienceFor(session));
+  const now = args.now ?? new Date();
+  const audience = audienceFor(session);
+  const picked = await getOffer(args.offerId, session.id, audience);
   // A member price is never sold to an anonymous visitor, even by its id.
-  if (!offer || isMemberOnlyPrice(offer, audienceFor(session))) return { ok: false, error: 'property_not_found' };
-  const [stay, property] = await Promise.all([getStay(offer.stayId, session.id), getProperty(offer.propertyId)]);
+  if (!picked || isMemberOnlyPrice(picked, audience)) return { ok: false, error: 'property_not_found' };
+  const [stay, property] = await Promise.all([getStay(picked.stayId, session.id), getProperty(picked.propertyId)]);
   if (!stay || !property) return { ok: false, error: 'property_not_found' };
 
-  const check = await supplier.recheckRate(offer.supplierOfferId);
+  let offer = picked;
+  let refetched = false;
+  if (args.refetch || !prebookableAsIs(picked, audience)) {
+    const again = await roomFor({ session, stay, property, offer: picked, supplier, now });
+    if (!again.ok) return again;
+    offer = again.offer;
+    refetched = true;
+  }
+  let check = await supplier.recheckRate(offer.supplierOfferId);
+  // The rate fell under the hotel's public price since it was fetched: a
+  // signed-out visitor is never held at it. Fetched again at the public price, once.
+  if (check.ok && audience === 'public' && underPublicPrice(check.value) && !refetched) {
+    const again = await roomFor({ session, stay, property, offer: picked, supplier, now, forcePublicMargin: true });
+    if (!again.ok) return again;
+    offer = again.offer;
+    check = await supplier.recheckRate(offer.supplierOfferId);
+  }
   if (!check.ok) return { ok: false, error: check.error.retryable ? 'supplier_unavailable' : 'rate_gone' };
+  if (audience === 'public' && underPublicPrice(check.value)) return { ok: false, error: 'rate_gone' };
   // Exactly the rooms on the card, for the same people: a prebook holding any
   // other split is not the offer the guest chose, whatever it costs.
   const shown = roomsOf(offer.rooms);
   const held = check.value.rooms;
   if (shown && held.length > 0 && !sameOccupancies(shown, held)) return { ok: false, error: 'rate_gone' };
   const rooms = held.length > 0 ? held : shown;
+  const quoted = args.quotedTotalMinor ?? picked.totalMinor;
 
   const booking = await createPrebooked({
     userId: session.userId,
@@ -59,7 +106,7 @@ export async function startCheckout(args: { session: SearchSession; offerId: str
     currency: check.value.total.currency,
     totalMinor: check.value.total.amountMinor,
     // A quote in another currency cannot be compared: it is shown as a change.
-    quotedTotalMinor: check.value.total.currency === offer.currency ? offer.totalMinor : -1,
+    quotedTotalMinor: check.value.total.currency === picked.currency ? quoted : -1,
     propertyId: property.id,
     hotelName: property.name,
     // The rooms as the supplier holds them now: what the guest pays for and what book books.
@@ -77,6 +124,140 @@ export async function startCheckout(args: { session: SearchSession; offerId: str
     cancellation: (check.value.cancellation ?? offer.cancellation) as Record<string, unknown> | null,
   });
   return { ok: true, booking };
+}
+
+/**
+ * An offer row this viewer can prebook as it stands: fetched at today's
+ * search margin, and for a signed-out visitor, not lower for members (its
+ * supplier offer would hold the member rate).
+ */
+function prebookableAsIs(offer: Offer, audience: 'public' | 'member'): boolean {
+  if (Number(offer.marginPct) !== searchMarginPct()) return audience === 'public' && !offer.lowerForMembers;
+  return audience === 'member' || !offer.lowerForMembers;
+}
+
+const underPublicPrice = (c: { total: { amountMinor: number; currency: string }; suggestedSelling: { amountMinor: number; currency: string } | null }) =>
+  c.suggestedSelling !== null && c.suggestedSelling.currency === c.total.currency && c.total.amountMinor < c.suggestedSelling.amountMinor;
+
+/** Same hotel, same rooms for the same people, same board, same cancellation terms. */
+export function sameRoom(
+  a: { roomName: string | null; boardName: string | null; refundableTag: string | null; rooms: unknown },
+  b: { roomName: string | null; boardName: string | null; refundableTag: string | null; rooms: unknown },
+): boolean {
+  const ra = roomsOf(a.rooms);
+  const rb = roomsOf(b.rooms);
+  return a.roomName === b.roomName && a.boardName === b.boardName && a.refundableTag === b.refundableTag && (!ra || !rb || sameOccupancies(ra, rb));
+}
+
+/** The most margin added to reach a hotel's public price. Beyond it the room is not offered signed out. */
+const MAX_PUBLIC_MARGIN_PCT = 50;
+
+/**
+ * The room the person picked, fetched again for whoever is looking now: at
+ * the session's nationality and the search margin, and stored as a detail
+ * row for this audience. Signed out, when the rate is under the hotel's
+ * public price, it is fetched once more at the margin that lifts it to that
+ * price, and only that second offer is stored: the member rate stays in this
+ * function (sandbox-verified: docs/supplier.md "Public and member prices").
+ *
+ * The margin here is per hotel, but it never ranks anything: it only makes
+ * the price already shown, the hotel's own, bookable.
+ */
+async function roomFor(args: {
+  session: SearchSession;
+  stay: Stay;
+  property: { id: string; supplierHotelId: string };
+  offer: Offer;
+  supplier: SupplierAdapter;
+  now: Date;
+  forcePublicMargin?: boolean;
+}): Promise<{ ok: true; offer: Offer } | { ok: false; error: StartError }> {
+  const { session, stay, property, offer, supplier, now } = args;
+  const audience = audienceFor(session);
+  if (!session.guestNationality) return { ok: false, error: 'rate_gone' };
+  const occupancies = (roomsOf(offer.rooms) ?? []).map((r) => ({ adults: r.adults, childrenAges: r.childrenAges }));
+  const search = (marginPct: number) =>
+    supplier.searchAvailability({
+      where: { hotelIds: [property.supplierHotelId] },
+      checkIn: stay.checkIn,
+      checkOut: stay.checkOut,
+      occupancies: occupancies.length > 0 ? occupancies : [{ adults: stay.adults, childrenAges: stay.childrenAges }],
+      currency: offer.currency,
+      guestNationality: session.guestNationality!,
+      marginPct,
+      maxHotels: 1,
+      maxRatesPerHotel: MAX_RATES,
+    });
+  const find = (offers: SupplierOffer[]) =>
+    offers
+      .filter((o) => o.supplierHotelId === property.supplierHotelId && o.total.currency === offer.currency)
+      .filter((o) => sameRoom(offer, { roomName: roomsLabel(o.rooms), boardName: o.rooms[0]?.boardName ?? null, refundableTag: o.cancellation.tag, rooms: o.rooms }))
+      .sort((x, y) => x.total.amountMinor - y.total.amountMinor)[0];
+  const store = async (o: SupplierOffer) => {
+    const [row] = await insertOffers([offerRow(o, { sessionId: session.id, stayId: stay.id, propertyId: property.id, audience, now, expiresAt: new Date(now.getTime() + OFFER_TTL_MS), detailOnly: true })]);
+    return { ok: true as const, offer: row };
+  };
+
+  const base = searchMarginPct();
+  const first = await search(base);
+  if (!first.ok) return { ok: false, error: first.error.retryable ? 'supplier_unavailable' : 'rate_gone' };
+  const rate = find(first.value.offers);
+  if (!rate) return { ok: false, error: 'rate_gone' };
+  const ssp = rate.suggestedSelling?.currency === rate.total.currency ? rate.suggestedSelling.amountMinor : null;
+  if (audience === 'member' || ssp === null || (rate.total.amountMinor >= ssp && !args.forcePublicMargin)) return store(rate);
+
+  // Signed out and under the hotel's public price: the margin that reaches it,
+  // from the supplier's own net (total less our commission), rounded up.
+  const net = rate.commission ? rate.total.amountMinor - rate.commission.amountMinor : rate.total.amountMinor / (1 + base / 100);
+  // Always above the search margin: that one priced the room under the hotel's price.
+  let margin = Math.max(base + 0.01, Math.ceil(((ssp / net - 1) * 100 + 0.01) * 100) / 100);
+  for (let attempt = 0; attempt < 2 && margin <= MAX_PUBLIC_MARGIN_PCT; attempt++) {
+    const lifted = await search(margin);
+    if (!lifted.ok) return { ok: false, error: lifted.error.retryable ? 'supplier_unavailable' : 'rate_gone' };
+    const at = find(lifted.value.offers);
+    if (!at) return { ok: false, error: 'rate_gone' };
+    if (at.total.amountMinor >= ssp) return store(at);
+    margin = Math.ceil((margin + ((ssp - at.total.amountMinor) / net) * 100 + 0.01) * 100) / 100;
+  }
+  return { ok: false, error: 'rate_gone' };
+}
+
+export type RepriceError = StartError | 'booking_not_payable';
+
+/**
+ * "Re-price for whoever is looking now", for a checkout. After a sign-in in
+ * the checkout's modal (signed out, or after "Not you?"): the account's own
+ * nationality, if it has one, becomes the search's (a new search, through the
+ * one dispatch path), then the same room is prebooked for this account. The
+ * new booking's quoted price is the one the person last saw, so the page
+ * shows both when they differ.
+ */
+export async function repriceCheckout(args: {
+  session: SearchSession;
+  booking: Booking;
+  supplier: SupplierAdapter;
+  now: Date;
+}): Promise<{ ok: true; booking: Booking } | { ok: false; error: RepriceError }> {
+  const { booking, supplier, now } = args;
+  if (booking.status !== 'prebooked' || !booking.offerId) return { ok: false, error: 'booking_not_payable' };
+  const viewer = await viewerNationality(args.session, supplier, now);
+  return startCheckout({ session: viewer.session, offerId: booking.offerId, supplier, quotedTotalMinor: booking.totalMinor, refetch: viewer.changed, now });
+}
+
+/**
+ * The signed-in account's saved nationality, applied to the search when it
+ * differs: rates depend on it. Through dispatch, so the whole search is
+ * fetched again for it, as any change of nationality is.
+ */
+export async function viewerNationality(session: SearchSession, supplier: SupplierAdapter, now: Date): Promise<{ session: SearchSession; changed: boolean }> {
+  if (!session.userId) return { session, changed: false };
+  const saved = (await getPreferences(session.userId))?.guestNationality ?? null;
+  if (!saved || saved === session.guestNationality || !isCountryCode(saved)) return { session, changed: false };
+  // Through the one dispatch path, which also fetches the search again for it.
+  const [stay] = await listStays(session.id);
+  if (!stay) return { session, changed: false };
+  await dispatchActions({ session, stay, actions: [{ type: 'set_nationality', code: saved }], supplier, now, today: now.toISOString().slice(0, 10) });
+  return { session: (await getSession(session.id)) ?? session, changed: true };
 }
 
 export type ConfirmInput = {

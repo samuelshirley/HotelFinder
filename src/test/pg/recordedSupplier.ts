@@ -1,3 +1,4 @@
+import { searchMarginPct } from '@/lib/pricing';
 import { fixture, manifest, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
 import { normalizeDetails, normalizePlaceDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
 import { hotelDetailsResponse, hotelListResponse, placeDetailsResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
@@ -67,18 +68,21 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       searches.push(request);
       if (over.search === 'fail') return { ok: false, error: DOWN };
       if (over.search === 'empty') return { ok: true, value: { properties: [], offers: [] } };
-      // The recording that matches the currency and margin asked for: net for members, +15% for the public.
-      // A party with its own recording is answered with it (recorded in EUR at the public 15% margin).
+      // The recording that matches the currency and margin asked for. Every search is made at the
+      // search margin (answered with the net recording); a margin above it is the checkout lifting a
+      // signed-out visitor's room to the hotel's public price (server/checkout.ts `roomFor`), answered
+      // with the recording at 15%, the nearest one above it. Nothing here invents a price.
+      // A party with its own recording is answered with it (recorded in EUR at 15%).
       // Only EUR and member-margin USD are recorded; anything else is a test asking for a payload nobody captured.
       const party = 'radiusM' in request.where ? undefined : RECORDED_PARTIES.get(key(request.occupancies));
-      if (party ? request.currency !== 'EUR' : request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct < 15 && !('radiusM' in request.where))) {
+      if (party ? request.currency !== 'EUR' : request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct <= searchMarginPct() && !('radiusM' in request.where))) {
         throw new Error(`no recording for ${request.currency} at a ${request.marginPct}% margin`);
       }
       const name =
         party ??
         (request.currency === 'USD'
           ? 'rates-city-porto-usd'
-          : 'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto');
+          : 'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct > searchMarginPct() ? 'rates-city-porto-margin-15' : 'rates-city-porto');
       return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(name)), request.marginPct, RECORDED_AT) };
     },
     async getStaticFacts() {

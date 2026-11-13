@@ -13,7 +13,7 @@ import { createUserSession, endUserSession, USER_COOKIE, userForToken, type Sign
 import { getBooking, type Booking } from '@/server/repos/bookings';
 import { countRequest } from '@/server/repos/rateLimit';
 import { adoptAnonymousSaved } from '@/server/repos/saved';
-import { adoptAnonymousSessions, assertSessionOwned, SessionNotOwnedError, type Owner, type SearchSession } from '@/server/repos/sessions';
+import { adoptAnonymousSessions, assertSessionOwned, handOverSession, SessionNotOwnedError, type Owner, type SearchSession } from '@/server/repos/sessions';
 
 /** Shared by every route: who is asking, error responses, the per-IP limit. */
 
@@ -152,4 +152,37 @@ export async function ownedBooking(id: string): Promise<Booking | NextResponse> 
     if (!(session instanceof NextResponse)) return booking;
   }
   return errorResponse('booking_not_found', 404);
+}
+
+/**
+ * A prebooked checkout in a search this visitor owns, whoever it was priced
+ * for: after "Not you?" the search is this browser's, and then the account
+ * that signs in, while the checkout still holds the last account's price.
+ * Used only to price the same room again for whoever is looking now; nothing
+ * of the booking is shown through it.
+ */
+export async function checkoutInMySearch(id: string): Promise<Booking | NextResponse> {
+  const booking = await getBooking(id);
+  if (!booking || !booking.sessionId || booking.status !== 'prebooked') return errorResponse('booking_not_found', 404);
+  const session = await ownedSession(booking.sessionId);
+  if (session instanceof NextResponse) return errorResponse('booking_not_found', 404);
+  return booking;
+}
+
+/**
+ * "Not you?": the search, with its checkout, becomes this browser's again
+ * (its anonymous cookie, minted if it has none) and the browser is signed
+ * out. The account keeps nothing of it. Only a signed-in owner of the search
+ * may do this, and only before anything is paid.
+ */
+export async function handOverToBrowser(sessionId: string, userId: string): Promise<boolean> {
+  let anonId = currentAnonId();
+  if (!anonId) {
+    const minted = mintAnonCookie();
+    anonId = minted.anonId;
+    cookies().set(ANON_COOKIE, minted.value, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: BASE_PATH, maxAge: 60 * 60 * 24 * 30 });
+  }
+  const moved = await handOverSession(sessionId, userId, anonId);
+  await signOutBrowser();
+  return moved;
 }

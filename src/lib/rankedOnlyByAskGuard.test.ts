@@ -1,13 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { marginFor } from '@/lib/pricing';
+import { searchMarginPct } from '@/lib/pricing';
 
 /**
  * The first screen promises "Ranked only by what you asked for". Two things
  * keep that true: the ranking code never sees what we earn on a hotel, and our
- * margin is one number per audience, the same for every hotel, so it can never
- * move one hotel above another.
+ * margin is one number, the same for every hotel and every visitor, so it can
+ * never move one hotel above another. (The checkout lifts a signed-out
+ * visitor's price to the hotel's own public price, per hotel; that never
+ * ranks anything: server/checkout.ts `roomFor`.)
  */
 const FINDER = path.resolve(import.meta.dirname, 'finder');
 const EARNINGS = /margin|commission|markup|payout|kickback|sponsor|promot|boost/i;
@@ -26,10 +28,10 @@ describe('ranked only by what you asked for', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the margin depends on the audience and the configuration only, never on the hotel', () => {
-    expect(marginFor.length).toBeLessThanOrEqual(2);
+  it('the search margin depends on the configuration only, never on the hotel or the visitor', () => {
+    expect(searchMarginPct.length).toBeLessThanOrEqual(1);
     const src = readFileSync(path.resolve(import.meta.dirname, 'pricing.ts'), 'utf8');
-    const signature = src.match(/export function marginFor\(([^)]*)\)/)?.[1] ?? '';
-    expect([...signature.matchAll(/(?:^|,)\s*(\w+)\s*[?]?:/g)].map((m) => m[1])).toEqual(['audience', 'env']);
+    const signature = src.match(/export function searchMarginPct\(([^)]*)\)/)?.[1] ?? '';
+    expect([...signature.matchAll(/(?:^|,)\s*(\w+)\s*[?]?:/g)].map((m) => m[1])).toEqual(['env']);
   });
 });

@@ -142,6 +142,7 @@ export const es: Messages = {
     price_stale: 'Esa comprobación de precio tiene más de 20 minutos. Vuelve a comprobar el precio antes de pagar.',
     price_changed: 'El precio ha cambiado. Revisa el precio nuevo y paga.',
     booking_not_found: 'Esa reserva no está en esta cuenta.',
+    reprice_needed: 'Este pago tenía el precio de otra persona. Estamos comprobando el precio para ti.',
     booking_not_payable: 'Esta reserva ya se pagó o ha terminado. Recarga para ver en qué estado está.',
     booking_failed: 'El hotel no ha confirmado la reserva. No se ha cobrado nada. Vuelve a intentarlo o elige otro hotel.',
     booking_unknown: 'El hotel aún no ha respondido. No reserves otra vez: recarga esta página dentro de un minuto para ver el resultado.',

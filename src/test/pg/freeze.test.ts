@@ -84,7 +84,8 @@ function freezeSupplier(b: Behaviour = {}) {
       const check = normalizePrebook(prebookResponse.parse(fixture('prebook-payment-sdk')), RECORDED_AT);
       const refundable = normalizeBooking(bookingResponse.parse(fixture('book-confirmed'))).cancellation;
       prebooks += 1;
-      return { ok: true, value: { ...check, prebookId: `${check.prebookId}-${prebooks}`, cancellation: b.prebook === 'nonrefundable' ? check.cancellation : refundable } };
+      // The recording is another hotel's prebook at the net rate: its suggested price is not this room's.
+      return { ok: true, value: { ...check, suggestedSelling: null, prebookId: `${check.prebookId}-${prebooks}`, cancellation: b.prebook === 'nonrefundable' ? check.cancellation : refundable } };
     },
     async book(request) {
       books.push(request);

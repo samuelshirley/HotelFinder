@@ -3,10 +3,11 @@ import 'server-only';
 import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenities';
 import { readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
-import { cheapestPerHotel, occupanciesFor, roomsLabel, roomsOf } from '@/lib/finder/rooms';
+import { cheapestPerHotel, occupanciesFor, roomsOf } from '@/lib/finder/rooms';
 import { MIN_HOTELS, planSearch, type SearchWhere } from '@/lib/finder/searchPlan';
 import { FULL_LIST_KIND } from '@/lib/fullList';
-import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
+import { OFFER_TTL_MS, searchMarginPct } from '@/lib/pricing';
+import { offerRow } from '@/server/offerRows';
 import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
 import { upsertProperty } from '@/server/repos/properties';
@@ -97,7 +98,7 @@ export async function runFinder(args: {
   if (held.length === 0) {
     if (!plan) return { kind: 'needs_place' };
     if (!session.guestNationality) return { kind: 'needs_nationality' };
-    const marginPct = marginFor(audience, args.env);
+    const marginPct = searchMarginPct(args.env);
 
     const request = {
       checkIn: stay.checkIn,
@@ -157,29 +158,7 @@ export async function runFinder(args: {
       search.value.offers.flatMap((o) => {
         const propertyId = propertyIds.get(o.supplierHotelId);
         if (!propertyId) return []; // an offer with no property cannot be shown
-        return [
-          {
-            sessionId,
-            stayId,
-            propertyId,
-            supplier: o.supplier,
-            supplierOfferId: o.supplierOfferId,
-            audience,
-            marginPct: o.marginPct.toFixed(2),
-            currency: o.total.currency,
-            totalMinor: o.total.amountMinor,
-            suggestedSellingMinor: o.suggestedSelling?.currency === o.total.currency ? o.suggestedSelling.amountMinor : null,
-            payAtPropertyMinor: o.payAtProperty.amountMinor,
-            taxesAndFees: o.fees,
-            roomName: roomsLabel(o.rooms),
-            boardName: o.rooms[0]?.boardName ?? null,
-            rooms: o.rooms,
-            refundableTag: o.cancellation.tag,
-            cancellation: o.cancellation,
-            fetchedAt: now,
-            expiresAt,
-          },
-        ];
+        return [offerRow(o, { sessionId, stayId, propertyId, audience, now, expiresAt })];
       }),
     );
     fetched = true;

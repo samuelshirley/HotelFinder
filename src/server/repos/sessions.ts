@@ -62,6 +62,20 @@ export async function adoptAnonymousSessions(anonId: string, userId: string): Pr
   return rows.length;
 }
 
+/**
+ * "Not you?": the account's search goes back to this browser's anonymous
+ * cookie, so whoever signs in next adopts it with everything in it. Only
+ * from the account that owns it.
+ */
+export async function handOverSession(sessionId: string, fromUserId: string, toAnonId: string): Promise<boolean> {
+  const rows = await db
+    .update(searchSessions)
+    .set({ userId: null, anonId: toAnonId, updatedAt: sql`now()` })
+    .where(and(eq(searchSessions.id, sessionId), eq(searchSessions.userId, fromUserId)))
+    .returning({ id: searchSessions.id });
+  return rows.length === 1;
+}
+
 /** Derived from sign-in state on the server. The client cannot ask for it. */
 export function audienceFor(session: Pick<SearchSession, 'userId'>): Audience {
   return session.userId ? 'member' : 'public';

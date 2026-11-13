@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, eq, gt, max, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, type SQL } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
 import { offers, properties, type Audience } from '@/server/db/schema';
@@ -47,9 +47,11 @@ export async function listLiveOffers(
 
 /**
  * Live offers quoted for exactly this audience, each with its property, from
- * the LATEST search only. A member is ranked on member prices only: public
- * offers recorded before they signed in are still visible to them but are
- * not what the finder ranks.
+ * the stay's LATEST search only, and only when that search was made for this
+ * audience. A member is ranked on member prices only: public offers recorded
+ * before they signed in are not what the finder ranks; and after "Not you?"
+ * a signed-out visitor is not ranked on an older public search when a newer
+ * one was made for the account. Nothing returned means: fetch again.
  *
  * Latest search only: every change of where, when, who or nationality is a
  * new search, and the previous search's offers stay live until they expire.
@@ -58,17 +60,28 @@ export async function listLiveOffers(
  */
 export async function listLiveOffersForRanking(sessionId: string, stayId: string, audience: Audience, now: Date) {
   // A hotel's detail rates are never ranked: opening a hotel must not change the shortlist.
-  const mine = and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), eq(offers.audience, audience), eq(offers.detailOnly, false));
+  const searched = and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), eq(offers.detailOnly, false));
   // Two plain queries, not a subquery inside sql``: that form overflowed the
   // stack under Next's bundler (reproduced in the e2e run, 2026-11-11) though
   // it passed under vitest.
-  const [{ at }] = await db.select({ at: max(offers.fetchedAt) }).from(offers).where(mine);
-  if (!at) return [];
+  const latest = await latestSearch(sessionId, stayId);
+  if (!latest || latest.audience !== audience) return [];
   return db
     .select({ offer: offers, property: properties })
     .from(offers)
     .innerJoin(properties, eq(properties.id, offers.propertyId))
-    .where(and(mine, gt(offers.expiresAt, now), eq(offers.fetchedAt, at)));
+    .where(and(searched, eq(offers.audience, audience), gt(offers.expiresAt, now), eq(offers.fetchedAt, latest.at)));
+}
+
+/** When the stay was last searched, and for whom; null before the first search. */
+export async function latestSearch(sessionId: string, stayId: string): Promise<{ at: Date; audience: Audience } | null> {
+  const [row] = await db
+    .select({ at: offers.fetchedAt, audience: offers.audience })
+    .from(offers)
+    .where(and(eq(offers.sessionId, sessionId), eq(offers.stayId, stayId), eq(offers.detailOnly, false)))
+    .orderBy(desc(offers.fetchedAt))
+    .limit(1);
+  return row ?? null;
 }
 
 /** A hotel's detail rates for this stay that are still live. */

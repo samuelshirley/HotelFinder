@@ -13,6 +13,7 @@ import { normalizeRates } from '@/server/supplier/liteapi/normalize';
 import { ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { SearchRequest } from '@/server/supplier/types';
 import { buildSessionView } from '@/server/view';
+import { searchMarginPct } from '@/lib/pricing';
 
 beforeEach(resetDb);
 
@@ -116,18 +117,24 @@ describe('the stay finder', () => {
     expect(searches).toHaveLength(3);
   });
 
-  it('an anonymous visitor is quoted the public margin and never a price under the public price', async () => {
+  it("an anonymous visitor sees every hotel at the hotel's public price: one search margin, nothing hidden, the member rate never stored", async () => {
     const ids = await porto('anonymous');
     const { supplier, searches } = recordedSupplier();
     const outcome = await runFinder({ ...ids, supplier, now: NOW });
-    expect(searches[0].marginPct).toBe(15);
-    expect(outcome).toMatchObject({ kind: 'ok', eligible: 18, rejected: { below_public_price: 2 } });
+    expect(searches[0].marginPct).toBe(searchMarginPct());
+    // All 20 fit (at the old public margin, 2 sat under the hotel's price and were hidden).
+    expect(outcome).toMatchObject({ kind: 'ok', eligible: 20, rejected: { below_public_price: 0 } });
     const list = await listShortlist(ids.sessionId, ids.stayId, 'public');
     expect(list).toHaveLength(5);
     for (const row of list) {
       expect(row.offer?.audience).toBe('public');
-      if (row.offer?.suggestedSellingMinor != null) expect(row.offer.totalMinor).toBeGreaterThanOrEqual(row.offer.suggestedSellingMinor);
+      // The recording is the net rate, under every hotel's price: each is shown at that price, flagged.
+      expect(row.offer).toMatchObject({ totalMinor: row.offer!.suggestedSellingMinor, lowerForMembers: true });
     }
+    const memberRates = normalizeRates(ratesResponse.parse(fixture('rates-city-porto')), 3, NOW).offers.map((o) => o.total.amountMinor);
+    const stored = await rawQuery<{ total_minor: number }>('select total_minor from offers where session_id = $1', [ids.sessionId]);
+    expect(stored).toHaveLength(20);
+    expect(stored.filter((r) => memberRates.includes(r.total_minor))).toEqual([]);
   });
 
   it('fewer than five fit: the list is filled to five with the closest misses, each saying what it misses', async () => {
@@ -155,26 +162,20 @@ describe('the stay finder', () => {
     expect(await listShortlist(ids.sessionId, ids.stayId, 'public')).toHaveLength(5);
   });
 
-  it('a near-miss whose rate is a member price holds no offer and no number from one', async () => {
+  it("a signed-out near-miss is priced at the hotel's public price: its numbers never come from the member rate", async () => {
     const ids = await porto('anonymous');
     await updateStay(ids.stayId, ids.sessionId, { priceCapMinor: 7000 });
     await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
     const list = await listShortlist(ids.sessionId, ids.stayId, 'public');
-    const member = list.filter((r) => (r.entry.reason as { misses?: Array<{ kind: string }> } | null)?.misses?.some((m) => m.kind === 'member_price'));
-    expect(member.length).toBeGreaterThan(0);
-    const hidden = await rawQuery<{ total_minor: number }>(
-      `select total_minor from offers where session_id = $1 and property_id = any($2) and total_minor < suggested_selling_minor`,
-      [ids.sessionId, member.map((r) => r.property.id)],
-    );
-    expect(hidden.length).toBeGreaterThan(0);
-    for (const row of member) {
-      expect(row.offer).toBeNull();
-      expect(row.entry.offerId).toBeNull();
-      expect(row.entry.reason).not.toHaveProperty('per_night_minor');
+    const misses = list.filter((r) => r.entry.reason?.kind === 'near_miss');
+    expect(misses.length).toBeGreaterThan(0);
+    const memberRates = normalizeRates(ratesResponse.parse(fixture('rates-city-porto')), 3, NOW).offers.map((o) => o.total.amountMinor);
+    for (const row of misses) {
+      expect(row.offer).toMatchObject({ totalMinor: row.offer!.suggestedSellingMinor, lowerForMembers: true });
       const json = JSON.stringify(row);
-      for (const { total_minor } of hidden) {
-        expect(json).not.toContain(String(total_minor));
-        expect(json).not.toContain(String(Math.ceil(total_minor / 2)));
+      for (const rate of memberRates) {
+        expect(json).not.toContain(`:${rate},`);
+        expect(json).not.toContain(`:${Math.ceil(rate / 2)},`);
       }
     }
   });
@@ -199,14 +200,15 @@ describe('the stay finder', () => {
     const ids = await porto('anonymous');
     const { supplier, searches } = recordedSupplier();
     await runFinder({ ...ids, supplier, now: NOW });
-    expect((await listShortlist(ids.sessionId, ids.stayId, 'public'))[0].offer?.totalMinor).toBe(12793);
+    expect((await listShortlist(ids.sessionId, ids.stayId, 'public'))[0].offer).toMatchObject({ totalMinor: 11101, lowerForMembers: true });
 
     const user = await seedUser();
     await adoptAnonymousSessions('anon-1', user.id);
     const outcome = await runFinder({ ...ids, supplier, now: LATER(2) });
 
     expect(outcome).toMatchObject({ kind: 'ok', fetched: true, eligible: 20 });
-    expect(searches.map((r) => r.marginPct)).toEqual([15, 3]);
+    // One search margin for both; the member's search is a new one, ranked on the rate itself.
+    expect(searches.map((r) => r.marginPct)).toEqual([3, 3]);
     const list = await listShortlist(ids.sessionId, ids.stayId, 'member');
     expect(list.map((r) => r.offer?.audience)).toEqual(['member', 'member', 'member', 'member', 'member']);
     expect(list[0]).toMatchObject({ property: { name: 'YOTEL Porto' }, offer: { totalMinor: 11068 } });
@@ -336,19 +338,16 @@ describe('the full list: "Show all N hotels" (lib/fullList.ts)', () => {
     expect(searches).toHaveLength(1);
   });
 
-  it("an anonymous visitor's full list holds no member price, and member rows never reach the public view", async () => {
+  it("an anonymous visitor's full list is every hotel at its public price, and member rows never reach the public view", async () => {
     const ids = await porto('anonymous');
     await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
-    // 18 of 20 fit; the two below the public price are on no list at all.
-    expect(await countFullList(ids.sessionId, ids.stayId, 'public')).toBe(13);
+    // 20 of 20 fit: the top 5 and 15 more.
+    expect(await countFullList(ids.sessionId, ids.stayId, 'public')).toBe(15);
     const rest = await full(ids, 'public');
-    expect(rest).toHaveLength(13);
-    const memberOnly = await rawQuery<{ property_id: string }>('select property_id from offers where session_id = $1 and total_minor < suggested_selling_minor', [ids.sessionId]);
-    expect(memberOnly).toHaveLength(2);
+    expect(rest).toHaveLength(15);
     for (const row of rest) {
       expect(row.offer?.audience).toBe('public');
-      if (row.offer?.suggestedSellingMinor != null) expect(row.offer.totalMinor).toBeGreaterThanOrEqual(row.offer.suggestedSellingMinor);
-      expect(memberOnly.map((m) => m.property_id)).not.toContain(row.property.id);
+      expect(row.offer!.totalMinor).toBeGreaterThanOrEqual(row.offer!.suggestedSellingMinor!);
     }
 
     // Signed in: member prices are fetched and ranked. Were the visitor's view

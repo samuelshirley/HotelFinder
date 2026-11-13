@@ -142,6 +142,7 @@ export const en = {
     price_stale: 'That price check is more than 20 minutes old. Check the price again before paying.',
     price_changed: 'The price changed. Check the new price, then pay.',
     booking_not_found: 'That booking is not on this account.',
+    reprice_needed: 'This checkout was priced for someone else. Checking the price for you now.',
     booking_not_payable: 'This booking was already paid or has ended. Reload to see where it stands.',
     booking_failed: 'The hotel did not confirm the booking. No money was taken. Try again or pick another hotel.',
     booking_unknown: 'The hotel has not answered yet. Do not book again: reload this page in a minute to see the result.',
