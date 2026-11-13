@@ -21,7 +21,8 @@ export type SearchState = {
     checkOut: string;
     adults: number;
     childrenAges: number[];
-    rooms: number;
+    /** null = the user did not say: the finder prices the sensible room splits (lib/finder/rooms.ts). */
+    rooms: number | null;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
     excludedPropertyIds: string[];
@@ -96,7 +97,7 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
       return withStay({ mustHaves: stay.mustHaves.filter((m) => m !== action.mustHave) }, 'rerank');
 
     case 'set_guests': {
-      if (action.rooms > action.adults) return { ok: false, rejection: 'more_rooms_than_adults' };
+      if (action.rooms !== null && action.rooms > action.adults) return { ok: false, rejection: 'more_rooms_than_adults' };
       const next = { adults: action.adults, childrenAges: action.childrenAges, rooms: action.rooms };
       if (same(next, { adults: stay.adults, childrenAges: stay.childrenAges, rooms: stay.rooms })) {
         return { ok: false, rejection: 'no_change' };

@@ -43,7 +43,7 @@ const readings = (intent: Intent, over: Partial<Readings> = {}): Readings => ({
   searchField: sure('none'),
   ...over,
 });
-const route = (message: string, r: Readings) => routeMessage({ message, readings: r, state, currency: 'EUR', shortlist });
+const route = (message: string, r: Readings, s: SearchState = state) => routeMessage({ message, readings: r, state: s, currency: 'EUR', shortlist });
 
 describe('settled messages become typed actions', () => {
   it('a price cap, per night, in minor units', () => {
@@ -111,6 +111,12 @@ describe('settled messages become typed actions', () => {
       actions: [{ type: 'set_guests', adults: 4, childrenAges: [], rooms: 1 }],
     });
     expect(route('3 adults, 2 rooms', readings('guests'))).toMatchObject({ actions: [{ type: 'set_guests', adults: 3, rooms: 2 }] });
+  });
+
+  it('rooms nobody fixed stay ours to choose until the message names a number', () => {
+    const open = { ...state, stay: { ...state.stay, rooms: null } };
+    expect(route('there are four of us', readings('guests'), open)).toMatchObject({ actions: [{ type: 'set_guests', adults: 4, rooms: null }] });
+    expect(route('4 adults, 2 rooms', readings('guests'), open)).toMatchObject({ actions: [{ type: 'set_guests', adults: 4, rooms: 2 }] });
   });
 
   it('a night more moves the check-out', () => {

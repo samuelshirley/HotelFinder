@@ -46,7 +46,7 @@ export type AnswerContext = {
     checkOut: string;
     adults: number;
     childrenAges: number[];
-    rooms: number;
+    rooms: number | null;
     priceCapMinor: number | null;
     mustHaves: MustHave[];
     /** null = not asked; [] = no preference. */

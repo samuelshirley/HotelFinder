@@ -156,6 +156,12 @@ export type RateCheck = {
   cancellation: CancellationPolicy | null;
   cancellationChanged: boolean;
   boardChanged: boolean;
+  /**
+   * The rooms the supplier holds for this prebook, in occupancy order, and who
+   * each is for. Empty when the response did not say. Checkout compares them
+   * with the offer the user picked before anyone pays.
+   */
+  rooms: OfferRoom[];
   checkedAt: Date;
 };
 

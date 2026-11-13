@@ -90,10 +90,16 @@ export function formatDates(checkIn: string, checkOut: string): string {
   return `${fmt(checkIn, !sameMonth)}–${fmt(checkOut, true)}, ${nights} night${nights === 1 ? '' : 's'}`;
 }
 
-export function formatGuests(adults: number, childrenAges: number[], rooms: number): string {
+/** A rooms stepper's value: "Best price" until the user picks a number (lib/finder/rooms.ts). */
+export function roomsShown(rooms: number | null): string {
+  return rooms === null ? 'Best price' : String(rooms);
+}
+
+/** `rooms` null: nobody fixed the rooms, and each hotel's card says which it priced. */
+export function formatGuests(adults: number, childrenAges: number[], rooms: number | null): string {
   const parts = [`${adults} adult${adults === 1 ? '' : 's'}`];
   if (childrenAges.length > 0) parts.push(`${childrenAges.length} child${childrenAges.length === 1 ? '' : 'ren'} (${childrenAges.join(', ')})`);
-  if (rooms > 1) parts.push(`${rooms} rooms`);
+  if (rooms !== null && rooms > 1) parts.push(`${rooms} rooms`);
   return parts.join(', ');
 }
 

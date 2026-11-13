@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { roomsOf } from '@/lib/finder/rooms';
 import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
@@ -98,7 +99,10 @@ export async function buildSessionView(session: SearchSession) {
         payAtPropertyMinor: offer.payAtPropertyMinor,
         suggestedSellingMinor: offer.suggestedSellingMinor,
         audience: offer.audience,
+        /** What the price is for: one room's name, or "2 rooms: Double + Twin". */
         roomName: offer.roomName,
+        /** How many rooms the price is for. */
+        rooms: roomsOf(offer.rooms)?.length ?? 1,
         boardName: offer.boardName,
         refundable: offer.refundableTag === 'RFN',
         freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,

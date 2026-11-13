@@ -19,9 +19,10 @@ export const GET = handled(async (_req: Request, ctx: { params: { id: string; pr
   if (limited) return limited;
   const stay = (await listStays(session.id))[0];
   const listed = stay ? await listShortlist(session.id, stay.id, audienceFor(session)) : [];
-  if (!stay || !listed.some((r) => r.property.id === ctx.params.propertyId)) return errorResponse('property_not_found', 404);
+  const row = listed.find((r) => r.property.id === ctx.params.propertyId);
+  if (!stay || !row) return errorResponse('property_not_found', 404);
 
-  const r = await hotelRates({ session, stay, propertyId: ctx.params.propertyId, supplier: getSupplier({ sessionId: session.id, userId: session.userId }), now: new Date() });
+  const r = await hotelRates({ session, stay, propertyId: ctx.params.propertyId, shownRooms: row.offer?.rooms, supplier: getSupplier({ sessionId: session.id, userId: session.userId }), now: new Date() });
   if (!r.ok) return errorResponse(r.error === 'property_not_found' ? 'property_not_found' : 'supplier_unavailable', r.error === 'property_not_found' ? 404 : 503);
   return NextResponse.json({
     rates: r.offers.map((o) => ({

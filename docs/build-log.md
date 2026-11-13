@@ -20,6 +20,7 @@ pick up from the first unfinished step.
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |
+| 13 | Room splits ("best price" rooms): each split priced, cheapest combination per hotel, shown on the card, booked exactly (`docs/finder.md` "Room splits", `docs/supplier.md` §8) | built 2026-11-13; recorded fixtures; `e2e/rooms.spec.ts` passed on the live sandbox (signed in; stops at checkout); agent tool change not run live |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.

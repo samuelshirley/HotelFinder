@@ -44,7 +44,8 @@ export const briefSchema = z
       .object({
         adults: z.number().int().min(1).max(12),
         childrenAges: z.array(z.number().int().min(0).max(17)).max(8),
-        rooms: z.number().int().min(1).max(6),
+        /** null = not said: the finder prices the cheapest split of the party. */
+        rooms: z.number().int().min(1).max(6).nullable(),
         pets: z.boolean(),
       })
       .strict()
@@ -76,7 +77,7 @@ export function checkBrief(brief: Brief, today: string): BriefError | null {
     if (!(nights >= 1)) return 'checkout_not_after_checkin';
     if (nights > MAX_NIGHTS) return 'stay_too_long';
   }
-  if (brief.guests && brief.guests.rooms > brief.guests.adults) return 'more_rooms_than_adults';
+  if (brief.guests && brief.guests.rooms !== null && brief.guests.rooms > brief.guests.adults) return 'more_rooms_than_adults';
   return null;
 }
 
@@ -98,7 +99,7 @@ export function mergeBrief(brief: Brief, scanned: ScannedTrip, today: string): {
   }
   trip.guests = brief.guests
     ? { adults: brief.guests.adults, childrenAges: brief.guests.childrenAges, rooms: brief.guests.rooms }
-    : (scanned.guests ?? { adults: 2, childrenAges: [], rooms: 1 });
+    : (scanned.guests ?? { adults: 2, childrenAges: [], rooms: null });
   const musts = new Set([...(scanned.mustHaves ?? []), ...(brief.guests?.pets ? (['pets_allowed'] as const) : [])]);
   if (brief.guests && !brief.guests.pets) musts.delete('pets_allowed');
   if (musts.size) trip.mustHaves = [...musts];

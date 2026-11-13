@@ -8,6 +8,10 @@ import { runFinder, splitParty } from '@/server/finder';
 import { dispatchActions } from '@/server/dispatch';
 import { addStay, adoptAnonymousSessions, createSession, getSession, getStay, updateSession, updateStay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
+import { fixture } from '@/server/supplier/liteapi/fixtures';
+import { normalizeRates } from '@/server/supplier/liteapi/normalize';
+import { ratesResponse } from '@/server/supplier/liteapi/schemas';
+import type { SearchRequest } from '@/server/supplier/types';
 
 beforeEach(resetDb);
 
@@ -49,6 +53,7 @@ describe('the stay finder', () => {
       distanceLabel: null,
       widened: false,
       amenityFactsMissing: false,
+      splits: 1,
     });
     expect(searches).toHaveLength(1);
     expect(facts()).toBe(1);
@@ -271,6 +276,99 @@ describe('the stay finder', () => {
       { adults: 2, childrenAges: [4] },
       { adults: 2, childrenAges: [9] },
     ]);
+  });
+});
+
+describe('room splits: the rooms nobody fixed', () => {
+  // The recordings answer by the occupancies asked (recordedSupplier RECORDED_PARTIES).
+  const raw = (name: string) =>
+    normalizeRates(ratesResponse.parse(fixture(name)), 15, NOW).offers.map((o) => ({ hotel: o.supplierHotelId, allIn: o.total.amountMinor + o.payAtProperty.amountMinor, rooms: o.rooms.length }));
+
+  it('four adults: one room and two rooms are both priced, side by side, and each hotel is shown at its cheaper combination', async () => {
+    const ids = await porto();
+    await updateStay(ids.stayId, ids.sessionId, { adults: 4, childrenAges: [], rooms: null });
+    const { supplier, searches, facts } = recordedSupplier();
+    const outcome = await runFinder({ ...ids, supplier, now: NOW });
+
+    expect(outcome).toMatchObject({ kind: 'ok', fetched: true, shortlisted: 5, splits: 2 });
+    expect(searches.map((s) => s.occupancies)).toEqual([
+      [{ adults: 4, childrenAges: [] }],
+      [{ adults: 2, childrenAges: [] }, { adults: 2, childrenAges: [] }],
+    ]);
+    expect(facts()).toBe(1); // amenities once, for every hotel either split found
+    // The two-room search found all 20; the one-room search 6 of them.
+    expect(await rawQuery('select 1 from properties')).toHaveLength(20);
+
+    // The oracle, from the raw recordings: each hotel's lowest all-in price over both splits.
+    const all = [...raw('rates-four-adults-one-room'), ...raw('rates-four-adults-two-rooms')];
+    const best = (hotel: string) => Math.min(...all.filter((o) => o.hotel === hotel).map((o) => o.allIn));
+    const list = await listShortlist(ids.sessionId, ids.stayId, 'member');
+    expect(list).toHaveLength(5);
+    for (const row of list.filter((r) => r.entry.source === 'finder' && r.offer)) {
+      expect(row.offer!.totalMinor + row.offer!.payAtPropertyMinor).toBe(best(row.property.supplierHotelId));
+      const rooms = row.offer!.rooms!;
+      // The card says what the price is for, from the rooms the supplier priced.
+      expect(row.offer!.roomName).toEqual(rooms.length === 1 ? rooms[0].name : expect.stringMatching(/^2 rooms: /));
+    }
+    // "cheapest" is the priority: the cheapest hotel over both splits is first.
+    expect(list[0].offer!.totalMinor + list[0].offer!.payAtPropertyMinor).toBe(Math.min(...all.map((o) => o.allIn)));
+  });
+
+  it('rooms the user fixed: one search, for exactly those rooms', async () => {
+    const ids = await porto();
+    await updateStay(ids.stayId, ids.sessionId, { adults: 4, childrenAges: [], rooms: 1 });
+    const { supplier, searches } = recordedSupplier();
+    expect(await runFinder({ ...ids, supplier, now: NOW })).toMatchObject({ kind: 'ok', splits: 1 });
+    expect(searches.map((s) => s.occupancies)).toEqual([[{ adults: 4, childrenAges: [] }]]);
+    const list = await listShortlist(ids.sessionId, ids.stayId, 'member');
+    expect(list.filter((r) => r.offer).every((r) => r.offer!.rooms!.length === 1)).toBe(true);
+  });
+
+  it('a couple is one room and one search, as before', async () => {
+    const ids = await porto();
+    const { supplier, searches } = recordedSupplier();
+    await runFinder({ ...ids, supplier, now: NOW });
+    expect((await getStay(ids.stayId, ids.sessionId))!.rooms).toBeNull();
+    expect(searches.map((s) => s.occupancies)).toEqual([[{ adults: 2, childrenAges: [] }]]);
+  });
+
+  it('one split failing still ranks what the other found; all failing is the supplier error', async () => {
+    const ids = await porto();
+    await updateStay(ids.stayId, ids.sessionId, { adults: 4, childrenAges: [], rooms: null });
+    const recorded = recordedSupplier();
+    const oneRoomDown = { ...recorded.supplier, searchAvailability: async (r: SearchRequest) => (r.occupancies.length === 1 ? { ok: false as const, error: DOWN } : recorded.supplier.searchAvailability(r)) };
+    expect(await runFinder({ ...ids, supplier: oneRoomDown, now: NOW })).toMatchObject({ kind: 'ok', shortlisted: 5, splits: 2 });
+    const list = await listShortlist(ids.sessionId, ids.stayId, 'member');
+    expect(list.filter((r) => r.offer).every((r) => r.offer!.rooms!.length === 2)).toBe(true);
+
+    const down = recordedSupplier({ search: 'fail' });
+    expect(await runFinder({ ...ids, supplier: down.supplier, now: LATER(1), refresh: true })).toEqual({ kind: 'supplier_error', error: DOWN });
+    expect(down.searches).toHaveLength(2);
+  });
+
+  it('a family of four: one room and two (an adult and a child in each)', async () => {
+    const ids = await porto();
+    await updateStay(ids.stayId, ids.sessionId, { adults: 2, childrenAges: [4, 9], rooms: null });
+    const { supplier, searches } = recordedSupplier();
+    await runFinder({ ...ids, supplier, now: NOW });
+    expect(searches.map((s) => s.occupancies)).toEqual([
+      [{ adults: 2, childrenAges: [4, 9] }],
+      [{ adults: 1, childrenAges: [4] }, { adults: 1, childrenAges: [9] }],
+    ]);
+    const all = [...raw('rates-family-one-room'), ...raw('rates-family-two-rooms-split')];
+    for (const row of (await listShortlist(ids.sessionId, ids.stayId, 'member')).filter((r) => r.offer)) {
+      expect(row.offer!.totalMinor + row.offer!.payAtPropertyMinor).toBe(Math.min(...all.filter((o) => o.hotel === row.property.supplierHotelId).map((o) => o.allIn)));
+    }
+  });
+
+  it('a refinement re-ranks the held combinations with no supplier call', async () => {
+    const ids = await porto();
+    await updateStay(ids.stayId, ids.sessionId, { adults: 4, childrenAges: [], rooms: null });
+    const { supplier, searches } = recordedSupplier();
+    await runFinder({ ...ids, supplier, now: NOW });
+    await updateSession(ids.sessionId, { priorities: ['nicest'] });
+    expect(await runFinder({ ...ids, supplier, now: LATER(1) })).toMatchObject({ kind: 'ok', fetched: false, splits: 0 });
+    expect(searches).toHaveLength(2);
   });
 });
 

@@ -29,7 +29,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'hotel_details', description: "Read one on-screen hotel's own description, facilities and notes. Use it before answering any question about a hotel.", input_schema: obj({ position }) },
   { name: 'set_destination', description: 'Search a different place. The ref must come from resolve_place in this turn.', input_schema: obj({ place_ref: { type: 'string', description: 'A ref returned by resolve_place, e.g. P1.' } }) },
   { name: 'set_dates', description: 'Change the nights. Both dates, always.', input_schema: obj({ check_in: date, check_out: date }) },
-  { name: 'set_guests', description: 'Change who is travelling. All three values, always.', input_schema: obj({ adults: { type: 'integer', minimum: 1, maximum: 12 }, children_ages: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 17 }, maxItems: 8 }, rooms: { type: 'integer', minimum: 1, maximum: 6 } }) },
+  { name: 'set_guests', description: 'Change who is travelling. All three values, always. rooms: the number the user asked for, else the rooms in <search> if they are a number, else null (the app prices the cheapest split of the party).', input_schema: obj({ adults: { type: 'integer', minimum: 1, maximum: 12 }, children_ages: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 17 }, maxItems: 8 }, rooms: { type: ['integer', 'null'], minimum: 1, maximum: 6 } }) },
   { name: 'set_price_cap', description: 'Cap the price per night for the whole party, in the search currency. Use the number the user said: "under 120" is 120. null removes the cap.', input_schema: obj({ per_night: { type: ['number', 'null'], exclusiveMinimum: 0 } }) },
   { name: 'set_priorities', description: 'What "best" means, as the WHOLE set (it replaces the current one): cheapest (low price), nicest (great reviews), closest (close to the place in <search>). Several at once balance each other, e.g. ["cheapest","closest"]. [] = no preference.', input_schema: obj({ priorities: { type: 'array', items: { type: 'string', enum: [...PRIORITY_KEYS] }, uniqueItems: true, maxItems: PRIORITY_KEYS.length } }) },
   { name: 'set_near', description: 'Measure "close" from a place the user named (the old town, a venue, the airport) instead of the destination. The ref must come from resolve_place in this turn. Does not change what "best" means: add closest with set_priorities if they want to be close.', input_schema: obj({ place_ref: { type: 'string', description: 'A ref returned by resolve_place, e.g. P1.' } }) },
@@ -53,7 +53,7 @@ const INPUT = {
   hotel_details: z.object({ position: pos }).strict(),
   set_destination: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
   set_dates: z.object({ check_in: iso, check_out: iso }).strict(),
-  set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6) }).strict(),
+  set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6).nullable() }).strict(),
   set_price_cap: z.object({ per_night: z.number().positive().max(100_000).nullable() }).strict(),
   set_priorities: z.object({ priorities: z.array(z.enum(PRIORITY_KEYS)).max(PRIORITY_KEYS.length).refine((p) => new Set(p).size === p.length) }).strict(),
   set_near: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
@@ -142,7 +142,7 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       return { kind: 'actions', actions: [{ type: 'set_dates', checkIn: d.check_in, checkOut: d.check_out }] };
     }
     case 'set_guests': {
-      const g = parsed.data as { adults: number; children_ages: number[]; rooms: number };
+      const g = parsed.data as { adults: number; children_ages: number[]; rooms: number | null };
       return { kind: 'actions', actions: [{ type: 'set_guests', adults: g.adults, childrenAges: g.children_ages, rooms: g.rooms }] };
     }
     case 'set_price_cap': {

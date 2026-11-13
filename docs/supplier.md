@@ -95,3 +95,29 @@ importing the adapter (alias and relative path).
 - No retry policy. The finder owns retries for search; book is never retried.
 - No cache. Static content and rate caching arrive with the finder (step 4).
 - `getSupplier` builds only LiteAPI. A second supplier adds a branch there.
+
+## 8. Several rooms (2026-11-13, `--add-room-splits`)
+
+- **One search prices one split.** `occupancies` is one entry per room; each
+  offer (`roomTypes[i]`) has one rate per room with its own `name`, adults and
+  children, and `offerRetailRate` is all rooms together. A different split is
+  a different search: the supplier does not compare splits for us.
+- **Different rooms in one offer, one booking.** The supplier itself combines
+  rooms: "Twin Room Classic + Double Room Classic", "Triple Room + Vincci Room"
+  (probed), "Vincci Room + Vincci Room Uso Individual" (recorded). That last
+  offer was prebooked (`prebook-mixed-rooms`: both rates, with name and party)
+  and booked with one guest per `occupancyNumber` as ONE booking, CONFIRMED,
+  price the offer's, then cancelled with a full refund (`book-mixed-rooms`,
+  `booking-get-mixed-rooms`, `booking-cancel-mixed-rooms`). One prebook takes
+  one `offerId`, so rooms from two different offers (or two searches) cannot
+  be put into one booking; the app never tries: a hotel's combination is
+  always one offer.
+- **The sandbox's booking echo is not the booking.** `bookedRooms` named the
+  rooms "Test rate 1/2" with 1 adult each for a 2 + 1 booking. Nothing reads
+  room names or parties from a booking; they come from the prebook.
+- **Prebook says which rooms it holds**, so `RateCheck.rooms` carries them
+  (empty unless every rate says its name and party) and checkout compares.
+- Recorded at the 15% public margin, hotel ids of `rates-city-porto`:
+  `rates-four-adults-one-room` (6 hotels), `rates-four-adults-two-rooms` (20),
+  `rates-family-one-room` (9), `rates-family-two-rooms-split` (20), and
+  `rates-mixed-rooms` (2 + 1 adults, 5 rates a hotel: the offer booked).

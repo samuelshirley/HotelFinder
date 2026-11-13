@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 vi.mock('@/server/db/client', async () => (await import('./harness')).clientModule());
 
-import { rawQuery, resetDb } from './harness';
+import { rawQuery, resetDb, seedUser } from './harness';
+import { listShortlist } from '@/server/repos/shortlist';
 import { RECORDED_AT, recordedSupplier } from './recordedSupplier';
 import { startCheckout } from '@/server/checkout';
 import { hotelRates } from '@/server/hotelRates';
@@ -33,6 +34,41 @@ async function searched() {
   const current = (await getSession(session.id))!;
   return { recorded, session: current, stay: (await listStays(current.id))[0], view: await buildSessionView(current) };
 }
+
+describe("a hotel's rooms and rates when nobody fixed the rooms", () => {
+  it('are for the rooms on its card (one search, not one per split), and rates held for another split are not reused', async () => {
+    const recorded = recordedSupplier();
+    const session = await createSession({ userId: (await seedUser()).id });
+    await askQuestion(session.id, 'destination');
+    const answers: FormAnswer[] = [ANSWERS[0], ANSWERS[1], { field: 'guests', adults: 4, childrenAges: [], rooms: null, pets: false }, ANSWERS[3]];
+    let guestsAnswered = false;
+    for (const answer of answers) {
+      await answerForm({ sessionId: session.id, answer, guestsAnswered, supplier: recorded.supplier, now: RECORDED_AT, today: '2026-11-11' });
+      if (answer.field === 'guests') guestsAnswered = true;
+    }
+    const current = (await getSession(session.id))!;
+    const stay = (await listStays(current.id))[0];
+    expect(stay.rooms).toBeNull();
+    const listed = await listShortlist(current.id, stay.id, 'member');
+    const twoRooms = listed.find((r) => r.offer?.rooms?.length === 2)!;
+    const searchesBefore = recorded.searches.length;
+
+    const r = await hotelRates({ session: current, stay, propertyId: twoRooms.property.id, shownRooms: twoRooms.offer!.rooms, supplier: recorded.supplier, now: RECORDED_AT });
+    if (!r.ok) throw new Error(r.error);
+    expect(recorded.searches).toHaveLength(searchesBefore + 1);
+    expect(recorded.searches.at(-1)!.occupancies).toEqual([
+      { adults: 2, childrenAges: [] },
+      { adults: 2, childrenAges: [] },
+    ]);
+    expect(r.offers.length).toBeGreaterThan(0);
+    expect(r.offers.every((o) => o.rooms?.length === 2 && /^2 rooms: /.test(o.roomName ?? ''))).toBe(true);
+
+    // The same hotel asked about as one room for four: those two-room rates are not its rates.
+    const oneRoom = await hotelRates({ session: current, stay, propertyId: twoRooms.property.id, shownRooms: [{ name: 'Family Room', boardName: null, adults: 4, childrenAges: [] }], supplier: recorded.supplier, now: RECORDED_AT });
+    expect(oneRoom).toMatchObject({ ok: true, fetched: true });
+    expect(recorded.searches.at(-1)!.occupancies).toEqual([{ adults: 4, childrenAges: [] }]);
+  });
+});
 
 describe("a hotel's rooms and rates", () => {
   it('fetched for that hotel only, once while live, and never ranked: opening a hotel does not change the shortlist', async () => {
