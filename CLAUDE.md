@@ -145,7 +145,7 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 ### Scripts (`scripts/`)
 
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
-agent-live.sh (14 real cases against Anthropic; prints the cost),
+agent-live.sh (20 real cases against Anthropic, 6 in Spanish; prints the cost),
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
 Neon URL kept in .env.neon so dev stays on embedded Postgres)
 

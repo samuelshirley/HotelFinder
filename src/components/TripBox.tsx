@@ -65,9 +65,10 @@ export function TripBox({ busy, onSubmit }: Props) {
   const [lookup, setLookup] = useState<'idle' | 'failed'>('idle');
   const focused = useRef(false);
   const [example, setExample] = useState<Example | null>(null);
+  // Again on a new language: the server writes the example's words (the response varies on the cookie).
   useEffect(() => {
     loadExample().then(setExample).catch(() => setExample(null));
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;

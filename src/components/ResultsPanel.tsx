@@ -441,7 +441,7 @@ function Card({
             <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
           </h3>
           <p className={styles.muted}>
-            {property.rating !== null && <>{property.rating} </>}
+            {property.rating !== null && <>{property.rating.toLocaleString(INTL[locale].number)} </>}
             {property.reviewCount !== null && <>{t.ui.reviewsCount(property.reviewCount.toLocaleString(INTL[locale].number))} </>}
             {property.stars ? <>· {property.stars}★ </> : null}
             {typeof reason?.distance_km === 'number' && <>· {formatKm(reason.distance_km, locale)}</>}
