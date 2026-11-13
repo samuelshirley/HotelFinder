@@ -241,6 +241,31 @@ describe('places and static content', () => {
   });
 });
 
+describe('the language for place names and hotel text', () => {
+  const inSpanish = (fetchImpl: FetchLike) => createLiteApiAdapter({ apiKey: KEY, fetchImpl, now: () => NOW, language: 'es' });
+
+  it('asks for places, a place and a hotel in it (measured on the sandbox: "Londres", Spanish descriptions)', async () => {
+    const places = replay('places-porto-ribeira');
+    await inSpanish(places.fetchImpl).searchPlaces('Oporto');
+    expect(places.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/places?textQuery=Oporto&language=es');
+    const place = replay('place-annecy');
+    await inSpanish(place.fetchImpl).getPlace('abc');
+    expect(place.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/places/abc?language=es');
+    const hotel = replay('hotel-details');
+    await inSpanish(hotel.fetchImpl).getStaticContent('lp76a2a');
+    expect(hotel.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp76a2a&language=es');
+  });
+
+  it('never on rates or facts, and English is the supplier default: no parameter', async () => {
+    const search = replay('rates-city-porto');
+    await inSpanish(search.fetchImpl).searchAvailability(PORTO);
+    expect(search.calls[0].url).not.toContain('language');
+    const english = replay('hotel-details');
+    await createLiteApiAdapter({ apiKey: KEY, fetchImpl: english.fetchImpl, now: () => NOW, language: 'en' }).getStaticContent('lp76a2a');
+    expect(english.calls[0].url).toBe('https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp76a2a');
+  });
+});
+
 describe('recheckRate, book, getBooking, cancel', () => {
   it('prebooks with the payment SDK and returns the price to compare', async () => {
     const { fetchImpl, calls } = replay('prebook-payment-sdk');

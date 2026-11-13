@@ -49,7 +49,7 @@ export type Readings = {
  * question for this read 0.33-0.76 on messages that said nothing of the sort.
  */
 export function addsToCurrent(message: string): boolean {
-  return /\b(also|too|as well|and also|plus)\b/i.test(message);
+  return /\b(also|too|as well|and also|plus)\b/i.test(message) || /(?<![\p{L}])(tambi[eé]n|adem[aá]s)(?![\p{L}])/iu.test(message);
 }
 
 /** A noul read decisively, or null when Jev is unsure either way. */

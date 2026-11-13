@@ -1,50 +1,69 @@
+import { END, numberGroup, ORDINAL_WORDS, START, toNumber } from './lexicon';
+
 /**
  * Values are extracted by CODE, never by Jev (it only picks among labels) and
  * never by guessing. Every function returns null when the message does not
  * say the thing unambiguously, and the router then defers to the agent.
- * English only in v1.
+ *
+ * English and Spanish (docs/i18n.md). A message is read in both: the UI
+ * language does not say which one was typed. Each language has its own
+ * patterns, from its own words (lexicon.ts), so one never changes the other.
  */
 
-const WORDS: Record<string, number> = {
-  a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
-  couple: 2,
-};
-const NUM = String.raw`(\d{1,2}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)`;
-const toInt = (s: string): number => (/^\d+$/.test(s) ? Number(s) : (WORDS[s.toLowerCase()] ?? Number.NaN));
+const NUM = numberGroup('en');
+const toInt = (s: string): number => toNumber('en', s);
+const NUM_ES = numberGroup('es');
+const toIntEs = (s: string): number => toNumber('es', s);
+
+/** A Spanish pattern: whole words, accents and "ñ" counted as letters. */
+const es = (source: string) => new RegExp(source, 'iu');
 
 const CURRENCY: Array<[RegExp, string]> = [
   [/€|\beur(os?)?\b/i, 'EUR'],
-  [/\$|\busd\b|\bdollars?\b/i, 'USD'],
-  [/£|\bgbp\b|\bpounds?\b/i, 'GBP'],
+  [/\$|\busd\b|\bdollars?\b|\bd[oó]lar(es)?\b/i, 'USD'],
+  [/£|\bgbp\b|\bpounds?\b|\blibras?\b/i, 'GBP'],
 ];
 
 export type PriceCapSlot =
   | { kind: 'cap'; amount: number; per: 'night' | 'stay'; currency: string | null }
   | { kind: 'remove' };
 
-/** "under 120 a night", "max €90", "no more than 300 total". Exactly one amount, or null. */
+const REMOVE_CAP_ES = es(
+  String.raw`${START}(sin|ning[uú]n)\s+(l[ií]mite|tope|m[aá]ximo|presupuesto)${END}|${START}(quita|quitar|elimina|eliminar|borra|borrar)\s+(el\s+)?(l[ií]mite|tope|m[aá]ximo|presupuesto)${END}|${START}(me\s+)?da\s+igual\s+(el\s+)?precio${END}|${START}el\s+precio\s+(me\s+)?da\s+igual${END}|${START}el\s+precio\s+no\s+importa${END}`,
+);
+const CAP_WORDS_ES = es(
+  String.raw`${START}(menos\s+de|por\s+debajo\s+de|m[aá]ximo|como\s+mucho|hasta|no\s+m[aá]s\s+de|tope|presupuesto|m[aá]s\s+barato\s+que|que\s+no\s+pase\s+de|que\s+no\s+supere|l[ií]mite)${END}`,
+);
+const PER_STAY_ES = es(String.raw`${START}(en\s+total|por\s+todo|por\s+toda\s+la\s+estancia|por\s+la\s+estancia|por\s+el\s+viaje|todo\s+junto)${END}`);
+const PER_NIGHT_ES = es(String.raw`${START}(por|la|cada|a\s+la)\s+noche${END}|\/\s*noche|${START}por\s+noche${END}`);
+
+/** "under 120 a night", "max €90", "no more than 300 total"; "menos de 120 por noche", "máximo 90 €". Exactly one amount, or null. */
 export function extractPriceCap(message: string): PriceCapSlot | null {
-  if (/\b(no|any|without a?)\s*(budget|price limit|price cap|limit)\b|\bprice (doesn'?t|does not) matter\b|\bremove the (price )?(cap|limit|budget)\b/i.test(message)) {
+  if (
+    /\b(no|any|without a?)\s*(budget|price limit|price cap|limit)\b|\bprice (doesn'?t|does not) matter\b|\bremove the (price )?(cap|limit|budget)\b/i.test(message) ||
+    REMOVE_CAP_ES.test(message)
+  ) {
     return { kind: 'remove' };
   }
   // A bare number that is not part of a date (12/12, 2026-12-11) or a longer number.
   const amounts = [...message.matchAll(/(?<![\d.,/-])(\d{2,5})(?:[.,]\d{1,2})?(?!\d|[/-]\d)/g)];
   if (amounts.length !== 1) return null;
-  if (!/\b(under|below|less than|max|maximum|up to|at most|no more than|cap|capped|budget|cheaper than|within)\b/i.test(message)) return null;
+  if (!/\b(under|below|less than|max|maximum|up to|at most|no more than|cap|capped|budget|cheaper than|within)\b/i.test(message) && !CAP_WORDS_ES.test(message)) return null;
   const amount = Number(amounts[0][1]);
   const currencies = CURRENCY.filter(([re]) => re.test(message)).map(([, code]) => code);
   if (currencies.length > 1) return null;
-  const perStay = /\b(total|in all|altogether|for the (whole )?(stay|trip)|all in)\b/i.test(message);
-  const perNight = /\b(a|per|each|every)\s*night\b|\/\s*night|\bnightly\b|\bpn\b/i.test(message);
+  const perStay = /\b(total|in all|altogether|for the (whole )?(stay|trip)|all in)\b/i.test(message) || PER_STAY_ES.test(message);
+  const perNight = /\b(a|per|each|every)\s*night\b|\/\s*night|\bnightly\b|\bpn\b/i.test(message) || PER_NIGHT_ES.test(message);
   if (perStay && perNight) return null;
   return { kind: 'cap', amount, per: perStay ? 'stay' : 'night', currency: currencies[0] ?? null };
 }
 
-const ORDINALS: Record<string, number> = {
-  first: 1, '1st': 1, top: 1, second: 2, '2nd': 2, third: 3, '3rd': 3, fourth: 4, '4th': 4, fifth: 5, '5th': 5,
-};
+const ORDINALS = ORDINAL_WORDS.en;
 
-/** Which shortlisted row the user means: "the second one", "#3", "option 2", "the last one", or a hotel name. */
+/**
+ * Which shortlisted row the user means: "the second one", "#3", "option 2", "the last one",
+ * "el segundo", "la opción 3", "el último", or a hotel name.
+ */
 export function extractTarget(message: string, shortlistNames: string[]): number | null {
   if (shortlistNames.length === 0) return null;
   const found = new Set<number>();
@@ -54,6 +73,14 @@ export function extractTarget(message: string, shortlistNames: string[]): number
   for (const m of message.matchAll(/(?:#|\bno\.?\s*|\bnumber\s+|\boption\s+)(\d)\b/gi)) found.add(Number(m[1]));
   for (const m of message.matchAll(/\b(?:number|option)\s+(one|two|three|four|five)\b/gi)) found.add(toInt(m[1]));
   if (/\b(last|bottom) (one|option|hotel)\b/i.test(message)) found.add(shortlistNames.length);
+
+  // Spanish: "el segundo", "la 3ª", "la opción 2", "el número tres", "el último".
+  for (const [word, n] of Object.entries(ORDINAL_WORDS.es)) {
+    if (es(String.raw`${START}${word}${END}`).test(message)) found.add(n);
+  }
+  for (const m of message.matchAll(new RegExp(String.raw`${START}(?:n[uú]mero|n[º°]|opci[oó]n)\s*(\d)${END}`, 'giu'))) found.add(Number(m[1]));
+  for (const m of message.matchAll(new RegExp(String.raw`${START}(?:n[uú]mero|opci[oó]n)\s+(uno|una|dos|tres|cuatro|cinco)${END}`, 'giu'))) found.add(toIntEs(m[1]));
+  if (es(String.raw`${START}([uú]ltim[oa]|el\s+de\s+abajo|la\s+de\s+abajo)${END}`).test(message)) found.add(shortlistNames.length);
 
   // A hotel named in the message: a word that belongs to exactly one shortlisted
   // name ("the Carris", "the palacio"). Two hotels named is ambiguous.
@@ -81,34 +108,52 @@ function distinctiveWords(name: string, all: string[]): string[] {
 export type GuestsSlot = { adults: number; childrenAges: number[]; rooms: number | null };
 
 /**
- * "2 adults and 2 kids aged 4 and 9", "four of us", "just me", "3 rooms".
+ * "2 adults and 2 kids aged 4 and 9", "four of us", "just me", "3 rooms";
+ * "dos adultos y un niño de 5", "somos cuatro", "solo yo", "2 habitaciones".
  * Children without an age for each are not guessed: null.
  */
 export function extractGuests(message: string): GuestsSlot | null {
   const text = message.toLowerCase();
   let adults: number | null = null;
   const a = new RegExp(String.raw`\b${NUM}\s+adults?\b`, 'i').exec(text);
+  const aEs = es(String.raw`${START}${NUM_ES}\s+adult[oa]s?${END}`).exec(text);
+  // "solo" is English for alone and Spanish for "only" ("solo somos dos"): a count said in Spanish wins over it.
+  const usEs = es(String.raw`${START}(?:${NUM_ES}\s+(?:personas|hu[eé]spedes|amig[oa]s)|somos\s+${NUM_ES}|para\s+${NUM_ES}\s+personas)${END}`).exec(text);
   if (a) adults = toInt(a[1]);
+  else if (aEs) adults = toIntEs(aEs[1]);
+  else if (usEs) adults = toIntEs(usEs[1] ?? usEs[2] ?? usEs[3]);
   else if (/\b(just me|only me|on my own|by myself|solo|alone|travell?ing alone)\b/.test(text)) adults = 1;
+  else if (es(String.raw`${START}(s[oó]lo\s+yo|yo\s+s[oó]l[oa]|viajo\s+s[oó]l[oa]|voy\s+s[oó]l[oa]|para\s+m[ií]\s+s[oó]l[oa])${END}`).test(text)) adults = 1;
   else {
     const us = new RegExp(String.raw`\b${NUM}\s+(of us|people|persons|guests|friends)\b`, 'i').exec(text);
     if (us) adults = toInt(us[1]);
     else if (/\b(me and my (wife|husband|partner|girlfriend|boyfriend|friend)|a couple|two of us|both of us)\b/.test(text)) adults = 2;
+    else if (es(String.raw`${START}(mi\s+(mujer|marido|esposa|esposo|pareja|novia|novio|amig[oa])\s+y\s+yo|yo\s+y\s+mi\s+(mujer|marido|esposa|esposo|pareja|novia|novio|amig[oa])|una\s+pareja|nosotros\s+dos|nosotras\s+dos)${END}`).test(text)) adults = 2;
   }
 
   let childrenAges: number[] = [];
   const kids = new RegExp(String.raw`\b${NUM}\s+(kids?|children|child)\b`, 'i').exec(text);
-  const noKids = /\b(no|without) (kids|children)\b/.test(text);
+  const kidsEs = kids ? null : es(String.raw`${START}${NUM_ES}\s+(ni[ñn][oa]s?|hij[oa]s?|menores)${END}`).exec(text);
+  const noKids = /\b(no|without) (kids|children)\b/.test(text) || es(String.raw`${START}(sin|no\s+llevamos)\s+(ni[ñn]os|hijos|menores)${END}`).test(text);
   if (kids && !noKids) {
     const count = toInt(kids[1]);
     const ages = /\b(?:aged?|ages)\s+((?:\d{1,2}\s*(?:,|and|&)?\s*)+)/.exec(text);
     const list = ages ? [...ages[1].matchAll(/\d{1,2}/g)].map((m) => Number(m[0])) : [];
     if (list.length !== count || list.some((n) => n > 17)) return null;
     childrenAges = list;
+  } else if (kidsEs && !noKids) {
+    const count = toIntEs(kidsEs[1]);
+    // The ages follow the children: "un niño de 5", "dos niños de 4 y 9 años", "dos hijos, de 4 y 9".
+    const after = text.slice(kidsEs.index + kidsEs[0].length);
+    const ages = es(String.raw`^\s*,?\s*(?:de|con|que\s+tienen?|de\s+edades?|edades?(?:\s+de)?)\s+((?:\d{1,2}\s*(?:años)?\s*(?:,|y|e)?\s*)+)`).exec(after);
+    const list = ages ? [...ages[1].matchAll(/\d{1,2}/g)].map((m) => Number(m[0])) : [];
+    if (list.length !== count || list.some((n) => n > 17)) return null;
+    childrenAges = list;
   }
 
   const r = new RegExp(String.raw`\b${NUM}\s+rooms?\b`, 'i').exec(text);
-  const rooms = r ? toInt(r[1]) : null;
+  const rEs = r ? null : es(String.raw`${START}${NUM_ES}\s+habitaci[oó]n(es)?${END}`).exec(text);
+  const rooms = r ? toInt(r[1]) : rEs ? toIntEs(rEs[1]) : null;
 
   if (adults === null && rooms === null && childrenAges.length === 0 && !noKids) return null;
   if (adults === null) return null; // rooms or children alone do not say who is travelling
@@ -116,15 +161,22 @@ export function extractGuests(message: string): GuestsSlot | null {
   return { adults, childrenAges, rooms };
 }
 
-/** "one more night" → +1, "two nights less" → -2. Null when no shift is stated. */
+/** "one more night" → +1, "two nights less" → -2; "una noche más" → +1, "dos noches menos" → -2. Null when no shift is stated. */
 export function extractNightsShift(message: string): number | null {
   const text = message.toLowerCase();
   const more = new RegExp(String.raw`\b${NUM}\s+(?:more|extra|additional)\s+nights?\b|\b(?:add|extend(?: by)?|stay)\s+${NUM}\s+(?:more\s+)?nights?\s*(?:longer|more)?\b`, 'i').exec(text);
   const fewer = new RegExp(String.raw`\b${NUM}\s+(?:fewer|less)\s+nights?\b|\b${NUM}\s+nights?\s+(?:fewer|less|shorter)\b|\bcut\s+${NUM}\s+nights?\b`, 'i').exec(text);
-  if (more && fewer) return null;
-  const pick = (m: RegExpExecArray) => toInt(m.slice(1).find((g) => g !== undefined) as string);
-  if (more) return pick(more);
-  if (fewer) return -pick(fewer);
+  const moreEs = es(
+    String.raw`${START}${NUM_ES}\s+noches?\s+(?:m[aá]s|extra|adicionales?)${END}|${START}(?:a[ñn]ade|a[ñn]adir|alarga|alargar|ampl[ií]a|ampliar|extiende|extender|quedarnos|quedarme)\s+(?:la\s+estancia\s+)?${NUM_ES}\s+noches?(?:\s+m[aá]s)?${END}`,
+  ).exec(text);
+  const fewerEs = es(String.raw`${START}${NUM_ES}\s+noches?\s+menos${END}|${START}(?:quita|quitar|acorta|acortar|recorta|recortar)\s+(?:la\s+estancia\s+)?${NUM_ES}\s+noches?${END}`).exec(text);
+  const said = [more, fewer, moreEs, fewerEs].filter(Boolean).length;
+  if (said > 1) return null;
+  const pick = (m: RegExpExecArray, read: (s: string) => number) => read(m.slice(1).find((g) => g !== undefined) as string);
+  if (more) return pick(more, toInt);
+  if (fewer) return -pick(fewer, toInt);
+  if (moreEs) return pick(moreEs, toIntEs);
+  if (fewerEs) return -pick(fewerEs, toIntEs);
   return null;
 }
 
@@ -141,5 +193,8 @@ export function addDays(isoDate: string, days: number): string {
  * a value for an intent, never a way to choose one.
  */
 export function wantsMapHidden(message: string): boolean {
-  return /\b(hide|close|remove|collapse|fold|lose|get rid of|turn off|switch off|no|without|don'?t (?:need|want|show))\b/i.test(message);
+  return (
+    /\b(hide|close|remove|collapse|fold|lose|get rid of|turn off|switch off|no|without|don'?t (?:need|want|show))\b/i.test(message) ||
+    es(String.raw`${START}(oculta|ocultar|ocúltalo|esconde|esconder|quita|quitar|quítalo|cierra|cerrar|ciérralo|pliega|plegar|recoge|recoger|apaga|sin|fuera|no\s+(?:quiero|necesito|me\s+hace\s+falta))${END}`).test(message)
+  );
 }

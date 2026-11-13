@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { ERROR_COPY, errorCopy } from './errors';
+import { CATALOGUES, LOCALES } from './i18n';
 
 const SRC = path.resolve(import.meta.dirname, '..');
 const walk = (dir: string): string[] =>
@@ -38,6 +39,18 @@ describe('error copy', () => {
     for (const [code, copy] of Object.entries(ERROR_COPY)) {
       expect(copy.length, code).toBeGreaterThan(15);
       expect(copy, code).not.toMatch(/something went wrong|please try again later|oops/i);
+    }
+  });
+
+  it('every code has a sentence in every language, and none is empty or generic', () => {
+    for (const locale of LOCALES) {
+      const table = CATALOGUES[locale].errors as Record<string, string>;
+      expect(Object.keys(table).sort(), locale).toEqual(Object.keys(ERROR_COPY).sort());
+      for (const [code, copy] of Object.entries(table)) {
+        expect(copy.length, `${locale}.${code}`).toBeGreaterThan(15);
+        expect(copy, `${locale}.${code}`).not.toMatch(/something went wrong|please try again later|oops|algo (ha )?sali[oó] mal|int[eé]ntalo m[aá]s tarde|ups/i);
+        expect(errorCopy(code, locale)).toBe(copy);
+      }
     }
   });
 
