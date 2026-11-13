@@ -51,9 +51,15 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       searches.push(request);
       if (over.search === 'fail') return { ok: false, error: DOWN };
       if (over.search === 'empty') return { ok: true, value: { properties: [], offers: [] } };
-      // The recording that matches the margin asked for: net for members, +15% for the public.
+      // The recording that matches the currency and margin asked for: net for members, +15% for the public.
+      // Only EUR and member-margin USD are recorded; anything else is a test asking for a payload nobody captured.
+      if (request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct < 15 && !('radiusM' in request.where))) {
+        throw new Error(`no recording for ${request.currency} at a ${request.marginPct}% margin`);
+      }
       const name =
-        'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto';
+        request.currency === 'USD'
+          ? 'rates-city-porto-usd'
+          : 'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto';
       return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(name)), request.marginPct, RECORDED_AT) };
     },
     async getStaticFacts() {

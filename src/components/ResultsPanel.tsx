@@ -9,6 +9,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import { chainsChip, PROPERTY_TYPE_PLURAL, RATING_STEPS, ratingChip, STAR_STEPS, starsChip, typesChip, type FilterOptions, type PropertyType, type StayFilters } from '@/lib/filters';
+import { COMMON_CURRENCIES, CURRENCIES, isCurrencyCode } from '@/lib/currencies';
 import type { PriorityKey } from '@/lib/finder/rank';
 import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel } from '@/lib/replies';
 import type { EditAction } from './api';
@@ -16,6 +17,7 @@ import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import { CardSkeleton, Spinner } from './Spinner';
 import { HotelDetail } from './HotelDetail';
+import { Heart, type SaveLink } from './Heart';
 import type { SessionView } from '@/server/view';
 import type { FullList } from './useFullList';
 import styles from './App.module.css';
@@ -50,7 +52,7 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map, full }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map, full, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList; save: SaveLink }) {
   const { stay, session, shortlist } = view;
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
   // With the full list open, the map shows the top picks and the page on screen (docs/design/map.md).
@@ -140,6 +142,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
             </span>
           ))}
           {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
+          <CurrencyChip code={session.currency} capSet={stay.priceCapMinor !== null} busy={busy} onEdit={onEdit} />
         </div>
         <FilterChips filters={stay.filters} options={stay.filterOptions} busy={busy} onEdit={onEdit} />
         {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Sign in when you book, and your next searches show member prices.</p>}
@@ -191,6 +194,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
+              save={save}
             />
             </Fragment>
           ))}
@@ -213,6 +217,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
+              save={save}
               compact
             />
           )}
@@ -550,6 +555,33 @@ function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; 
   );
 }
 
+/**
+ * The currency prices are quoted in, a chip like the others. A change is a
+ * new search priced by the supplier; nothing on screen is converted. A price
+ * cap was set in the old currency, so it goes, and the editor says so first.
+ */
+function CurrencyChip({ code, capSet, busy, onEdit }: { code: string; capSet: boolean; busy: boolean; onEdit: OnEdit }) {
+  const [picked, setPicked] = useState(code);
+  useEffect(() => setPicked(code), [code]);
+  const common = new Set<string>(COMMON_CURRENCIES);
+  const option = (c: (typeof CURRENCIES)[number]) => (
+    <option key={c.code} value={c.code}>
+      {c.code} · {c.name}
+    </option>
+  );
+  return (
+    <Editable label={`Prices in ${code}`} name="currency" busy={busy} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
+      <select className={styles.editorInput} aria-label="Currency" value={picked} onChange={(e) => setPicked(e.target.value)}>
+        {COMMON_CURRENCIES.map((c) => option(CURRENCIES.find((x) => x.code === c)!))}
+        <option disabled>──────────</option>
+        {CURRENCIES.filter((c) => !common.has(c.code)).map(option)}
+      </select>
+      <span className={styles.muted}>The hotels are searched again and priced in this currency.</span>
+      {capSet && <span className={styles.muted}>Changing it removes the price cap, which is in {code}.</span>}
+    </Editable>
+  );
+}
+
 function cancellationLine(offer: NonNullable<Row['offer']>): string {
   if (!offer.refundable) return 'Non-refundable';
   if (!offer.freeCancellationUntil) return 'Refundable; see the hotel for the deadline';
@@ -570,6 +602,7 @@ function Card({
   marked,
   onHover,
   compact = false,
+  save,
 }: {
   view: SessionView;
   row: Row;
@@ -585,6 +618,7 @@ function Card({
   onHover: (id: string, on: boolean) => void;
   /** A row of the full list: no photo and no reason line, the facts and the price only. */
   compact?: boolean;
+  save: SaveLink;
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
@@ -616,9 +650,12 @@ function Card({
           <div className={styles.photo} aria-hidden />
         )}
         <div className={styles.cardBody}>
-          <h3>
-            <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
-          </h3>
+          <div className={styles.cardTitle}>
+            <h3>
+              <span className={styles.rank}>{row.source === 'finder' ? row.rank : '•'}</span> {property.name}
+            </h3>
+            <Heart propertyId={property.id} name={property.name} link={save} />
+          </div>
           <p className={styles.muted}>
             {property.rating !== null && <>{property.rating} </>}
             {property.reviewCount !== null && <>({property.reviewCount.toLocaleString('en')} reviews) </>}
@@ -668,7 +705,7 @@ function Card({
       </div>
       {open && (
         <div className={styles.expandArea}>
-          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} />
+          <HotelDetail view={view} row={row} mode="expand" booking={booking} onBook={onBook} onClose={onClose} save={save} />
         </div>
       )}
     </li>

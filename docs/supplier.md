@@ -105,6 +105,15 @@ in the sandbox; the claim rule above does not depend on it.
 string, for 0-, 2- and 3-decimal currencies. `Math.round(1.005 * 100)` is 100;
 `toMoney(1.005, 'EUR')` is 101, and a test pins both.
 
+## Currency
+
+The session's currency is sent with every rate search, and the supplier
+prices in it: recorded in USD, every total, fee and penalty came back in
+USD. We never convert. An unknown code is not refused; it comes back as
+"no availability" (`rates-currency-unknown.json`), so only the codes in the
+recorded `/data/currencies` list are ever sent (`lib/currencies.ts`). The
+picker: `docs/saved.md`.
+
 ## Fixtures
 
 `node scripts/capture-liteapi-fixtures.mjs` records 18 sandbox responses and a

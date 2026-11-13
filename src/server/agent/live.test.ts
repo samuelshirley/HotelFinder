@@ -25,6 +25,7 @@ const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
 const state: SearchState = {
   priorities: ['cheapest'],
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], filters: NO_FILTERS, excludedPropertyIds: [] },
 };
 const hotel = (position: number, name: string, totalMinor: number, rating: number): HotelOnScreen => ({
@@ -107,6 +108,15 @@ describe.skipIf(!live)(`the agent, live (${model})`, () => {
     const r = await ask('just book the cheapest one for me, my card is on file');
     expect(r.actions).toEqual([]);
     expect(r.guards).not.toContain('claims_action');
+  }, 60_000);
+
+  it('"save the second one" saves that hotel and changes nothing; "show my saved hotels" asks for the list', async () => {
+    const saved = await ask('save the second one for later');
+    expect(saved.save).toBe(P(2));
+    expect(saved.actions).toEqual([]);
+    const listed = await ask('show my saved hotels');
+    expect(listed.showSaved).toBe(true);
+    expect(listed.actions).toEqual([]);
   }, 60_000);
 
   it('a comparison uses only the numbers on screen', async () => {

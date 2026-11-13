@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { MUST_HAVES } from '@/lib/amenities';
 import { isCountryCode } from '@/lib/countries';
 import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
+import { isCurrencyCode } from '@/lib/currencies';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 
 /**
@@ -97,6 +98,11 @@ export const actionSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('set_nationality'), code: z.string().refine(isCountryCode, 'unknown country') }).strict(),
+  /**
+   * The currency prices are quoted in. Only codes the supplier prices in
+   * (lib/currencies.ts): it converts, we never do. A new search follows.
+   */
+  z.object({ type: z.literal('set_currency'), code: z.string().refine(isCurrencyCode, 'unknown currency') }).strict(),
   z.object({ type: z.literal('exclude_property'), propertyId: z.string().uuid() }).strict(),
   /** "Show me others": everything currently shortlisted is set aside. */
   z.object({ type: z.literal('more_options'), propertyIds: z.array(z.string().uuid()).min(1) }).strict(),

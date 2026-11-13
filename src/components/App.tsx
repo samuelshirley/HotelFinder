@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorCopy } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
-import { formatDates, formatGuests } from '@/lib/replies';
-import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, logEvent, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
+import { formatDates, formatGuests, formatMoney } from '@/lib/replies';
+import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSaved, loadSession, loadTrips, logEvent, sendTurn, setSaved, signOut, startBrief, startCheckout, type BookingSummary, type Me, type SavedHotel, type Trip } from './api';
+import { Heart, type SaveLink } from './Heart';
 import styles from './App.module.css';
 import { ChatPanel, Penny, PENNY_HELLO } from './ChatPanel';
 import { HotelDetail } from './HotelDetail';
@@ -71,6 +72,9 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  /** The heart: this visitor's saved hotels, and the one being saved or removed. */
+  const [saved, setSavedList] = useState<SavedHotel[]>([]);
+  const [savePending, setSavePending] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState(true);
   /** On a narrow window the sidebar is a drawer, closed until asked for. */
   const [drawer, setDrawer] = useState(false);
@@ -119,6 +123,17 @@ export function App() {
       // The list is a convenience; the search itself reports its own errors.
     }
   }, []);
+
+  const refreshSaved = useCallback(async () => {
+    try {
+      setSavedList((await loadSaved()).saved);
+    } catch {
+      // The list is a convenience; a heart pressed later answers with the whole list.
+    }
+  }, []);
+  useEffect(() => {
+    void refreshSaved();
+  }, [refreshSaved]);
 
   const clampPanel = useCallback(
     (w: number) => {
@@ -184,6 +199,32 @@ export function App() {
 
   const fail = (err: unknown) => setError(errorCopy(err instanceof ApiError ? err.code : 'server_error'));
 
+  const onSave = async (propertyId: string, on: boolean) => {
+    if (savePending) return;
+    const sessionId = viewRef.current?.session.id;
+    if (on && !sessionId) return;
+    setSavePending(propertyId);
+    setError(null);
+    try {
+      setSavedList((await setSaved(on ? { saved: true, propertyId, sessionId: sessionId! } : { saved: false, propertyId })).saved);
+    } catch (err) {
+      fail(err);
+    } finally {
+      setSavePending(null);
+    }
+  };
+  const savedIds = new Set(saved.map((h) => h.propertyId));
+  const saveLink: SaveLink = { saved: savedIds, pending: savePending, onSave: (id, on) => void onSave(id, on) };
+  /** "show my saved hotels": the list beside the trips comes into view. */
+  const showSaved = () => {
+    if (window.matchMedia('(max-width: 900px)').matches) setDrawer(true);
+    else {
+      setSidebar(true);
+      store(SIDEBAR_KEY, 'open');
+    }
+    requestAnimationFrame(() => document.getElementById('saved-hotels')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
+
   const start = useCallback(async (fresh: boolean) => {
     setBusy('boot');
     setError(null);
@@ -232,6 +273,12 @@ export function App() {
       setBusy(null);
     }
   };
+
+  // A new set of prices on screen may be a saved hotel's newest price found: the saved list is read again.
+  const pricesKey = view?.shortlist.map((r) => r.offer?.id ?? '').join('|') ?? '';
+  useEffect(() => {
+    if (pricesKey) void refreshSaved();
+  }, [pricesKey, refreshSaved]);
 
   // The list changes when a search gets its place or dates, or when another one is opened.
   const tripKey = view ? `${view.session.id}|${view.stay?.destination ?? ''}|${view.stay?.checkIn ?? ''}|${view.stay?.checkOut ?? ''}` : '';
@@ -351,7 +398,10 @@ export function App() {
       const next = await loadSession(id);
       setView(next);
       const last = [...next.messages].reverse().find((m) => m.role === 'assistant');
-      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide'; all?: 'show' } }).ui;
+      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide'; all?: 'show'; saved?: 'show' } }).ui;
+      // Penny saved a hotel or was asked for the saved ones: the list is read again and shown.
+      void refreshSaved();
+      if (ui?.saved === 'show') showSaved();
       if (ui?.open?.propertyId) openHotel(ui.open.propertyId);
       // "Show me all of them": the full list opens under the top picks and comes into view.
       if (ui?.all === 'show' && next.fullList.more > 0) {
@@ -411,6 +461,29 @@ export function App() {
                   <span className={styles.tripName}>{t.destination}</span>
                   <span className={styles.tripDates}>{formatDates(t.checkIn, t.checkOut)}</span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h2 className={styles.sideHeading} id="saved-hotels">
+          Saved hotels
+        </h2>
+        {saved.length === 0 ? (
+          <p className={styles.sideEmpty}>Press the heart on a hotel to keep it here.</p>
+        ) : (
+          <ul className={styles.trips} aria-label="Saved hotels">
+            {saved.map((h) => (
+              <li key={h.propertyId} className={styles.savedItem}>
+                <button
+                  className={styles.trip}
+                  disabled={!h.sessionId}
+                  title={h.sessionId ? 'Open the search it was saved from' : 'The search it was saved from is gone'}
+                  onClick={() => h.sessionId && void openTrip(h.sessionId)}
+                >
+                  <span className={styles.tripName}>{h.name}</span>
+                  <span className={styles.savedPrice}>{lastFoundLine(h.lastFound)}</span>
+                </button>
+                <Heart propertyId={h.propertyId} name={h.name} link={saveLink} />
               </li>
             ))}
           </ul>
@@ -524,6 +597,7 @@ export function App() {
                 booking={booking}
                 onEdit={onEdit}
                 busy={busy !== null}
+                save={saveLink}
                 map={{
                   open: mapOpen,
                   onToggle: () => showMap(!mapOpen),
@@ -547,11 +621,22 @@ export function App() {
       )}
       {view && openRow && variant === 'slideout' && (
         <SlideOut title={openRow.property.name} onClose={closeHotel}>
-          <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} />
+          <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} save={saveLink} />
         </SlideOut>
       )}
     </div>
   );
+}
+
+/**
+ * A saved hotel's last price found, said as exactly that: what one of the
+ * visitor's searches was quoted, for which nights, on which day. Never a
+ * current price; the hotel is priced again when its search is opened.
+ */
+export function lastFoundLine(found: SavedHotel['lastFound']): string {
+  if (!found) return 'No price found yet';
+  const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(found.fetchedAt));
+  return `Last price found: ${formatMoney(found.totalMinor, found.currency)} for ${formatDates(found.checkIn, found.checkOut)}, on ${day}`;
 }
 
 /**

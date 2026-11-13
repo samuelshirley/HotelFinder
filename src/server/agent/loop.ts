@@ -49,6 +49,10 @@ export type AgentResult = {
   hold: boolean;
   /** A request the app cannot serve yet, for the builders. The caller stores it. */
   idea: string | null;
+  /** A hotel to save (the heart). The caller saves it; the agent writes nothing. */
+  save: string | null;
+  /** The user asked to see their saved hotels. */
+  showSaved: boolean;
   /** The turn ran out of time before the model could be asked (again). Nothing queued may be applied. */
   outOfTime: boolean;
   /** The model's own reply, already guarded. '' when there is none to show. */
@@ -67,7 +71,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
   let grounding = first;
   let working = input.state;
 
-  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, all: false, hold: false, idea: null, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
+  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, all: false, hold: false, idea: null, save: null, showSaved: false, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
   let modelText = '';
   /** Why the reply whose text may be shown ended. */
   let stopReason: string | null = null;
@@ -161,6 +165,14 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
         case 'all':
           result.all = true;
           answer('opened the full list');
+          break;
+        case 'save':
+          result.save = parsed.propertyId;
+          answer('saved');
+          break;
+        case 'show_saved':
+          result.showSaved = true;
+          answer('listed');
           break;
         case 'actions': {
           const notes: string[] = [];

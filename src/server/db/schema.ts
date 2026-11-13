@@ -550,3 +550,29 @@ export const ideas = pgTable('ideas', {
   text: text('text').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
+
+/**
+ * Hotels a visitor saved (the heart). Owned like a search: by the account, or
+ * before sign-in by the signed anonymous cookie, and handed to the account at
+ * sign-in. No price is stored here: the last price found is read from the
+ * visitor's own offer rows, with the date it was fetched (docs/saved.md).
+ */
+export const savedHotels = pgTable(
+  'saved_hotels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Null while anonymous; set when the visitor signs in. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    /** The signed anonymous cookie id it was saved under. Kept after sign-in, like a search's. */
+    anonId: text('anon_id'),
+    propertyId: uuid('property_id').notNull().references(() => properties.id),
+    /** The search it was saved from, to open again. */
+    sessionId: uuid('session_id').references(() => searchSessions.id, { onDelete: 'set null' }),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    oncePerAccount: uniqueIndex('saved_hotels_user_property_idx').on(t.userId, t.propertyId).where(sql`${t.userId} is not null`),
+    oncePerVisitor: uniqueIndex('saved_hotels_anon_property_idx').on(t.anonId, t.propertyId).where(sql`${t.userId} is null`),
+    hasOwner: check('saved_hotels_has_owner', sql`${t.userId} is not null or ${t.anonId} is not null`),
+  }),
+);

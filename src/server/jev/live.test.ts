@@ -20,6 +20,7 @@ const live = process.env.LIVE_JEV === '1';
 const state: SearchState = {
   priorities: null,
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], filters: NO_FILTERS, excludedPropertyIds: [] },
 };
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;
@@ -86,6 +87,9 @@ const CASES: Array<[string, string]> = [
   ['show me all of them', 'ui:all'],
   ['can I see the full list of hotels?', 'ui:all'],
   ['list every hotel you found', 'ui:all'],
+  // Saved hotels (docs/saved.md): the agent's save_hotel and show_saved tools. Added 2026-11-13.
+  ['save the second one for later', 'defer'],
+  ['show my saved hotels', 'defer'],
   // Asking is not requiring, and requiring is not asking.
   ['it has to have parking', 'actions:add_must_have'],
   // Filters (docs/finder.md, "Filters"). Added 2026-11-13.

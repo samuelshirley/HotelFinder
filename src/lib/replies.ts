@@ -128,6 +128,8 @@ function actionLine(action: ResolvedAction, state: SearchState, currency: string
       return `Searching ${state.stay.destinationText}.`;
     case 'set_nationality':
       return '';
+    case 'set_currency':
+      return `Prices in ${action.code}.`;
     case 'exclude_property':
       return 'Set aside.';
     case 'more_options':
@@ -237,6 +239,8 @@ export const FIXED_LINES = {
   idea_noted: 'I cannot do that yet. I have passed it on to the people who build this.',
   map_shown: 'The map is showing.',
   map_hidden: 'The map is folded away. Say "show the map" to bring it back.',
+  saved_none: 'You have not saved any hotels yet. Press the heart on one to keep it.',
+  save_failed: 'That hotel is no longer in this search, so it was not saved.',
 } as const;
 
 /**
@@ -246,6 +250,19 @@ export const FIXED_LINES = {
 export function fullListLine(fits: number, more: number): string {
   if (more === 0) return fits === 1 ? 'That is the only hotel that fits; it is on screen.' : `All ${count(fits)} hotels that fit are already on screen.`;
   return `All ${count(fits + more)} hotels that fit are listed under the top picks, in the same order.`;
+}
+
+/** "save this one": said after the row is written, never before. */
+export function savedLine(name: string): string {
+  return `${name} is saved. Your saved hotels are listed beside your trips.`;
+}
+
+/** "show my saved hotels": names only. Prices are on the list itself, each marked as the last one found. */
+export function savedListLine(names: string[]): string {
+  if (names.length === 0) return FIXED_LINES.saved_none;
+  const shown = names.slice(0, 5);
+  const more = names.length - shown.length;
+  return `You have saved ${names.length === 1 ? 'one hotel' : `${names.length} hotels`}: ${listNames(shown)}${more > 0 ? ` and ${more} more` : ''}. They are listed beside your trips.`;
 }
 
 /* ------------------------------------------------------------------------

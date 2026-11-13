@@ -10,7 +10,7 @@ import type { DistanceFrom } from '@/lib/finder/rank';
 import { planSearch } from '@/lib/finder/searchPlan';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { answerLine, describeChange, filtersLine, FIXED_LINES, formatDates, fullListLine, nearLabel, REJECTION_LINE } from '@/lib/replies';
+import { answerLine, describeChange, filtersLine, FIXED_LINES, formatDates, fullListLine, nearLabel, REJECTION_LINE, savedLine, savedListLine } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
 import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
@@ -32,6 +32,8 @@ import { checkStage, isPlainNo, isPlainYes, makeStage, readStage } from '@/lib/s
 import { fingerprint } from '@/lib/store/reduce';
 import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS } from '@/lib/turnBudget';
 import { insertIdea } from '@/server/repos/ideas';
+import { listSaved } from '@/server/repos/saved';
+import { ownerOf, saveFromSearch } from '@/server/saved';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
@@ -500,6 +502,9 @@ async function agentTurn(args: {
   if (agent.outOfTime) return { text: FIXED_LINES.out_of_time, meta: { ...meta, timed_out: 'model', dropped_actions: agent.actions.length } };
   // Stored before anything else can fail: the request is the user's, whatever the turn then does.
   if (agent.idea) await insertIdea({ sessionId: session.id, userId: session.userId, text: agent.idea });
+  // "Save this one": through the same path as the heart. The line is said only after the row is written.
+  const saved = agent.save ? await saveFromSearch(session, agent.save) : null;
+  const savedText = saved ? (saved.ok ? savedLine(saved.name) : FIXED_LINES.save_failed) : null;
   // Held for a yes: staged on this turn's row, not applied. The question is the model's if it passed the guards, else the fixed one.
   if (agent.hold && agent.actions.length > 0) {
     return {
@@ -513,9 +518,10 @@ async function agentTurn(args: {
     const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
     const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
     return {
-      text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+      text: [describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder), savedText].filter(Boolean).join(' '),
       meta: {
         ...meta,
+        ...(saved ? { saved: saved.ok } : {}),
         actions,
         applied: dispatched.results.filter((r) => r.ok).length,
         rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
@@ -525,6 +531,7 @@ async function agentTurn(args: {
       },
     };
   }
+  if (savedText) return { text: savedText, meta: { ...meta, saved: saved!.ok, ...(saved!.ok ? { ui: { ...agentUi(agent), saved: 'show' } } : {}) } };
   if (agent.open) {
     const row = rows.find((r) => r.property.id === agent.open);
     return { text: `${row?.property.name ?? 'That hotel'} is open.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
@@ -532,6 +539,10 @@ async function agentTurn(args: {
   if (agent.focus) {
     const row = rows.find((r) => r.property.id === agent.focus);
     return { text: `${row?.property.name ?? 'That hotel'} is marked on the map.`, meta: { ...meta, ui: agentUi(agent) } };
+  }
+  if (agent.showSaved) {
+    const names = (await listSaved(ownerOf(session))).map((r) => r.property.name);
+    return { text: savedListLine(names), meta: { ...meta, saved_listed: names.length, ui: { saved: 'show' } } };
   }
   if (agent.idea) return { text: FIXED_LINES.idea_noted, meta: { ...meta, idea: true } };
   if (agent.map) return { text: agent.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...meta, ui: agentUi(agent) } };

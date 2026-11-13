@@ -94,6 +94,29 @@ describe('searchAvailability', () => {
     expect(events[0]).toMatchObject({ success: true, meta: { hotels: 0, offers: 0 } });
   });
 
+  it('prices in the currency asked for: every total, fee and penalty comes back in it, converted by the supplier', async () => {
+    const { fetchImpl, calls } = replay('rates-city-porto-usd');
+    const { supplier } = adapter(fetchImpl);
+    const result = await supplier.searchAvailability({ ...PORTO, currency: 'USD' });
+    expect(calls[0].body).toMatchObject({ currency: 'USD' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.offers).toHaveLength(20);
+    for (const o of result.value.offers) {
+      expect(o.total.currency).toBe('USD');
+      expect(o.payAtProperty.currency).toBe('USD');
+      expect(o.hasForeignCurrencyFees).toBe(false);
+      for (const f of o.fees) expect(f.amount.currency).toBe('USD');
+      for (const p of o.cancellation.penalties) expect(p.amount.currency).toBe('USD');
+    }
+  });
+
+  it('an unknown currency is not refused: the supplier says "no availability" (why only recorded codes are sent)', async () => {
+    const { fetchImpl } = replay('rates-currency-unknown');
+    const { supplier } = adapter(fetchImpl);
+    expect(await supplier.searchAvailability({ ...PORTO, currency: 'XQZ' })).toEqual({ ok: true, value: { properties: [], offers: [] } });
+  });
+
   it('a supplier validation error is a failure with its code and is not retryable', async () => {
     const { fetchImpl } = replay('rates-error-missing-nationality');
     const { supplier, events } = adapter(fetchImpl);

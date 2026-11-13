@@ -19,6 +19,7 @@ const TODAY = '2026-11-13';
 const state = (filters: Partial<StayFilters> = {}): SearchState => ({
   priorities: [],
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Porto',
     placeId: 'p',

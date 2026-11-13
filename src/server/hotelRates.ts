@@ -26,7 +26,8 @@ export async function hotelRates(args: {
 }): Promise<{ ok: true; offers: Offer[]; fetched: boolean } | { ok: false; error: HotelRatesError }> {
   const { session, stay, propertyId, supplier, now } = args;
   const audience = audienceFor(session);
-  const held = await listDetailOffers(session.id, stay.id, propertyId, audience, now);
+  // Rates fetched before the currency was changed are in the old one: fetched again, never converted.
+  const held = (await listDetailOffers(session.id, stay.id, propertyId, audience, now)).filter((o) => o.currency === session.currency);
   if (held.length > 0) return { ok: true, offers: shown(held, audience), fetched: false };
 
   const property = await getProperty(propertyId);

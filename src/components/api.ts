@@ -36,9 +36,14 @@ export const loadSession = (id: string) => request<SessionView>(`/api/session/${
 export const answerForm = (id: string, answer: FormAnswer) =>
   request<SessionView>(`/api/session/${id}/form`, { method: 'POST', body: JSON.stringify({ answer, today: todayLocal() }) });
 /** The results header's chips: nationality, what "best" means, where "close" is from. */
-export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_priorities' | 'set_near' | 'set_near_point' | 'clear_near' | 'set_min_stars' | 'set_min_rating' | 'set_property_types' | 'set_chains' }>;
+export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_currency' | 'set_priorities' | 'set_near' | 'set_near_point' | 'clear_near' | 'set_min_stars' | 'set_min_rating' | 'set_property_types' | 'set_chains' }>;
 export const editSearch = (id: string, actions: EditAction | EditAction[]) =>
   request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ actions: Array.isArray(actions) ? actions : [actions], today: todayLocal() }) });
+/** The heart. A saved hotel carries the last price found for it, never a current price (docs/saved.md). */
+export type SavedHotel = import('@/server/saved').SavedHotelView;
+export const loadSaved = () => request<{ saved: SavedHotel[] }>('/api/saved');
+export const setSaved = (body: { saved: true; propertyId: string; sessionId: string } | { saved: false; propertyId: string }) =>
+  request<{ saved: SavedHotel[] }>('/api/saved', { method: 'POST', body: JSON.stringify(body) });
 export type PlaceSuggestion = { placeId: string; label: string; name: string; where: string | null; kind: string };
 export const searchPlaces = (q: string) => request<{ places: PlaceSuggestion[] }>(`/api/places?q=${encodeURIComponent(q)}`);
 export type { Example } from '@/server/example';

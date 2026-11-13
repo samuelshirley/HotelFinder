@@ -10,6 +10,7 @@ import { formatMoney } from '@/lib/replies';
 import type { SessionView } from '@/server/view';
 import { ApiError, loadProperty, loadRates, type HotelRate, type PropertyDetails } from './api';
 import styles from './HotelDetail.module.css';
+import { Heart, type SaveLink } from './Heart';
 import { Spinner } from './Spinner';
 
 /**
@@ -27,6 +28,8 @@ type Props = {
   booking: string | null;
   onBook: (offerId: string) => void;
   onClose: () => void;
+  /** The heart beside the name. The expanded card has its own. */
+  save?: SaveLink;
 };
 
 const nightsOf = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000));
@@ -50,7 +53,7 @@ function fromRow(row: Row): HotelRate | null {
   };
 }
 
-export function HotelDetail({ view, row, mode, booking, onBook, onClose }: Props) {
+export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }: Props) {
   const [details, setDetails] = useState<PropertyDetails | null>(null);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [rates, setRates] = useState<HotelRate[] | null>(null);
@@ -95,9 +98,12 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose }: Props
 
       {/* The expanded card already shows the name and rating above. */}
       <header className={styles.head} hidden={mode === 'expand'}>
-        <h2 className={styles.name} tabIndex={-1} data-detail-heading>
-          {name}
-        </h2>
+        <div className={styles.nameRow}>
+          <h2 className={styles.name} tabIndex={-1} data-detail-heading>
+            {name}
+          </h2>
+          {save && <Heart propertyId={row.property.id} name={name} link={save} />}
+        </div>
         <p className={styles.meta}>
           {row.property.rating !== null && (
             <span className={styles.score}>

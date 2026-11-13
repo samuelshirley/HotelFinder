@@ -53,8 +53,9 @@ const addRibeiraDetails = process.argv.includes('--add-ribeira-details');
 const addNonrefundableCancel = process.argv.includes('--add-nonrefundable-cancel');
 const addCheckoutExtras = process.argv.includes('--add-checkout-extras');
 const addHotelTypes = process.argv.includes('--add-hotel-types');
+const addCurrencies = process.argv.includes('--add-currencies');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes || addCurrencies
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -204,6 +205,20 @@ if (addCountries) {
   await capture('countries', 'GET', `${DATA}/data/countries`);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added countries.json');
+  process.exit(0);
+}
+
+if (addCurrencies) {
+  // The currencies the supplier prices in (src/lib/currencies.ts is checked against it), the
+  // same 20 Porto hotels priced in USD (the supplier converts; we never do), and what an
+  // unknown code gets back.
+  await capture('currencies', 'GET', `${DATA}/data/currencies`);
+  const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
+  const sameStay = { occupancies: [{ adults: 2 }], guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13', hotelIds: recorded.data.map((h) => h.hotelId), maxRatesPerHotel: 1, includeHotelData: true };
+  await capture('rates-city-porto-usd', 'POST', `${DATA}/hotels/rates`, { ...sameStay, currency: 'USD' });
+  await capture('rates-currency-unknown', 'POST', `${DATA}/hotels/rates`, { ...sameStay, currency: 'XQZ' });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added currencies.json, rates-city-porto-usd.json, rates-currency-unknown.json');
   process.exit(0);
 }
 

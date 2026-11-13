@@ -14,6 +14,7 @@ const shortlist: ShortlistRow[] = [
 const state: SearchState = {
   priorities: null,
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Porto',
     placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
@@ -150,6 +151,13 @@ describe('settled messages become typed actions', () => {
   it('a place named in a map message is not "be close to it"', () => {
     const r = readings('map', { wantsLocation: 0.95, namesPlace: 0.95 });
     expect(route('show the yotel on the map', r)).toEqual({ kind: 'ui', intent: 'map', hint: { focus: { propertyId: P(1) } } });
+  });
+
+  it('saving a hotel, or asking for the saved ones, goes to the agent and is never read as booking', () => {
+    expect(route('save the second one', readings('save'))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    expect(route('show my saved hotels', readings('save'))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    // A place in the message does not make it "be close to it".
+    expect(route('save the yotel', readings('save', { wantsLocation: 0.95, namesPlace: 0.95 }))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
   });
 
   it('opening and booking are UI hints, never a write', () => {

@@ -11,7 +11,9 @@ import type { ToolDef } from './anthropic';
 
 /**
  * What the agent can do. Two lookups it may read, and a set of changes that
- * are each turned into the SAME typed actions the router emits. The agent has
+ * are each turned into the SAME typed actions the router emits. Saving a
+ * hotel is not a change to the search: it names the hotel by position and the
+ * turn saves it through the same path as the heart (server/saved.ts). The agent has
  * no write path of its own: it never sees or writes a place id, a property id,
  * an offer id or a price. It names a hotel by its position on screen and a
  * place by the reference the place search handed back in this turn.
@@ -50,6 +52,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'show_map', description: 'Show or fold away the map above the hotel list. Changes nothing about the search.', input_schema: obj({ visible: { type: 'boolean' } }) },
   { name: 'mark_on_map', description: 'Show the map and mark one on-screen hotel on it, for "where is the second one?".', input_schema: obj({ position }) },
   { name: 'show_all_hotels', description: 'Open the full list of every hotel that fits, in the same order, under the top picks, for "show me all of them". Sets nothing aside and changes nothing about the search (show_others does).', input_schema: obj({}) },
+  { name: 'save_hotel', description: 'Save one on-screen hotel to the user\'s saved hotels (the heart), for "save this one" or "keep the second for later". Changes nothing about the search.', input_schema: obj({ position }) },
+  { name: 'show_saved', description: 'List the hotels the user saved, for "show my saved hotels" or "what did I save?". Changes nothing about the search.', input_schema: obj({}) },
 ];
 
 const pos = z.number().int().min(1);
@@ -79,6 +83,8 @@ const INPUT = {
   show_map: z.object({ visible: z.boolean() }).strict(),
   mark_on_map: z.object({ position: pos }).strict(),
   show_all_hotels: z.object({}).strict(),
+  save_hotel: z.object({ position: pos }).strict(),
+  show_saved: z.object({}).strict(),
 } as const;
 export type ToolName = keyof typeof INPUT;
 export const isToolName = (name: string): name is ToolName => name in INPUT;
@@ -124,6 +130,8 @@ export type ParsedCall =
   | { kind: 'map'; visible: boolean }
   | { kind: 'focus'; propertyId: string }
   | { kind: 'all' }
+  | { kind: 'save'; propertyId: string }
+  | { kind: 'show_saved' }
   | { kind: 'invalid'; reason: string };
 
 /** Pure: a tool call → what it means, or why it means nothing. Ids come from the context, never from the model. */
@@ -160,6 +168,13 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       const propertyId = at(p);
       return propertyId ? { kind: 'focus', propertyId } : none(p);
     }
+    case 'save_hotel': {
+      const p = (parsed.data as { position: number }).position;
+      const propertyId = at(p);
+      return propertyId ? { kind: 'save', propertyId } : none(p);
+    }
+    case 'show_saved':
+      return { kind: 'show_saved' };
     case 'set_destination': {
       const place = ctx.placeRefs.get((parsed.data as { place_ref: string }).place_ref.toUpperCase());
       if (!place) return { kind: 'invalid', reason: 'that ref did not come from resolve_place in this turn' };

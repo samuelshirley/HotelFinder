@@ -87,6 +87,7 @@ src/
     agent/        BOUNDED — index.ts is the only public surface; the only
                   importer of the Anthropic SDK (docs/agent.md)
     spend.ts      the 24-hour caps checked before every model call
+    saved.ts      the heart: save from a search, the saved list (docs/saved.md)
     breakers.ts   kill switch + flood breaker before a turn: 503 circuit_open, fail closed
     propertyDetails.ts  one hotel's listing as plain text
     auth/anon.ts  the signed anonymous cookie
@@ -102,25 +103,27 @@ docs/             every "why"
 api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  api/session/[id]/form
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
 api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/auth/verify (sign in with a code outside checkout)
+api/saved (POST the heart, GET this visitor's saved hotels: `docs/saved.md`)
 ```
 
 Pages (all under `/hotels`): `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
 search; `ADMIN_EMAILS` only, sign-in form otherwise, 404 to non-admins):
 `docs/usage.md`.
 
-### Schema (18 tables in `src/server/db/schema.ts`)
+### Schema (19 tables in `src/server/db/schema.ts`)
 
 Rules each table carries, and what broke while building them:
 **`docs/schema.md`**.
 
 users, accounts, sessions, verificationTokens, emailOtpCodes, searchSessions,
 stays, agentTurns, chatHistory, properties, offers, shortlistEntries,
-userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas
+userPreferences, bookings, usageEvents, appMeta, ipRequestCounters, ideas,
+savedHotels
 
 ### Repos (`src/server/repos/`)
 
 sessions, chat, turns, properties, offers, shortlist, finderShortlist (FINDER
-ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit
+ONLY), usage, ideas, costs (admin read-only cost views), preferences, bookings, appMeta, rateLimit, saved
 
 ### Guard tests
 
@@ -142,7 +145,8 @@ set_guests, set_price_cap, set_priority, require, stop_requiring,
 set_min_stars, set_min_rating, set_property_types, set_brands, set_aside,
 show_others, bring_back_all (each becomes typed actions) · open_hotel,
 show_map, mark_on_map, show_all_hotels (the screen only) · hold_for_confirmation (stage the
-queued changes for a yes) · submit_idea.
+queued changes for a yes) · submit_idea · save_hotel, show_saved (saved
+hotels: `docs/saved.md`).
 The agent names a hotel by position and a place by a ref from this turn's
 lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 
@@ -167,7 +171,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map, filters, full-list
+search, book, admin, map, filters, full-list, saved, checkout, freeze
 
 ## Lockdown invariants (load-bearing)
 

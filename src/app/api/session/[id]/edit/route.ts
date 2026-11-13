@@ -18,9 +18,10 @@ export const maxDuration = 60;
  * The results header's chips, edited in place: where, when, who (and the
  * pet), what "best" means, where "close" is measured from, the
  * nationality used for rates, and the filters (stars, rating, kind, brand). Typed actions through the one dispatch path; no
- * model. The rest of a search is changed in the chat.
+ * model. The rest of a search is changed in the chat. The currency picker
+ * too: a new currency is a new search, priced by the supplier.
  */
-const EDITABLE = ['set_destination', 'set_dates', 'set_guests', 'add_must_have', 'remove_must_have', 'set_nationality', 'set_priorities', 'set_near', 'set_near_point', 'clear_near', 'set_min_stars', 'set_min_rating', 'set_property_types', 'set_chains'] as const;
+const EDITABLE = ['set_destination', 'set_dates', 'set_guests', 'add_must_have', 'remove_must_have', 'set_nationality', 'set_currency', 'set_priorities', 'set_near', 'set_near_point', 'clear_near', 'set_min_stars', 'set_min_rating', 'set_property_types', 'set_chains'] as const;
 const editAction = actionSchema.refine((a) => (EDITABLE as readonly string[]).includes(a.type), 'not editable here');
 /** One chip's change: at most a few actions (Who = the party plus the pet). */
 const payload = z.object({ actions: z.array(editAction).min(1).max(3), today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
@@ -29,7 +30,8 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   const body = await req.json().catch(() => null);
   const parsed = payload.safeParse(body);
   if (!parsed.success) {
-    const code = (body as { actions?: Array<{ type?: string }> } | null)?.actions?.some((a) => a?.type === 'set_nationality') ? 'unknown_country' : 'invalid_request';
+    const types = (body as { actions?: Array<{ type?: string }> } | null)?.actions?.map((a) => a?.type) ?? [];
+    const code = types.includes('set_nationality') ? 'unknown_country' : types.includes('set_currency') ? 'unknown_currency' : 'invalid_request';
     return errorResponse(code, 400);
   }
   const session = await ownedSession(ctx.params.id);
