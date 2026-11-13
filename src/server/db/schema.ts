@@ -178,7 +178,12 @@ export const stays = pgTable(
     adults: integer('adults').notNull().default(2),
     /** One age per child: the supplier prices children by age. */
     childrenAges: jsonb('children_ages').$type<number[]>().notNull().default([]),
-    rooms: integer('rooms').notNull().default(1),
+    /**
+     * The number of rooms the user asked for. null = they did not say: the
+     * finder prices the sensible splits of the party and shows each hotel's
+     * cheapest (lib/finder/rooms.ts, docs/finder.md "Room splits").
+     */
+    rooms: integer('rooms'),
     /** Per night, in the session currency's minor units. */
     priceCapMinor: integer('price_cap_minor'),
     mustHaves: jsonb('must_haves').$type<string[]>().notNull().default([]),
@@ -311,8 +316,15 @@ export const offers = pgTable(
     /** Charges the supplier marks `included: false` (city tax at the desk). */
     payAtPropertyMinor: integer('pay_at_property_minor').notNull().default(0),
     taxesAndFees: jsonb('taxes_and_fees').$type<unknown[]>(),
+    /** What the price is for, in words: one room's name, or every room's ("2 rooms: Double + Twin"). */
     roomName: text('room_name'),
     boardName: text('board_name'),
+    /**
+     * One entry per room, in occupancy order: the rooms the supplier priced
+     * and who sleeps in each. Checkout books exactly these (re-checked first).
+     * null on rows written before room splits.
+     */
+    rooms: jsonb('rooms').$type<Array<{ name: string; boardName: string | null; adults: number; childrenAges: number[] }>>(),
     refundableTag: text('refundable_tag'),
     cancellation: jsonb('cancellation').$type<Record<string, unknown>>(),
     fetchedAt: ts('fetched_at').notNull(),
