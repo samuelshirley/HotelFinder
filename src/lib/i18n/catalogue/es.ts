@@ -551,7 +551,7 @@ export const es: Messages = {
       titlePrice: 'Inicia sesión para ver precios para miembros',
       titleBook: 'Inicia sesión para reservar',
       note: 'Los miembros ven precios más bajos en muchos hoteles. Te enviamos un código de 6 dígitos por correo; no hay contraseña. Tu búsqueda se queda como está.',
-      email: 'Correo electrónico',
+      email: 'Correo electrónico. Te llega un código para entrar; sin contraseña.',
       sendCode: 'Enviar código',
       sending: 'Enviando…',
       code: (email: string) => `El código de 6 dígitos enviado a ${email}`,

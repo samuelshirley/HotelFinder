@@ -83,11 +83,11 @@ export function SignInModal({
     }
   };
 
-  const verify = async () => {
+  const verify = async (typed = code) => {
     setBusy(true);
     setError(null);
     try {
-      await verifySignInCode(email.trim(), code.trim());
+      await verifySignInCode(email.trim(), typed.trim());
     } catch (err) {
       setError({ code: codeOf(err), field: 'code' });
       setBusy(false);
@@ -136,7 +136,12 @@ export function SignInModal({
                 placeholder="••••••"
                 value={code}
                 disabled={step === 'working'}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setCode(digits);
+                  // The sixth digit signs in: nothing more to press.
+                  if (digits.length === 6 && !busy) void verify(digits);
+                }}
                 aria-invalid={error?.field === 'code'}
               />
             </label>

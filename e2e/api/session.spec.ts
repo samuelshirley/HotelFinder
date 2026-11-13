@@ -158,6 +158,25 @@ test.describe('GET /api/session/[id]', { tag: '@api' }, () => {
   });
 });
 
+test.describe('POST /api/session/[id]/reprice', { tag: '@api' }, () => {
+  test('after a sign-in the search is priced again for the account: member prices, nothing hidden', async ({ api, searched }) => {
+    expect(searched.view.session).toMatchObject({ audience: 'public', repriceNeeded: false });
+    // Signed out, every hotel is shown at its public price, never under it.
+    for (const row of searched.view.shortlist) if (row.offer?.suggestedSellingMinor) expect(row.offer.totalMinor).toBeGreaterThanOrEqual(row.offer.suggestedSellingMinor);
+    await api.signIn(uniqueEmail('reprice'));
+    expect((await json(await api.session(searched.sessionId), S.sessionView)).session).toMatchObject({ signedIn: true, audience: 'member', repriceNeeded: true });
+    const view = await json(await api.patient(() => api.request.post(`api/session/${searched.sessionId}/reprice`, { data: {} })), S.sessionView);
+    expect(view.session).toMatchObject({ audience: 'member', repriceNeeded: false });
+    expect(view.shortlist.filter((r) => r.offer).every((r) => r.offer!.audience === 'member')).toBe(true);
+  });
+
+  test("another visitor's search: 404 session_not_found", async ({ searched, ip }) => {
+    const other = await stranger(ip);
+    await expectError(await other.post(`api/session/${searched.sessionId}/reprice`, { data: {} }), 404, 'session_not_found');
+    await other.dispose();
+  });
+});
+
 test.describe('POST /api/session/[id]/form', { tag: '@api' }, () => {
   async function onboarding(api: Api) {
     return (await json(await api.newSession(), S.sessionIdBody)).sessionId;

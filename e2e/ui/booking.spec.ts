@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { expect, openSession, test } from '../fixtures/test';
+import { SignInModal } from '../pages/app';
 import { CheckoutPage } from '../pages/checkout';
 import { json } from '../support/api';
 import { COPY, ERROR_COPY } from '../support/copy';
@@ -10,8 +11,9 @@ import * as S from '../support/schemas';
 
 /**
  * Booking against the LiteAPI SANDBOX (docs/architecture.md §10, step 12 of
- * docs/build-log.md): Book re-checks the price, the checkout signs in with an
- * email code (shown on the page: no email service in e2e), the Apple Pay and
+ * docs/build-log.md): Book re-checks the price; signed out, a modal asks for
+ * an email and its code (shown on the page: no email service in e2e) and the
+ * same room is priced for that account before anything is paid; the Apple Pay and
  * Google Pay sheets are TEST stand-ins, the sandbox makes a real test booking,
  * and every booking is cancelled before the test ends. States the sandbox
  * cannot be made to produce on demand (a stale or changed price, a failed or
@@ -34,6 +36,17 @@ async function patchBooking(page: Page, patch: (b: S.BookingViewBody) => Partial
   });
 }
 
+/** A checkout made signed in (the `signedIn` fixture's account), opened in the browser. */
+async function memberCheckout(visitor: { api: () => import('../support/api').Api; toBrowser: () => Promise<void> }) {
+  const api = visitor.api();
+  const { sessionId, view } = await api.search();
+  const row = view.shortlist.find((r) => r.offer)!;
+  const { bookingId } = await json(await api.patient(() => api.checkout(sessionId, { offerId: row.offer!.id })), S.bookingIdBody);
+  const booking = (await json(await api.booking(bookingId), S.bookingPageBody)).booking;
+  await visitor.toBrowser();
+  return { sessionId, bookingId, booking };
+}
+
 test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
   test('Book re-checks the price and opens the checkout for that hotel', async ({ page, app, searched }) => {
     await openSession(page, searched.sessionId, '?detail=slideout');
@@ -41,14 +54,18 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     const card = app.results.card(0);
     const hotel = await card.name();
     const cardTotal = (await card.total().textContent())!.trim();
+    // Signed out, booking asks who is booking first: an account is priced as a member.
     await card.book().click();
+    const modal = new SignInModal(page, COPY.signIn.titleBook);
+    await expect(modal.dialog()).toBeVisible();
+    await modal.signIn(uniqueEmail('book'));
     // While the hotel re-checks: the button says so, and no other Book can be pressed.
     await expect(card.root.getByRole('button', { name: 'Checking the price…' }).or(page.getByRole('region', { name: 'Your stay' }))).toBeVisible();
     await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
     const co = new CheckoutPage(page);
     await expect(co.stay().getByRole('heading', { name: hotel })).toBeVisible();
     await expect(co.total()).toHaveText(MONEY);
-    // Re-checked: the same price, or both prices shown (architecture §14.8).
+    // Re-checked at the member price: the card's public price, or both prices shown (architecture §14.8).
     const changed = co.stay().getByRole('status').filter({ hasText: /^The price changed: it was / });
     if ((await changed.count()) === 0) {
       await expect(co.total()).toHaveText(cardTotal);
@@ -85,43 +102,62 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     }
     await expect(co.dd('Cancellation')).toHaveText(/^(Non-refundable|Not given by the hotel|Refundable; the hotel did not give the deadline|Free until \d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC)$/);
     await expect(co.form().getByRole('heading', { level: 1 })).toHaveText('Book it');
-    await expect(co.email()).toHaveAttribute('type', 'email');
-    await expect(page.getByText(COPY.checkout.emailLabel)).toBeVisible();
-    await expect(co.sendCode()).toHaveText('Send code');
-    await expect(co.sendCode()).toBeDisabled();
-    await expect(co.code()).toHaveAttribute('maxlength', '6');
+    // Signed out, the page waits behind "Who is booking?": an email, then its code.
+    const modal = co.signIn();
+    await expect(modal.dialog()).toBeVisible();
+    await expect(modal.dialog()).toHaveAttribute('aria-modal', 'true');
+    await expect(modal.email()).toHaveAttribute('type', 'email');
+    await expect(modal.dialog().getByText(COPY.checkout.emailLabel)).toBeVisible();
+    await expect(modal.send()).toHaveText('Send code');
+    await expect(modal.send()).toBeDisabled();
+    await expect(modal.back()).toHaveAttribute('href', '/hotels');
+    await expect(co.form()).not.toContainText('Signed in as');
     await expect(page.getByText(COPY.checkout.testBadge)).toBeVisible();
     const total = (await co.total().textContent())!.trim();
     await expect(co.pay('Apple Pay')).toHaveText(`Pay · ${total}`);
     await expect(co.pay('Google Pay')).toHaveText(`Pay · ${total}`);
-    await expect(page.getByText(COPY.checkout.onePressSignedOut)).toBeVisible();
+    await expect(page.getByText(COPY.checkout.onePressSignedIn)).toBeVisible();
     await expect(page).toHaveLoadedImages();
     await expect(page).toHaveWorkingLinks(api.request);
   });
 
-  test('the wallet does not open until email, code and names are there; each gap is named', async ({ page, prebooked }) => {
+  test('signed out, the checkout waits behind a sign-in: each gap is named, then the same room is priced for the account', async ({ page, prebooked, diagnostics }) => {
+    diagnostics.allow(/\/api\/auth\/code$/, 400, 'an email without a domain is refused');
+    diagnostics.allow(/\/api\/auth\/verify$/, 400, 'a wrong code is refused');
     const co = new CheckoutPage(page);
     await co.goto(prebooked.bookingId);
+    const signedOutTotal = (await co.total().textContent())!.trim();
+    const modal = co.signIn();
+    await expect(modal.dialog()).toBeVisible();
+    // Nothing under it can be pressed while it is up.
+    await expect(co.pay('Apple Pay').click({ timeout: 1500, trial: true })).rejects.toThrow();
+    await modal.email().fill('ana@example');
+    await modal.send().click();
+    await expect(modal.alert()).toHaveText(ERROR_COPY.email_invalid);
+    await expect(modal.email()).toHaveAttribute('aria-invalid', 'true');
+    const email = uniqueEmail('gaps');
+    const code = await modal.sendTo(email);
+    await expect(modal.newCode()).toBeVisible();
+    await expect(modal.code()).toHaveAttribute('maxlength', '6');
+    await modal.code().fill('12a3');
+    await expect(modal.code()).toHaveValue('123');
+    // The sixth digit signs in: a wrong one is refused there and then.
+    await modal.code().fill(code === '000000' ? '111111' : '000000');
+    await expect(modal.alert()).toHaveText(ERROR_COPY.code_wrong);
+    await modal.code().fill(code);
+    await expect(modal.dialog()).toHaveCount(0, { timeout: 90_000 });
+
+    // The same hotel and room, priced for this account as a new check; both prices shown if they differ.
+    expect(co.bookingId()).not.toBe(prebooked.bookingId);
+    await expect(co.form()).toContainText(`Signed in as ${email} · Not you?`);
+    await expect(co.stay().getByRole('heading', { level: 2 })).toHaveText(prebooked.booking.hotelName!);
+    const changed = co.stay().getByRole('status').filter({ hasText: /^The price changed: it was / });
+    if ((await changed.count()) > 0) await expect(changed).toContainText(`it was ${signedOutTotal} on the shortlist`);
+    else await expect(co.total()).toHaveText(signedOutTotal);
+
+    // Then the names, each gap named; the sheet opens, and Esc or Cancel closes it with nothing paid.
     await co.pay('Apple Pay').click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.getByText(ERROR_COPY.email_invalid)).toBeVisible();
-    await expect(co.email()).toHaveAttribute('aria-invalid', 'true');
-    await co.email().fill('ana@example');
-    await co.pay('Google Pay').click();
-    await expect(page.getByText(ERROR_COPY.email_invalid)).toBeVisible();
-    await co.email().fill(uniqueEmail('gaps'));
-    await co.pay('Apple Pay').click();
-    await expect(page.getByText(COPY.checkout.sendFirst)).toBeVisible();
-    await expect(co.code()).toHaveAttribute('aria-invalid', 'true');
-    await co.sendCode().click();
-    await co.readCode();
-    await expect(co.sendCode()).toHaveText('Send a new code');
-    await co.code().fill('12a3');
-    await expect(co.code()).toHaveValue('123');
-    await co.pay('Apple Pay').click();
-    await expect(page.getByText(ERROR_COPY.code_wrong)).toBeVisible();
-    await co.code().fill('123456');
-    await co.pay('Apple Pay').click();
     await expect(page.getByText(ERROR_COPY.name_missing)).toBeVisible();
     await co.first().fill('Ana');
     await co.pay('Apple Pay').click();
@@ -129,38 +165,29 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     await co.last().fill('Silva');
     await co.pay('Apple Pay').click();
     await expect(co.sheet('Apple Pay')).toBeVisible();
-    // Esc and Cancel close the sheet; nothing is paid.
     await page.keyboard.press('Escape');
     await expect(co.sheet('Apple Pay')).toHaveCount(0);
     await co.pay('Google Pay').click();
     await expect(co.sheet('Google Pay')).toBeVisible();
     await co.cancelIn('Google Pay').click();
     await expect(co.sheet('Google Pay')).toHaveCount(0);
-    const now = await page.request.get(`./api/booking/${prebooked.bookingId}`);
+    const now = await page.request.get(`./api/booking/${co.bookingId()}`);
     expect((await now.json()).booking.status).toBe('prebooked');
   });
 
-  test('a wrong code: the sheet opens, nothing is paid, and the code field says why', async ({ page, prebooked, diagnostics }) => {
-    diagnostics.allow(/\/api\/booking\/[^/]+\/confirm$/, 400, 'a wrong code is refused');
+  test('a wrong code: the modal says why, and nothing is signed in, priced again or paid', async ({ page, prebooked, diagnostics }) => {
+    diagnostics.allow(/\/api\/auth\/verify$/, 400, 'a wrong code is refused');
     const co = new CheckoutPage(page);
     await co.goto(prebooked.bookingId);
-    await co.email().fill(uniqueEmail('wrong'));
-    await co.sendCode().click();
-    const code = await co.readCode();
-    await co.first().fill('Ana');
-    await co.last().fill('Silva');
-    await co.code().fill(code === '000000' ? '111111' : '000000');
-    await co.pay('Apple Pay').click();
-    const total = (await co.total().textContent())!.trim();
-    await expect(co.sheet('Apple Pay')).toContainText(COPY.checkout.sheetTest);
-    await expect(co.sheet('Apple Pay')).toContainText(COPY.checkout.testCard);
-    await expect(co.sheet('Apple Pay')).toContainText(`Hotel finder · ${prebooked.booking.hotelName}`);
-    await expect(co.sheet('Apple Pay')).toContainText(total);
-    await expect(co.confirmIn('Apple Pay')).toBeFocused();
-    await co.confirmIn('Apple Pay').click();
-    await expect(co.sheet('Apple Pay')).toBeHidden();
-    await expect(page.getByText(ERROR_COPY.code_wrong)).toBeVisible();
-    await expect(co.heading()).toHaveText('Book it');
+    const modal = co.signIn();
+    const code = await modal.sendTo(uniqueEmail('wrong'));
+    await modal.code().fill(code === '000000' ? '111111' : '000000');
+    await expect(modal.alert()).toHaveText(ERROR_COPY.code_wrong);
+    await expect(modal.code()).toHaveAttribute('aria-invalid', 'true');
+    await expect(modal.dialog()).toBeVisible();
+    expect(co.bookingId()).toBe(prebooked.bookingId);
+    expect((await (await page.request.get('./api/me')).json()).user).toBeNull();
+    expect((await (await page.request.get(`./api/booking/${prebooked.bookingId}`)).json()).booking.status).toBe('prebooked');
   });
 
   test('sign in first: email, code, Sign in, and the checkout is signed in with the names kept', async ({ page, prebooked }) => {
@@ -191,14 +218,18 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     const co = new CheckoutPage(page);
     await co.goto(prebooked.bookingId);
     const email = uniqueEmail('apple');
-    await co.email().fill(email);
-    await co.sendCode().click();
-    const code = await co.readCode();
-    await co.code().fill(code);
+    await co.signIn().signIn(email);
+    const bookingId = co.bookingId();
     await co.first().fill('Ana');
     await co.last().fill('Silva');
     const total = (await co.total().textContent())!.trim();
     await co.pay('Apple Pay').click();
+    // The stand-in sheet: a test, a test card, the hotel and the total; Confirm has the focus.
+    await expect(co.sheet('Apple Pay')).toContainText(COPY.checkout.sheetTest);
+    await expect(co.sheet('Apple Pay')).toContainText(COPY.checkout.testCard);
+    await expect(co.sheet('Apple Pay')).toContainText(`Hotel finder · ${prebooked.booking.hotelName}`);
+    await expect(co.sheet('Apple Pay')).toContainText(total);
+    await expect(co.confirmIn('Apple Pay')).toBeFocused();
     await co.confirmIn('Apple Pay').click();
     await expect(co.heading()).toHaveText('Booked', { timeout: 90_000 });
     const receipt = co.receipt();
@@ -213,7 +244,7 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     await expect(app.sidebar.nav().getByText(`Signed in as ${email}`)).toBeVisible();
     await expect(app.sidebar.nav().getByRole('heading', { name: 'Your bookings' })).toBeVisible();
     const link = app.sidebar.bookings().filter({ hasText: prebooked.booking.hotelName! });
-    await expect(link).toHaveAttribute('href', `/hotels/book/${prebooked.bookingId}`);
+    await expect(link).toHaveAttribute('href', `/hotels/book/${bookingId}`);
     // Signed in, the public-prices note is gone.
     await expect(app.results.publicNote()).toHaveCount(0);
     await link.click();
@@ -266,20 +297,41 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     await expect(co.heading()).toHaveText('Cancelled', { timeout: 60_000 });
   });
 
-  test('Not you? signs out, and the checkout asks for an email instead', async ({ page, visitor, signedIn }) => {
-    const api = visitor.api();
-    const { sessionId, view } = await api.search();
-    const { bookingId } = await json(await api.patient(() => api.checkout(sessionId, { offerId: view.shortlist.find((r) => r.offer)!.offer!.id })), S.bookingIdBody);
-    await visitor.toBrowser();
+  test('Not you? signs out and asks who is booking; whoever signs in keeps the hotel and room, priced again for them', async ({ page, visitor, signedIn, diagnostics }) => {
+    diagnostics.allow(/\/api\/booking\/[0-9a-f-]{36}$/, 401, 'signed out after Not you?, the reloaded checkout asks who is booking');
+    const first = await memberCheckout(visitor);
     const co = new CheckoutPage(page);
-    await co.goto(bookingId);
+    await co.goto(first.bookingId);
     await expect(co.form()).toContainText(`Signed in as ${signedIn.email}`);
+    const firstTotal = (await co.total().textContent())!.trim();
+    const room = [first.booking.roomName, first.booking.boardName ?? 'Room only'].filter(Boolean).join(' · ');
+
     await co.notYou().click();
-    // Someone else at this browser books it with their own email: the same stay, the sign-in form.
-    await expect(co.email()).toBeVisible();
+    // Signed out at once, and asked who is booking, over the same hotel and room.
+    const modal = co.signIn();
+    await expect(modal.dialog()).toBeVisible();
     await expect(co.form()).not.toContainText('Signed in as');
-    await expect(co.stay().getByRole('heading', { level: 2 })).toBeVisible();
-    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+    await expect(co.stay().getByRole('heading', { level: 2 })).toHaveText(first.booking.hotelName!);
+    await expect(co.stay()).toContainText(room);
+    expect((await (await page.request.get('./api/me')).json()).user).toBeNull();
+    // A reload keeps asking; it never dead-ends on "not on this account".
+    await page.reload();
+    await expect(modal.dialog()).toBeVisible();
+    await expect(page.getByText(ERROR_COPY.booking_not_found)).toHaveCount(0);
+
+    // Someone else signs in: the same hotel and room, a new price check for them, no second step.
+    const next = uniqueEmail('next');
+    await modal.signIn(next);
+    await expect(co.form()).toContainText(`Signed in as ${next} · Not you?`);
+    expect(co.bookingId()).not.toBe(first.bookingId);
+    await expect(co.stay().getByRole('heading', { level: 2 })).toHaveText(first.booking.hotelName!);
+    await expect(co.stay()).toContainText(room);
+    const changed = co.stay().getByRole('status').filter({ hasText: /^The price changed: it was / });
+    if ((await changed.count()) > 0) await expect(changed).toContainText(`it was ${firstTotal} on the shortlist`);
+    else await expect(co.total()).toHaveText(firstTotal);
+    // The search is theirs now.
+    const trips = await json(await page.request.get('./api/session'), S.tripsBody);
+    expect(trips.trips.map((t) => t.id)).toContain(first.sessionId);
   });
 
   test('sign out from the sidebar: the account line and the bookings go', async ({ page, app, signedIn, searched }) => {
@@ -291,7 +343,9 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     await expect(app.sidebar.nav().getByText('Your bookings')).toHaveCount(0);
   });
 
-  test('a price check older than 20 minutes: the wallets wait, and "Check the price again" re-checks', async ({ page, prebooked }) => {
+  test('a price check older than 20 minutes: the wallets wait, and "Check the price again" re-checks', async ({ page, visitor, signedIn }) => {
+    void signedIn;
+    const prebooked = await memberCheckout(visitor);
     await patchBooking(page, () => ({ priceCheckStale: true }));
     const co = new CheckoutPage(page);
     await co.goto(prebooked.bookingId);
