@@ -104,3 +104,22 @@ a named place.
 Not done: the detail slide-out still opens over the map (the designer's note: it should cover the
 list only). Not checked: a narrow (phone-width) window with the map open, keyboard-only use of the
 pins, and a screen reader.
+
+## With the full list open (2026-11-13)
+
+"Show all N hotels" (`docs/finder.md`) adds the page on screen to the map: the top picks stay, and
+the page's hotels are drawn as ranked pins with their totals (`pinsFor` treats a `full_list` row like
+any ranked row). The ring still measures the top picks only.
+
+**The camera frames the page, not the city** (`fitPoints(pins, anchor, frame)`). Measured in
+`e2e/full-list.spec.ts` on Porto (13 Nov 2026), framing the picks, the anchor and the page: the two
+airport picks set the frame, and ranks 7–14 were one pile of compact rank circles under rank 3 (37
+overlapping pairs). Framing the page alone: 8 of 14 labels show their price, 12 overlapping pairs
+remain among central hotels under ~200 m apart, which zooming in separates. The page's own order of
+placement (best rank first) is unchanged. Closing the list frames the picks again. As before, once
+the user has moved the camera, a new frame is offered (Recentre), not forced. `data-frame` on the
+map says which it is framing.
+
+Found while here, not caused by this change: `e2e/map.spec.ts` fails on today's sandbox data at
+"all five pins are inside the band" (a stacked label ends about 6 px below the band). Reproduced on the
+untouched main branch.

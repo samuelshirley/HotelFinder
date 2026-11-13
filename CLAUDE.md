@@ -99,7 +99,7 @@ docs/             every "why"
 ```
 api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  api/session/[id]/form
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
-api/session/[id]/turns  api/auth/verify (sign in with a code outside checkout)
+api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/auth/verify (sign in with a code outside checkout)
 ```
 
 Pages (all under `/hotels`): `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per
@@ -137,7 +137,7 @@ logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
 resolve_place, hotel_details (lookups) · set_destination, set_dates,
 set_guests, set_price_cap, set_priority, require, stop_requiring, set_aside,
 show_others, bring_back_all (each becomes typed actions) · open_hotel,
-show_map, mark_on_map (the screen only) · hold_for_confirmation (stage the
+show_map, mark_on_map, show_all_hotels (the screen only) · hold_for_confirmation (stage the
 queued changes for a yes) · submit_idea.
 The agent names a hotel by position and a place by a ref from this turn's
 lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
@@ -161,7 +161,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map
+search, book, admin, map, full-list
 
 ## Lockdown invariants (load-bearing)
 

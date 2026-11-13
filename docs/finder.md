@@ -91,3 +91,49 @@ Open: the hidden hotels could instead be shown *at* their public price (the
 margin raised to meet it), which is allowed and earns more. That needs the
 offer's price to be the price booked, so it is a supplier/checkout change, not
 a ranking one. Not built.
+
+## The full list: "Show all N hotels" (2026-11-13)
+
+Vio lists every available hotel and lets you narrow. Sam's choice: keep the top
+picks with their reasons, and under them a "Show all N hotels" control that
+opens every hotel the search priced **that fits** (the same filters, must-haves,
+cap, set-asides and public-price rule), in the finder's own order.
+
+- **The rows are the finder's.** `rankStay` already returns `ordered`, every
+  eligible hotel in order; `runFinder` now stores the part after the top picks
+  as finder rows with reason `full_list` (`lib/fullList.ts`), holding only
+  `distance_km` and `per_night_minor`. Same writer, same transaction, same
+  guard (`shortlistSourceGuard`). Near-misses exist only when fewer than five
+  fit, so the two never share a rank.
+- **They are not on the shortlist.** `listShortlist` leaves them out, so the
+  chat, Jev's `hotels_on_screen`, the answers, the agent's positions and
+  Penny's pick see exactly what they saw before. They are read a page at a
+  time (`listFullList`, 20 rows) by `GET api/session/[id]/hotels?page=n`, and
+  counted for the view (`fullList: { total, more, pageSize }`).
+- **Member prices**: the rows come from `ordered`, which never holds a member
+  price for an anonymous visitor, and the reads apply the shortlist's own
+  audience filter on top (tested: after sign-in re-ranks with member offers, a
+  public read of the same rows returns none).
+- **Opening and booking**: the detail and rates routes used to accept only a
+  hotel on the shortlist; they now accept any row this session lists
+  (`isListed`), which a malformed id never matches. Checkout already worked by
+  offer id and re-checks the rate as before.
+- **The client** (`components/useFullList.ts`) pages with Previous / Next; the
+  rows are compact cards (no photo, no reason line) that open and book like the
+  others. Any new ranking writes new rows, so the top picks' ids change and the
+  page is read again.
+- **Chat**: Jev's `more` intent now also covers "the whole list of every hotel
+  found"; code then reads `wantsWholeList` (as `map` reads `wantsMapHidden`):
+  "show me all of them" opens the list, "show me some other options" still sets
+  the shown ones aside. The agent has `show_all_hotels`. Both answer with a
+  line counted from the rows (`fullListLine`).
+
+Tests: `lib/fullList.test.ts`, `test/pg/finder.test.ts` (order against the raw
+offers, filters, member prices, paging, `isListed`, the view), turn and agent
+tests in `test/pg/`, `e2e/full-list.spec.ts`. Mutation checks: 13 for the server
+and router, all caught (one only after the agent test gained a change queued
+with `show_all_hotels`).
+
+Not verified: the pager in a browser (the sandbox returns at most 30 hotels,
+so never more than 25 after the picks: one page). The supplier is still asked
+for 30 hotels (`maxHotels`); "all" means all of those.

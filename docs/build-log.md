@@ -17,6 +17,7 @@ pick up from the first unfinished step.
 | 8 | Form-in-chat onboarding, intent scan, pets question | done; scan verified live |
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done |
 | 9b | Map over the list (MapLibre + OpenFreeMap), linked to the cards, two gestures, Penny's map tools (`docs/design/map.md`) | built 2026-11-12; verified in a real browser (`e2e/map.spec.ts`) |
+| 9c | "Show all N hotels": every hotel that fits under the top picks, paged, on the map, by chat (`docs/finder.md`) | built 2026-11-13; verified in a real browser (`e2e/full-list.spec.ts`); the pager not exercised in a browser (sandbox: one page) |
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |
