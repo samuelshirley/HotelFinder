@@ -128,7 +128,30 @@ offered on the checkout page after the price re-check).
 4. Margins (48 h release margin, 24 h minimum hold, 24 h reminder) are
    guesses, not measured.
 
+## Verified
+
+- `src/test/pg/freeze.test.ts` (25, real Postgres, recorded sandbox answers),
+  `src/lib/freeze.test.ts`, `src/lib/bookingStates.test.ts`, and an
+  error-copy guard case for every freeze error.
+- `e2e/freeze.spec.ts` against the live sandbox, 2026-11-13: a Porto
+  free-cancellation card frozen (real sandbox booking, nothing paid, held
+  until 48 h before its deadline, reminder display-only), confirmed with the
+  test wallet, cancelled; frozen again and released. Every booking it makes
+  ends cancelled. The search depends on the sandbox offering at least one
+  free-cancellation card on the first five; it did.
+- **Not verified:** a reminder email actually delivered (no Resend key here:
+  the send is tested against a stubbed `fetch`); the sweep run by a real
+  scheduler; release by expiry against the live sandbox (tested on recorded
+  answers only).
+
 ## Mutation checks
 
-See the test files: `lib/freeze.test.ts`, `test/pg/freeze.test.ts`,
-`lib/bookingStates.test.ts`. Recorded in the build log.
+21, all caught: freeze claim ignored; keep claim ignored (payments counted);
+release claim ignored; eligibility not checked; live key allowed; the booked
+terms ignored; a book timeout read as failed; a cancel timeout read as
+refused; payment after the hold ended; freeze limit off; a failed reminder
+not given back; a reminder sent with no mail key; the reminder claim not
+exclusive (two sweeps at once); sweep secret length unchecked; the hold
+ending one instant late; no release margin; the later deadline winning;
+`frozen → booking` allowed; `frozen → failed` allowed; a freeze error
+without copy.
