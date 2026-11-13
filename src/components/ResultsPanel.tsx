@@ -59,7 +59,7 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map, full, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList; save: SaveLink }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, onSignIn, booking, onEdit, busy, map, full, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; onSignIn: () => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList; save: SaveLink }) {
   const { stay, session, shortlist } = view;
   const { locale, t } = useLocale();
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
@@ -199,6 +199,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onOpen={onOpen}
               onClose={onClose}
               onBook={onBook}
+              onSignIn={onSignIn}
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
@@ -222,6 +223,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onOpen={onOpen}
               onClose={onClose}
               onBook={onBook}
+              onSignIn={onSignIn}
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
@@ -644,6 +646,7 @@ function Card({
   onOpen,
   onClose,
   onBook,
+  onSignIn,
   booking,
   marked,
   onHover,
@@ -658,6 +661,8 @@ function Card({
   onOpen: (id: string) => void;
   onClose: () => void;
   onBook: (offerId: string) => void;
+  /** Signed out, on a hotel where members pay less: the sign-in modal. */
+  onSignIn: () => void;
   booking: string | null;
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
@@ -749,6 +754,15 @@ function Card({
               {t.ui.totalFor(t.words.nights(nights), formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency, locale))}
             </p>
             {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>{t.ui.paidAtHotel(formatMoney(offer.payAtPropertyMinor, offer.currency, locale))}</p>}
+            {/* Never by how much: that would publish the member rate (lib/pricing.ts). */}
+            {offer.lowerForMembers &&
+              (view.session.signedIn ? (
+                <p className={styles.member}>{t.ui.memberPrice}</p>
+              ) : (
+                <button type="button" className={styles.memberLink} onClick={onSignIn}>
+                  {t.ui.signInLower}
+                </button>
+              ))}
             <div className={styles.cardActions}>
               <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
                 {booking === offer.id ? (

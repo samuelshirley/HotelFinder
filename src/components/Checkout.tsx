@@ -13,24 +13,45 @@ import {
   freezeBookingApi,
   keepFrozenApi,
   loadBooking,
+  notYou,
   releaseFrozenApi,
-  sendSignInCode,
-  signOut,
+  repriceBooking,
   startCheckout,
   type BookingPage,
   type BookingView,
   type Wallet,
 } from './api';
 import styles from './Checkout.module.css';
+import { SignInModal, type SignInCopy } from './SignInModal';
 import { Spinner } from './Spinner';
 
 /**
  * The checkout (mocks: "Hotel finder — trip box first screen", Checkout).
- * Left: what is being booked, re-checked with the hotel. Right: sign in with
- * an email code, the guest's name, and one press of Apple Pay or Google Pay
- * that checks the code, signs in, pays and books. Payments are TEST payments
- * until the real wallet path is built: the sheet says so and no money moves.
+ * Left: what is being booked, re-checked with the hotel. Right: the guest's
+ * name and one press of Apple Pay or Google Pay that pays and books. Payments
+ * are TEST payments until the real wallet path is built: the sheet says so
+ * and no money moves.
+ *
+ * Booking needs an account. Signed out (a checkout opened signed out, or
+ * after "Not you?"), a modal over the page asks for an email and a code; it
+ * cannot be dismissed, only left. Once signed in, the same hotel and room is
+ * priced for that account (a new check, POST /api/booking/[id]/reprice) and
+ * the page swaps to it in place, showing both prices if they differ.
  */
+
+const SIGN_IN: SignInCopy = {
+  title: 'Who is booking?',
+  note: 'Sign in with your email to book this room. It stays as it is: the same hotel and room, with the price checked again for you.',
+  email: 'Email. Your booking and a sign-in code go here; no password.',
+  sendCode: 'Send code',
+  sending: 'Sending…',
+  code: (email) => `The 6-digit code sent to ${email}. It works once, for 10 minutes.`,
+  newCode: 'Send a new code',
+  signIn: 'Sign in',
+  signingIn: 'Checking the price…',
+  devCode: 'No email service is set up here, so the code is shown instead:',
+  error: (code) => errorCopy(code),
+};
 
 const WALLET_NAME: Record<Wallet, string> = { apple_pay: 'Apple Pay', google_pay: 'Google Pay' };
 
@@ -57,20 +78,54 @@ const instant = (iso: string) =>
 const codeOf = (err: unknown) => (err instanceof ApiError ? err.code : 'server_error');
 
 export function Checkout({ bookingId }: { bookingId: string }) {
+  /** The checkout on screen: a sign-in swaps it for the same room priced for the new account. */
+  const [id, setId] = useState(bookingId);
   const [page, setPage] = useState<BookingPage | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Signed out on a checkout: the modal is up until someone signs in. */
+  const [signedOut, setSignedOut] = useState(false);
+
+  const moveTo = useCallback(async (next: string) => {
+    window.history.replaceState(null, '', withBase(`/book/${next}`));
+    setId(next);
+    setPage(await loadBooking(next));
+    setSignedOut(false);
+    setLoadError(null);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
-      setPage(await loadBooking(bookingId));
+      const loaded = await loadBooking(id);
+      setPage(loaded);
       setLoadError(null);
+      // A checkout opened signed out holds the hotel's public price; booking it needs an account first.
+      setSignedOut(loaded.me === null && loaded.booking.status === 'prebooked');
     } catch (err) {
-      setLoadError(codeOf(err));
+      const code = codeOf(err);
+      // This search's checkout, priced for someone else: signed out, ask who; signed in, price it for them.
+      if (code === 'signed_out') setSignedOut(true);
+      else if (code === 'reprice_needed') {
+        try {
+          await moveTo((await repriceBooking(id)).bookingId);
+        } catch (again) {
+          setLoadError(codeOf(again));
+        }
+      } else setLoadError(code);
     }
-  }, [bookingId]);
+  }, [id, moveTo]);
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  /** Signed in from the modal: the same room, priced for this account, on this page. */
+  const afterSignIn = async () => {
+    try {
+      await moveTo((await repriceBooking(id)).bookingId);
+    } catch (err) {
+      setSignedOut(false);
+      setLoadError(codeOf(err));
+    }
+  };
 
   return (
     <div className={styles.page}>
@@ -83,16 +138,25 @@ export function Checkout({ bookingId }: { bookingId: string }) {
           <p role="alert">{errorCopy(loadError)}</p>
         </main>
       ) : !page ? (
-        <main className={styles.single}>
-          <Spinner label="Opening the checkout…" />
-        </main>
+        <main className={styles.single}>{!signedOut && <Spinner label="Opening the checkout…" />}</main>
       ) : page.booking.status === 'prebooked' ? (
-        <Pay page={page} onDone={setPage} onReload={reload} />
+        <Pay
+          page={page}
+          onDone={setPage}
+          onReload={reload}
+          onNotYou={async () => {
+            await notYou(page.booking.id);
+            // Signed out now: the page stays as it is, under the modal, until someone signs in.
+            setPage({ ...page, me: null, lastHolder: null });
+            setSignedOut(true);
+          }}
+        />
       ) : page.booking.status === 'frozen' ? (
         <Frozen page={page} onChange={setPage} onReload={reload} />
       ) : (
         <Receipt page={page} onChange={setPage} onReload={reload} />
       )}
+      {signedOut && !loadError && <SignInModal key={id} copy={SIGN_IN} onSignedIn={afterSignIn} back={{ href: withBase('/'), label: 'Back to the shortlist' }} />}
     </div>
   );
 }
@@ -160,13 +224,11 @@ function AtHotel({ b }: { b: BookingView }) {
   );
 }
 
-function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: BookingPage) => void; onReload: () => Promise<void> }) {
+function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: (p: BookingPage) => void; onReload: () => Promise<void>; onNotYou: () => Promise<void> }) {
   const b = page.booking;
-  const signedIn = page.me !== null;
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
+  // Signed in always, by the time anything here can be pressed: signed out, the sign-in modal covers the page.
+  const email = page.me?.email ?? '';
+  const [leaving, setLeaving] = useState(false);
   const [first, setFirst] = useState(page.lastHolder?.firstName ?? '');
   const [last, setLast] = useState(page.lastHolder?.lastName ?? '');
   const [request, setRequest] = useState('');
@@ -186,25 +248,8 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
             ? 'request'
             : 'pay';
 
-  const send = async () => {
-    setSending(true);
-    setError(null);
-    try {
-      const r = await sendSignInCode(email);
-      setCodeSentTo(email.trim());
-      setDevCode(r.devCode ?? null);
-      setCode('');
-    } catch (err) {
-      setError({ code: codeOf(err), field: 'email' });
-    } finally {
-      setSending(false);
-    }
-  };
-
   /** What the press needs before the wallet sheet opens; the server checks it all again. */
   const ready = (): { code: string; field: 'email' | 'code' | 'name' | 'request' } | null => {
-    if (!signedIn && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return { code: 'email_invalid', field: 'email' };
-    if (!signedIn && !/^\d{6}$/.test(code.trim())) return { code: codeSentTo ? 'code_wrong' : 'code_expired', field: 'code' };
     if (!first.trim() || !last.trim()) return { code: 'name_missing', field: 'name' };
     if (request.length > SPECIAL_REQUEST_MAX) return { code: 'request_too_long', field: 'request' };
     return null;
@@ -217,8 +262,8 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
 
   const authorize = async (wallet: Wallet): Promise<boolean> => {
     try {
-      const r = await confirmBooking(b.id, { email: signedIn ? page.me!.email : email.trim(), code: code.trim(), firstName: first, lastName: last, wallet, acceptedTotalMinor: b.totalMinor, ...(request.trim() ? { specialRequest: request } : {}) });
-      onDone({ ...page, booking: r.booking, me: page.me ?? { email: email.trim() } });
+      const r = await confirmBooking(b.id, { email, code: '', firstName: first, lastName: last, wallet, acceptedTotalMinor: b.totalMinor, ...(request.trim() ? { specialRequest: request } : {}) });
+      onDone({ ...page, booking: r.booking });
       return true;
     } catch (err) {
       const c = codeOf(err);
@@ -237,8 +282,8 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
     if (problem) return;
     setFreezing(true);
     try {
-      const r = await freezeBookingApi(b.id, { email: signedIn ? page.me!.email : email.trim(), code: code.trim(), firstName: first, lastName: last, acceptedTotalMinor: b.totalMinor });
-      onDone({ ...page, booking: r.booking, me: page.me ?? { email: email.trim() } });
+      const r = await freezeBookingApi(b.id, { email, code: '', firstName: first, lastName: last, acceptedTotalMinor: b.totalMinor });
+      onDone({ ...page, booking: r.booking });
     } catch (err) {
       const c = codeOf(err);
       setError({ code: c, field: fieldOf(c) === 'pay' ? 'freeze' : fieldOf(c) });
@@ -292,45 +337,24 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
 
       <section aria-label="Sign in and pay" className={styles.form}>
         <h1>Book it</h1>
-        {signedIn ? (
+        {page.me && (
           <p className={styles.muted}>
-            Signed in as {page.me!.email} ·{' '}
-            <button type="button" className={styles.link} onClick={() => void signOut().then(onReload)}>
+            Signed in as {page.me.email} ·{' '}
+            <button
+              type="button"
+              className={styles.link}
+              disabled={leaving}
+              onClick={() => {
+                setLeaving(true);
+                void onNotYou().catch((err) => {
+                  setLeaving(false);
+                  setError({ code: codeOf(err), field: 'pay' });
+                });
+              }}
+            >
               Not you?
             </button>
           </p>
-        ) : (
-          <>
-            <div className={styles.field}>
-              <label htmlFor="email">Email. Your booking and a sign-in code go here; no password.</label>
-              <div className={styles.row}>
-                <input id="email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={error?.field === 'email'} />
-                <button type="button" className={styles.secondary} disabled={sending || !email.trim()} onClick={() => void send()}>
-                  {sending ? (
-                    <>
-                      <Spinner size={14} /> Sending…
-                    </>
-                  ) : codeSentTo ? (
-                    'Send a new code'
-                  ) : (
-                    'Send code'
-                  )}
-                </button>
-              </div>
-              {error?.field === 'email' && <p className={styles.error}>{errorCopy(error.code)}</p>}
-              {codeSentTo && !devCode && <p className={styles.muted}>Code sent to {codeSentTo}. It works once, for 10 minutes.</p>}
-              {devCode && (
-                <p className={styles.devCode} role="status">
-                  No email service is set up here, so the code is shown instead: <strong>{devCode}</strong>
-                </p>
-              )}
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="code">6-digit code</label>
-              <input id="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" className={styles.code} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-invalid={error?.field === 'code'} />
-              {error?.field === 'code' && <p className={styles.error}>{error.code === 'code_expired' && !codeSentTo ? 'Send yourself a code first.' : errorCopy(error.code)}</p>}
-            </div>
-          </>
         )}
 
         <div className={styles.names}>
@@ -376,7 +400,7 @@ function Pay({ page, onDone, onReload }: { page: BookingPage; onDone: (p: Bookin
               </button>
             </div>
             <span className={styles.muted}>
-              {signedIn ? 'One press: takes the payment and books.' : 'One press: checks the code, signs you in, takes the payment and books. Next time it is just this button.'}
+              One press: takes the payment and books.
             </span>
           </>
         ) : (

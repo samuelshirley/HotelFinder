@@ -7,7 +7,7 @@ import { errorCopy, withRef } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates, formatGuests, formatMoney } from '@/lib/replies';
-import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSaved, loadSession, loadTrips, logEvent, sendTurn, setSaved, signOut, startBrief, startCheckout, type BookingSummary, type Me, type SavedHotel, type Trip } from './api';
+import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSaved, loadSession, loadTrips, logEvent, repriceSearch, sendTurn, setSaved, signOut, startBrief, startCheckout, type BookingSummary, type Me, type SavedHotel, type Trip } from './api';
 import { Heart, type SaveLink } from './Heart';
 import styles from './App.module.css';
 import { ChatPanel, Penny } from './ChatPanel';
@@ -18,6 +18,7 @@ import { HotelDetail } from './HotelDetail';
 import { detailVariant, type DetailVariant } from './flags';
 import { SlideOut } from './SlideOut';
 import { ResultsPanel } from './ResultsPanel';
+import { SignInModal } from './SignInModal';
 import { CardSkeleton, Spinner } from './Spinner';
 import { TripBox } from './TripBox';
 import { useFullList } from './useFullList';
@@ -73,6 +74,10 @@ export function App() {
   const [openProperty, setOpenProperty] = useState<string | null>(null);
   /** The offer whose price is being re-checked for checkout. */
   const [booking, setBooking] = useState<string | null>(null);
+  /** The sign-in modal: for member prices, or to book this offer. */
+  const [signIn, setSignIn] = useState<null | { for: 'prices' } | { for: 'book'; offerId: string }>(null);
+  /** The search's prices are being fetched again for whoever is looking now. */
+  const [repricing, setRepricing] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -271,7 +276,6 @@ export function App() {
     shownLocale.current = locale;
     const id = viewRef.current?.session.id;
     if (id) loadSession(id).then(setView, fail);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
 
   const openTrip = async (id: string) => {
@@ -327,6 +331,11 @@ export function App() {
   /** "Book": the hotel re-checks the price, then the checkout page opens on that check. */
   const onBook = async (offerId: string) => {
     if (!view || booking) return;
+    // Booking needs an account, and an account is priced as a member: sign in first, then check.
+    if (!view.session.signedIn) {
+      setSignIn({ for: 'book', offerId });
+      return;
+    }
     if (openProperty) void logEvent('detail_book', { variant, sessionId: view.session.id });
     setBooking(offerId);
     setError(null);
@@ -339,6 +348,55 @@ export function App() {
       setBooking(null);
       setOpenProperty(null);
     }
+  };
+
+  /**
+   * The search's latest prices were fetched for someone else (a sign-in, or
+   * "Not you?" at a checkout): they are fetched again for whoever is looking
+   * now, once per search.
+   */
+  const repriced = useRef<string | null>(null);
+  const reprice = useCallback(
+    async (sessionId: string) => {
+      repriced.current = sessionId;
+      setRepricing(true);
+      try {
+        setView(await repriceSearch(sessionId));
+      } catch (err) {
+        fail(err);
+      } finally {
+        setRepricing(false);
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    if (view?.session.repriceNeeded && repriced.current !== view.session.id) void reprice(view.session.id);
+  }, [view?.session.repriceNeeded, view?.session.id, reprice]);
+
+  /** Signed in from the modal: the account line, then member prices, or straight on to the checkout. */
+  const afterSignIn = async () => {
+    const next = signIn;
+    if (!view || !next) return;
+    void refreshAccount();
+    void refreshTrips();
+    if (next.for === 'book') {
+      setSignIn(null);
+      setView({ ...view, session: { ...view.session, signedIn: true, audience: 'member' } });
+      setBooking(next.offerId);
+      setError(null);
+      try {
+        const { bookingId } = await startCheckout(view.session.id, next.offerId);
+        store(STORAGE_KEY, view.session.id);
+        window.location.assign(withBase(`/book/${bookingId}`));
+      } catch (err) {
+        fail(err);
+        setBooking(null);
+      }
+      return;
+    }
+    await reprice(view.session.id);
+    setSignIn(null);
   };
 
   const onBrief = async (brief: Brief) => {
@@ -452,7 +510,7 @@ export function App() {
   const openRow = openProperty ? (view?.shortlist.find((r) => r.property.id === openProperty) ?? full.rows.find((r) => r.property.id === openProperty) ?? null) : null;
   const hasPanel =
     Boolean(view?.stay && view.session.status !== 'onboarding') || Boolean(pendingBrief?.place) || (busy === 'form' && searching);
-  const working = pendingBrief ? t.ui.findingHotels : busy === 'form' && searching ? t.ui.findingHotels : busy === 'edit' ? t.ui.updatingShortlist : null;
+  const working = pendingBrief ? t.ui.findingHotels : busy === 'form' && searching ? t.ui.findingHotels : busy === 'edit' ? t.ui.updatingShortlist : repricing ? t.ui.updatingPrices : null;
   const count = view?.shortlist.length ?? 0;
   return (
     <div
@@ -614,6 +672,7 @@ export function App() {
                 onOpen={openHotel}
                 onClose={closeHotel}
                 onBook={(id) => void onBook(id)}
+                onSignIn={() => setSignIn({ for: 'prices' })}
                 booking={booking}
                 onEdit={onEdit}
                 busy={busy !== null}
@@ -643,6 +702,13 @@ export function App() {
         <SlideOut title={openRow.property.name} onClose={closeHotel}>
           <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} save={saveLink} />
         </SlideOut>
+      )}
+      {signIn && (
+        <SignInModal
+          copy={{ ...t.ui.signIn, title: signIn.for === 'book' ? t.ui.signIn.titleBook : t.ui.signIn.titlePrice, error: (code: string) => errorCopy(code, locale) }}
+          onSignedIn={afterSignIn}
+          onCancel={() => setSignIn(null)}
+        />
       )}
     </div>
   );
