@@ -106,6 +106,7 @@ api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
 api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/auth/verify (sign in with a code outside checkout)
 api/saved (POST the heart, GET this visitor's saved hotels: `docs/saved.md`)
+api/session/[id]/reprice  api/booking/[id]/not-you  api/booking/[id]/reprice (re-price for whoever is looking now)
 api/health (live DB vs schema.ts and drizzle/; 503 names what is missing)
 ```
 
@@ -203,7 +204,8 @@ The ones most easily broken:
 - The model converts; it does not author. Jev and Haiku emit typed actions
   only. No price, fee, tax, cancellation term or availability claim in prose.
 - Shortlist rows come only from the finder. Supplier ids are opaque.
-- A member-priced offer never reaches an anonymous session.
+- The member rate never reaches an anonymous session: its rows hold the
+  hotel's public price, and "members pay less" never says how much (`docs/supplier.md` §9).
 - A rate is re-checked before any payment form; a changed rate is shown.
 - **The supplier's book call is not idempotent.** Call it only after winning
   the `paid → booking` claim, and never retry it: `docs/supplier.md`.

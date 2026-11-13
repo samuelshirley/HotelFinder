@@ -25,8 +25,10 @@ with a machine-readable reason`. No model is involved at any point.
   balanced score (price 0.5, rating 0.3, distance 0.2).
 - **Distance** is straight-line, in 100 m steps, from the place the user named
   or else from the middle of the results; the reason says which.
-- **Margins** are settings (`PUBLIC_MARGIN_PCT` 15, `MEMBER_MARGIN_PCT` 3 by
-  default), not constants.
+- **One margin** for every search, a setting (`MEMBER_MARGIN_PCT`, 3 by
+  default), not a constant. Signed out, a hotel is shown at its own public
+  price when the rate is under it (`docs/supplier.md` §9); the ranking sees
+  the price shown, never the margin.
 
 ## How it is judged
 
