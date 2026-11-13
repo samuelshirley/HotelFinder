@@ -49,6 +49,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'submit_idea', description: 'The user asked for something a hotel search could reasonably do but this one cannot yet (flights, price alerts, a filter it lacks, another language). Record the request so the builders see it. Not for chit-chat or things unrelated to travel.', input_schema: obj({ request: { type: 'string', description: 'What they asked for, in under 20 plain words. No names, emails or other personal details.' } }) },
   { name: 'show_map', description: 'Show or fold away the map above the hotel list. Changes nothing about the search.', input_schema: obj({ visible: { type: 'boolean' } }) },
   { name: 'mark_on_map', description: 'Show the map and mark one on-screen hotel on it, for "where is the second one?".', input_schema: obj({ position }) },
+  { name: 'show_all_hotels', description: 'Open the full list of every hotel that fits, in the same order, under the top picks, for "show me all of them". Sets nothing aside and changes nothing about the search (show_others does).', input_schema: obj({}) },
 ];
 
 const pos = z.number().int().min(1);
@@ -77,6 +78,7 @@ const INPUT = {
   submit_idea: z.object({ request: z.string().trim().min(3).max(200) }).strict(),
   show_map: z.object({ visible: z.boolean() }).strict(),
   mark_on_map: z.object({ position: pos }).strict(),
+  show_all_hotels: z.object({}).strict(),
 } as const;
 export type ToolName = keyof typeof INPUT;
 export const isToolName = (name: string): name is ToolName => name in INPUT;
@@ -121,6 +123,7 @@ export type ParsedCall =
   | { kind: 'idea'; text: string }
   | { kind: 'map'; visible: boolean }
   | { kind: 'focus'; propertyId: string }
+  | { kind: 'all' }
   | { kind: 'invalid'; reason: string };
 
 /** Pure: a tool call → what it means, or why it means nothing. Ids come from the context, never from the model. */
@@ -150,6 +153,8 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
       return { kind: 'idea', text: (parsed.data as { request: string }).request };
     case 'show_map':
       return { kind: 'map', visible: (parsed.data as { visible: boolean }).visible };
+    case 'show_all_hotels':
+      return { kind: 'all' };
     case 'mark_on_map': {
       const p = (parsed.data as { position: number }).position;
       const propertyId = at(p);

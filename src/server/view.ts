@@ -5,7 +5,8 @@ import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { listLiveOffersForRanking } from '@/server/repos/offers';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
+import { countFullList, listShortlist } from '@/server/repos/shortlist';
 
 /**
  * Everything the client renders for one session, built from the database.
@@ -15,11 +16,12 @@ import { listShortlist } from '@/server/repos/shortlist';
 export async function buildSessionView(session: SearchSession, now: Date = new Date()) {
   const audience = audienceFor(session);
   const stay = (await listStays(session.id))[0] ?? null;
-  const [messages, shortlist, held] = await Promise.all([
+  const [messages, shortlist, held, fullCount] = await Promise.all([
     listMessages(session.id),
     stay ? listShortlist(session.id, stay.id, audience) : Promise.resolve([]),
     // What the type and brand editors may offer: the hotels the finder ranks over.
     stay ? listLiveOffersForRanking(session.id, stay.id, audience, now) : Promise.resolve([]),
+    stay ? countFullList(session.id, stay.id, audience) : Promise.resolve(0),
   ]);
   const heldHotels = new Map(held.map((r) => [r.property.id, r.property]));
 
@@ -82,39 +84,51 @@ export async function buildSessionView(session: SearchSession, now: Date = new D
       meta: m.meta ?? null,
       createdAt: m.createdAt.toISOString(),
     })),
-    shortlist: shortlist.map(({ entry, property, offer }) => ({
-      entryId: entry.id,
-      rank: entry.rank,
-      source: entry.source,
-      reason: entry.reason,
-      property: {
-        id: property.id,
-        name: property.name,
-        photo: property.mainPhoto,
-        address: property.address,
-        stars: property.stars,
-        rating: property.rating,
-        reviewCount: property.reviewCount,
-        latitude: property.latitude,
-        longitude: property.longitude,
-      },
-      offer: offer && {
-        id: offer.id,
-        currency: offer.currency,
-        totalMinor: offer.totalMinor,
-        payAtPropertyMinor: offer.payAtPropertyMinor,
-        suggestedSellingMinor: offer.suggestedSellingMinor,
-        audience: offer.audience,
-        roomName: offer.roomName,
-        boardName: offer.boardName,
-        refundable: offer.refundableTag === 'RFN',
-        freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
-        penalties: offerPenalties(offer.cancellation),
-        fees: offerFees(offer.taxesAndFees),
-        fetchedAt: offer.fetchedAt.toISOString(),
-        expiresAt: offer.expiresAt.toISOString(),
-      },
-    })),
+    shortlist: shortlist.map(viewRow),
+    /**
+     * "Show all N hotels": every hotel that fits, the top picks included. The
+     * rows after the top picks are read a page at a time (api/session/[id]/hotels).
+     */
+    fullList: { total: shortlist.filter((r) => r.entry.source === 'finder' && r.entry.reason?.kind !== 'near_miss').length + fullCount, more: fullCount, pageSize: FULL_LIST_PAGE_SIZE },
+  };
+}
+
+type ListedRow = Awaited<ReturnType<typeof listShortlist>>[number];
+
+/** One row as the client renders it, on the shortlist or a page of the full list. */
+export function viewRow({ entry, property, offer }: ListedRow) {
+  return {
+    entryId: entry.id,
+    rank: entry.rank,
+    source: entry.source,
+    reason: entry.reason,
+    property: {
+      id: property.id,
+      name: property.name,
+      photo: property.mainPhoto,
+      address: property.address,
+      stars: property.stars,
+      rating: property.rating,
+      reviewCount: property.reviewCount,
+      latitude: property.latitude,
+      longitude: property.longitude,
+    },
+    offer: offer && {
+      id: offer.id,
+      currency: offer.currency,
+      totalMinor: offer.totalMinor,
+      payAtPropertyMinor: offer.payAtPropertyMinor,
+      suggestedSellingMinor: offer.suggestedSellingMinor,
+      audience: offer.audience,
+      roomName: offer.roomName,
+      boardName: offer.boardName,
+      refundable: offer.refundableTag === 'RFN',
+      freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
+      penalties: offerPenalties(offer.cancellation),
+      fees: offerFees(offer.taxesAndFees),
+      fetchedAt: offer.fetchedAt.toISOString(),
+      expiresAt: offer.expiresAt.toISOString(),
+    },
   };
 }
 

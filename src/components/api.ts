@@ -45,6 +45,10 @@ export type { Example } from '@/server/example';
 export const loadExample = () => request<import('@/server/example').Example>('/api/example');
 export const startBrief = (brief: Brief) => request<{ sessionId: string }>('/api/session/brief', { method: 'POST', body: JSON.stringify({ brief, today: todayLocal() }) });
 
+/** One page of "Show all N hotels": the finder's rows after the top picks (lib/fullList.ts). */
+export type FullListPage = { more: number; page: number; pageSize: number; rows: SessionView['shortlist'] };
+export const loadFullList = (id: string, page: number) => request<FullListPage>(`/api/session/${id}/hotels?page=${page}`);
+
 export type PropertyDetails = import('@/server/propertyDetails').PropertyDetailsView;
 export const loadProperty = (sessionId: string, propertyId: string) => request<PropertyDetails>(`/api/session/${sessionId}/property/${propertyId}`);
 

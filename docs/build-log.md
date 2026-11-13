@@ -18,6 +18,7 @@ pick up from the first unfinished step.
 | 9 | UI: trips list, chat, resizable hotels panel, detail sheet, narrow layout | done |
 | 9b | Map over the list (MapLibre + OpenFreeMap), linked to the cards, two gestures, Penny's map tools (`docs/design/map.md`) | built 2026-11-12; verified in a real browser (`e2e/map.spec.ts`) |
 | 9c | Filters: star class, guest rating, kind of place, brand; chips, agent tools, Jev `filter` intent; neighbourhood not built (no field) (`docs/finder.md`, "Filters") | built 2026-11-13; PGlite on recorded fixtures, Jev live 53 of 53, `e2e/filters.spec.ts` against the sandbox; **agent tools not run against the live model** |
+| 9d | "Show all N hotels": every hotel that fits under the top picks, paged, on the map, by chat (`docs/finder.md`) | built 2026-11-13; verified in a real browser (`e2e/full-list.spec.ts`); the pager not exercised in a browser (sandbox: one page) |
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 12b | Checkout extras: pay now / at the hotel by named charge, special request to the hotel (`guests[].remarks`) and on the receipt, hotel-page FAQ from the chat's answer templates. No price timer: the prebook has no expiry (`docs/supplier.md`, "Checkout extras") | built 2026-11-13; verified in a real browser against the sandbox (`e2e/checkout.spec.ts`) |

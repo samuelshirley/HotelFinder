@@ -239,6 +239,15 @@ export const FIXED_LINES = {
   map_hidden: 'The map is folded away. Say "show the map" to bring it back.',
 } as const;
 
+/**
+ * "Show me all of them" (lib/fullList.ts). Counts come from the finder's rows:
+ * `fits` top picks on screen, `more` stored after them.
+ */
+export function fullListLine(fits: number, more: number): string {
+  if (more === 0) return fits === 1 ? 'That is the only hotel that fits; it is on screen.' : `All ${count(fits)} hotels that fit are already on screen.`;
+  return `All ${count(fits + more)} hotels that fit are listed under the top picks, in the same order.`;
+}
+
 /* ------------------------------------------------------------------------
  * Answers to questions about what is on screen (lib/answers.ts). Each line is
  * a template over values read from offer and property rows. A value the row

@@ -16,6 +16,8 @@ type Props = {
   anchor: (MapPoint & { label: string }) | null;
   /** Drawn only when closeness is part of the ranking: every ranked hotel is within this of the anchor. */
   ringKm: number | null;
+  /** With the full list open: the hotels on its page, which the camera frames instead (lib/mapView.ts fitPoints). */
+  frame?: string[] | null;
   hovered: string | null;
   selected: string | null;
   /** Bumped when a hotel should be brought into view (a card was opened, or Penny marked one). */
@@ -41,7 +43,7 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
  * or zooms it is theirs, and a later change offers "Recentre" instead of
  * moving it; a new anchor or a marked hotel still moves it.
  */
-export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
+export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const lib = useRef<typeof import('maplibre-gl') | null>(null);
@@ -233,9 +235,9 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     }
 
     // The camera: once per new set of hotels, unless the user has taken it.
-    const key = fitKeyFor(pins, anchor);
+    const key = fitKeyFor(pins, anchor, frame);
     const anchorKey = anchor ? `${anchor.latitude},${anchor.longitude}` : '';
-    const points = fitPoints(pins, anchor);
+    const points = fitPoints(pins, anchor, frame);
     if (key !== lastFit.current.key && points.length > 0) {
       const anchorChanged = anchorKey !== lastFit.current.anchorKey && lastFit.current.key !== '';
       const bounds = new ml.LngLatBounds();
@@ -252,7 +254,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       }
     }
     declutterRef.current();
-  }, [ready, pins, anchor, ringKm]);
+  }, [ready, pins, anchor, ringKm, frame]);
 
   // Hover and selection are styles on pins that already exist.
   useEffect(() => {
@@ -282,7 +284,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   const recentre = () => {
     const m = map.current;
     const ml = lib.current;
-    const points = fitPoints(pins, anchor);
+    const points = fitPoints(pins, anchor, frame);
     if (!m || !ml || points.length === 0) return;
     const bounds = new ml.LngLatBounds();
     for (const p of points) bounds.extend([p.longitude, p.latitude]);
@@ -303,7 +305,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
   };
 
   return (
-    <div className={styles.wrap} data-testid="map" data-ready={ready ? 'true' : 'false'} onKeyDown={(e) => e.key === 'Escape' && setPicked(null)}>
+    <div className={styles.wrap} data-testid="map" data-ready={ready ? 'true' : 'false'} data-frame={frame && frame.length ? 'page' : 'all'} onKeyDown={(e) => e.key === 'Escape' && setPicked(null)}>
       <div ref={box} className={styles.canvas} role="region" aria-label="Map" />
       {failed && <p className={styles.failed}>The map could not start in this browser. The list below has every hotel.</p>}
       {(moved || away) && !failed && (

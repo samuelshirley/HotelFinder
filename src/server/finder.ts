@@ -4,6 +4,7 @@ import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenit
 import { readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
 import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
+import { FULL_LIST_KIND } from '@/lib/fullList';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
 import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
@@ -212,6 +213,16 @@ export async function runFinder(args: {
       // The reason, plus the two facts every card shows.
       reason: { ...row.reason, distance_km: row.km, per_night_minor: row.perNightMinor },
     })).concat(
+      // Every other hotel that fits, in the same order, for "Show all N hotels"
+      // (lib/fullList.ts). Eligible only: no constraint missed, no member price
+      // for an anonymous visitor. There are near-misses only when fewer than
+      // five fit, so the two never share a rank.
+      result.ordered.slice(result.shortlist.length).map((row): FinderEntry => ({
+        propertyId: row.candidate.propertyId,
+        offerId: row.candidate.offerId,
+        rank: row.rank,
+        reason: { kind: FULL_LIST_KIND, distance_km: row.km, per_night_minor: row.perNightMinor },
+      })),
       result.nearMisses.map((row): FinderEntry => {
         // A member price never reaches an anonymous visitor: the row holds no
         // offer and no number derived from one (the schema allows this case only).

@@ -1,6 +1,7 @@
 import 'server-only';
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, ne, or, sql } from 'drizzle-orm';
 
+import { FULL_LIST_KIND, FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
 import { db } from '@/server/db/client';
 import { offers, properties, shortlistEntries, type Audience } from '@/server/db/schema';
 
@@ -51,20 +52,73 @@ export async function setExcluded(entryId: string, sessionId: string, excluded: 
  * audience may not see is left out entirely, not shown without a price.
  */
 export async function listShortlist(sessionId: string, stayId: string, audience: Audience) {
-  const offerVisible =
-    audience === 'member' ? undefined : or(isNull(shortlistEntries.offerId), eq(offers.audience, 'public'));
   return db
     .select({ entry: shortlistEntries, property: properties, offer: offers })
     .from(shortlistEntries)
     .innerJoin(properties, eq(properties.id, shortlistEntries.propertyId))
     .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
-    .where(
-      and(
-        eq(shortlistEntries.sessionId, sessionId),
-        eq(shortlistEntries.stayId, stayId),
-        eq(shortlistEntries.excluded, false),
-        offerVisible,
-      ),
-    )
+    // The full list's rows are not on the shortlist: the chat, the answers and
+    // the agent see only what is shown without asking (lib/fullList.ts).
+    .where(and(visibleRows(sessionId, stayId, audience), or(isNull(shortlistEntries.reason), ne(reasonKind, FULL_LIST_KIND))))
     .orderBy(asc(shortlistEntries.source), asc(shortlistEntries.rank), asc(shortlistEntries.id));
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const reasonKind = sql<string>`${shortlistEntries.reason}->>'kind'`;
+
+/** This stay's rows, set-asides left out, and for an anonymous visitor no row whose offer is a member offer. */
+function visibleRows(sessionId: string, stayId: string, audience: Audience) {
+  return and(
+    eq(shortlistEntries.sessionId, sessionId),
+    eq(shortlistEntries.stayId, stayId),
+    eq(shortlistEntries.excluded, false),
+    audience === 'member' ? undefined : or(isNull(shortlistEntries.offerId), eq(offers.audience, 'public')),
+  );
+}
+
+const fullListRows = (sessionId: string, stayId: string, audience: Audience) =>
+  and(visibleRows(sessionId, stayId, audience), eq(shortlistEntries.source, 'finder'), eq(reasonKind, FULL_LIST_KIND));
+
+/**
+ * One page of "Show all N hotels": the finder's ranked order after the top
+ * picks, in rank order, with the same visibility rules as the shortlist. The
+ * rows are the finder's; nothing here ranks or prices anything.
+ */
+export async function listFullList(sessionId: string, stayId: string, audience: Audience, page: number, size = FULL_LIST_PAGE_SIZE) {
+  return db
+    .select({ entry: shortlistEntries, property: properties, offer: offers })
+    .from(shortlistEntries)
+    .innerJoin(properties, eq(properties.id, shortlistEntries.propertyId))
+    .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
+    .where(fullListRows(sessionId, stayId, audience))
+    .orderBy(asc(shortlistEntries.rank), asc(shortlistEntries.id))
+    .limit(size)
+    .offset((Math.max(1, page) - 1) * size);
+}
+
+/** How many rows the full list holds after the top picks. */
+export async function countFullList(sessionId: string, stayId: string, audience: Audience): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(shortlistEntries)
+    .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
+    .where(fullListRows(sessionId, stayId, audience));
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * May this hotel be opened (details, rooms and rates)? Any row this audience
+ * may see: the shortlist, the full list, or a hotel the user named.
+ */
+export async function isListed(sessionId: string, stayId: string, propertyId: string, audience: Audience): Promise<boolean> {
+  // The id comes from a URL: anything that is not a uuid is simply not listed (and never reaches the query).
+  if (!UUID.test(propertyId)) return false;
+  const rows = await db
+    .select({ id: shortlistEntries.id })
+    .from(shortlistEntries)
+    .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
+    .where(and(visibleRows(sessionId, stayId, audience), eq(shortlistEntries.propertyId, propertyId)))
+    .limit(1);
+  return rows.length === 1;
 }

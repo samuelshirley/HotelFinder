@@ -130,6 +130,14 @@ describe('settled messages become typed actions', () => {
     expect(route('show me others', readings('more'))).toMatchObject({
       actions: [{ type: 'more_options', propertyIds: [P(1), P(2), P(3)] }],
     });
+    expect(route('show me all the other hotels', readings('more'))).toMatchObject({ kind: 'actions', actions: [{ type: 'more_options' }] });
+  });
+
+  it('"show me all of them" opens the full list and sets nothing aside', () => {
+    expect(route('show me all of them', readings('more'))).toEqual({ kind: 'ui', intent: 'more', hint: { all: 'show' } });
+    expect(route('can I see the full list?', readings('more'))).toEqual({ kind: 'ui', intent: 'more', hint: { all: 'show' } });
+    // With nothing on screen there is no list to widen: the agent's.
+    expect(routeMessage({ message: 'show me all of them', readings: readings('more'), state, currency: 'EUR', shortlist: [] })).toEqual({ kind: 'defer', reason: 'slot_missing' });
   });
 
   it('the map: shown, folded away, or one hotel marked on it; never a write', () => {
