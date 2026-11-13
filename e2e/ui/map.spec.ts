@@ -209,8 +209,9 @@ test.describe('map', { tag: '@ui' }, () => {
     await expect(anchor).toContainText('Ribeira');
     // A marker that is focusable is announced by what it marks, not as a generic "Map marker" button.
     await expect(anchor).toHaveAccessibleName(/Ribeira/);
-    // Pressing it changes nothing: it is a mark, not a control.
-    await anchor.click();
+    // Pressing it changes nothing: it is a mark, not a control. It takes no pointer events (the press
+    // lands on the map under it), so Playwright's actionability wait would never end: press the spot.
+    await anchor.click({ force: true });
     await expect(app.results.cards().first()).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });

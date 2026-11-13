@@ -116,12 +116,14 @@ export function ringPolygon(centre: MapPoint, km: number, steps = 64): Array<[nu
 }
 
 export type PinBox = { id: string; rank: number | null; x: number; y: number; width: number; height: number };
-export type PinPlace = { dy: number; compact: boolean };
+export type PinPlace = { dx: number; dy: number; compact: boolean };
 
 /** A pin drawn small: just its rank, in a circle this wide. */
 export const COMPACT_PX = 28;
 /** Where a label that would cover another is tried instead, in order: just below, just above, then one further each way. */
 export const STACK_OFFSETS = [32, -32, 64, -64] as const;
+/** Where a rank alone is tried beside the stack when nothing above or below is free: clear of a full label on either side. */
+export const SIDE_OFFSETS = [44, -44, 72, -72] as const;
 /** Half a pin label's height, its 2 px ring included (MapPanel.module.css `.pin`). */
 export const PIN_HALF_PX = 15;
 
@@ -135,7 +137,8 @@ export const PIN_HALF_PX = 15;
  */
 export function framePadding(width: number, height: number): { top: number; bottom: number; left: number; right: number } {
   const v = Math.floor(Math.min(Math.max(...STACK_OFFSETS.map(Math.abs)) + PIN_HALF_PX + 9, height / 3));
-  const h = Math.floor(Math.min(72, width / 3));
+  // The sides keep a rank alone set beside a stack (SIDE_OFFSETS) inside too.
+  const h = Math.floor(Math.min(Math.max(...SIDE_OFFSETS.map(Math.abs)) + COMPACT_PX / 2 + 2, width / 3));
   return { top: v, bottom: v, left: h, right: h };
 }
 
@@ -160,13 +163,16 @@ export function layoutPins(boxes: readonly PinBox[], gap = 2): Map<string, PinPl
   for (const b of order) {
     const dy = [0, ...STACK_OFFSETS].find((d) => free(b.x, b.y + d, b.width, b.height));
     if (dy !== undefined) {
-      out.set(b.id, { dy, compact: false });
+      out.set(b.id, { dx: 0, dy, compact: false });
       placed.push({ x: b.x, y: b.y + dy, w: b.width, h: b.height });
       continue;
     }
-    const small = [0, ...STACK_OFFSETS].find((d) => free(b.x, b.y + d, COMPACT_PX, b.height)) ?? 0;
-    out.set(b.id, { dy: small, compact: true });
-    placed.push({ x: b.x, y: b.y + small, w: COMPACT_PX, h: b.height });
+    // A rank alone: above or below first, then beside the stack. Seen on CI (2026-11-13): five central
+    // hotels left no slot above or below, and "5" fell back onto "3 · €268".
+    const slots = [0, ...SIDE_OFFSETS].flatMap((dx) => [0, ...STACK_OFFSETS].map((dy) => ({ dx, dy })));
+    const small = slots.find((p) => free(b.x + p.dx, b.y + p.dy, COMPACT_PX, b.height)) ?? { dx: 0, dy: 0 };
+    out.set(b.id, { ...small, compact: true });
+    placed.push({ x: b.x + small.dx, y: b.y + small.dy, w: COMPACT_PX, h: b.height });
   }
   return out;
 }

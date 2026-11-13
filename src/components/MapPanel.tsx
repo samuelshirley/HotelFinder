@@ -66,9 +66,11 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     for (const [id, { el, marker }] of markers.current) {
       const place = places.get(id);
       el.dataset.compact = place?.compact ? 'true' : 'false';
+      const dx = place?.dx ?? 0;
       const dy = place?.dy ?? 0;
       // Only when it changes: setOffset repositions the marker.
-      if (marker.getOffset().y !== dy) marker.setOffset([0, dy]);
+      const at = marker.getOffset();
+      if (at.x !== dx || at.y !== dy) marker.setOffset([dx, dy]);
     }
   };
   const declutterRef = useRef(declutter);
