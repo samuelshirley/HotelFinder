@@ -9,7 +9,8 @@ import type { SessionView } from '@/server/view';
 import { formatDates, formatGuests } from '@/lib/replies';
 import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSession, loadTrips, logEvent, sendTurn, signOut, startBrief, startCheckout, type BookingSummary, type Me, type Trip } from './api';
 import styles from './App.module.css';
-import { ChatPanel, Penny, PENNY_HELLO } from './ChatPanel';
+import { ChatPanel, Penny } from './ChatPanel';
+import { LanguagePicker, useLocale } from './i18n';
 import { HotelDetail } from './HotelDetail';
 import { detailVariant, type DetailVariant } from './flags';
 import { SlideOut } from './SlideOut';
@@ -56,6 +57,7 @@ type PendingBrief = { bubble: string; place: string | null };
 
 /** The whole app: your trips on the left, the conversation in the middle, the shortlist on the right. */
 export function App() {
+  const { locale, t } = useLocale();
   const [view, setView] = useState<SessionView | null>(null);
   const [busy, setBusy] = useState<null | 'form' | 'edit' | 'turn' | 'boot'>('boot');
   /** Set from the first press until the session exists: the chat-and-hotels layout shows at once, not 4 s later. */
@@ -179,7 +181,7 @@ export function App() {
     cardIntoView(propertyId);
   }, []);
 
-  const fail = (err: unknown) => setError(errorCopy(err instanceof ApiError ? err.code : 'server_error'));
+  const fail = (err: unknown) => setError(errorCopy(err instanceof ApiError ? err.code : 'server_error', locale));
 
   const start = useCallback(async (fresh: boolean) => {
     setBusy('boot');
@@ -212,6 +214,16 @@ export function App() {
     booted.current = true;
     void start(false);
   }, [start]);
+
+  // A new language: the search's own words (where "close" means) come back in it. Lines already said stay as they were.
+  const shownLocale = useRef(locale);
+  useEffect(() => {
+    if (shownLocale.current === locale) return;
+    shownLocale.current = locale;
+    const id = viewRef.current?.session.id;
+    if (id) loadSession(id).then(setView, fail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
   const openTrip = async (id: string) => {
     if (busy !== null || id === view?.session.id) return setDrawer(false);
@@ -275,7 +287,7 @@ export function App() {
   const onBrief = async (brief: Brief) => {
     setBusy('form');
     setError(null);
-    const party = brief.guests ? formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms) : '2 adults';
+    const party = brief.guests ? formatGuests(brief.guests.adults, brief.guests.childrenAges, brief.guests.rooms, locale) : t.ui.defaultParty;
     setPendingBrief({ bubble: brief.text || [brief.place?.label, party].filter(Boolean).join(' · '), place: brief.place?.label ?? null });
     try {
       const { sessionId } = await startBrief(brief);
@@ -328,7 +340,7 @@ export function App() {
     const key = crypto.randomUUID();
     setBusy('turn');
     setError(null);
-    setProgress('Reading');
+    setProgress(t.ui.reading);
     // Show the message at once; the server's copy replaces it on refresh.
     setView({
       ...view,
@@ -336,8 +348,8 @@ export function App() {
     });
     try {
       await sendTurn(id, message, key, (type) => {
-        if (type === 'working') setProgress('Working');
-        if (type === 'queued') setProgress('Queued behind your last message');
+        if (type === 'working') setProgress(t.ui.working);
+        if (type === 'queued') setProgress(t.ui.queued);
       });
     } catch (err) {
       fail(err);
@@ -374,7 +386,7 @@ export function App() {
   const openRow = openProperty ? view?.shortlist.find((r) => r.property.id === openProperty) ?? null : null;
   const hasPanel =
     Boolean(view?.stay && view.session.status !== 'onboarding') || Boolean(pendingBrief?.place) || (busy === 'form' && searching);
-  const working = pendingBrief ? 'Finding hotels…' : busy === 'form' && searching ? 'Finding hotels…' : busy === 'edit' ? 'Updating the shortlist…' : null;
+  const working = pendingBrief ? t.ui.findingHotels : busy === 'form' && searching ? t.ui.findingHotels : busy === 'edit' ? t.ui.updatingShortlist : null;
   const count = view?.shortlist.length ?? 0;
   return (
     <div
@@ -386,21 +398,22 @@ export function App() {
       data-tab={tab}
       style={{ '--panel-w': `${panelWidth}px` } as React.CSSProperties}
     >
-      <nav className={styles.sidebar} aria-label="Your trips">
-        <div className={styles.brand}>Hotel finder</div>
+      <nav className={styles.sidebar} aria-label={t.ui.yourTrips}>
+        <div className={styles.brand}>{t.ui.brand}</div>
+        <LanguagePicker className={styles.language} />
         <button className={styles.newTrip} onClick={() => { setDrawer(false); void start(true); }} disabled={busy !== null}>
-          New search
+          {t.ui.newSearch}
         </button>
-        <h2 className={styles.sideHeading}>Your trips</h2>
+        <h2 className={styles.sideHeading}>{t.ui.yourTrips}</h2>
         {trips.length === 0 ? (
-          <p className={styles.sideEmpty}>A search appears here once it has a place and dates.</p>
+          <p className={styles.sideEmpty}>{t.ui.tripsEmpty}</p>
         ) : (
           <ul className={styles.trips}>
-            {trips.map((t) => (
-              <li key={t.id}>
-                <button className={styles.trip} aria-current={t.id === view?.session.id ? 'true' : undefined} onClick={() => void openTrip(t.id)}>
-                  <span className={styles.tripName}>{t.destination}</span>
-                  <span className={styles.tripDates}>{formatDates(t.checkIn, t.checkOut)}</span>
+            {trips.map((trip) => (
+              <li key={trip.id}>
+                <button className={styles.trip} aria-current={trip.id === view?.session.id ? 'true' : undefined} onClick={() => void openTrip(trip.id)}>
+                  <span className={styles.tripName}>{trip.destination}</span>
+                  <span className={styles.tripDates}>{formatDates(trip.checkIn, trip.checkOut, locale)}</span>
                 </button>
               </li>
             ))}
@@ -408,15 +421,15 @@ export function App() {
         )}
         {bookings.length > 0 && (
           <>
-            <h2 className={styles.sideHeading}>Your bookings</h2>
+            <h2 className={styles.sideHeading}>{t.ui.yourBookings}</h2>
             <ul className={styles.trips}>
               {bookings.map((b) => (
                 <li key={b.id}>
                   <a className={styles.bookingLink} href={withBase(`/book/${b.id}`)}>
                     <span className={styles.tripName}>{b.hotelName}</span>
                     <span className={styles.tripDates}>
-                      {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut) : ''}
-                      {b.status === 'cancelled' ? ' · cancelled' : b.status === 'booking' ? ' · waiting for the hotel' : ''}
+                      {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut, locale) : ''}
+                      {b.status === 'cancelled' ? t.ui.bookingCancelled : b.status === 'booking' ? t.ui.bookingWaiting : ''}
                     </span>
                   </a>
                 </li>
@@ -426,7 +439,7 @@ export function App() {
         )}
         {me?.user && (
           <div className={styles.account}>
-            <span>Signed in as {me.user.email}</span>
+            <span>{t.ui.signedInAs(me.user.email)}</span>
             <button
               onClick={() =>
                 void signOut().then(() => {
@@ -436,29 +449,29 @@ export function App() {
                 })
               }
             >
-              Sign out
+              {t.ui.signOut}
             </button>
           </div>
         )}
       </nav>
-      {drawer && <button className={styles.scrim} aria-label="Close the trips list" onClick={() => setDrawer(false)} />}
+      {drawer && <button className={styles.scrim} aria-label={t.ui.closeTripsList} onClick={() => setDrawer(false)} />}
 
-      <section className={styles.chat} aria-label="Conversation">
+      <section className={styles.chat} aria-label={t.ui.conversation}>
         <header className={styles.header}>
-          <button className={styles.icon} onClick={toggleSidebar} aria-label="Trips list" aria-expanded={sidebar}>
+          <button className={styles.icon} onClick={toggleSidebar} aria-label={t.ui.tripsList} aria-expanded={sidebar}>
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
               <rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
               <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
             </svg>
           </button>
-          <h1>{view?.stay?.destination ?? 'New search'}</h1>
+          <h1>{view?.stay?.destination ?? t.ui.newSearch}</h1>
           {hasPanel && (
-            <div className={styles.tabs} role="tablist" aria-label="View">
+            <div className={styles.tabs} role="tablist" aria-label={t.ui.view}>
               <button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>
-                Chat
+                {t.ui.chat}
               </button>
               <button role="tab" aria-selected={tab === 'hotels'} onClick={() => setTab('hotels')}>
-                Hotels{count > 0 ? ` (${count})` : ''}
+                {t.ui.hotelsTab(count)}
               </button>
             </div>
           )}
@@ -474,7 +487,7 @@ export function App() {
           <PendingChat bubble={pendingBrief.bubble} reading={pendingBrief.place === null} />
         ) : busy === 'boot' ? (
           <p className={styles.starting}>
-            <Spinner label="Starting…" />
+            <Spinner label={t.ui.starting} />
           </p>
         ) : (
           <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
@@ -487,7 +500,7 @@ export function App() {
             className={styles.resizer}
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize the chat"
+            aria-label={t.ui.resizeChat}
             aria-valuemin={PANEL_MIN}
             aria-valuenow={panelWidth}
             tabIndex={0}
@@ -495,7 +508,7 @@ export function App() {
             onKeyDown={nudgePanel}
             onDoubleClick={() => { const w = clampPanel(halfWindow()); setPanelWidth(w); store(PANEL_KEY, String(w)); }}
           />
-          <section ref={resultsRef} className={styles.results} data-layout={view?.stay ? 'map' : undefined} aria-label="Hotels">
+          <section ref={resultsRef} className={styles.results} data-layout={view?.stay ? 'map' : undefined} aria-label={t.ui.hotels}>
             {view ? (
               <ResultsPanel
                 view={view}
@@ -552,16 +565,17 @@ function answerRunsSearch(view: SessionView, field: FormAnswer['field']): boolea
 
 /** The chat during the first press: the user's words, and that they are being read. */
 function PendingChat({ bubble, reading }: { bubble: string; reading: boolean }) {
+  const { t } = useLocale();
   return (
     <div className={styles.messages}>
       <div className={styles.thread}>
         <Penny first>
-          <p className={`${styles.bubble} ${styles.assistant}`}>{PENNY_HELLO}</p>
+          <p className={`${styles.bubble} ${styles.assistant}`}>{t.penny.hello}</p>
         </Penny>
         <p className={`${styles.bubble} ${styles.user}`}>{bubble}</p>
         <Penny first>
           <p className={`${styles.bubble} ${styles.assistant}`}>
-            <Spinner label={reading ? 'Reading your trip…' : 'Finding hotels…'} />
+            <Spinner label={reading ? t.ui.readingTrip : t.ui.findingHotels} />
           </p>
         </Penny>
       </div>
@@ -571,10 +585,11 @@ function PendingChat({ bubble, reading }: { bubble: string; reading: boolean }) 
 
 /** The hotels side during the first press. */
 function FirstSearch({ place }: { place: string | null }) {
+  const { t } = useLocale();
   return (
     <div className={styles.firstSearch} aria-busy="true">
       {place && <h2>{place}</h2>}
-      <Spinner label={place ? 'Finding hotels…' : 'Reading your trip…'} />
+      <Spinner label={place ? t.ui.findingHotels : t.ui.readingTrip} />
       <ol className={styles.cards}>
         <CardSkeleton />
         <CardSkeleton />

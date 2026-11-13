@@ -51,6 +51,8 @@ export function pickPlace<P extends PlaceLike>(query: string, places: readonly P
 
 const MONTHS = /\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i;
 const OTHER = /\b(mon|tue|wed|thu|fri|sat|sun)(day)?s?\b|\bnights?\b|\bweek(end)?s?\b|\btomorrow\b|\btonight\b|\b\d{1,2}(st|nd|rd|th)?\s*(-|–|to)\s*\d{1,2}\b|\b\d{1,2}[/.]\d{1,2}\b|\bspring|summer|autumn|fall|winter|easter|christmas\b/i;
+/** The same in Spanish (docs/i18n.md): weekdays, nights, weekends, "mañana", "del 1 al 6", the seasons. */
+const OTHER_ES = /(?<![\p{L}])(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|noches?|fin(es)? de semana|semanas?|mañana|esta noche|hoy|del \d{1,2} al \d{1,2}|\d{1,2} al \d{1,2}|primavera|verano|otoño|invierno|semana santa|navidad(es)?)(?![\p{L}])/iu;
 
 /**
  * The words talk about when, though the scan could not turn them into two
@@ -58,7 +60,7 @@ const OTHER = /\b(mon|tue|wed|thu|fri|sat|sun)(day)?s?\b|\bnights?\b|\bweek(end)
  * search defaults to tonight (Sam, 11 Nov 2026).
  */
 export function mentionsDates(text: string): boolean {
-  return MONTHS.test(text) || OTHER.test(text);
+  return MONTHS.test(text) || OTHER.test(text) || OTHER_ES.test(text);
 }
 
 /** A word for what a place is, for the suggestion list; null for a hotel (never suggested). */

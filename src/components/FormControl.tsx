@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
+import { copy, type Messages } from '@/lib/i18n';
 import { formatDates } from '@/lib/replies';
+import { useLocale } from './i18n';
 import { searchPlaces, todayLocal } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import styles from './App.module.css';
@@ -18,14 +20,15 @@ const addDays = (iso: string, days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-const PRIORITY_CHIPS: Array<{ key: 'cheapest' | 'nicest' | 'closest'; label: (near: string) => string }> = [
-  { key: 'cheapest', label: () => 'Low price' },
-  { key: 'nicest', label: () => 'Great reviews' },
-  { key: 'closest', label: (near) => `Close to ${near}` },
+const PRIORITY_CHIPS: Array<{ key: 'cheapest' | 'nicest' | 'closest'; label: (near: string, t: Messages) => string }> = [
+  { key: 'cheapest', label: (_near, t) => t.replies.priorityChip.cheapest },
+  { key: 'nicest', label: (_near, t) => t.replies.priorityChip.nicest },
+  { key: 'closest', label: (near, t) => t.replies.closeTo(near) },
 ];
 
 /** The control for the onboarding question currently being asked. */
 export function FormControl({ question, disabled, onAnswer }: Props) {
+  const { locale } = useLocale();
   const meta = (question.meta ?? {}) as { field?: string; suggestions?: Array<{ placeId: string; label: string; display?: string }>; near?: string; nights?: number; month?: string };
   switch (meta.field) {
     case 'destination':
@@ -35,7 +38,7 @@ export function FormControl({ question, disabled, onAnswer }: Props) {
     case 'guests':
       return <Guests disabled={disabled} onAnswer={onAnswer} />;
     case 'priorities':
-      return <Priorities near={meta.near ?? 'the centre'} disabled={disabled} onAnswer={onAnswer} />;
+      return <Priorities near={meta.near ?? copy(locale).words.theCentre} disabled={disabled} onAnswer={onAnswer} />;
     default:
       return null;
   }
@@ -45,6 +48,7 @@ function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState(suggestions ?? []);
   const [state, setState] = useState<'idle' | 'loading' | 'failed' | 'none'>('idle');
+  const { t } = useLocale();
 
   useEffect(() => {
     const q = query.trim();
@@ -69,10 +73,10 @@ function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<
   return (
     <div className={styles.control}>
       {!suggestions && (
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Porto, Shibuya, Trastevere…" aria-label="Destination" disabled={disabled} autoFocus />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.ui.destinationPlaceholder} aria-label={t.ui.destination} disabled={disabled} autoFocus />
       )}
-      {state === 'failed' && <p className={styles.errorText}>The place search did not answer. Keep typing to try again.</p>}
-      {state === 'none' && <p className={styles.muted}>No place by that name.</p>}
+      {state === 'failed' && <p className={styles.errorText}>{t.ui.placeSearchFailed}</p>}
+      {state === 'none' && <p className={styles.muted}>{t.ui.noPlaceByThatName}</p>}
       <div className={styles.chips}>
         {places.map((p) => (
           <button key={p.placeId} className={styles.chip} disabled={disabled} onClick={() => onAnswer({ field: 'destination', placeId: p.placeId, label: p.label })}>
@@ -90,6 +94,7 @@ function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<
  * on the first night sets both dates.
  */
 function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: string }; disabled: boolean; onAnswer: Props['onAnswer'] }) {
+  const { locale, t } = useLocale();
   const today = todayLocal();
   const nights = hint.nights ?? null;
   const firstDay = hint.month && `${hint.month}-01` > today ? `${hint.month}-01` : today;
@@ -101,10 +106,10 @@ function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: 
       <RangeCalendar value={range} min={today} month={firstDay.slice(0, 7)} nights={nights ?? undefined} maxNights={30} months={1} onChange={setRange} />
       <div className={styles.rowBetween}>
         <span className={styles.muted}>
-          {formatDates(range.checkIn, range.checkOut)}
+          {formatDates(range.checkIn, range.checkOut, locale)}
         </span>
         <button className={styles.primary} disabled={disabled || !valid || n < 1} onClick={() => onAnswer({ field: 'dates', ...range })}>
-          Use these nights
+          {t.ui.useTheseNights}
         </button>
       </div>
     </div>
@@ -116,27 +121,28 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
   const [rooms, setRooms] = useState(1);
   const [ages, setAges] = useState<number[]>([]);
   const [pets, setPets] = useState(false);
+  const { t } = useLocale();
   const step = (value: number, set: (n: number) => void, min: number, max: number, label: string) => (
     <div className={styles.stepper}>
       <span>{label}</span>
-      <button type="button" disabled={disabled || value <= min} onClick={() => set(value - 1)} aria-label={`Fewer ${label.toLowerCase()}`}>
+      <button type="button" disabled={disabled || value <= min} onClick={() => set(value - 1)} aria-label={t.ui.fewer(label)}>
         −
       </button>
       <output>{value}</output>
-      <button type="button" disabled={disabled || value >= max} onClick={() => set(value + 1)} aria-label={`More ${label.toLowerCase()}`}>
+      <button type="button" disabled={disabled || value >= max} onClick={() => set(value + 1)} aria-label={t.ui.more(label)}>
         +
       </button>
     </div>
   );
   return (
     <div className={styles.control}>
-      {step(adults, (n) => { setAdults(n); if (rooms > n) setRooms(n); }, 1, 12, 'Adults')}
-      {step(ages.length, (n) => setAges(n > ages.length ? [...ages, 8] : ages.slice(0, n)), 0, 8, 'Children')}
+      {step(adults, (n) => { setAdults(n); if (rooms > n) setRooms(n); }, 1, 12, t.ui.adults)}
+      {step(ages.length, (n) => setAges(n > ages.length ? [...ages, 8] : ages.slice(0, n)), 0, 8, t.ui.children)}
       {ages.length > 0 && (
         <div className={styles.row}>
           {ages.map((age, i) => (
             <label key={i}>
-              Age of child {i + 1}
+              {t.ui.ageOfChild(i + 1)}
               <select value={age} disabled={disabled} onChange={(e) => setAges(ages.map((a, j) => (j === i ? Number(e.target.value) : a)))}>
                 {Array.from({ length: 18 }, (_, n) => (
                   <option key={n} value={n}>
@@ -148,13 +154,13 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
           ))}
         </div>
       )}
-      {step(rooms, setRooms, 1, Math.min(6, adults), 'Rooms')}
+      {step(rooms, setRooms, 1, Math.min(6, adults), t.ui.rooms)}
       <label className={styles.check}>
         <input type="checkbox" checked={pets} disabled={disabled} onChange={(e) => setPets(e.target.checked)} />
-        Bringing a pet
+        {t.ui.bringingPet}
       </label>
       <button className={styles.primary} disabled={disabled} onClick={() => onAnswer({ field: 'guests', adults, childrenAges: ages, rooms, pets })}>
-        That is everyone
+        {t.ui.thatIsEveryone}
       </button>
     </div>
   );
@@ -166,22 +172,23 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
  */
 function Priorities({ near, disabled, onAnswer }: { near: string; disabled: boolean; onAnswer: Props['onAnswer'] }) {
   const [picked, setPicked] = useState<Array<'cheapest' | 'nicest' | 'closest'>>([]);
+  const { t } = useLocale();
   const toggle = (key: 'cheapest' | 'nicest' | 'closest') => setPicked((p) => (p.includes(key) ? p.filter((k) => k !== key) : [...p, key]));
   return (
     <div className={styles.control}>
-      <div className={styles.chips} role="group" aria-label="What matters most">
+      <div className={styles.chips} role="group" aria-label={t.ui.whatMattersMost}>
         {PRIORITY_CHIPS.map((c) => (
           <button key={c.key} className={styles.chip} aria-pressed={picked.includes(c.key)} disabled={disabled} onClick={() => toggle(c.key)}>
-            {c.label(near)}
+            {c.label(near, t)}
           </button>
         ))}
       </div>
       <div className={styles.row}>
         <button className={styles.primary} disabled={disabled || picked.length === 0} onClick={() => onAnswer({ field: 'priorities', priorities: picked })}>
-          Show hotels
+          {t.ui.showHotels}
         </button>
         <button className={styles.secondary} disabled={disabled} onClick={() => onAnswer({ field: 'priorities', priorities: [] })}>
-          No preference
+          {t.ui.noPreference}
         </button>
       </div>
     </div>

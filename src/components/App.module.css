@@ -13,6 +13,8 @@
 /* Folded, not removed: it keeps its (zero-width) grid column, or the chat would slide into it. */
 .shell[data-sidebar='closed'] .sidebar { visibility: hidden; padding: 0; border: 0; }
 .brand { font-weight: 600; font-size: 15px; padding: 6px 8px 10px; white-space: nowrap; }
+.language { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--tp-subtle); padding: 0 8px 10px; }
+.language select { font: inherit; color: var(--tp-text, inherit); background: transparent; border: 1px solid var(--tp-border, currentColor); border-radius: 6px; padding: 2px 4px; }
 .newTrip { text-align: left; background: transparent; border: 1px solid var(--tp-border); border-radius: 8px; padding: 8px 10px; color: var(--tp-text); }
 .newTrip:hover:not(:disabled) { border-color: var(--tp-primary); color: var(--tp-accent-300); }
 .sideHeading { font-size: 12px; font-weight: 500; color: var(--tp-subtle); padding: 16px 8px 4px; }

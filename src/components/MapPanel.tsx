@@ -9,6 +9,7 @@ import { layoutPins, fitKeyFor, fitPoints, ringPolygon, type MapPin, type MapPoi
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
 import styles from './MapPanel.module.css';
+import { useLocale } from './i18n';
 
 type Props = {
   pins: MapPin[];
@@ -42,6 +43,7 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
  * moving it; a new anchor or a marked hotel still moves it.
  */
 export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
+  const { locale, t } = useLocale();
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const lib = useRef<typeof import('maplibre-gl') | null>(null);
@@ -180,7 +182,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         el.setAttribute('aria-label', `${pin.rank}. ${pin.name}${pin.price ? `, ${pin.price}` : ''}`);
       } else {
         el.className = styles.miss;
-        el.setAttribute('aria-label', `${pin.name}. ${pin.miss ?? 'Misses something you asked for'}`);
+        el.setAttribute('aria-label', `${pin.name}. ${pin.miss ?? t.ui.missesSomething}`);
         const tip = document.createElement('span');
         tip.className = styles.missTip;
         tip.textContent = pin.miss ?? pin.name;
@@ -228,7 +230,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     if (ring && anchor && ringKm) {
       const el = document.createElement('div');
       el.className = styles.ringLabel;
-      el.textContent = formatKm(ringKm);
+      el.textContent = formatKm(ringKm, locale);
       extras.current.push(new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat(ring[0] as [number, number]).addTo(m));
     }
 
@@ -304,18 +306,18 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
 
   return (
     <div className={styles.wrap} data-testid="map" data-ready={ready ? 'true' : 'false'} onKeyDown={(e) => e.key === 'Escape' && setPicked(null)}>
-      <div ref={box} className={styles.canvas} role="region" aria-label="Map" />
-      {failed && <p className={styles.failed}>The map could not start in this browser. The list below has every hotel.</p>}
+      <div ref={box} className={styles.canvas} role="region" aria-label={t.ui.map} />
+      {failed && <p className={styles.failed}>{t.ui.mapFailed}</p>}
       {(moved || away) && !failed && (
         <div className={styles.chips}>
           {away && (
             <button type="button" className={styles.chip} disabled={busy} onClick={searchHere}>
-              Search around here
+              {t.ui.searchAroundHere}
             </button>
           )}
           {moved && (
             <button type="button" className={styles.chip} onClick={recentre}>
-              Recentre
+              {t.ui.recentre}
             </button>
           )}
         </div>
@@ -331,7 +333,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
               onMeasureFrom(picked.name, picked.point);
             }}
           >
-            Measure from {picked.name}
+            {t.ui.measureFrom(picked.name)}
           </button>
         </div>
       )}
