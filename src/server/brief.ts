@@ -158,7 +158,9 @@ export async function startFromBrief(args: {
     today,
     // Pills only: the user's bubble already says it all. Words: say which place they were read as.
     quiet: !text,
-    readBack: text ? `Searching ${place.label}.` : undefined,
+    // A place read from the words was the app's pick, not the user's: say so, and invite the
+    // correction in the chat (Sam, 2026-11-13: "Annex" silently became Annex, Toronto).
+    readBack: text ? (brief.place ? `Searching ${place.label}.` : placeReadBack(place.label)) : undefined,
     words: scanned,
   });
   // When the nights are missing (askDates), answerForm has just asked for them.
@@ -177,6 +179,11 @@ async function findPlace(supplier: SupplierAdapter, query: string): Promise<Foun
   if (picked.kind === 'one') return { placeId: picked.place.placeId, label: label(picked.place) };
   if (picked.kind === 'ask') return { ask: whichOne(picked.places) };
   return null;
+}
+
+/** The read-back for a place the app picked from the words. */
+export function placeReadBack(label: string): string {
+  return `Searching ${label}. Not where you meant? Tell me where you want to stay and I will search there instead.`;
 }
 
 /** The user's bubble for a search made with the pills only. */

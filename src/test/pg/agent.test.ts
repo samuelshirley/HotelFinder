@@ -633,7 +633,10 @@ describe('the first screen: one box, three pills', () => {
     expect(supplier.placeQueries).toEqual(['Annecy, France']);
     expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: ['nicest', 'closest'] });
     expect(await stayOf(sessionId)).toMatchObject({ destinationText: 'Annecy, France', checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 1, destKind: 'area' });
-    expect((await listMessages(sessionId)).map((x) => x.content)).toContain('Searching Annecy, France.');
+    // The app picked the place, so Penny says so and invites a correction (Sam's decision, 2026-11-13).
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContain(
+      'Searching Annecy, France. Not where you meant? Tell me where you want to stay and I will search there instead.',
+    );
   });
 
   it('a start day with no length, and a place to pick: the nights card opens on that day, not tonight', async () => {
