@@ -1,6 +1,10 @@
 .page { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; display: flex; flex-direction: column; gap: 22px; }
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .head h1 { font-size: 20px; }
+/* Section headings were the browser's 1.5em (21px), bigger than the page's h1, and touched the box below. */
+.page section > h2 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+/* A wide table scrolls inside the page instead of widening it (583px on a 390px phone). */
+.page { overflow-x: auto; }
 .muted { color: var(--tp-muted); }
 .subtle { color: var(--tp-subtle); font-size: 12px; }
 .windows { display: flex; gap: 6px; }
@@ -10,7 +14,9 @@
 .tile { background: var(--tp-surface); border: 1px solid var(--tp-border); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
 .tile strong { font-size: 18px; font-variant-numeric: tabular-nums; }
 .table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.table th, .table td { padding: 7px 8px; border-bottom: 1px solid var(--tp-border); text-align: left; vertical-align: top; }
+/* baseline: the 12px time cells sat 2px above the 14px text beside them. */
+.table th, .table td { padding: 7px 8px; border-bottom: 1px solid var(--tp-border); text-align: left; vertical-align: baseline; }
+.table td.subtle:first-child, .table td.subtle:nth-child(2) { white-space: nowrap; }
 .table th { color: var(--tp-subtle); font-weight: 500; font-size: 12px; }
 .table td.num, .table th.num { text-align: right; }
 .table a { color: var(--tp-accent-300); }

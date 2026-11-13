@@ -1,4 +1,5 @@
-.wrap { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--tp-bg); overflow: hidden; }
+/* isolation: the pins carry z-index 95–99 (best rank on top); without it they paint over the detail panel, its scrim and the header editors. */
+.wrap { position: relative; isolation: isolate; width: 100%; height: 100%; min-height: 0; background: var(--tp-bg); overflow: hidden; }
 .canvas { position: absolute; inset: 0; }
 .failed { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; color: var(--tp-muted); font-size: 13px; }
 
