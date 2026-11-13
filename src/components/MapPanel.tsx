@@ -230,7 +230,7 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
     else {
       m.addSource('ring', { type: 'geojson', data });
       m.addLayer({ id: 'ring-fill', type: 'fill', source: 'ring', paint: { 'fill-color': '#9184d9', 'fill-opacity': 0.06 } });
-      m.addLayer({ id: 'ring-line', type: 'line', source: 'ring', paint: { 'line-color': '#b2b6ca', 'line-opacity': 0.5, 'line-width': 1, 'line-dasharray': [3, 3] } });
+      m.addLayer({ id: 'ring-line', type: 'line', source: 'ring', paint: { 'line-color': '#5b4fb3', 'line-opacity': 0.7, 'line-width': 1.5, 'line-dasharray': [3, 3] } });
     }
     if (ring && anchor && ringKm) {
       const el = document.createElement('div');

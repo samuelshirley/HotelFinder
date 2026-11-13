@@ -20,7 +20,9 @@ Trips | hotels | chat is unchanged. Inside the hotels column:
 
 ## Tiles
 
-MapLibre GL JS drawing OpenFreeMap's `dark` style (`lib/mapStyle.ts`). No key, no account, no bill.
+MapLibre GL JS drawing OpenFreeMap's `positron` style (`lib/mapStyle.ts`), light grey; `dark` until
+13 Nov 2026, when Sam found it too dark to read. No key, no account, no bill. The distance ring's
+dashed line is the accent purple so it shows on the light map.
 OpenFreeMap's terms offer the public instance as-is; that URL is the one thing to change if it goes.
 The library is loaded on the client only, and only while the map is open.
 
