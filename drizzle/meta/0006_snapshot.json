@@ -1,5 +1,5 @@
 {
-  "id": "49c350cb-d82e-427f-aa1f-d50070c8898c",
+  "id": "08325537-0598-49a7-a1dd-f465e7a5776b",
   "prevId": "9f953ace-1bc7-4d29-a0f4-a426ec81daaf",
   "version": "7",
   "dialect": "postgresql",
@@ -1059,6 +1059,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "rooms": {
+          "name": "rooms",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "refundable_tag": {
           "name": "refundable_tag",
           "type": "text",
@@ -1904,8 +1910,7 @@
           "name": "rooms",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "default": 1
+          "notNull": false
         },
         "price_cap_minor": {
           "name": "price_cap_minor",

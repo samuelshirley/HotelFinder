@@ -92,7 +92,7 @@ export function buildUserTurn(input: AgentInput): string {
     `check-out: ${s.checkOut}`,
     `adults: ${s.adults}`,
     `children ages: ${s.childrenAges.length ? s.childrenAges.join(', ') : 'none'}`,
-    `rooms: ${s.rooms}`,
+    `rooms: ${s.rooms ?? 'not fixed (each hotel is priced for the cheapest split of the party; its line says the rooms)'}`,
     `currency: ${currency}`,
     `price cap per night: ${s.priceCapMinor === null ? 'none' : formatMoney(s.priceCapMinor, currency)}`,
     `requirements: ${s.mustHaves.length ? s.mustHaves.map((m) => `${m} (${MUST_HAVE_LABEL[m]})`).join(', ') : 'none'}`,

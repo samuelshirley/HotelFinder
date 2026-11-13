@@ -4,17 +4,19 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/server/db/client', async () => (await import('./harness')).clientModule());
 vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 
-import { resetDb } from './harness';
+import { rawQuery, resetDb } from './harness';
+import { seedOffer, seedProperty, seedSearch } from './fixtures';
 import { DOWN, RECORDED_AT, recordedSupplier } from './recordedSupplier';
+import { roomsLabel } from '@/lib/finder/rooms';
 import { sendCode, MAX_ATTEMPTS } from '@/server/auth/otp';
 import { bookPaid, bookingView, cancelBooking, confirmCheckout, PRICE_CHECK_TTL_MS, startCheckout, type ConfirmInput } from '@/server/checkout';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
 import { getBooking, transitionBooking } from '@/server/repos/bookings';
 import { listMessages } from '@/server/repos/chat';
-import { createSession, getSession } from '@/server/repos/sessions';
+import { createSession, getSession, updateStay } from '@/server/repos/sessions';
 import { fixture } from '@/server/supplier/liteapi/fixtures';
-import { normalizeBooking, normalizeCancel, normalizePrebook } from '@/server/supplier/liteapi/normalize';
-import { bookingResponse, cancelResponse, prebookResponse } from '@/server/supplier/liteapi/schemas';
+import { normalizeBooking, normalizeCancel, normalizePrebook, normalizeRates } from '@/server/supplier/liteapi/normalize';
+import { bookingResponse, cancelResponse, prebookResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { BookRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
 import { buildSessionView } from '@/server/view';
 
@@ -282,6 +284,64 @@ describe('checkout', () => {
     expect(view.payAtPropertyMinor).toBe(atHotel.filter((f) => f.currency === t.offer.currency).reduce((n, f) => n + f.amountMinor, 0));
     // A booking from before the charges were kept says so with null, not with "nothing".
     expect(bookingView({ ...t.booking, payAtPropertyFees: null }, RECORDED_AT).payAtPropertyFees).toBeNull();
+  });
+
+  describe('two rooms: checkout books exactly the rooms on the card', () => {
+    // Recorded 2026-11-13: a search for 2 + 1 adults, its two-room offer with two
+    // different rooms, that offer's prebook, and the one booking it made.
+    const prebooked = () => normalizePrebook(prebookResponse.parse(fixture('prebook-mixed-rooms')), RECORDED_AT);
+    async function twoRoomCard(over: { roomName?: string | null } = {}) {
+      const { session, stay } = await seedSearch({ anonId: 'anon-rooms' });
+      await updateStay(stay.id, session.id, { adults: 3, childrenAges: [], rooms: null });
+      const searched = normalizeRates(ratesResponse.parse(fixture('rates-mixed-rooms')), 15, RECORDED_AT).offers.find((o) => o.supplierOfferId === prebooked().supplierOfferId)!;
+      const property = await seedProperty(searched.supplierHotelId, 'Vincci Porto');
+      const offer = await seedOffer(
+        { sessionId: session.id, stayId: stay.id, propertyId: property.id },
+        { supplierOfferId: searched.supplierOfferId, totalMinor: searched.total.amountMinor, suggestedSellingMinor: null, payAtPropertyMinor: searched.payAtProperty.amountMinor, rooms: searched.rooms, roomName: roomsLabel(searched.rooms), fetchedAt: RECORDED_AT, expiresAt: new Date(RECORDED_AT.getTime() + 15 * 60_000), ...over },
+      );
+      return { session: (await getSession(session.id))!, offer };
+    }
+    function roomsSupplier(prebook: string) {
+      const books: BookRequest[] = [];
+      const supplier: SupplierAdapter = {
+        ...recordedSupplier().supplier,
+        recheckRate: async () => ({ ok: true, value: normalizePrebook(prebookResponse.parse(fixture(prebook)), RECORDED_AT) }),
+        async book(request) {
+          books.push(request);
+          return { ok: true, value: normalizeBooking(bookingResponse.parse(fixture('book-mixed-rooms'))) };
+        },
+      };
+      return { supplier, books };
+    }
+
+    it('the re-check holds the same two rooms: the booking is for two rooms, named as the supplier holds them, and book gets one guest per room', async () => {
+      const card = await twoRoomCard();
+      expect(card.offer.roomName).toBe('2 rooms: Vincci Room (2 adults) + Vincci Room Uso Individual (1 adult)');
+      const sup = roomsSupplier('prebook-mixed-rooms');
+      const started = await startCheckout({ session: card.session, offerId: card.offer.id, supplier: sup.supplier });
+      if (!started.ok) throw new Error(started.error);
+      expect(started.booking).toMatchObject({ rooms: 2, adults: 3, roomName: '2 rooms: Vincci Room (2 adults) + Vincci Room Uso Individual (1 adult)', totalMinor: 36346, quotedTotalMinor: 36346 });
+
+      const done = await confirmWith({ booking: started.booking, supplier: sup.supplier }, { code: await codeFor() });
+      expect(done).toMatchObject({ ok: true, booking: { status: 'confirmed', supplierBookingId: 'hMt2HdnXq' } });
+      expect(sup.books).toHaveLength(1);
+      expect(sup.books[0]).toMatchObject({ prebookId: prebooked().prebookId, payment: 'sandbox_test' });
+      expect(sup.books[0].guests).toHaveLength(2);
+    });
+
+    it('the rooms are named as the re-check holds them, not as the card had them', async () => {
+      const card = await twoRoomCard({ roomName: null });
+      const started = await startCheckout({ session: card.session, offerId: card.offer.id, supplier: roomsSupplier('prebook-mixed-rooms').supplier });
+      expect(started).toMatchObject({ ok: true, booking: { roomName: '2 rooms: Vincci Room (2 adults) + Vincci Room Uso Individual (1 adult)' } });
+    });
+
+    it('a re-check holding other rooms (one room for two) is not the offer chosen: nothing is written, nothing is paid', async () => {
+      const card = await twoRoomCard();
+      const sup = roomsSupplier('prebook-payment-sdk');
+      expect(await startCheckout({ session: card.session, offerId: card.offer.id, supplier: sup.supplier })).toEqual({ ok: false, error: 'rate_gone' });
+      expect(await rawQuery('select 1 from bookings')).toHaveLength(0);
+      expect(sup.books).toHaveLength(0);
+    });
   });
 
   it('cancel: through the supplier, with the refund it reports', async () => {

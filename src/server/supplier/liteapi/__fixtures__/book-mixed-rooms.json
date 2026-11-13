@@ -1,0 +1,266 @@
+{
+  "data": {
+    "bookingId": "hMt2HdnXq",
+    "clientReference": "",
+    "supplierBookingId": "hMt2HdnXq",
+    "supplierBookingName": "nuitee",
+    "supplier": "nuitee",
+    "supplierId": 2,
+    "status": "CONFIRMED",
+    "hotelConfirmationCode": "test",
+    "checkin": "2026-12-11",
+    "checkout": "2026-12-13",
+    "hotel": {
+      "hotelId": "lp76a2a",
+      "name": "Vincci Porto",
+      "parentHotelId": "lp76a2a",
+      "phone": "",
+      "email": ""
+    },
+    "bookedRooms": [
+      {
+        "roomType": {
+          "roomTypeId": "",
+          "name": "Test rate 1"
+        },
+        "boardType": "RO",
+        "boardName": "Room Only",
+        "adults": 1,
+        "children": 0,
+        "rate": {
+          "rateId": "I42DGRCNJ5FFOTKVGNCEOTSSKRDVSNCUIVGUEWCHJEZUOTKOKRDUOWSTJBMU2SSEI5EVSRCFJZJFER2JLFKEGN2CKNDUCWSEJVGUUU2HIVNFQWK2JRHUYNKLKZDTOQ2GJNHDMRKLKZFVGUCRLJCUGTKDIRDDIWKVINGUGRCQKEZEIS2NKJNFAUSVKZAVUMSWJJBDMRCDJZNFUR2RGJKE2T2CKNDUCWSEINGUEWSLJJEUMU2XKJCEOUJUIRFU6SSUI5AVEVCFJVBFUR2RK5KEST2CKZEEKWSUIE3UGU2JLJEEQWKNKJIUOSJTIRBU2SSTI5KVSRCTJZFFUUCRGJMFSVKSKJDUKMSUIE3UEVCHIUZUIQKPIJCEWSSIKNDVKU2HJJMVEVCFJVBFGR2ZK5KEGTKKJZDUSMSTIFGUEWSIJEZFIU2JLF6DCOBRFY3TG7BSGAZDMLJRGEWTENJAGA4TUNJZHIYDA7CSJ56HY7D4KZUW4Y3DNEQFE33PNV6DALRQGB6DEMZOGY4XY7BSGMXDMOL4GAXDAMA",
+          "retailRate": {
+            "total": {
+              "amount": 181.73,
+              "currency": "EUR"
+            },
+            "suggestedSellingPrice": {
+              "source": ""
+            },
+            "taxesAndFees": [
+              {
+                "included": false,
+                "description": "CITY_TAX",
+                "amount": 9,
+                "currency": "EUR"
+              }
+            ]
+          },
+          "cancellationPolicies": {
+            "cancelPolicyInfos": [
+              {
+                "cancelTime": "2026-12-11 23:59:59",
+                "amount": 60.07,
+                "type": "amount",
+                "timezone": "GMT",
+                "currency": "EUR"
+              }
+            ],
+            "hotelRemarks": [],
+            "refundableTag": "RFN"
+          },
+          "maxOccupancy": 1,
+          "boardType": "Room Only",
+          "boardName": "RO",
+          "remarks": "",
+          "perks": []
+        },
+        "firstName": "Fixture",
+        "lastName": "Guest1",
+        "childrenAges": null,
+        "board": "Room Only",
+        "boardCode": "RO",
+        "cancellationPolicies": {
+          "cancelPolicyInfos": [
+            {
+              "cancelTime": "2026-11-25 09:59:00",
+              "amount": 363.46,
+              "type": "amount",
+              "timezone": "GMT",
+              "currency": "EUR"
+            }
+          ],
+          "hotelRemarks": [],
+          "refundableTag": "RFN"
+        },
+        "room_id": "I42DGRCNJ5FFOTKVGNCEOTSSKRDVSNCUIVGUEWCHJEZUOTKOKRDUOWSTJBMU2SSEI5EVSRCFJZJFER2JLFKEGN2CKNDUCWSEJVGUUU2HIVNFQWK2JRHUYNKLKZDTOQ2GJNHDMRKLKZFVGUCRLJCUGTKDIRDDIWKVINGUGRCQKEZEIS2NKJNFAUSVKZAVUMSWJJBDMRCDJZNFUR2RGJKE2T2CKNDUCWSEINGUEWSLJJEUMU2XKJCEOUJUIRFU6SSUI5AVEVCFJVBFUR2RK5KEST2CKZEEKWSUIE3UGU2JLJEEQWKNKJIUOSJTIRBU2SSTI5KVSRCTJZFFUUCRGJMFSVKSKJDUKMSUIE3UEVCHIUZUIQKPIJCEWSSIKNDVKU2HJJMVEVCFJVBFGR2ZK5KEGTKKJZDUSMSTIFGUEWSIJEZFIU2JLF6DCOBRFY3TG7BSGAZDMLJRGEWTENJAGA4TUNJZHIYDA7CSJ56HY7D4KZUW4Y3DNEQFE33PNV6DALRQGB6DEMZOGY4XY7BSGMXDMOL4GAXDAMA",
+        "occupancy_number": 1,
+        "amount": 181.73,
+        "currency": "EUR",
+        "children_count": 0,
+        "remarks": "",
+        "guests": [
+          {
+            "firstName": "Fixture",
+            "lastName": "Guest1",
+            "email": "guest1@fixture.hotelfinder.invalid",
+            "phone": "",
+            "remarks": "",
+            "occupancyNumber": 1
+          }
+        ]
+      },
+      {
+        "roomType": {
+          "roomTypeId": "",
+          "name": "Test rate 2"
+        },
+        "boardType": "RO",
+        "boardName": "Room Only",
+        "adults": 1,
+        "children": 0,
+        "rate": {
+          "rateId": "I42DGRCNJ5FFOTKVGNCEOTSSKRDVSNCUIVGUEWCHJEZUOTKOKRDUOWSTIRCU2QSYI5KTGVCHJZKEOR2JLFCE2T2KK5GVKM2EJFHFEWSHGQZUITKPJJLUOUJTKRFU4USSI5NFEWCZJVJEIR2JLFCEKTSSKJDUSWKUIM3UEU2HIFNEITKNJJJUORK2LBMVUTCPJQ2UWVSHG5BUMS2OGZCUWVSLKNIFCWSFINGUGRCGGRMVKQ2NINCFAUJSIRFU2US2KBJFKVSBLIZFMSSCGZCEGTS2LJDVCMSUJVHUEU2HIFNEIQ2NIJNEWSSJIZJVOUSEI5ITIRCLJ5FFIR2BKJKEKTKCLJDVCV2UJFHUEVSIIVNFIQJXINJUSWSIJBMU2USRI5ETGRCDJVFFGR2VLFCFGTSKLJIFCMSYLFKVEUSHIUZFIQJXIJKEORJTIRAU6QSEJNFEQU2HKVJUOSSZKJKEKTKCKNDVSV2UINGUUTSHJEZFGQKNIJNEQSJSKRJUSWL4GE4DCLRXGN6DEMBSGYWTCMJNGI2SAMBZHI2TSORQGB6FET34PR6HYVTJNZRWG2JAKJXW63JAKVZW6ICJNZSGS5TJMR2WC3D4GAXDAMD4GIZS4NRZPR6DEMZOGY4XYMBOGAYA",
+          "retailRate": {
+            "total": {
+              "amount": 181.73,
+              "currency": "EUR"
+            },
+            "suggestedSellingPrice": {
+              "source": ""
+            },
+            "taxesAndFees": [
+              {
+                "included": false,
+                "description": "CITY_TAX",
+                "amount": 9,
+                "currency": "EUR"
+              }
+            ]
+          },
+          "cancellationPolicies": {
+            "cancelPolicyInfos": [
+              {
+                "cancelTime": "2026-12-11 23:59:59",
+                "amount": 60.07,
+                "type": "amount",
+                "timezone": "GMT",
+                "currency": "EUR"
+              }
+            ],
+            "hotelRemarks": [],
+            "refundableTag": "RFN"
+          },
+          "maxOccupancy": 1,
+          "boardType": "Room Only",
+          "boardName": "RO",
+          "remarks": "",
+          "perks": []
+        },
+        "firstName": "Fixture",
+        "lastName": "Guest2",
+        "childrenAges": null,
+        "board": "Room Only",
+        "boardCode": "RO",
+        "cancellationPolicies": {
+          "cancelPolicyInfos": [
+            {
+              "cancelTime": "2026-11-25 09:59:00",
+              "amount": 363.46,
+              "type": "amount",
+              "timezone": "GMT",
+              "currency": "EUR"
+            }
+          ],
+          "hotelRemarks": [],
+          "refundableTag": "RFN"
+        },
+        "room_id": "I42DGRCNJ5FFOTKVGNCEOTSSKRDVSNCUIVGUEWCHJEZUOTKOKRDUOWSTJBMU2SSEI5EVSRCFJZJFER2JLFKEGN2CKNDUCWSEJVGUUU2HIVNFQWK2JRHUYNKLKZDTOQ2GJNHDMRKLKZFVGUCRLJCUGTKDIRDDIWKVINGUGRCQKEZEIS2NKJNFAUSVKZAVUMSWJJBDMRCDJZNFUR2RGJKE2T2CKNDUCWSEINGUEWSLJJEUMU2XKJCEOUJUIRFU6SSUI5AVEVCFJVBFUR2RK5KEST2CKZEEKWSUIE3UGU2JLJEEQWKNKJIUOSJTIRBU2SSTI5KVSRCTJZFFUUCRGJMFSVKSKJDUKMSUIE3UEVCHIUZUIQKPIJCEWSSIKNDVKU2HJJMVEVCFJVBFGR2ZK5KEGTKKJZDUSMSTIFGUEWSIJEZFIU2JLF6DCOBRFY3TG7BSGAZDMLJRGEWTENJAGA4TUNJZHIYDA7CSJ56HY7D4KZUW4Y3DNEQFE33PNV6DALRQGB6DEMZOGY4XY7BSGMXDMOL4GAXDAMA",
+        "occupancy_number": 1,
+        "amount": 181.73,
+        "currency": "EUR",
+        "children_count": 0,
+        "remarks": "",
+        "guests": [
+          {
+            "firstName": "Fixture",
+            "lastName": "Guest1",
+            "email": "guest1@fixture.hotelfinder.invalid",
+            "phone": "",
+            "remarks": "",
+            "occupancyNumber": 1
+          }
+        ]
+      }
+    ],
+    "holder": {
+      "firstName": "Fixture",
+      "lastName": "Guest1",
+      "email": "guest1@fixture.hotelfinder.invalid",
+      "phone": ""
+    },
+    "createdAt": "2026-11-13T11:10:07",
+    "updatedAt": "",
+    "cancellationPolicies": {
+      "cancelPolicyInfos": [
+        {
+          "cancelTime": "2026-11-25 09:59:00",
+          "amount": 363.46,
+          "type": "amount",
+          "timezone": "GMT",
+          "currency": "EUR"
+        }
+      ],
+      "hotelRemarks": [],
+      "refundableTag": "RFN"
+    },
+    "specialRemarks": "Example special remarks",
+    "optionalFees": "Optional fees",
+    "mandatoryFees": "Mandatory fees",
+    "knowBeforeYouGo": "Know before you go",
+    "price": 363.46,
+    "sellingPriceToUser": 363.46,
+    "commission": 47.38,
+    "addonsTotalAmount": 0,
+    "currency": "EUR",
+    "remarks": ", ",
+    "voucherCode": "",
+    "voucherTotalAmount": 0,
+    "addons": null,
+    "guestId": 319755,
+    "distributorCommission": 0,
+    "distributorPrice": 0,
+    "trackingId": "",
+    "firstName": "Fixture",
+    "lastName": "Guest1",
+    "adults": 3,
+    "children": "",
+    "childrenCount": 0,
+    "prebookId": "jsNxJQQ2x",
+    "paymentStatus": "succeeded",
+    "paymentTransactionId": "tr_cts_k3h1qO4huc8kQbci5VX95",
+    "sellingPrice": "363.46",
+    "exchangeRate": 1,
+    "exchangeRateUsd": 1.1055644153,
+    "email": "guest1@fixture.hotelfinder.invalid",
+    "tag": "RFN",
+    "lastFreeCancellationDate": "2026-11-25T09:59:00Z",
+    "userId": 389413,
+    "nationality": "ES",
+    "holderTitle": "",
+    "hotelId": "lp76a2a",
+    "hotelName": "Vincci Porto",
+    "cancelledAt": null,
+    "refundedAt": null,
+    "loyaltyGuestId": 319755,
+    "sandbox": 1,
+    "clientCommission": 47.38,
+    "voucherId": null,
+    "voucherTransationId": null,
+    "processingFee": 4.02,
+    "amountRefunded": 0,
+    "refundType": "",
+    "addonsRedemptions": null,
+    "rebookFrom": "",
+    "agentId": null,
+    "cancelledBy": null,
+    "feed": "liteapionboarding",
+    "goodwillPayment": null,
+    "newCharges": 0,
+    "compensationAmount": 0,
+    "hotelRemarks": "",
+    "payLaterDeadline": null
+  },
+  "guestLevel": 0,
+  "sandbox": true
+}

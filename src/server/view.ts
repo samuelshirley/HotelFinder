@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { filterOptions, readChain, readPropertyType, stayFilters } from '@/lib/filters';
+import { roomsOf } from '@/lib/finder/rooms';
 import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { listLiveOffersForRanking } from '@/server/repos/offers';
@@ -120,7 +121,10 @@ export function viewRow({ entry, property, offer }: ListedRow) {
       payAtPropertyMinor: offer.payAtPropertyMinor,
       suggestedSellingMinor: offer.suggestedSellingMinor,
       audience: offer.audience,
+      /** What the price is for: one room's name, or "2 rooms: Double + Twin". */
       roomName: offer.roomName,
+      /** How many rooms the price is for. */
+      rooms: roomsOf(offer.rooms)?.length ?? 1,
       boardName: offer.boardName,
       refundable: offer.refundableTag === 'RFN',
       freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,

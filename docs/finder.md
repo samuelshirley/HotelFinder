@@ -193,3 +193,57 @@ with `show_all_hotels`).
 Not verified: the pager in a browser (the sandbox returns at most 30 hotels,
 so never more than 25 after the picks: one page). The supplier is still asked
 for 30 hotels (`maxHotels`); "all" means all of those.
+
+## Room splits (2026-11-13)
+
+Vio's "optimise for best price": when the user has not said how many rooms,
+we choose. `stays.rooms` is null until they do (form, trip box, the Who chip
+and set_guests all start at "Best price"; a number fixes it, and "−" from 1
+goes back to "Best price").
+
+- **Which splits** (`lib/finder/rooms.ts`, pure): room counts from the fewest
+  (rooms of up to four people) to the most (one room per two adults, or per
+  three people when children make the party bigger; never more rooms than
+  adults, never more than 6), at most three of them. The party is spread by
+  `splitParty` as before: adults evenly, children with the first rooms, an
+  adult in every room. A couple, alone or with one child, is one room and one
+  search: nothing changed for them. 3–4 adults or a family of four: 1 and 2
+  rooms. 5–6 adults: 2 and 3. Twelve: 3, 5 and 6.
+- **Fetch**: one rate search per split, side by side; the radius widening is
+  decided on what all splits found together. A split that fails is left out;
+  only all failing is a supplier error. Static facts stay one call.
+- **Rank**: one candidate per hotel, its cheapest combination across splits
+  (`cheapestPerHotel`): a rate an anonymous visitor may be sold beats a member
+  price, then the lowest total plus what is paid at the hotel (two rooms can
+  pay the city tax twice), then fewer rooms. The ranking itself is unchanged.
+- **Shown**: the offer row keeps the rooms priced (`offers.rooms`) and says
+  them in `room_name` ("2 rooms: 2 × Vincci Room", "2 rooms: Vincci Room
+  (2 adults) + Vincci Room Uso Individual (1 adult)"), so the card, the
+  detail, Penny's context, answers and the receipt all say the same thing.
+  The card shows the line whenever the price is for several rooms or we chose.
+- **Detail rates** are fetched for the card's rooms only (one search, not one
+  per split); rates held for another split of the party are not reused.
+- **Checkout** books exactly the card's rooms: the prebook's rooms (who is in
+  each, in order) must equal the offer's, or it is `rate_gone` and nothing is
+  written; the booking is named as the prebook holds them and `book` gets one
+  guest per room.
+
+Measured on the recordings (the 20 Porto hotels, 11–13 Dec, public margin):
+4 adults as one room, 6 hotels priced it; as two rooms, all 20; two rooms
+were cheaper at 5 of the 6. A family of 2 + 2 (4 and 9): one room at 9
+hotels, two rooms at all 20, one room cheaper at 3 of the 9. No recorded
+hotel's choice flips when the pay-at-hotel charges are counted; the rule is
+pinned by a unit test instead.
+
+**Anonymous visitors, found while measuring:** in every multi-room search
+recorded on 2026-11-13 (and the 4-adult one-room search), every public rate
+was a few cents under the hotel's suggested public price (e.g. €459.41 vs
+€459.46), so the public-price rule hid all of them from an anonymous visitor:
+they see near-misses only. A couple's search the same day: 4 of 20. This is
+the sandbox's pricing meeting an existing rule, not the splits (a user's own
+"2 rooms" was already affected). The "Open" note above (show them at the
+public price) is the fix; not built. The e2e spec signs in for that reason.
+
+Mutation checks: 18, 17 caught after one test was added (checkout keeping the
+card's name). The survivor: the finder ignoring pay-at-hotel charges, which
+no recording can reach (above); `rooms.test.ts` catches it in the pure function.

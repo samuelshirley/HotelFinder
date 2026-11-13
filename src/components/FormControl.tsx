@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
-import { formatDates } from '@/lib/replies';
+import { formatDates, roomsShown } from '@/lib/replies';
 import { searchPlaces, todayLocal } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import styles from './App.module.css';
@@ -113,16 +113,17 @@ function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: 
 
 function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['onAnswer'] }) {
   const [adults, setAdults] = useState(2);
-  const [rooms, setRooms] = useState(1);
+  /** null = not said: the finder prices the cheapest split (shown as "Best price"). */
+  const [rooms, setRooms] = useState<number | null>(null);
   const [ages, setAges] = useState<number[]>([]);
   const [pets, setPets] = useState(false);
-  const step = (value: number, set: (n: number) => void, min: number, max: number, label: string) => (
+  const step = (value: number, set: (n: number) => void, min: number, max: number, label: string, shown: string | number = value) => (
     <div className={styles.stepper}>
       <span>{label}</span>
       <button type="button" disabled={disabled || value <= min} onClick={() => set(value - 1)} aria-label={`Fewer ${label.toLowerCase()}`}>
         −
       </button>
-      <output>{value}</output>
+      <output>{shown}</output>
       <button type="button" disabled={disabled || value >= max} onClick={() => set(value + 1)} aria-label={`More ${label.toLowerCase()}`}>
         +
       </button>
@@ -130,7 +131,7 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
   );
   return (
     <div className={styles.control}>
-      {step(adults, (n) => { setAdults(n); if (rooms > n) setRooms(n); }, 1, 12, 'Adults')}
+      {step(adults, (n) => { setAdults(n); if (rooms !== null && rooms > n) setRooms(n); }, 1, 12, 'Adults')}
       {step(ages.length, (n) => setAges(n > ages.length ? [...ages, 8] : ages.slice(0, n)), 0, 8, 'Children')}
       {ages.length > 0 && (
         <div className={styles.row}>
@@ -148,7 +149,7 @@ function Guests({ disabled, onAnswer }: { disabled: boolean; onAnswer: Props['on
           ))}
         </div>
       )}
-      {step(rooms, setRooms, 1, Math.min(6, adults), 'Rooms')}
+      {step(rooms ?? 0, (n) => setRooms(n === 0 ? null : n), 0, Math.min(6, adults), 'Rooms', roomsShown(rooms))}
       <label className={styles.check}>
         <input type="checkbox" checked={pets} disabled={disabled} onChange={(e) => setPets(e.target.checked)} />
         Bringing a pet

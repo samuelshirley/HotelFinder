@@ -3,14 +3,17 @@ import 'server-only';
 import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenities';
 import { readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
-import { MIN_HOTELS, planSearch } from '@/lib/finder/searchPlan';
+import { cheapestPerHotel, occupanciesFor, roomsLabel, roomsOf } from '@/lib/finder/rooms';
+import { MIN_HOTELS, planSearch, type SearchWhere } from '@/lib/finder/searchPlan';
 import { FULL_LIST_KIND } from '@/lib/fullList';
 import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
 import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
 import { upsertProperty } from '@/server/repos/properties';
 import { audienceFor, getSession, getStay } from '@/server/repos/sessions';
-import type { SupplierAdapter, SupplierError } from '@/server/supplier';
+import type { SearchResult, SupplierAdapter, SupplierError, SupplierResult } from '@/server/supplier';
+
+export { splitParty } from '@/lib/finder/rooms';
 
 /**
  * The stay finder: fetch (only when needed) → hard constraints → rank →
@@ -41,6 +44,8 @@ export type FinderOutcome =
       widened: boolean;
       /** True when the supplier's amenity facts could not be fetched, so must-haves were unverifiable. */
       amenityFactsMissing: boolean;
+      /** Room splits priced for this fetch (1 when the user fixed the rooms); 0 when nothing was fetched. */
+      splits: number;
     }
   | { kind: 'needs_place' | 'needs_nationality' | 'not_found' }
   /** The supplier had nothing for these dates. Retryable; nothing is stored. */
@@ -66,6 +71,7 @@ export async function runFinder(args: {
   let fetched = false;
   let widened = false;
   let amenityFactsMissing = false;
+  let splits = 0;
   const plan = planSearch({
     destinationText: stay.destinationText,
     placeId: stay.placeId,
@@ -82,21 +88,25 @@ export async function runFinder(args: {
     if (!session.guestNationality) return { kind: 'needs_nationality' };
     const marginPct = marginFor(audience, args.env);
 
-    const rooms = Math.max(1, stay.rooms);
     const request = {
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
-      occupancies: splitParty(stay.adults, stay.childrenAges, rooms),
       currency: session.currency,
       guestNationality: session.guestNationality,
       marginPct,
       maxHotels: 30,
       maxRatesPerHotel: 1,
     };
-    let search = await supplier.searchAvailability({ ...request, where: plan.where });
-    // Too few hotels in the first radius: one wider search, never more.
+    // One search per room split: the user's rooms when they said, else each
+    // sensible split of the party (lib/finder/rooms.ts), side by side.
+    const parties = occupanciesFor(stay);
+    splits = parties.length;
+    const searchAll = async (where: SearchWhere) =>
+      mergeSearches(await Promise.all(parties.map((occupancies) => supplier.searchAvailability({ ...request, occupancies, where }))));
+    let search = await searchAll(plan.where);
+    // Too few hotels in the first radius: one wider search per split, never more.
     if (plan.kind === 'radius' && search.ok && search.value.properties.length < MIN_HOTELS) {
-      const wider = await supplier.searchAvailability({ ...request, where: plan.wider });
+      const wider = await searchAll(plan.wider);
       widened = true;
       if (wider.ok && wider.value.properties.length > search.value.properties.length) search = wider;
     }
@@ -150,8 +160,9 @@ export async function runFinder(args: {
             suggestedSellingMinor: o.suggestedSelling?.currency === o.total.currency ? o.suggestedSelling.amountMinor : null,
             payAtPropertyMinor: o.payAtProperty.amountMinor,
             taxesAndFees: o.fees,
-            roomName: o.rooms[0]?.name ?? null,
+            roomName: roomsLabel(o.rooms),
             boardName: o.rooms[0]?.boardName ?? null,
+            rooms: o.rooms,
             refundableTag: o.cancellation.tag,
             cancellation: o.cancellation,
             fetchedAt: now,
@@ -164,13 +175,20 @@ export async function runFinder(args: {
     held = await listLiveOffersForRanking(sessionId, stayId, audience, now);
   }
 
-  // One candidate per hotel: its cheapest live offer.
-  const cheapest = new Map<string, (typeof held)[number]>();
-  for (const row of held) {
-    const current = cheapest.get(row.property.id);
-    if (!current || row.offer.totalMinor < current.offer.totalMinor) cheapest.set(row.property.id, row);
-  }
-  const candidates: Candidate[] = [...cheapest.values()].map(({ offer, property }) => ({
+  // One candidate per hotel: its cheapest live offer, across every room split priced.
+  const byId = new Map(held.map((row) => [row.offer.id, row]));
+  const cheapest = cheapestPerHotel(
+    held.map(({ offer }) => ({
+      id: offer.id,
+      propertyId: offer.propertyId,
+      totalMinor: offer.totalMinor,
+      payAtPropertyMinor: offer.payAtPropertyMinor,
+      suggestedSellingMinor: offer.suggestedSellingMinor,
+      rooms: roomsOf(offer.rooms)?.length ?? 1,
+    })),
+    audience,
+  ).map((o) => byId.get(o.id)!);
+  const candidates: Candidate[] = cheapest.map(({ offer, property }) => ({
     offerId: offer.id,
     propertyId: property.id,
     name: property.name,
@@ -252,23 +270,25 @@ export async function runFinder(args: {
     distanceLabel: result.distanceLabel,
     widened,
     amenityFactsMissing,
+    splits,
   };
+}
+
+/**
+ * The searches for each room split as one result: every hotel any split
+ * found, every offer. A split that failed is left out; only when all fail is
+ * it a supplier error.
+ */
+function mergeSearches(results: SupplierResult<SearchResult>[]): SupplierResult<SearchResult> {
+  const ok = results.flatMap((r) => (r.ok ? [r.value] : []));
+  if (ok.length === 0) return results[0] as SupplierResult<SearchResult>;
+  const properties = new Map<string, SearchResult['properties'][number]>();
+  for (const v of ok) for (const p of v.properties) if (!properties.has(p.supplierHotelId)) properties.set(p.supplierHotelId, p);
+  return { ok: true, value: { properties: [...properties.values()], offers: ok.flatMap((v) => v.offers) } };
 }
 
 function readAmenities(content: Record<string, unknown> | null): Amenity[] | null {
   const raw = content?.amenities;
   if (!Array.isArray(raw)) return null;
   return raw.filter((a): a is Amenity => (AMENITIES as readonly string[]).includes(a as string));
-}
-
-/**
- * Spread a party over rooms: adults as evenly as possible, children with the
- * first rooms. Every room gets at least one adult.
- */
-export function splitParty(adults: number, childrenAges: number[], rooms: number) {
-  const n = Math.max(1, Math.min(rooms, adults));
-  const out = Array.from({ length: n }, () => ({ adults: 0, childrenAges: [] as number[] }));
-  for (let i = 0; i < adults; i++) out[i % n].adults += 1;
-  childrenAges.forEach((age, i) => out[i % n].childrenAges.push(age));
-  return out;
 }

@@ -11,6 +11,7 @@ import { createPrebooked, getBooking, transitionBooking, type Booking } from '@/
 import { appendMessage } from '@/server/repos/chat';
 import { getOffer } from '@/server/repos/offers';
 import { getProperty } from '@/server/repos/properties';
+import { roomsLabel, roomsOf, sameOccupancies } from '@/lib/finder/rooms';
 import { isMemberOnlyPrice } from '@/lib/pricing';
 import { audienceFor, getStay, type SearchSession } from '@/server/repos/sessions';
 import { offerFees } from '@/server/view';
@@ -41,6 +42,12 @@ export async function startCheckout(args: { session: SearchSession; offerId: str
 
   const check = await supplier.recheckRate(offer.supplierOfferId);
   if (!check.ok) return { ok: false, error: check.error.retryable ? 'supplier_unavailable' : 'rate_gone' };
+  // Exactly the rooms on the card, for the same people: a prebook holding any
+  // other split is not the offer the guest chose, whatever it costs.
+  const shown = roomsOf(offer.rooms);
+  const held = check.value.rooms;
+  if (shown && held.length > 0 && !sameOccupancies(shown, held)) return { ok: false, error: 'rate_gone' };
+  const rooms = held.length > 0 ? held : shown;
 
   const booking = await createPrebooked({
     userId: session.userId,
@@ -55,13 +62,15 @@ export async function startCheckout(args: { session: SearchSession; offerId: str
     quotedTotalMinor: check.value.total.currency === offer.currency ? offer.totalMinor : -1,
     propertyId: property.id,
     hotelName: property.name,
-    roomName: offer.roomName,
+    // The rooms as the supplier holds them now: what the guest pays for and what book books.
+    roomName: (rooms && roomsLabel(rooms)) ?? offer.roomName,
     boardName: offer.boardName,
     checkIn: stay.checkIn,
     checkOut: stay.checkOut,
     adults: stay.adults,
     childrenAges: stay.childrenAges,
-    rooms: stay.rooms,
+    // One guest per room at book: the offer's rooms, which are not the stay's when we chose them.
+    rooms: rooms?.length ?? stay.rooms ?? 1,
     payAtPropertyMinor: offer.payAtPropertyMinor,
     // Named and in their own currency: the page says what the hotel will ask for, not only a sum.
     payAtPropertyFees: payAtHotelCharges(offerFees(offer.taxesAndFees)),

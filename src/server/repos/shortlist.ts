@@ -97,6 +97,20 @@ export async function listFullList(sessionId: string, stayId: string, audience: 
     .offset((Math.max(1, page) - 1) * size);
 }
 
+/** One row this session lists for the hotel (a top pick or a full-list row), or null: what the detail and rates routes open. */
+export async function listedRow(sessionId: string, stayId: string, propertyId: string, audience: Audience) {
+  if (!UUID.test(propertyId)) return null;
+  const rows = await db
+    .select({ entry: shortlistEntries, property: properties, offer: offers })
+    .from(shortlistEntries)
+    .innerJoin(properties, eq(properties.id, shortlistEntries.propertyId))
+    .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
+    .where(and(visibleRows(sessionId, stayId, audience), eq(shortlistEntries.propertyId, propertyId)))
+    .orderBy(asc(shortlistEntries.source), asc(shortlistEntries.rank))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** How many rows the full list holds after the top picks. */
 export async function countFullList(sessionId: string, stayId: string, audience: Audience): Promise<number> {
   const [row] = await db

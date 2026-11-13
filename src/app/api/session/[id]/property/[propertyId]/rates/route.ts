@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { errorResponse, handled, ownedSession, rateLimit } from '@/server/http';
 import { hotelRates } from '@/server/hotelRates';
 import { audienceFor, listStays } from '@/server/repos/sessions';
-import { isListed } from '@/server/repos/shortlist';
+import { listedRow } from '@/server/repos/shortlist';
 import { getSupplier } from '@/server/supplier';
 import { offerFees, offerPenalties } from '@/server/view';
 
@@ -18,9 +18,10 @@ export const GET = handled(async (_req: Request, ctx: { params: { id: string; pr
   const limited = await rateLimit('rates', 30);
   if (limited) return limited;
   const stay = (await listStays(session.id))[0];
-  if (!stay || !(await isListed(session.id, stay.id, ctx.params.propertyId, audienceFor(session)))) return errorResponse('property_not_found', 404);
+  const row = stay ? await listedRow(session.id, stay.id, ctx.params.propertyId, audienceFor(session)) : null;
+  if (!stay || !row) return errorResponse('property_not_found', 404);
 
-  const r = await hotelRates({ session, stay, propertyId: ctx.params.propertyId, supplier: getSupplier({ sessionId: session.id, userId: session.userId }), now: new Date() });
+  const r = await hotelRates({ session, stay, propertyId: ctx.params.propertyId, shownRooms: row.offer?.rooms, supplier: getSupplier({ sessionId: session.id, userId: session.userId }), now: new Date() });
   if (!r.ok) return errorResponse(r.error === 'property_not_found' ? 'property_not_found' : 'supplier_unavailable', r.error === 'property_not_found' ? 404 : 503);
   return NextResponse.json({
     rates: r.offers.map((o) => ({

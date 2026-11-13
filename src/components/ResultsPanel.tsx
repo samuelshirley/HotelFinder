@@ -2,6 +2,7 @@
 
 import { isMustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
+import { roomCounts } from '@/lib/finder/rooms';
 import { pinsFor, ringKmFor } from '@/lib/mapView';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
 import dynamic from 'next/dynamic';
@@ -11,7 +12,7 @@ import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import { chainsChip, PROPERTY_TYPE_PLURAL, RATING_STEPS, ratingChip, STAR_STEPS, starsChip, typesChip, type FilterOptions, type PropertyType, type StayFilters } from '@/lib/filters';
 import { COMMON_CURRENCIES, CURRENCIES, isCurrencyCode } from '@/lib/currencies';
 import type { PriorityKey } from '@/lib/finder/rank';
-import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel } from '@/lib/replies';
+import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel, roomsShown } from '@/lib/replies';
 import type { EditAction } from './api';
 import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
@@ -457,15 +458,15 @@ function WhenChip({ checkIn, checkOut, busy, onEdit }: { checkIn: string; checkO
 }
 
 /** Who: the party, and the pet (a requirement on the hotel). */
-function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: number; childrenAges: number[]; rooms: number; pets: boolean; busy: boolean; onEdit: OnEdit }) {
+function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: number; childrenAges: number[]; rooms: number | null; pets: boolean; busy: boolean; onEdit: OnEdit }) {
   const [g, setG] = useState({ adults, childrenAges, rooms, pets });
-  const step = (label: string, value: number, min: number, max: number, set: (n: number) => void) => (
+  const step = (label: string, value: number, min: number, max: number, set: (n: number) => void, shown: string | number = value) => (
     <div className={styles.stepper}>
       <span>{label}</span>
       <button type="button" disabled={value <= min} onClick={() => set(value - 1)} aria-label={`Fewer ${label.toLowerCase()}`}>
         −
       </button>
-      <output>{value}</output>
+      <output>{shown}</output>
       <button type="button" disabled={value >= max} onClick={() => set(value + 1)} aria-label={`More ${label.toLowerCase()}`}>
         +
       </button>
@@ -481,7 +482,7 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
   };
   return (
     <Editable label={`${formatGuests(adults, childrenAges, rooms)}${pets ? ' · pet' : ''}`} name="who" busy={busy} onApply={apply}>
-      {step('Adults', g.adults, 1, 12, (n) => setG({ ...g, adults: n, rooms: Math.min(g.rooms, n) }))}
+      {step('Adults', g.adults, 1, 12, (n) => setG({ ...g, adults: n, rooms: g.rooms === null ? null : Math.min(g.rooms, n) }))}
       {step('Children', g.childrenAges.length, 0, 8, (n) => setG({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) }))}
       {g.childrenAges.map((age, i) => (
         <label key={i} className={styles.inlineLabel}>
@@ -495,7 +496,8 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
           </select>
         </label>
       ))}
-      {step('Rooms', g.rooms, 1, Math.min(6, g.adults), (n) => setG({ ...g, rooms: n }))}
+      {/* 0 is "Best price": we price the sensible splits and show each hotel's cheapest. */}
+      {step('Rooms', g.rooms ?? 0, 0, Math.min(6, g.adults), (n) => setG({ ...g, rooms: n === 0 ? null : n }), roomsShown(g.rooms))}
       <label className={styles.check}>
         <input type="checkbox" checked={g.pets} onChange={(e) => setG({ ...g, pets: e.target.checked })} />
         Bringing a pet
@@ -621,6 +623,9 @@ function Card({
   save: SaveLink;
 }) {
   const { property, offer } = row;
+  // The rooms the price is for, whenever there is a choice of rooms to make: more than one, or we chose them.
+  const stay = view.stay;
+  const showRooms = offer !== null && offer.roomName !== null && (offer.rooms > 1 || (stay !== null && stay.rooms === null && roomCounts(stay.adults, stay.childrenAges).length > 1));
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
   const why = reason
     ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves })
@@ -663,6 +668,11 @@ function Card({
             {typeof reason?.distance_km === 'number' && <>· {formatKm(reason.distance_km)}</>}
           </p>
           {why && <p className={styles.why}>{why}</p>}
+          {showRooms && (
+            <p className={styles.muted} data-rooms>
+              {offer.roomName}
+            </p>
+          )}
           {offer && (
             <p className={styles.muted}>
               {cancellationLine(offer)}

@@ -25,6 +25,7 @@ pick up from the first unfinished step.
 | 11 | Cost measurement | not started |
 | 12b | Deal Freeze: book a free-cancellation rate with no payment, confirm or release before 48 h ahead of its deadline (`docs/deal-freeze.md`) | built 2026-11-13, sandbox only; e2e against the live sandbox (`e2e/freeze.spec.ts`); the sweep has no scheduler yet and reminders are display-only without Resend |
 | 13 | Saved hotels (the heart) and the currency picker (`docs/saved.md`) | built 2026-11-13; e2e `saved.spec.ts` in a real browser on the live sandbox; Jev and the agent run live on the save cases |
+| 13b | Room splits ("best price" rooms): each split priced, cheapest combination per hotel, shown on the card, booked exactly (`docs/finder.md` "Room splits", `docs/supplier.md` §8) | built 2026-11-13; recorded fixtures; `e2e/rooms.spec.ts` passed on the live sandbox (signed in; stops at checkout); agent tool change not run live |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.

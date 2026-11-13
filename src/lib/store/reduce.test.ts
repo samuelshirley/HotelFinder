@@ -99,6 +99,15 @@ describe('reducers', () => {
     });
   });
 
+  it('rooms left to us (null) are a search of their own: from a number to null and back is a refetch each way', () => {
+    const auto = ok(state(), { type: 'set_guests', adults: 4, childrenAges: [], rooms: null });
+    expect(auto).toMatchObject({ effect: 'refetch', state: { stay: { adults: 4, rooms: null } } });
+    expect(reduce(auto.state, { type: 'set_guests', adults: 4, childrenAges: [], rooms: null }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    expect(ok(auto.state, { type: 'set_guests', adults: 4, childrenAges: [], rooms: 2 })).toMatchObject({ effect: 'refetch', state: { stay: { rooms: 2 } } });
+    expect(actionSchema.safeParse({ type: 'set_guests', adults: 2, childrenAges: [], rooms: null }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_guests', adults: 2, childrenAges: [] }).success).toBe(false);
+  });
+
   it('a new destination clears what was set aside for the old one', () => {
     const s = state({ excludedPropertyIds: [P1] });
     const next = ok(s, { type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon', point: null }).state;

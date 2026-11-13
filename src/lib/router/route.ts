@@ -283,7 +283,8 @@ export function routeMessage(input: {
     case 'guests': {
       const g = extractGuests(message);
       if (!g) return defer('slot_missing');
-      const rooms = g.rooms ?? Math.min(state.stay.rooms, g.adults);
+      // Rooms not said: keep the user's rooms (no more than the adults), or keep letting the finder choose.
+      const rooms = g.rooms ?? (state.stay.rooms === null ? null : Math.min(state.stay.rooms, g.adults));
       return { kind: 'actions', intent, actions: [{ type: 'set_guests', adults: g.adults, childrenAges: g.childrenAges, rooms }] };
     }
 

@@ -281,6 +281,34 @@ describe('recheckRate, book, getBooking, cancel', () => {
     expect(JSON.stringify(events)).not.toContain('REDACTED_AT_CAPTURE');
   });
 
+  it('a two-room prebook says which rooms it holds and for whom, in occupancy order; a rate that does not say leaves them unknown', async () => {
+    const { supplier } = adapter(replay('prebook-mixed-rooms').fetchImpl);
+    const result = await supplier.recheckRate('opaque');
+    expect(result.ok && result.value.rooms).toEqual([
+      { name: 'Vincci Room', boardName: 'Room Only', adults: 2, childrenAges: [] },
+      { name: 'Vincci Room Uso Individual', boardName: 'Room Only', adults: 1, childrenAges: [] },
+    ]);
+    const one = await adapter(replay('prebook-payment-sdk').fetchImpl).supplier.recheckRate('opaque');
+    expect(one.ok && one.value.rooms).toHaveLength(1);
+    // One rate without its party: none of the rooms are claimed (derived in memory; the file is untouched).
+    const half = replay('prebook-mixed-rooms', (body) => {
+      delete (body.data.roomTypes[0].rates[1] as unknown as Record<string, unknown>).adultCount;
+    });
+    const unknown = await adapter(half.fetchImpl).supplier.recheckRate('opaque');
+    expect(unknown.ok && unknown.value.rooms).toEqual([]);
+  });
+
+  it('two different rooms book as ONE booking: the recorded sandbox booking of a two-room offer', async () => {
+    const { fetchImpl, calls } = replay('book-mixed-rooms');
+    const { supplier } = adapter(fetchImpl);
+    const a = { firstName: 'Fixture', lastName: 'Guest1', email: 'guest1@fixture.hotelfinder.invalid' };
+    const b = { firstName: 'Fixture', lastName: 'Guest2', email: 'guest2@fixture.hotelfinder.invalid' };
+    const result = await supplier.book({ prebookId: 'pre_1', transactionId: 'tr_1', holder: a, guests: [a, b], payment: 'sandbox_test' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toMatchObject({ guests: [{ occupancyNumber: 1, ...a }, { occupancyNumber: 2, ...b }] });
+    expect(result).toMatchObject({ ok: true, value: { status: 'confirmed', supplierBookingId: 'hMt2HdnXq', total: { amountMinor: 36346, currency: 'EUR' } } });
+  });
+
   it('an offer the supplier no longer knows is a supplier error', async () => {
     const { fetchImpl } = replay('prebook-error-invalid-offer');
     const { supplier } = adapter(fetchImpl);

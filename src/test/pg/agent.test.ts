@@ -497,7 +497,7 @@ describe('the first message: one forced extraction, then the form asks only for 
     expect(await listStays(sessionId)).toEqual([]); // nothing exists until the user picks the place
 
     await pick(sessionId, supplier.supplier);
-    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, rooms: 1, priceCapMinor: 12000, mustHaves: ['pets_allowed'], placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo' });
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, rooms: null, priceCapMinor: 12000, mustHaves: ['pets_allowed'], placeId: 'ChIJicetJOdkJA0R8GJ9Dy_dcgo' });
     const rows = (await listMessages(sessionId)).slice(-3).map((r) => [r.kind, r.content]);
     expect(rows).toEqual([
       ['form_answer', 'Ribeira, Porto, Portugal'],
@@ -651,7 +651,8 @@ describe('the first screen: one box, three pills', () => {
     expect(r).toEqual({ ok: true });
     expect(model.calls).toHaveLength(0);
     expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: [] });
-    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 2, rooms: 1 });
+    // Rooms not said: null, the finder's to choose (a couple: one room, one search).
+    expect(await stayOf(sessionId)).toMatchObject({ checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 2, rooms: null });
     expect(supplier.searches).toHaveLength(1);
     // One bubble, the user's: no form-style echo of the place, no "From your message" line.
     expect((await listMessages(sessionId)).map((x) => [x.role, x.kind, x.content])).toEqual([

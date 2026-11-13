@@ -182,6 +182,9 @@ describe('validateScan: the model transcribes, the server decides what to keep',
     expect(validateScan({ check_in: '2026-12-13', check_out: '2026-12-11' }, T, 'EUR')).toEqual({});
     expect(validateScan({ check_in: '2026-12-11', check_out: '2026-12-13', nights: 3 }, T, 'EUR')).toEqual({});
     expect(validateScan({ adults: 2, rooms: 3 }, T, 'EUR')).toEqual({});
+    // Rooms not said are not one room: they are the finder's to choose.
+    expect(validateScan({ adults: 4 }, T, 'EUR')).toEqual({ guests: { adults: 4, childrenAges: [], rooms: null } });
+    expect(validateScan({ adults: 4, rooms: 0 }, T, 'EUR')).toEqual({});
     expect(validateScan({ adults: 2.5 }, T, 'EUR')).toEqual({});
     expect(validateScan({ adults: 2, children_ages: [21] }, T, 'EUR')).toEqual({});
     expect(validateScan({ max_per_night: -5, priorities: ['luxury'], must_haves: ['jacuzzi'], destination: 'x' }, T, 'EUR')).toEqual({});

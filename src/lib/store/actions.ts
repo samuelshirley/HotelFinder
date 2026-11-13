@@ -85,7 +85,8 @@ export const actionSchema = z.discriminatedUnion('type', [
       type: z.literal('set_guests'),
       adults: z.number().int().min(1).max(12),
       childrenAges: z.array(z.number().int().min(0).max(17)).max(8),
-      rooms: z.number().int().min(1).max(6),
+      /** null = the user did not say how many rooms: the finder picks the cheapest split. */
+      rooms: z.number().int().min(1).max(6).nullable(),
     })
     .strict(),
   z.object({ type: z.literal('set_dates'), checkIn: isoDate, checkOut: isoDate }).strict(),

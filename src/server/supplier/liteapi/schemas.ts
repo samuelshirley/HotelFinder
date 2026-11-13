@@ -203,7 +203,27 @@ export const prebookResponse = z
         cancellationChanged: z.boolean().nullish(),
         boardChanged: z.boolean().nullish(),
         roomTypes: z
-          .array(z.object({ rates: z.array(z.object({ cancellationPolicies }).passthrough()).min(1) }).passthrough())
+          .array(
+            z
+              .object({
+                rates: z
+                  .array(
+                    z
+                      .object({
+                        cancellationPolicies,
+                        // Which room, and for whom: compared with the offer before payment.
+                        occupancyNumber: z.number().int().nullish(),
+                        name: z.string().nullish(),
+                        boardName: z.string().nullish(),
+                        adultCount: z.number().int().nullish(),
+                        childrenAges: z.array(z.number().int()).nullish(),
+                      })
+                      .passthrough(),
+                  )
+                  .min(1),
+              })
+              .passthrough(),
+          )
           .nullish(),
       })
       .passthrough(),
