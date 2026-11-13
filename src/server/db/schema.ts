@@ -383,6 +383,11 @@ export const userPreferences = pgTable('user_preferences', {
  * answers a repeated book for one prebook with a second confirmed booking
  * (recorded: __fixtures__/book-same-prebook-again.json), so the call is made
  * only by whoever moved the row paid → booking, and never retried from there.
+ *
+ * Deal Freeze (docs/deal-freeze.md) books the free-cancellation rate before
+ * anyone pays: `freezing` is its book claim, `frozen` the held booking,
+ * `keeping` the claim before its payment, `releasing` the claim before its
+ * cancel.
  */
 export const BOOKING_STATUSES = [
   'prebooked',
@@ -392,6 +397,10 @@ export const BOOKING_STATUSES = [
   'confirmed',
   'failed',
   'cancelled',
+  'freezing',
+  'frozen',
+  'keeping',
+  'releasing',
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const bookingStatus = pgEnum('booking_status', BOOKING_STATUSES);
@@ -443,12 +452,21 @@ export const bookings = pgTable(
     failureCode: text('failure_code'),
     refundMinor: integer('refund_minor'),
     cancelFeeMinor: integer('cancel_fee_minor'),
+    /** Deal Freeze: the hold is released at this instant unless kept; before the free-cancellation deadline. */
+    frozenUntil: ts('frozen_until'),
+    /** Deal Freeze: when the reminder is due, and when an email for it actually went out (null: never sent). */
+    freezeReminderDueAt: ts('freeze_reminder_due_at'),
+    freezeReminderSentAt: ts('freeze_reminder_sent_at'),
+    /** Deal Freeze: who released the hold, `guest` or `expiry`. Null when not released. */
+    releasedBy: text('released_by'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => ({
     onePerPrebook: uniqueIndex('bookings_supplier_prebook_idx').on(t.supplier, t.prebookId),
     byUser: index('bookings_user_idx').on(t.userId),
+    /** The freeze sweep: frozen rows whose hold has ended. */
+    byFreeze: index('bookings_freeze_idx').on(t.status, t.frozenUntil),
   }),
 );
 
