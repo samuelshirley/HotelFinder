@@ -190,9 +190,9 @@ tests in `test/pg/`, `e2e/full-list.spec.ts`. Mutation checks: 13 for the server
 and router, all caught (one only after the agent test gained a change queued
 with `show_all_hotels`).
 
-Not verified: the pager in a browser (the sandbox returns at most 30 hotels,
-so never more than 25 after the picks: one page). The supplier is still asked
-for 30 hotels (`maxHotels`); "all" means all of those.
+The supplier is asked for 30 hotels (`MAX_HOTELS` in `server/finder.ts`),
+so the list is one page. 200 was tried on 2026-11-13 and backed out: the
+measurements and the reason are on the constant.
 
 ## Room splits (2026-11-13)
 

@@ -93,3 +93,22 @@ describe('the currency picker', () => {
     expect(inDollars.ok && inDollars.offers.length > 0 && inDollars.offers.every((o) => o.currency === 'USD')).toBe(true);
   });
 });
+
+describe('the currency carries over', () => {
+  it('a new search starts in the currency of the visitor\'s last one; another visitor, or the first search ever, starts in EUR', async () => {
+    const first = await createSession({ anonId: 'anon-cur' });
+    expect(first.currency).toBe('EUR');
+    await updateSession(first.id, { currency: 'USD' });
+    expect((await createSession({ anonId: 'anon-cur' })).currency).toBe('USD');
+    // Another cookie is someone else.
+    expect((await createSession({ anonId: 'anon-other' })).currency).toBe('EUR');
+
+    // A signed-in user: their own last search, not an anonymous visitor's.
+    const user = await seedUser();
+    const mine = await createSession({ userId: user.id });
+    expect(mine.currency).toBe('EUR');
+    await updateSession(mine.id, { currency: 'GBP' });
+    expect((await createSession({ userId: user.id })).currency).toBe('GBP');
+    expect((await createSession({ anonId: 'anon-cur' })).currency).toBe('USD');
+  });
+});

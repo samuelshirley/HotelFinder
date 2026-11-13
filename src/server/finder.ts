@@ -52,6 +52,17 @@ export type FinderOutcome =
   | { kind: 'no_availability' }
   | { kind: 'supplier_error'; error: SupplierError };
 
+/**
+ * How many hotels one search asks the supplier for. Measured on the sandbox
+ * 2026-11-13 (Porto, 2 adults): 30 → 29 hotels in 3.5 s (97 KB); 200 → 166 in
+ * 4.6 s (546 KB); 500 → 326 in 4.4 s. Raising it to 200 left a signed-out
+ * search with 3 of 170 hotels fitting (11 of 29 at 30): most of the extra
+ * hotels only have rates under the hotel's public price, which an anonymous
+ * session never sees (docs/architecture.md decision 6). It stays at 30 until
+ * that is settled.
+ */
+export const MAX_HOTELS = 30;
+
 export async function runFinder(args: {
   sessionId: string;
   stayId: string;
@@ -94,7 +105,7 @@ export async function runFinder(args: {
       currency: session.currency,
       guestNationality: session.guestNationality,
       marginPct,
-      maxHotels: 30,
+      maxHotels: MAX_HOTELS,
       maxRatesPerHotel: 1,
     };
     // One search per room split: the user's rooms when they said, else each
