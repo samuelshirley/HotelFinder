@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { listedAmenities } from '@/lib/amenities';
 import { decodeEntities, plain } from '@/lib/plainText';
 import { getProperty } from '@/server/repos/properties';
 import type { SupplierAdapter } from '@/server/supplier';
@@ -39,6 +40,8 @@ export async function readPropertyDetails(supplier: SupplierAdapter, propertyId:
       },
       rooms: details.value.rooms.slice(0, 40),
       allFacilities: details.value.facilities.map(decodeEntities),
+      /** The amenity list the chat answers from (lib/answers.ts), read off the same row, so the page and the chat agree. */
+      amenities: listedAmenities(property.content),
     },
   };
 }
