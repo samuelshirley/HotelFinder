@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { currentOwner, ensureOwner, errorResponse, handled, rateLimit } from '@/server/http';
+import { currentOwner, ensureOwner, errorResponse, handled, rateLimit, requestLocale } from '@/server/http';
 import { askQuestion } from '@/server/onboarding';
 import { listTrips } from '@/server/repos/sessions';
 import { startSession } from '@/server/startSession';
@@ -20,7 +20,7 @@ export const POST = handled(async (req: Request) => {
   if (limited) return limited;
 
   const session = await startSession(await ensureOwner(), headers());
-  await askQuestion(session.id, 'destination');
+  await askQuestion(session.id, 'destination', {}, requestLocale());
   return NextResponse.json({ sessionId: session.id });
 });
 

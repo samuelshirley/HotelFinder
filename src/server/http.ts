@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import type { ErrorCode } from '@/lib/errors';
+import { LOCALE_COOKIE, resolveLocale, type Locale } from '@/lib/i18n/locale';
 import { ANON_COOKIE, mintAnonCookie, readAnonCookie } from '@/server/auth/anon';
 import { createUserSession, endUserSession, USER_COOKIE, userForToken, type SignedInUser } from '@/server/auth/user';
 import { getBooking, type Booking } from '@/server/repos/bookings';
@@ -14,6 +15,17 @@ import { adoptAnonymousSessions, assertSessionOwned, SessionNotOwnedError, type 
 
 export function errorResponse(code: ErrorCode, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error: code, ...extra }, { status });
+}
+
+/**
+ * The language to answer this request in: the picker's cookie, else the
+ * browser's Accept-Language, else English (lib/i18n/locale.ts). Read per
+ * request, not stored on the search (no schema change): a queued turn is
+ * answered by the request already running for that search, which almost
+ * always comes from the same browser. docs/i18n.md has the edge case.
+ */
+export function requestLocale(): Locale {
+  return resolveLocale({ cookie: cookies().get(LOCALE_COOKIE)?.value, acceptLanguage: headers().get('accept-language') });
 }
 
 /** The signed-in user, or null. Checked against the database on every request, so a sign-out ends it. */

@@ -16,19 +16,23 @@ let instance: SupplierAdapter | null = null;
 
 /**
  * The configured supplier, with every call written to the usage ledger.
- * `context` ties those rows to a session or user.
+ * `context` ties those rows to a session or user; `language` asks for place
+ * names and hotel text in the user's language (docs/i18n.md).
  */
-export function getSupplier(context: { sessionId?: string | null; userId?: string | null; anonId?: string | null } = {}): SupplierAdapter {
+type SupplierContext = { sessionId?: string | null; userId?: string | null; anonId?: string | null; language?: string };
+
+export function getSupplier(context: SupplierContext = {}): SupplierAdapter {
   const apiKey = process.env.LITE_API_KEY;
   if (!apiKey) throw new Error('LITE_API_KEY is not set');
-  if (context.sessionId || context.userId || context.anonId) return build(apiKey, context);
+  if (context.sessionId || context.userId || context.anonId || (context.language && context.language !== 'en')) return build(apiKey, context);
   instance ??= build(apiKey, {});
   return instance;
 }
 
-function build(apiKey: string, context: { sessionId?: string | null; userId?: string | null; anonId?: string | null }): SupplierAdapter {
+function build(apiKey: string, context: SupplierContext): SupplierAdapter {
   return createLiteApiAdapter({
     apiKey,
+    language: context.language,
     meter: async (event) => {
       await logUsage({
         provider: event.provider,

@@ -1,3 +1,6 @@
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
+
 /**
  * Which place a typed destination means, or that we must ask (docs/entry-ux.md,
  * Sam's rule of 11 Nov 2026). Pure.
@@ -59,24 +62,26 @@ export function mentionsDates(text: string): boolean {
 }
 
 /** A word for what a place is, for the suggestion list; null for a hotel (never suggested). */
-export function placeKindWord(types: readonly string[]): string | null {
+export function placeKindWord(types: readonly string[], locale: Locale = 'en'): string | null {
+  const k = copy(locale).onboarding.placeKind;
   const has = (list: string[]) => types.some((t) => list.includes(t));
   if (has(LODGING)) return null;
-  if (has(AIRPORT)) return 'Airport';
-  if (has(STATION)) return 'Station';
-  if (has(['locality', 'postal_town'])) return 'City';
-  if (has(['neighborhood', 'sublocality', 'colloquial_area'])) return 'Neighbourhood';
-  if (has(['administrative_area_level_1', 'administrative_area_level_2', 'country'])) return 'Region';
-  return 'Place';
+  if (has(AIRPORT)) return k.airport;
+  if (has(STATION)) return k.station;
+  if (has(['locality', 'postal_town'])) return k.city;
+  if (has(['neighborhood', 'sublocality', 'colloquial_area'])) return k.neighbourhood;
+  if (has(['administrative_area_level_1', 'administrative_area_level_2', 'country'])) return k.region;
+  return k.place;
 }
 
 /**
  * The "Which one?" question for several matches: "Which Lisbon?" when they
  * share a name, each choice as "Lisbon · Portugal" so the difference shows.
  */
-export function whichOne(places: readonly PlaceLike[]): { prompt: string; suggestions: Array<{ placeId: string; label: string; display: string }> } {
+export function whichOne(places: readonly PlaceLike[], locale: Locale = 'en'): { prompt: string; suggestions: Array<{ placeId: string; label: string; display: string }> } {
+  const o = copy(locale).onboarding;
   const names = new Set(places.map((p) => p.name));
-  const prompt = names.size === 1 ? `Which ${places[0].name}?` : 'Which one?';
+  const prompt = names.size === 1 ? o.whichPlace(places[0].name) : o.whichOne;
   return {
     prompt,
     // `label` becomes the search's name when picked; `display` is what the chip says.

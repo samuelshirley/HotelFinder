@@ -1,3 +1,4 @@
+import { LANGUAGE_NAME_EN, type Locale } from '@/lib/i18n/locale';
 import { MUST_HAVE_LABEL, formatMoney, nearLabel } from '@/lib/replies';
 import type { SearchState } from '@/lib/store/reduce';
 
@@ -30,6 +31,7 @@ export const SYSTEM = `You are the assistant inside a hotel search. A person has
 
 <style>
 Plain sentences, no lists, no markdown, no greeting, no offer of further help. Two sentences at most unless you are asking one question.
+Write in the language named in <reply_language>, whatever language the message is in. The message may be in English or Spanish: read either.
 </style>`;
 
 export type HotelOnScreen = {
@@ -52,6 +54,8 @@ export type AgentInput = {
   message: string;
   today: string;
   currency: string;
+  /** The user's language: the agent writes in it. English when absent. */
+  locale?: Locale;
   state: SearchState;
   hotels: HotelOnScreen[];
   /** Oldest first. Only what the user and the agent wrote. */
@@ -102,6 +106,7 @@ export function buildUserTurn(input: AgentInput): string {
     '<recent_messages>',
     input.recent.length ? input.recent.map((m) => `${m.role}: ${esc(m.text)}`).join('\n') : 'none',
     '</recent_messages>',
+    `<reply_language>${LANGUAGE_NAME_EN[input.locale ?? 'en']}</reply_language>`,
     `<message>${esc(input.message)}</message>`,
   ].join('\n');
 }

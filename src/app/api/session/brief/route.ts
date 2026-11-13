@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { agentModel } from '@/lib/models';
 import { callAnthropic } from '@/server/agent';
 import { briefSchema, checkBrief, startFromBrief } from '@/server/brief';
-import { ensureOwner, errorResponse, handled, rateLimit, resolveToday } from '@/server/http';
+import { ensureOwner, errorResponse, handled, rateLimit, requestLocale, resolveToday } from '@/server/http';
 import { startSession } from '@/server/startSession';
 import { getSupplier } from '@/server/supplier';
 
@@ -30,14 +30,16 @@ export const POST = handled(async (req: Request) => {
   if (bad) return errorResponse(bad, 400);
 
   const session = await startSession(await ensureOwner(), headers());
+  const locale = requestLocale();
   const result = await startFromBrief({
     session,
     brief: parsed.data.brief,
-    supplier: getSupplier({ sessionId: session.id, userId: session.userId }),
+    supplier: getSupplier({ sessionId: session.id, userId: session.userId, language: locale }),
     callModel: callAnthropic,
     model: agentModel(),
     now,
     today,
+    locale,
   });
   if (!result.ok) return errorResponse(result.error, 400);
   return NextResponse.json({ sessionId: session.id });

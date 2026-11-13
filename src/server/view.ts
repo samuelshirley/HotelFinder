@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { Locale } from '@/lib/i18n/locale';
 import { nearLabel } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
@@ -10,7 +11,7 @@ import { listShortlist } from '@/server/repos/shortlist';
  * Prices, fees and cancellation terms come from offer rows and nowhere else.
  * Supplier ids and internal trace data are not included.
  */
-export async function buildSessionView(session: SearchSession) {
+export async function buildSessionView(session: SearchSession, locale: Locale = 'en') {
   const audience = audienceFor(session);
   const stay = (await listStays(session.id))[0] ?? null;
   const [messages, shortlist] = await Promise.all([
@@ -38,7 +39,7 @@ export async function buildSessionView(session: SearchSession) {
           pets: session.draft.scanned?.mustHaves?.includes('pets_allowed') ?? false,
           priorities: session.priorities ?? session.draft.scanned?.priorities ?? null,
           nearLabel: session.draft.destination
-            ? nearLabel({ destinationText: session.draft.destination.label, destKind: session.draft.destination.point?.kind ?? 'area', near: null })
+            ? nearLabel({ destinationText: session.draft.destination.label, destKind: session.draft.destination.point?.kind ?? 'area', near: null }, locale)
             : 'the centre',
         },
     stay: stay && {
@@ -53,7 +54,7 @@ export async function buildSessionView(session: SearchSession) {
       mustHaves: stay.mustHaves,
       excludedCount: stay.excludedPropertyIds.length,
       /** Where "close" is measured from, in words. */
-      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }),
+      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }, locale),
       nearIsNamed: stay.nearLabel !== null,
       /**
        * The point distances are measured from, for the map: the place the user
@@ -64,7 +65,7 @@ export async function buildSessionView(session: SearchSession) {
         stay.nearLabel !== null && stay.latitude !== null && stay.longitude !== null
           ? { latitude: stay.latitude, longitude: stay.longitude, label: stay.nearLabel }
           : stay.destKind === 'point' && stay.destLatitude !== null && stay.destLongitude !== null
-            ? { latitude: stay.destLatitude, longitude: stay.destLongitude, label: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) }
+            ? { latitude: stay.destLatitude, longitude: stay.destLongitude, label: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }, locale) }
             : null,
     },
     messages: messages.map((m) => ({

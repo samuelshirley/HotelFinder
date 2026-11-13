@@ -46,7 +46,8 @@ export type Question = ChoiceQuestion | NoulQuestion;
 export const QUESTIONS = {
   tier: {
     type: 'choice',
-    instructions: 'Classify the user message for a hotel-search assistant. The state lists the current search and the hotels on screen.',
+    // The language note: Spanish is a second UI language (docs/i18n.md). The labels stay English; values are still read by code.
+    instructions: 'Classify the user message for a hotel-search assistant. The state lists the current search and the hotels on screen. The message may be in English or Spanish.',
     criteria: {
       // "hide the map" read as T3 at 0.78 and "can you get rid of the map" at 0.94 (live, 2026-11-12) until the screen was named here.
       T1: 'About this hotel search or its screen: the stay, the price, the location, what the hotel must have, one of the listed hotels, or showing, hiding or using the map of them. Greetings and thanks count.',

@@ -5,7 +5,7 @@ import { describeChange } from '@/lib/replies';
 import { actionSchema } from '@/lib/store/actions';
 import { dispatchActions } from '@/server/dispatch';
 import { upsertChipLine } from '@/server/repos/chat';
-import { errorResponse, handled, ownedSession, rateLimit, resolveToday } from '@/server/http';
+import { errorResponse, handled, ownedSession, rateLimit, resolveToday, requestLocale } from '@/server/http';
 import { getSession, listStays } from '@/server/repos/sessions';
 import { getSupplier } from '@/server/supplier';
 import { buildSessionView } from '@/server/view';
@@ -42,12 +42,13 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   const now = new Date();
   const today = resolveToday(parsed.data.today, now);
   if (!today) return errorResponse('bad_date', 400);
+  const locale = requestLocale();
 
   const dispatched = await dispatchActions({
     session,
     stay,
     actions: parsed.data.actions,
-    supplier: getSupplier({ sessionId: session.id, userId: session.userId }),
+    supplier: getSupplier({ sessionId: session.id, userId: session.userId, language: locale }),
     now,
     today,
   });
@@ -62,8 +63,8 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   // results panel points there when nothing fits) — but as ONE line that a run
   // of chip edits keeps rewriting, not a new message per filter.
   if (dispatched.results.some((r) => r.ok)) {
-    const content = describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder);
+    const content = describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, locale);
     if (content) await upsertChipLine(session.id, content);
   }
-  return NextResponse.json(await buildSessionView((await getSession(session.id))!));
+  return NextResponse.json(await buildSessionView((await getSession(session.id))!, locale));
 });
