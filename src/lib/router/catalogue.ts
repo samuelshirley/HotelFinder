@@ -64,7 +64,7 @@ export const QUESTIONS = {
       guests: 'Changes who is travelling or how many rooms.',
       dates_shift: 'Makes the stay longer or shorter by a number of nights.',
       exclude: 'Rejects one of the listed hotels.',
-      more: 'Wants to see other hotels than the ones listed.',
+      more: 'Wants to see other hotels than the ones listed, or the whole list of every hotel found.',
       open: 'Wants to look at or hear more about one of the listed hotels in general, without asking for one particular fact.',
       book: 'Wants to book or reserve one of the listed hotels.',
       map: 'Wants the map itself shown or hidden, or wants to see where one of the listed hotels is on the map. Changes nothing about the search.',

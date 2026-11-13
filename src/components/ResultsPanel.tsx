@@ -16,6 +16,7 @@ import { RangeCalendar } from './RangeCalendar';
 import { CardSkeleton, Spinner } from './Spinner';
 import { HotelDetail } from './HotelDetail';
 import type { SessionView } from '@/server/view';
+import type { FullList } from './useFullList';
 import styles from './App.module.css';
 
 type Row = SessionView['shortlist'][number];
@@ -48,17 +49,21 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map, full }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList }) {
   const { stay, session, shortlist } = view;
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
+  // With the full list open, the map shows the top picks and the page on screen (docs/design/map.md).
+  const fullRows = full.rows;
   const pins = useMemo(
     () =>
-      pinsFor(shortlist, {
+      pinsFor(fullRows.length ? [...shortlist, ...fullRows] : shortlist, {
         money: formatMoney,
         miss: (row) => reasonText(row.reason as ReasonLike | null, { currency: row.offer?.currency ?? session.currency, hasMustHaves: hasMusts }),
       }),
-    [shortlist, session.currency, hasMusts],
+    [shortlist, fullRows, session.currency, hasMusts],
   );
+  // ...and the camera frames that page, so twenty hotels in one city are not one pile.
+  const frame = useMemo(() => (fullRows.length ? fullRows.map((r) => r.property.id) : null), [fullRows]);
   const anchor = stay?.anchor ?? null;
   const ringKm = useMemo(
     () => ringKmFor(shortlist, { hasAnchor: anchor !== null, closenessMatters: session.priorities?.includes('closest') ?? false }),
@@ -148,6 +153,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
             pins={pins}
             anchor={anchor}
             ringKm={ringKm}
+            frame={frame}
             hovered={map.hovered}
             selected={map.selected}
             focus={map.focus}
@@ -188,8 +194,90 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           ))}
         </ol>
       )}
+      {full.more > 0 && (
+        <FullListSection
+          full={full}
+          card={(row) => (
+            <Card
+              key={row.entryId}
+              view={view}
+              row={row}
+              nights={nights}
+              hasMustHaves={musts.length > 0}
+              open={expanded === row.property.id}
+              onOpen={onOpen}
+              onClose={onClose}
+              onBook={onBook}
+              booking={booking}
+              marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
+              onHover={map.onHover}
+              compact
+            />
+          )}
+        />
+      )}
       </div>
     </div>
+  );
+}
+
+/**
+ * "Show all N hotels": under the top picks, the rest of the finder's ranked
+ * order, a page at a time, as compact cards that open and book like the others.
+ */
+function FullListSection({ full, card }: { full: FullList; card: (row: Row) => React.ReactNode }) {
+  const top = () => requestAnimationFrame(() => document.getElementById('full-list')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  const go = (page: number) => {
+    full.goTo(page);
+    top();
+  };
+  if (!full.open) {
+    return (
+      <section id="full-list" className={styles.fullList} aria-label="Full list">
+        <button className={styles.secondary} onClick={full.show}>
+          Show all {full.total} hotels
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section id="full-list" className={styles.fullList} aria-label="Full list" aria-busy={full.loading}>
+      <div className={styles.fullListHead}>
+        <h3>All {full.total} hotels that fit</h3>
+        <button className={styles.ghost} onClick={full.hide}>
+          Top picks only
+        </button>
+      </div>
+      <p className={styles.muted}>
+        {full.range ? `Hotels ${full.range.from}–${full.range.to} of ${full.range.of}, in the same order as the picks above.` : full.loading ? <Spinner label="Loading the list…" /> : null}
+      </p>
+      {full.error && (
+        <p className={styles.errorText} role="alert">
+          {full.error}{' '}
+          <button className={styles.ghost} onClick={full.retry}>
+            Try again
+          </button>
+        </p>
+      )}
+      {full.rows.length > 0 && (
+        <ol className={styles.cards} start={full.range?.from} data-working={full.loading ? 'true' : undefined}>
+          {full.rows.map(card)}
+        </ol>
+      )}
+      {full.pages > 1 && (
+        <nav className={styles.pager} aria-label="Pages of the full list">
+          <button className={styles.secondary} disabled={full.page <= 1 || full.loading} onClick={() => go(full.page - 1)}>
+            Previous
+          </button>
+          <span className={styles.muted}>
+            Page {full.page} of {full.pages}
+          </span>
+          <button className={styles.secondary} disabled={full.page >= full.pages || full.loading} onClick={() => go(full.page + 1)}>
+            Next
+          </button>
+        </nav>
+      )}
+    </section>
   );
 }
 
@@ -380,6 +468,7 @@ function Card({
   booking,
   marked,
   onHover,
+  compact = false,
 }: {
   view: SessionView;
   row: Row;
@@ -393,6 +482,8 @@ function Card({
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
   onHover: (id: string, on: boolean) => void;
+  /** A row of the full list: no photo and no reason line, the facts and the price only. */
+  compact?: boolean;
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
@@ -412,11 +503,12 @@ function Card({
       data-open={open ? 'true' : undefined}
       data-near-miss={isNearMiss(row) ? 'true' : undefined}
       data-marked={marked ?? undefined}
+      data-compact={compact ? 'true' : undefined}
       onMouseEnter={() => onHover(property.id, true)}
       onMouseLeave={() => onHover(property.id, false)}
     >
       <div className={styles.card} onClick={onCard}>
-        {property.photo ? (
+        {compact ? null : property.photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className={styles.photo} src={property.photo} alt="" loading="lazy" />
         ) : (

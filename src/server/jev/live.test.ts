@@ -81,6 +81,10 @@ const CASES: Array<[string, string]> = [
   ['can I see them on a map?', 'ui:map:show'],
   ['where is the second one on the map?', 'ui:focus'],
   ['show the yotel on the map', 'ui:focus'],
+  // The full list (lib/fullList.ts): every hotel that fits, opened under the picks. Added 2026-11-13.
+  ['show me all of them', 'ui:all'],
+  ['can I see the full list of hotels?', 'ui:all'],
+  ['list every hotel you found', 'ui:all'],
   // Asking is not requiring, and requiring is not asking.
   ['it has to have parking', 'actions:add_must_have'],
   // No listing field answers these: the agent's.
@@ -120,7 +124,9 @@ describe.runIf(live)('Jev, live', () => {
             ? `ui:map:${decision.hint.map}`
             : decision.kind === 'ui' && 'focus' in decision.hint
               ? 'ui:focus'
-              : decision.kind;
+              : decision.kind === 'ui' && 'all' in decision.hint
+                ? 'ui:all'
+                : decision.kind;
     expect(got).toBe(expected);
   }, 20_000);
 });

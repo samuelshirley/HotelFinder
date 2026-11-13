@@ -9,7 +9,7 @@ import type { DistanceFrom } from '@/lib/finder/rank';
 import { planSearch } from '@/lib/finder/searchPlan';
 import { modelCostMicrocents, type ModelId } from '@/lib/models';
 import { reasonText, type ReasonLike } from '@/lib/reasonText';
-import { answerLine, describeChange, FIXED_LINES, formatDates, nearLabel, REJECTION_LINE } from '@/lib/replies';
+import { answerLine, describeChange, FIXED_LINES, formatDates, fullListLine, nearLabel, REJECTION_LINE } from '@/lib/replies';
 import { routeMessage, type RouteDecision } from '@/lib/router/route';
 import type { SearchState } from '@/lib/store/reduce';
 import { readPriorities, runAgent, scanIntent, type CallModel, type ModelReply } from '@/server/agent';
@@ -21,7 +21,7 @@ import { placeKindWord, whichOne } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { countFullList, listShortlist } from '@/server/repos/shortlist';
 import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
@@ -345,6 +345,10 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     case 'ui': {
       const hint = decision.hint;
       if ('map' in hint) return { text: hint.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...trace, intent: decision.intent, ui: { map: hint.map }, model_calls: 0 } };
+      if ('all' in hint) {
+        const all = await fullList(session, stay, rows);
+        return { text: all.text, meta: { ...trace, intent: decision.intent, ...all.meta, model_calls: 0 } };
+      }
       if ('focus' in hint) {
         const marked = shortlist.find((r) => r.propertyId === hint.focus.propertyId);
         return { text: `${marked?.name ?? 'That hotel'} is marked on the map.`, meta: { ...trace, intent: decision.intent, ui: { focus: hint.focus }, model_calls: 0 } };
@@ -524,6 +528,10 @@ async function agentTurn(args: {
   }
   if (agent.idea) return { text: FIXED_LINES.idea_noted, meta: { ...meta, idea: true } };
   if (agent.map) return { text: agent.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...meta, ui: agentUi(agent) } };
+  if (agent.all) {
+    const all = await fullList(session, stay, rows);
+    return { text: all.text, meta: { ...meta, ...all.meta } };
+  }
   if (agent.text) return { text: agent.text, kind: 'ai', meta };
   if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };
   return { text: FIXED_LINES.cannot_yet, meta };
@@ -563,12 +571,24 @@ async function stagedAnswer(session: SearchSession, stay: Stay, state: SearchSta
 }
 
 /** What the agent asked the screen to do, in the shape the client reads off the last message. */
-function agentUi(agent: { open: string | null; focus: string | null; map: 'show' | 'hide' | null }): Record<string, unknown> | null {
+function agentUi(agent: { open: string | null; focus: string | null; map: 'show' | 'hide' | null; all?: boolean }): Record<string, unknown> | null {
   const ui: Record<string, unknown> = {};
   if (agent.open) ui.open = { propertyId: agent.open };
   if (agent.focus) ui.focus = { propertyId: agent.focus };
   if (agent.map) ui.map = agent.map;
+  if (agent.all) ui.all = 'show';
   return Object.keys(ui).length ? ui : null;
+}
+
+/**
+ * "Show me all of them": the full list opens under the top picks. Counted from
+ * the finder's rows, never from a model. Nothing after the top picks: nothing
+ * to open, and the line says every hotel that fits is already on screen.
+ */
+async function fullList(session: SearchSession, stay: Stay, rows: ShortlistRow[]): Promise<{ text: string; meta: Record<string, unknown> }> {
+  const more = await countFullList(session.id, stay.id, audienceFor(session));
+  const fits = rows.filter((r) => r.entry.source === 'finder' && r.entry.reason?.kind !== 'near_miss').length;
+  return { text: fullListLine(fits, more), meta: { full_list: { fits, more }, ...(more > 0 ? { ui: { all: 'show' } } : {}) } };
 }
 
 /** Where the shortlist's distances were measured from: a named place, a point destination, else the middle of the results. */

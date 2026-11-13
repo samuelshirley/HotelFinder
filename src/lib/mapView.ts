@@ -79,8 +79,15 @@ export const MISS_GROWTH_MAX = 0.3;
  * What the camera frames: the ranked hotels and the anchor. A near-miss is
  * included only if it barely widens the frame; one far-off miss must not
  * shrink the hotels that fit into a cluster of overlapping pins.
+ *
+ * `frame`: with the full list open, the page on screen (lib/fullList.ts). The
+ * camera frames those hotels alone, so a page of twenty is readable; framed
+ * with the top picks and the anchor, a city's worth of them was one pile of
+ * rank circles (measured in e2e/full-list.spec.ts, Porto, 13 Nov 2026).
  */
-export function fitPoints(pins: readonly MapPin[], anchor: MapPoint | null): MapPoint[] {
+export function fitPoints(pins: readonly MapPin[], anchor: MapPoint | null, frame: readonly string[] | null = null): MapPoint[] {
+  const page = frame ? pins.filter((p) => frame.includes(p.id)) : [];
+  if (page.length > 0) return page;
   const core: MapPoint[] = [...pins.filter((p) => p.rank !== null), ...(anchor ? [anchor] : [])];
   const misses = pins.filter((p) => p.rank === null);
   if (core.length === 0) return misses;
@@ -99,8 +106,9 @@ export function fitPoints(pins: readonly MapPin[], anchor: MapPoint | null): Map
  * Changes when the SET of hotels or the anchor changes, not when their order
  * does: a re-rank of the same hotels must leave the camera alone.
  */
-export function fitKeyFor(pins: readonly MapPin[], anchor: MapPoint | null): string {
-  return `${[...pins.map((p) => p.id)].sort().join(',')}|${anchor ? `${anchor.latitude.toFixed(5)},${anchor.longitude.toFixed(5)}` : ''}`;
+export function fitKeyFor(pins: readonly MapPin[], anchor: MapPoint | null, frame: readonly string[] | null = null): string {
+  const framed = frame && frame.length ? `|${[...frame].sort().join(',')}` : '';
+  return `${[...pins.map((p) => p.id)].sort().join(',')}|${anchor ? `${anchor.latitude.toFixed(5)},${anchor.longitude.toFixed(5)}` : ''}${framed}`;
 }
 
 /** A circle of `km` around a point as [lng, lat] pairs, starting due north, closed. */

@@ -136,6 +136,15 @@ export function addDays(isoDate: string, days: number): string {
 }
 
 /**
+ * For the `more` intent: does the message want every hotel found ("show me all
+ * of them", "the full list") rather than the next few in place of these? Read
+ * only after Jev picked the intent; a value for an intent, never a way to choose one.
+ */
+export function wantsWholeList(message: string): boolean {
+  return /\b(all|every|everything|entire|whole|full)\b/i.test(message) && !/\b(all|every)\s+(?:the\s+)?(?:other|others|different|new)\b/i.test(message);
+}
+
+/**
  * For the `map` intent: does the message want the map away? Anything else
  * about the map means show it. Read only after Jev picked the intent; this is
  * a value for an intent, never a way to choose one.

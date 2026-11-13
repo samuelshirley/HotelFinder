@@ -264,6 +264,25 @@ describe('the agent: what the router did not settle', () => {
     expect(await names(session.id)).toEqual(before);
   });
 
+  it('the full list through the agent: one call, the line counted from the rows, nothing set aside', async () => {
+    const { session, supplier } = await onboarded();
+    const before = await names(session.id);
+    const all = scripted([{ tool: 'show_all_hotels', input: {} }]);
+    const turn = await say(session, 'can you just list everything you found', deps(supplier.supplier, all.callModel));
+    expect(all.calls).toHaveLength(1);
+    expect(turn.finalText).toBe('All 18 hotels that fit are listed under the top picks, in the same order.');
+    expect((await last(session.id)).meta).toEqual({ ui: { all: 'show' } });
+    expect((await last(session.id)).kind).toBe('line');
+    expect(await names(session.id)).toEqual(before);
+    expect((await stayOf(session.id)).excludedPropertyIds).toEqual([]);
+
+    // With a change in the same reply: the change is applied and reported, and the list still opens.
+    const both = scripted([{ tool: 'require', input: { must_have: 'pets_allowed' } }, { tool: 'show_all_hotels', input: {} }]);
+    await say((await getSession(session.id))!, 'only ones that take dogs, and show me all of them', deps(supplier.supplier, both.callModel));
+    expect((await stayOf(session.id)).mustHaves).toEqual(['pets_allowed']);
+    expect((await last(session.id)).meta).toEqual({ ui: { all: 'show' } });
+  });
+
   it('new dates in prose become one typed action; the reply is the server\'s, and the call is on the ledger', async () => {
     const { session, supplier } = await onboarded();
     const m = scripted([{ text: 'Sure, I have changed your dates!' }, { tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);

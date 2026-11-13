@@ -16,6 +16,7 @@ import { SlideOut } from './SlideOut';
 import { ResultsPanel } from './ResultsPanel';
 import { CardSkeleton, Spinner } from './Spinner';
 import { TripBox } from './TripBox';
+import { useFullList } from './useFullList';
 import type { Brief } from '@/server/brief';
 
 const STORAGE_KEY = 'hf_session';
@@ -83,6 +84,8 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(null);
   /** Bumped to bring a hotel's pin into view. */
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  /** "Show all N hotels": open or not, and the page of it on screen. */
+  const full = useFullList(view);
   const booted = useRef(false);
   const resultsRef = useRef<HTMLElement>(null);
   const viewRef = useRef<SessionView | null>(null);
@@ -348,8 +351,14 @@ export function App() {
       const next = await loadSession(id);
       setView(next);
       const last = [...next.messages].reverse().find((m) => m.role === 'assistant');
-      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide' } }).ui;
+      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide'; all?: 'show' } }).ui;
       if (ui?.open?.propertyId) openHotel(ui.open.propertyId);
+      // "Show me all of them": the full list opens under the top picks and comes into view.
+      if (ui?.all === 'show' && next.fullList.more > 0) {
+        full.show();
+        setTab('hotels');
+        requestAnimationFrame(() => document.getElementById('full-list')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      }
       // Penny can fold the map away, bring it back, or point at one hotel on it.
       if (ui?.map) showMap(ui.map === 'show');
       if (ui?.focus?.propertyId) {
@@ -371,7 +380,7 @@ export function App() {
    * skeleton holds the place), not when its results land.
    */
   viewRef.current = view;
-  const openRow = openProperty ? view?.shortlist.find((r) => r.property.id === openProperty) ?? null : null;
+  const openRow = openProperty ? (view?.shortlist.find((r) => r.property.id === openProperty) ?? full.rows.find((r) => r.property.id === openProperty) ?? null) : null;
   const hasPanel =
     Boolean(view?.stay && view.session.status !== 'onboarding') || Boolean(pendingBrief?.place) || (busy === 'form' && searching);
   const working = pendingBrief ? 'Finding hotels…' : busy === 'form' && searching ? 'Finding hotels…' : busy === 'edit' ? 'Updating the shortlist…' : null;
@@ -520,6 +529,7 @@ export function App() {
                   },
                   onSelect: markHotel,
                 }}
+                full={full}
               />
             ) : (
               <FirstSearch place={pendingBrief?.place ?? null} />

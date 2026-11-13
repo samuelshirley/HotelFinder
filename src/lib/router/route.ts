@@ -4,7 +4,7 @@ import type { PriorityKey } from '@/lib/finder/rank';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import { HOTEL_FACTS, SEARCH_FIELDS, SUPERLATIVES, type HotelFact, type Intent, type SearchField, type Superlative, type Tier } from './catalogue';
-import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget, wantsMapHidden } from './slots';
+import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget, wantsMapHidden, wantsWholeList } from './slots';
 
 /**
  * Turn Jev's label choices plus the message into typed actions, or defer.
@@ -155,6 +155,8 @@ export type UiHint =
   | { book: { propertyId: string; offerId: string | null } }
   /** The map band shown or folded away. */
   | { map: 'show' | 'hide' }
+  /** "Show me all of them": the full ranked list opened under the top picks (lib/fullList.ts). Changes nothing about the search. */
+  | { all: 'show' }
   /** One listed hotel marked on the map (and the map shown). */
   | { focus: { propertyId: string } };
 
@@ -273,6 +275,8 @@ export function routeMessage(input: {
 
     case 'more':
       if (shortlist.length === 0) return defer('slot_missing');
+      // "Show me all of them" opens the full list; it sets nothing aside.
+      if (wantsWholeList(message)) return { kind: 'ui', intent, hint: { all: 'show' } };
       return { kind: 'actions', intent, actions: [{ type: 'more_options', propertyIds: shortlist.map((r) => r.propertyId) }] };
 
     case 'open': {

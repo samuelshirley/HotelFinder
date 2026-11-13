@@ -43,6 +43,8 @@ export type AgentResult = {
   focus: string | null;
   /** The map shown or folded away. */
   map: 'show' | 'hide' | null;
+  /** The full list of every hotel that fits opened under the top picks. */
+  all: boolean;
   /** The agent asked a yes/no question about the changes it queued: stage them, do not apply them (lib/stagedPlan.ts). */
   hold: boolean;
   /** A request the app cannot serve yet, for the builders. The caller stores it. */
@@ -65,7 +67,7 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
   let grounding = first;
   let working = input.state;
 
-  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, hold: false, idea: null, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
+  const result: AgentResult = { actions: [], rejected: [], open: null, focus: null, map: null, all: false, hold: false, idea: null, outOfTime: false, text: '', guards: [], failure: null, replies: [], toolTrace: [] };
   let modelText = '';
   /** Why the reply whose text may be shown ended. */
   let stopReason: string | null = null;
@@ -155,6 +157,10 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
         case 'focus':
           result.focus = parsed.propertyId;
           answer('marked');
+          break;
+        case 'all':
+          result.all = true;
+          answer('opened the full list');
           break;
         case 'actions': {
           const notes: string[] = [];

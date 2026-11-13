@@ -33,6 +33,9 @@ describe('tool calls become typed actions, with ids from the server', () => {
     expect(parseToolCall('show_map', { visible: false }, ctx())).toEqual({ kind: 'map', visible: false });
     expect(parseToolCall('mark_on_map', { position: 2 }, ctx())).toEqual({ kind: 'focus', propertyId: P(2) });
     expect(parseToolCall('mark_on_map', { position: 3 }, ctx()).kind).toBe('invalid');
+    // The full list opens on screen; it names no hotel and sets nothing aside.
+    expect(parseToolCall('show_all_hotels', {}, ctx())).toEqual({ kind: 'all' });
+    expect(parseToolCall('show_all_hotels', {}, ctx({ shortlist: [] }))).toEqual({ kind: 'all' });
   });
 
   it('a destination is a ref from this turn, resolved by the server', () => {

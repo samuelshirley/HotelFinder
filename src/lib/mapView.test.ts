@@ -73,6 +73,22 @@ describe('what the camera frames', () => {
     const misses = [pin('m1', null, 41.14, -8.61), pin('m2', null, 41.15, -8.6)];
     expect(fitPoints(misses, null)).toEqual(misses);
   });
+
+  it('with the full list open, the page on screen alone, not the picks or the anchor', () => {
+    const page = [pin('p6', 6, 41.146, -8.611), pin('p7', 7, 41.148, -8.609)];
+    const airport = pin('a1', 1, 41.237, -8.67);
+    expect(fitPoints([airport, ...ranked, ...page], { latitude: 41.24, longitude: -8.67 }, ['p6', 'p7'])).toEqual(page);
+    // A page whose hotels have no pin (no location): the usual frame.
+    expect(fitPoints([...ranked], null, ['p9'])).toEqual(ranked);
+    expect(fitPoints([...ranked], null, [])).toEqual(ranked);
+  });
+});
+
+describe('a row of the full list becomes a ranked pin', () => {
+  it('with its rank and its total, like a top pick', () => {
+    const [p] = pinsFor([row('t', 14, 41.15, -8.61, { reason: { kind: 'full_list', distance_km: 1.2, per_night_minor: 13400 } })], words);
+    expect(p).toMatchObject({ rank: 14, price: 'EUR 268', miss: null });
+  });
 });
 
 describe('when the camera may move', () => {
@@ -86,6 +102,12 @@ describe('when the camera may move', () => {
   it('a different set, or a new anchor, changes it', () => {
     expect(fitKeyFor([a], null)).not.toBe(fitKeyFor([a, b], null));
     expect(fitKeyFor([a, b], { latitude: 41.14, longitude: -8.61 })).not.toBe(fitKeyFor([a, b], null));
+  });
+
+  it('another page of the full list changes it; the same page in another order does not', () => {
+    expect(fitKeyFor([a, b], null, ['b'])).not.toBe(fitKeyFor([a, b], null, ['a']));
+    expect(fitKeyFor([a, b], null, ['a', 'b'])).toBe(fitKeyFor([a, b], null, ['b', 'a']));
+    expect(fitKeyFor([a, b], null, [])).toBe(fitKeyFor([a, b], null));
   });
 });
 
