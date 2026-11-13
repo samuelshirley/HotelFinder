@@ -609,6 +609,26 @@
       "bytes": 144,
       "redactedFields": [],
       "sha256": "421886107242c238152dde9bf597d8fe296153d9aac817a7f1a3f31bc8269ebb"
+    },
+    "hotel-types.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotelTypes",
+      "request": null,
+      "status": 200,
+      "latencyMs": 215,
+      "bytes": 1658,
+      "redactedFields": [],
+      "sha256": "afa493d3c99e30382ca9bf369df2d782509c882582e195ac6c990e7f98bdc661"
+    },
+    "hotels-static-porto-mixed.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotels?countryCode=PT&cityName=Porto&limit=25&offset=300",
+      "request": null,
+      "status": 200,
+      "latencyMs": 194,
+      "bytes": 46912,
+      "redactedFields": [],
+      "sha256": "0c9faa993d20761380263c664c1fed2785b49ea86a5c88710ce02d29e29e27cd"
     }
   }
 }
