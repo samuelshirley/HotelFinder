@@ -24,7 +24,7 @@ write, price alerts, group bookings, saved cards, a second supplier, native app.
 | 3 | Booking happens in the chat: a payment form row that mounts the supplier's payment SDK (Stripe Elements). Our server never receives card data. Nuitee is merchant of record on this path | D, V |
 | 4 | Anonymous users can search and see public prices. Six-digit email OTP, no passwords, unlocks member prices and is required to book | D |
 | 5 | Thin margin. The number is a config value set after the step-9 cost measurement, not a constant | D |
-| 6 | Member (below-public) prices are never shown to an anonymous session. LiteAPI treats a public price under the hotel's suggested selling price as a rate violation; closed user groups are the permitted route | D, V |
+| 6 | An anonymous session sees every hotel at the hotel's own public price (its suggested selling price when our rate is under it) and is told, without an amount, that members pay less; signed-in members (a closed user group) see the rate itself. The member rate never reaches an anonymous session. Sam, 2026-11-13; terms and sandbox: `docs/supplier.md` §9 | D, V |
 | 7 | Jev is the first responder on every message. It settles what it is confident about; everything else goes to Haiku | D |
 | 8 | "Best" is asked once as a chip question: cheapest / closest / nicest / just a safe bed. Free text maps onto the same four values | D |
 | 9 | Remembered preferences are restated as one plain sentence at the start of the next search and confirmed, never silently applied | D |
@@ -225,10 +225,14 @@ unit-tested on captured sandbox fixtures.
 - Every price, tax, fee, currency, room type, board basis and cancellation term
   shown comes from an `offers` row: `supplier`, `supplier_offer_id`,
   `fetched_at`, `expires_at`, `audience`, `margin_pct`.
-- **Audience is structural.** An offer is fetched as `public` or `member`. The
-  server derives the audience from the session's auth state; the client cannot
-  ask for it. A member offer is never serialised to an anonymous session (guard
-  test plus a repo-level filter).
+- **Audience is structural.** An offer row is written for `public` or
+  `member`, at one search margin. The server derives the audience from the
+  session's auth state; the client cannot ask for it. A `public` row holds the
+  hotel's suggested price when the rate is under it, flagged
+  `lower_for_members`, and no number derived from the rate; a member row is
+  never serialised to an anonymous session (repo-level filter, pg tests).
+  "Re-price for whoever is looking now" after a sign-in or "Not you?":
+  `server/checkout.ts`.
 - Primary number is the total for the stay including taxes and fees; per-night
   is secondary; anything paid at the property is labelled from supplier data.
 - Model prose never contains a currency amount, a fee, a cancellation term or
@@ -351,7 +355,7 @@ accent `#9184d9`, Inter, Phosphor icons) **[V]**.
 5. Shortlist rows come only from the finder; `add_user_named_property` is
    locked to `user_named`.
 6. Supplier ids are opaque.
-7. A member offer never reaches an anonymous session.
+7. The member rate never reaches an anonymous session: its rows hold the hotel's public price, and a lower member price is said without an amount.
 8. A rate is re-checked before any payment form is shown; a changed rate is
    shown, never absorbed.
 9. One running turn per session (partial unique index); turns are idempotent

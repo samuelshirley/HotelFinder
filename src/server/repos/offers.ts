@@ -8,9 +8,10 @@ export type Offer = typeof offers.$inferSelect;
 export type OfferInput = Omit<typeof offers.$inferInsert, 'id'>;
 
 /**
- * The one visibility rule: an anonymous (`public`) session sees public offers
- * only. Every read in this file goes through it, so a member-priced offer
- * cannot be serialised to an anonymous session by forgetting a filter.
+ * The one visibility rule: an anonymous (`public`) session sees public rows
+ * only, which hold the hotel's public price (server/offerRows.ts). Every read
+ * in this file goes through it, so a member row (after "Not you?", the last
+ * account's) cannot be serialised to an anonymous session by forgetting a filter.
  */
 function visibleTo(audience: Audience): SQL | undefined {
   return audience === 'member' ? undefined : eq(offers.audience, 'public');
