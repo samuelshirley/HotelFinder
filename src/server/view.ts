@@ -7,7 +7,7 @@ import { nightsBetween } from '@/lib/finder/geo';
 import { nearLabel } from '@/lib/replies';
 import { readStaySights, sightsInPlay } from '@/lib/sights';
 import { listMessages } from '@/server/repos/chat';
-import { listLiveOffersForRanking } from '@/server/repos/offers';
+import { latestSearch, listLiveOffersForRanking } from '@/server/repos/offers';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
 import { FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
 import { countFullList, listShortlist } from '@/server/repos/shortlist';
@@ -20,12 +20,13 @@ import { countFullList, listShortlist } from '@/server/repos/shortlist';
 export async function buildSessionView(session: SearchSession, locale: Locale = 'en', now: Date = new Date()) {
   const audience = audienceFor(session);
   const stay = (await listStays(session.id))[0] ?? null;
-  const [messages, shortlist, held, fullCount] = await Promise.all([
+  const [messages, shortlist, held, fullCount, latest] = await Promise.all([
     listMessages(session.id),
     stay ? listShortlist(session.id, stay.id, audience) : Promise.resolve([]),
     // What the type and brand editors may offer: the hotels the finder ranks over.
     stay ? listLiveOffersForRanking(session.id, stay.id, audience, now) : Promise.resolve([]),
     stay ? countFullList(session.id, stay.id, audience) : Promise.resolve(0),
+    stay ? latestSearch(session.id, stay.id) : Promise.resolve(null),
   ]);
   const heldHotels = new Map(held.map((r) => [r.property.id, r.property]));
   const sights = stay ? readStaySights(stay.sights) : null;
@@ -40,6 +41,12 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
       currency: session.currency,
       signedIn: session.userId !== null,
       audience,
+      /**
+       * The latest prices were fetched for someone else: signed out before a
+       * sign-in, or for the account before "Not you?". The page asks for them
+       * again for whoever is looking now (POST /api/session/[id]/reprice).
+       */
+      repriceNeeded: latest !== null && latest.audience !== audience,
     },
     /** What is known before there is a stay: the place picked and the party and priorities read from the first message. */
     pending: stay
@@ -131,6 +138,12 @@ export function viewRow({ entry, property, offer }: ListedRow) {
       payAtPropertyMinor: offer.payAtPropertyMinor,
       suggestedSellingMinor: offer.suggestedSellingMinor,
       audience: offer.audience,
+      /**
+       * A member's price for this room is under the hotel's public price.
+       * Signed out: the card offers sign-in, never says by how much. Signed
+       * in: the price shown is that member price.
+       */
+      lowerForMembers: offer.audience === 'public' ? offer.lowerForMembers : offer.suggestedSellingMinor !== null && offer.totalMinor < offer.suggestedSellingMinor,
       /** What the price is for: one room's name, or "2 rooms: Double + Twin". */
       roomName: offer.roomName,
       /** How many rooms the price is for. */

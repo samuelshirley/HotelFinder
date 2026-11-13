@@ -314,7 +314,11 @@ export const properties = pgTable(
   (t) => ({ bySupplierId: uniqueIndex('properties_supplier_id_idx').on(t.supplier, t.supplierHotelId) }),
 );
 
-/** Who an offer may be shown to. A `member` offer never reaches an anonymous session. */
+/**
+ * Who an offer was quoted for. A `public` row holds the price a signed-out
+ * visitor may see (lib/pricing.ts `publicQuote`); a `member` row the rate
+ * itself, which never reaches an anonymous session.
+ */
 export const AUDIENCES = ['public', 'member'] as const;
 export type Audience = (typeof AUDIENCES)[number];
 export const audience = pgEnum('audience', AUDIENCES);
@@ -332,8 +336,10 @@ export const offers = pgTable(
     audience: audience('audience').notNull(),
     marginPct: numeric('margin_pct', { precision: 5, scale: 2 }).notNull(),
     currency: text('currency').notNull(),
-    /** Whole stay, taxes and fees included. The primary number on a card. */
+    /** Whole stay, taxes and fees included. The primary number on a card. On a `public` row, never under the hotel's public price. */
     totalMinor: integer('total_minor').notNull(),
+    /** `public` rows only: a signed-in member pays less for this room. The member rate itself is not kept here. */
+    lowerForMembers: boolean('lower_for_members').notNull().default(false),
     /** The hotel's suggested public price, when the supplier sends one. */
     suggestedSellingMinor: integer('suggested_selling_minor'),
     /** Charges the supplier marks `included: false` (city tax at the desk). */

@@ -1,7 +1,8 @@
 import 'server-only';
 
-import { isMemberOnlyPrice, marginFor, OFFER_TTL_MS } from '@/lib/pricing';
-import { occupanciesFor, roomsLabel, roomsOf, sameOccupancies, splitParty, type Occupancy } from '@/lib/finder/rooms';
+import { isMemberOnlyPrice, OFFER_TTL_MS, searchMarginPct } from '@/lib/pricing';
+import { occupanciesFor, roomsOf, sameOccupancies, splitParty, type Occupancy } from '@/lib/finder/rooms';
+import { offerRow } from '@/server/offerRows';
 import { insertOffers, listDetailOffers, type Offer } from '@/server/repos/offers';
 import { getProperty } from '@/server/repos/properties';
 import { audienceFor, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -52,7 +53,7 @@ export async function hotelRates(args: {
     occupancies,
     currency: session.currency,
     guestNationality: session.guestNationality,
-    marginPct: marginFor(audience),
+    marginPct: searchMarginPct(),
     maxHotels: 1,
     maxRatesPerHotel: MAX_RATES,
   });
@@ -61,28 +62,7 @@ export async function hotelRates(args: {
   const rows = await insertOffers(
     search.value.offers
       .filter((o) => o.supplierHotelId === property.supplierHotelId)
-      .map((o) => ({
-        sessionId: session.id,
-        stayId: stay.id,
-        propertyId,
-        supplier: o.supplier,
-        supplierOfferId: o.supplierOfferId,
-        audience,
-        marginPct: o.marginPct.toFixed(2),
-        currency: o.total.currency,
-        totalMinor: o.total.amountMinor,
-        suggestedSellingMinor: o.suggestedSelling?.currency === o.total.currency ? o.suggestedSelling.amountMinor : null,
-        payAtPropertyMinor: o.payAtProperty.amountMinor,
-        taxesAndFees: o.fees,
-        roomName: roomsLabel(o.rooms),
-        boardName: o.rooms[0]?.boardName ?? null,
-        rooms: o.rooms,
-        refundableTag: o.cancellation.tag,
-        cancellation: o.cancellation,
-        fetchedAt: now,
-        expiresAt,
-        detailOnly: true,
-      })),
+      .map((o) => offerRow(o, { sessionId: session.id, stayId: stay.id, propertyId, audience, now, expiresAt, detailOnly: true })),
   );
   return { ok: true, offers: shown(rows, audience), fetched: true };
 }
