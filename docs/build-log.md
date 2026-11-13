@@ -22,6 +22,7 @@ pick up from the first unfinished step.
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 12b | Checkout extras: pay now / at the hotel by named charge, special request to the hotel (`guests[].remarks`) and on the receipt, hotel-page FAQ from the chat's answer templates. No price timer: the prebook has no expiry (`docs/supplier.md`, "Checkout extras") | built 2026-11-13; verified in a real browser against the sandbox (`e2e/checkout.spec.ts`) |
 | 11 | Cost measurement | not started |
+| 12b | Deal Freeze: book a free-cancellation rate with no payment, confirm or release before 48 h ahead of its deadline (`docs/deal-freeze.md`) | built 2026-11-13, sandbox only; e2e against the live sandbox (`e2e/freeze.spec.ts`); the sweep has no scheduler yet and reminders are display-only without Resend |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.

@@ -1,5 +1,5 @@
 {
-  "id": "53be3250-3e85-4080-ab56-82c08cbe55e7",
+  "id": "6c04509f-3657-44c3-ac50-c13071a4afca",
   "prevId": "9f953ace-1bc7-4d29-a0f4-a426ec81daaf",
   "version": "7",
   "dialect": "postgresql",
@@ -498,6 +498,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "frozen_until": {
+          "name": "frozen_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "freeze_reminder_due_at": {
+          "name": "freeze_reminder_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "freeze_reminder_sent_at": {
+          "name": "freeze_reminder_sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "released_by": {
+          "name": "released_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -540,6 +564,27 @@
           "columns": [
             {
               "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bookings_freeze_idx": {
+          "name": "bookings_freeze_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "frozen_until",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2257,7 +2302,11 @@
         "booking",
         "confirmed",
         "failed",
-        "cancelled"
+        "cancelled",
+        "freezing",
+        "frozen",
+        "keeping",
+        "releasing"
       ]
     },
     "public.chat_kind": {

@@ -416,7 +416,15 @@ export function App() {
                     <span className={styles.tripName}>{b.hotelName}</span>
                     <span className={styles.tripDates}>
                       {b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut) : ''}
-                      {b.status === 'cancelled' ? ' · cancelled' : b.status === 'booking' ? ' · waiting for the hotel' : ''}
+                      {b.status === 'cancelled'
+                        ? ' · cancelled'
+                        : b.status === 'frozen' || b.status === 'keeping'
+                          ? ' · frozen'
+                          : b.status === 'releasing'
+                            ? ' · releasing'
+                            : b.status === 'booking' || b.status === 'freezing'
+                              ? ' · waiting for the hotel'
+                              : ''}
                     </span>
                   </a>
                 </li>
