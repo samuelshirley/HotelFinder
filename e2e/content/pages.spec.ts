@@ -2,6 +2,9 @@ import { expect, openSession, test } from '../fixtures/test';
 import { AdminPage, CheckoutPage } from '../pages/checkout';
 import { COPY } from '../support/copy';
 import { ORIGIN } from '../support/env';
+import { json } from '../support/api';
+import * as S from '../support/schemas';
+import { es } from '../../src/lib/i18n/catalogue/es';
 
 /**
  * What every page owes a visitor regardless of what is on it: a language and
@@ -52,6 +55,31 @@ test.describe('every page', { tag: ['@content', '@ui'] }, () => {
       await expect(page).toHaveLoadedImages();
       await expect(page).toHaveWorkingLinks(api.request);
     }
+  });
+
+  test('the shortlist with a saved hotel and the full list open: images, links, alerts', async ({ page, app, searched, api }) => {
+    await json(await api.save({ saved: true, propertyId: searched.view.shortlist[0].property.id, sessionId: searched.sessionId }), S.savedBody);
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    await expect(app.sidebar.savedList().getByRole('listitem')).toHaveCount(1);
+    if (searched.view.fullList.more > 0) {
+      await app.results.showAll().click();
+      await expect(app.results.fullCards().first()).toBeVisible();
+    }
+    await expect(page).toHaveLoadedImages();
+    await expect(page).toHaveWorkingLinks(api.request);
+    await expect(page).toHaveOnlyErrorCopy();
+  });
+
+  test('in Spanish: the page says it is Spanish, and nothing on the first screen is left in English', async ({ page, context, api }) => {
+    await context.addCookies([{ name: 'hf_locale', value: 'es', url: `${ORIGIN}/hotels` }]);
+    await page.goto('./');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+    await expect(page.getByRole('heading', { level: 1, name: es.ui.heroTitle })).toBeVisible();
+    await expect(page.getByText(es.ui.heroText, { exact: true })).toBeVisible();
+    await expect(page.getByText(/Not 400 hotels|Find my hotel|Your trips|What matters\?/)).toHaveCount(0);
+    await expect(page).toHaveLoadedImages();
+    await expect(page).toHaveWorkingLinks(api.request);
   });
 
   test('the browser tab has an icon that loads, under /hotels', async ({ page, api }) => {

@@ -81,6 +81,12 @@ export class Card {
     return minor((await this.total().textContent())!);
   }
   perNightLine = () => this.root.getByText(/^total for \d+ nights? · /);
+  /** The lines under the name: rating, the reason (not on a compact card), the rooms when chosen, the terms. */
+  lines = () => this.heading().locator('xpath=../following-sibling::p');
+  cancellation = () => this.lines().last();
+  roomsLine = () => this.root.locator('[data-rooms]');
+  /** The heart: "Save <name>", or "Remove <name> from saved hotels" once saved. */
+  heart = () => this.root.getByRole('button', { name: /^(Save .+|Remove .+ from saved hotels)$/ }).first();
   book = () => this.root.getByRole('button', { name: /^(Book|Checking the price…)$/ });
   details = () => this.root.getByRole('button', { name: /^(Details|Collapse ▲)$/ }).first();
 }
@@ -88,8 +94,8 @@ export class Card {
 export class Results {
   constructor(readonly page: Page) {}
   region = () => this.page.getByRole('region', { name: 'Hotels' });
-  /** The hotel cards, in rank order (not the divider before near-misses, not skeletons). */
-  cards = () => this.region().locator('ol > li[id^="hotel-"]');
+  /** The top picks, in rank order (not the divider before near-misses, not skeletons, not the full list). */
+  cards = () => this.region().locator('ol').first().locator('> li[id^="hotel-"]');
   card = (i: number) => new Card(this.cards().nth(i));
   heading = () => this.region().getByRole('heading', { level: 2 });
   changeWhere = () => this.page.getByRole('button', { name: 'Change where' });
@@ -104,6 +110,18 @@ export class Results {
   map = () => this.page.getByTestId('map');
   pins = () => this.map().locator('button[data-pin]');
   publicNote = () => this.region().getByText(/^These are public prices\./);
+  /** The filter chips (docs/finder.md, "Filters"), each an editor like the other chips. */
+  filters = () => this.region().getByRole('group', { name: 'Filters' });
+  filter = (name: 'star class' | 'guest rating' | 'kind of place' | 'brand') => this.filters().getByRole('button', { name: `Change ${name}`, exact: true });
+  filterEditor = (name: 'star class' | 'guest rating' | 'kind of place' | 'brand' | 'currency') => this.page.getByRole('dialog', { name: `Change ${name}`, exact: true });
+  currency = () => this.page.getByRole('button', { name: 'Change currency', exact: true });
+  /** "Show all N hotels" and the pages of the full list under the top picks. */
+  fullList = () => this.region().getByRole('region', { name: 'Full list' });
+  showAll = () => this.fullList().getByRole('button', { name: /^Show all \d+ hotels$/ });
+  topPicksOnly = () => this.fullList().getByRole('button', { name: 'Top picks only' });
+  fullCards = () => this.fullList().locator('ol > li[id^="hotel-"]');
+  fullCard = (i: number) => new Card(this.fullCards().nth(i));
+  pager = () => this.fullList().getByRole('navigation', { name: 'Pages of the full list' });
   async waitForCards(timeout = 90_000): Promise<void> {
     await expect(this.cards().first()).toBeVisible({ timeout });
     await expect(this.cards().first()).not.toHaveAttribute('aria-busy', 'true');
@@ -135,6 +153,13 @@ export class Sidebar {
   bookings = () => this.nav().getByRole('link');
   signOut = () => this.nav().getByRole('button', { name: 'Sign out' });
   scrim = () => this.page.getByRole('button', { name: 'Close the trips list' });
+  /** The language picker, named in every language it offers ("Language / Idioma"). */
+  language = () => this.nav().getByRole('combobox', { name: /^(Language|Idioma) \/ / });
+  savedList = () => this.nav().getByRole('list', { name: 'Saved hotels' });
+  savedEmpty = () => this.nav().getByText('Press the heart on a hotel to keep it here.', { exact: true });
+  /** A saved hotel's own button: it opens the search it was saved from. */
+  saved = (name: string) => this.savedList().getByRole('button', { name: new RegExp(`^${esc(name)}`) });
+  savedHeart = (name: string) => this.savedList().getByRole('button', { name: `Remove ${name} from saved hotels`, exact: true });
 }
 
 export class Detail {
@@ -149,6 +174,8 @@ export class Detail {
   lightbox = () => this.page.getByRole('dialog', { name: /^Photos of / });
   section = (name: string, within: Locator = this.panel()) => within.locator('section').filter({ has: this.page.getByRole('heading', { name, exact: true }) });
   bookIn = (within: Locator = this.panel()) => within.getByRole('button', { name: /^Book · / });
+  heart = (within: Locator = this.panel()) => within.getByRole('button', { name: /^(Save .+|Remove .+ from saved hotels)$/ });
+  faq = (within: Locator = this.panel()) => within.getByRole('region', { name: 'Questions about this hotel' });
 }
 
 export class AppPage {

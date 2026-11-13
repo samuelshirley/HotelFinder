@@ -26,6 +26,16 @@ export class CheckoutPage {
   cancelIn = (wallet: 'Apple Pay' | 'Google Pay') => this.sheet(wallet).getByRole('button', { name: 'Cancel', exact: true });
   notYou = () => this.page.getByRole('button', { name: 'Not you?' });
   heading = () => this.page.getByRole('heading', { level: 1 });
+  /** What the hotel charges on top: a named list, or one line ("Nothing listed"). */
+  atHotel = () => this.stay().getByRole('group', { name: 'Pay at the hotel' }).or(this.dd('Pay at the hotel'));
+  request = () => this.page.getByLabel('Special requests (optional)');
+  // Deal Freeze (docs/deal-freeze.md)
+  freezeOffer = () => this.page.getByRole('group', { name: 'Freeze this price' });
+  freeze = () => this.freezeOffer().getByRole('button', { name: /^(Freeze until .+|Booking with the hotel…)$/ });
+  confirmFrozen = (wallet: 'Apple Pay' | 'Google Pay') => this.page.getByRole('button', { name: new RegExp(`^Confirm and pay .+ with ${wallet}$`) });
+  releaseIt = () => this.page.getByRole('button', { name: 'Release it', exact: true });
+  keepHolding = () => this.page.getByRole('button', { name: 'Keep holding it', exact: true });
+  yesRelease = () => this.page.getByRole('button', { name: /^(Yes, release it|Releasing…)$/ });
   cancelBooking = () => this.page.getByRole('button', { name: 'Cancel this booking' });
   keepIt = () => this.page.getByRole('button', { name: 'Keep it' });
   yesCancel = () => this.page.getByRole('button', { name: /^(Yes, cancel it|Cancelling…)$/ });

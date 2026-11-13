@@ -55,7 +55,7 @@ e2e/
   support/copy.ts         ERROR_COPY (from src/lib/errors.ts) and the pages' intended copy
   support/dates.ts        calendar arithmetic; the canonical stay (Porto, the weekend after next)
   support/money.ts        money as printed, parsed to minor units
-  support/env.ts          base URL, admin emails, unique emails
+  support/env.ts          base URL, admin emails, unique emails, the e2e CRON_SECRET
   smoke.spec.ts           @smoke: health, a typed search, a picked-place search
   ui/first-screen.spec.ts the trip box, pills, calendar, party, priorities, example
   ui/onboarding.spec.ts   the questions in the chat (which place, nights, party, priorities)
@@ -65,9 +65,18 @@ e2e/
   ui/chat.spec.ts         typed messages on the no-model path (@ai: the model's own answers)
   ui/booking.spec.ts      checkout, code sign-in, test wallets, receipt, cancel, error states
   ui/admin.spec.ts        sign-in gate, 404 for non-admins, cost overview, one search's ledger
+  ui/saved.spec.ts        the heart (cards, detail, full list), the saved list, the currency chip
+  ui/filters.spec.ts      star class, guest rating, kind of place, brand; Cancel and Escape
+  ui/full-list.spec.ts    "Show all N hotels": order, compact cards, map frame, pager, Try again
+  ui/freeze.spec.ts       Deal Freeze through the UI: freeze, confirm, release; the frozen page
+  ui/rooms.spec.ts        room splits ("Best price"): each card's rooms, re-checked at checkout
+  ui/checkout-extras.spec.ts  hotel FAQ, pay now / at the hotel, special request on the receipt
+  ui/spanish.spec.ts      the language picker and a search in Spanish
   ui/errors.spec.ts       each error code's copy on the page, refs, no-JSON 5xx, no network
   content/pages.spec.ts   every page: lang, title, icon, images, links, alerts, 404, root redirect
   api/*.spec.ts           one describe per "<METHOD> /api/<route>"; catalog.ts; coverage.spec.ts
+                          (freeze.spec.ts: freeze, keep, release and the sweep; saved.spec.ts;
+                          hotels.spec.ts: the full list's pages)
   guards/                 controls.spec.ts (the sweep) and registry.ts (the claims)
 ```
 
@@ -82,6 +91,7 @@ e2e/
 | `@booking` | real sandbox bookings, each cancelled | yes |
 | `@admin` | the admin pages | yes |
 | `@coverage` | the two guards | yes |
+| `@freeze` | Deal Freeze: real sandbox bookings, each released or cancelled | yes |
 | `@ai` | needs the real model (Anthropic/Jev): spends money | only with `E2E_AI=1` |
 
 ## Running it
@@ -100,7 +110,8 @@ npm run e2e:report                        # the last HTML report
 The server it starts: `next dev` into `.next-e2e`, a fresh embedded PGlite per
 run (`HOTEL_FINDER_DATA_DIR`), `DATABASE_URL` blanked (or `E2E_DATABASE_URL`),
 `JEV_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_ADMIN_KEY` and `RESEND_API_KEY`
-blanked (Next does not override a variable already set, so `''` wins over
+blanked, `CRON_SECRET` set to a test value (so the Deal Freeze sweep can be
+called; `e2e/support/env.ts`) (Next does not override a variable already set, so `''` wins over
 `.env`), and `ADMIN_EMAILS` set to the test admins. `LITE_API_KEY` comes from
 `.env` locally and the repository secret in CI: it must be a **sandbox** key.
 
@@ -157,6 +168,12 @@ the route warm-up (`global-setup`: all routes compiled in 4.6–5.8 s).
 | 1 | 9.4 min | baseline; 1 test saw the sandbox busy |
 | 3 | 4.9 min, then 3.8 min | first with a 30 s expect timeout, then 15 s (the default now); 2–3 tests saw the sandbox busy |
 | 5 | 3.0 min | 4 tests saw the sandbox busy (all coped: setup retried); 1 setup that searched a non-canonical party was refused |
+
+After main's PR #4 (Deal Freeze, saved hotels, filters, the full list, room
+splits, currency, Spanish) was merged in: **259 tests, 3 workers, 5.0–5.5 min**
+locally (two runs, 2026-11-13). The new time is mostly Deal Freeze: each
+freeze is a real sandbox booking (and its release a real cancel), and the
+freeze limit test makes four. Three shards in CI still fit the same budget.
 
 (The failing tests in those runs are app bugs; each spends its full expect
 timeout, about 15 s, before failing. With them fixed the runs get shorter.)

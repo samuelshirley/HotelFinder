@@ -22,3 +22,6 @@ export function uniqueEmail(tag: string): string {
   seq += 1;
   return `e2e+${tag}-${process.pid}-${Date.now().toString(36)}-${seq}@fixture.hotelfinder.invalid`;
 }
+
+/** The e2e server's CRON_SECRET (playwright.config.ts): a test value, at least 16 characters as sweepAllowed requires. */
+export const E2E_CRON_SECRET = 'e2e-sweep-secret-not-a-real-one';

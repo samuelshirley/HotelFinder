@@ -1,81 +1,150 @@
-import type { Page } from '@playwright/test';
-
-import { expect, test } from '../fixtures/test';
+import { expect, openSession, test } from '../fixtures/test';
+import { json } from '../support/api';
+import { MONEY } from '../support/money';
+import * as S from '../support/schemas';
 
 /**
- * Saved hotels (the heart) and the currency picker, through the real UI
- * against the live sandbox (docs/saved.md, docs/supplier.md "Currency").
- * Anonymous throughout: the signed cookie owns the saved list. No AI call.
+ * Saved hotels, the heart (docs/saved.md): on every card, beside the name in
+ * the detail view, and in the list under "Your trips", where each entry opens
+ * the search it was saved from. The price shown is the last one found, never
+ * a current one. Anonymous throughout: the signed cookie owns the list.
  */
-async function searchPorto(page: Page) {
-  await page.goto('./?detail=slideout');
-  await page.getByLabel('Your trip', { exact: true }).fill('porto');
-  await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();
-  await page.getByRole('button', { name: /^When:/ }).click();
-  await page.getByRole('button', { name: 'Next weekend' }).click();
-  await page.getByRole('button', { name: 'Done' }).click();
-  await page.getByRole('button', { name: 'Low price' }).click();
-  await page.getByRole('button', { name: 'Find my hotel' }).click();
-  await expect(page.getByText(/\d+ of \d+ hotels fit\. The best \d are listed/)).toBeVisible({ timeout: 60_000 });
-}
+const LAST_FOUND = /^Last price found: \S+ for \d{1,2}(\s\w{3})?–\d{1,2} \w{3}, \d+ nights?, on \d{1,2} \w{3}$/;
 
-test('save a hotel with the heart, see it with its last price found, change the currency, and unsave it', { tag: ['@ui'] }, async ({ page }) => {
-  const errors: string[] = [];
-  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  page.on('pageerror', (e) => errors.push(String(e)));
+test.describe('saved hotels', { tag: '@ui' }, () => {
+  test('the heart on a card saves the hotel; the list shows it with its last price found; its own heart unsaves it', async ({ page, app, searched }) => {
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    await expect(app.sidebar.nav().getByRole('heading', { name: 'Saved hotels' })).toBeVisible();
+    await expect(app.sidebar.savedEmpty()).toBeVisible();
+    const card = app.results.card(0);
+    const name = await card.name();
+    await expect(card.heart()).toHaveAccessibleName(`Save ${name}`);
+    await expect(card.heart()).toHaveAttribute('aria-pressed', 'false');
+    await expect(card.heart()).toHaveAttribute('title', /\S/);
+    const save = page.waitForRequest((r) => r.url().endsWith('/api/saved') && r.method() === 'POST');
+    await card.heart().click();
+    expect((await save).postDataJSON()).toEqual({ saved: true, propertyId: searched.view.shortlist[0].property.id, sessionId: searched.sessionId });
+    await expect(card.heart()).toHaveAccessibleName(`Remove ${name} from saved hotels`);
+    await expect(card.heart()).toHaveAttribute('aria-pressed', 'true');
 
-  await searchPorto(page);
-  const sidebar = page.getByRole('navigation', { name: 'Your trips' });
-  await expect(sidebar.getByText('Press the heart on a hotel to keep it here.')).toBeVisible();
+    const list = app.sidebar.savedList();
+    await expect(list.getByRole('listitem')).toHaveCount(1);
+    await expect(app.sidebar.saved(name)).toContainText(name);
+    const line = (await app.sidebar.saved(name).locator('span').last().textContent())!.trim();
+    expect(line).toMatch(LAST_FOUND);
+    // Said as the last price found: the card's own total, never "now" or "current".
+    expect(line).toContain((await card.total().textContent())!.trim());
+    expect(line).not.toMatch(/now|current/i);
+    await expect(app.sidebar.saved(name)).toHaveAttribute('title', 'Open the search it was saved from');
 
-  const cards = page.getByRole('region', { name: 'Hotels' }).locator('ol > li');
-  await expect(cards).toHaveCount(5);
-  const first = cards.first();
-  const name = (await first.locator('h3').innerText()).replace(/^\d+\s*/, '').trim();
-  const heart = first.getByRole('button', { name: `Save ${name}` });
-  await expect(heart).toHaveAttribute('aria-pressed', 'false');
-  await heart.click();
-  await expect(first.getByRole('button', { name: `Remove ${name} from saved hotels` })).toHaveAttribute('aria-pressed', 'true');
+    // A reload keeps it: the cookie owns the list.
+    await page.reload();
+    await app.results.waitForCards();
+    await expect(app.sidebar.saved(name)).toBeVisible();
+    await app.sidebar.savedHeart(name).click();
+    await expect(app.sidebar.savedEmpty()).toBeVisible();
+    await expect(card.heart()).toHaveAttribute('aria-pressed', 'false');
+  });
 
-  // The saved list: the hotel, and its price said as the last one found, with its nights and the day.
-  const saved = sidebar.getByRole('list', { name: 'Saved hotels' });
-  await expect(saved.getByRole('listitem')).toHaveCount(1);
-  await expect(saved).toContainText(name);
-  await expect(saved).toContainText(/Last price found: €[\d,.]+ for .+ 2 nights, on \d+ \w{3}/);
-  await page.screenshot({ path: 'test-results/saved-01-heart.png' });
+  test('the heart in the detail view says the same as the card, and saves and unsaves too', async ({ page, app, searched }) => {
+    await openSession(page, searched.sessionId, '?detail=slideout');
+    await app.results.waitForCards();
+    const card = app.results.card(1);
+    const name = await card.name();
+    await card.details().click();
+    const heart = app.detail.heart();
+    await expect(heart).toHaveAccessibleName(`Save ${name}`);
+    await heart.click();
+    await expect(heart).toHaveAttribute('aria-pressed', 'true');
+    await expect(app.sidebar.saved(name)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(card.heart()).toHaveAttribute('aria-pressed', 'true');
+    await card.details().click();
+    await app.detail.heart().click();
+    await expect(app.detail.heart()).toHaveAttribute('aria-pressed', 'false');
+    await expect(app.sidebar.savedEmpty()).toBeVisible();
+  });
 
-  // The heart is in the detail view too, and already on.
-  await first.getByRole('button', { name: 'Details' }).click();
-  const detail = page.getByRole('dialog');
-  await expect(detail.getByRole('button', { name: `Remove ${name} from saved hotels` })).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('Escape');
+  test('a saved hotel opens the search it was saved from', async ({ page, app, searched, api }) => {
+    const row = searched.view.shortlist[0];
+    await json(await api.save({ saved: true, propertyId: row.property.id, sessionId: searched.sessionId }), S.savedBody);
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    await app.sidebar.newSearch().click();
+    await expect(app.trip.box()).toBeVisible();
+    // The list is there on the first screen too, and the entry opens its search.
+    await app.sidebar.saved(row.property.name).click();
+    await app.results.waitForCards();
+    await expect(app.results.heading()).toHaveText('Porto, Portugal');
+    await expect(app.sidebar.trip(/Porto, Portugal/)).toHaveAttribute('aria-current', 'true');
+    await expect(app.results.card(0).heart()).toHaveAttribute('aria-pressed', 'true');
+  });
 
-  // The currency: a new search priced by the supplier, every card in dollars.
-  const chip = page.getByRole('button', { name: 'Change currency' });
-  await expect(chip).toHaveText('Prices in EUR ✎');
-  await chip.click();
-  await page.getByLabel('Currency', { exact: true }).selectOption('USD');
-  await page.getByRole('dialog', { name: 'Change currency' }).getByRole('button', { name: 'Apply' }).click();
-  await expect(page.getByText(/Prices in USD\. \d+ of \d+ hotels fit/)).toBeVisible({ timeout: 60_000 });
-  await expect(chip).toHaveText('Prices in USD ✎');
-  await expect(cards).toHaveCount(5);
-  const totals = await cards.locator('p').filter({ hasText: /^\$[\d,.]+$/ }).allTextContents();
-  expect(totals).toHaveLength(5);
-  await expect(page.getByRole('region', { name: 'Hotels' })).not.toContainText('€');
-  // The saved hotel's last price found is now the newest one: the dollar search, if it found that hotel.
-  await expect(saved).toContainText(/Last price found: \$[\d,.]+ for /);
-  await page.screenshot({ path: 'test-results/saved-02-usd.png' });
+  test('the heart on a card in "Show all" saves that hotel', async ({ page, app, searched }) => {
+    expect(searched.view.fullList.more, 'the canonical Porto search has hotels after the top picks').toBeGreaterThan(0);
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    await app.results.showAll().click();
+    const card = app.results.fullCard(0);
+    await expect(card.root).toBeVisible();
+    const name = await card.name();
+    await card.heart().click();
+    await expect(card.heart()).toHaveAttribute('aria-pressed', 'true');
+    await expect(app.sidebar.saved(name)).toBeVisible();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: /\S/ })).toHaveCount(0);
+  });
+});
 
-  // A reload keeps the saved hotel (the cookie owns it) and the currency (the search holds it).
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Change currency' })).toHaveText('Prices in USD ✎');
-  await expect(sidebar.getByRole('list', { name: 'Saved hotels' })).toContainText(name);
-  await expect(sidebar.getByRole('list', { name: 'Saved hotels' })).toContainText(/Last price found: \$[\d,.]+/);
+test.describe('currency', { tag: '@ui' }, () => {
+  test('another currency prices the search again: every card in it, the saved price too, and kept over a reload', async ({ page, app, searched, api }) => {
+    const row = searched.view.shortlist[0];
+    await json(await api.save({ saved: true, propertyId: row.property.id, sessionId: searched.sessionId }), S.savedBody);
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    await expect(app.results.currency()).toHaveText('Prices in EUR ✎');
+    await app.results.currency().click();
+    const editor = app.results.filterEditor('currency');
+    const select = editor.getByLabel('Currency', { exact: true });
+    await expect(select).toHaveValue('EUR');
+    // The common currencies first, each named; then every other code.
+    await expect(select.locator('option').first()).toHaveText(/^[A-Z]{3} · \S/);
+    await expect(editor).toContainText('The hotels are searched again and priced in this currency.');
+    await select.selectOption('USD');
+    await editor.getByRole('button', { name: 'Apply' }).click();
+    await expect(app.chat.region().getByText(/^Prices in USD\. /).last()).toBeVisible({ timeout: 90_000 });
+    await expect(app.results.currency()).toHaveText('Prices in USD ✎');
+    await app.results.waitForCards();
+    for (let i = 0; i < (await app.results.cards().count()); i++) {
+      const total = (await app.results.card(i).total().textContent())!.trim();
+      expect(total).toMatch(MONEY);
+      expect(total.startsWith('$')).toBe(true);
+    }
+    await expect(app.results.cards().first()).not.toContainText('€');
+    await expect(app.sidebar.savedList()).toContainText(/Last price found: \$[\d,.]+ for /);
+    await page.reload();
+    await expect(app.results.currency()).toHaveText('Prices in USD ✎');
+  });
 
-  // Unsaved from the list beside the trips.
-  await sidebar.getByRole('button', { name: `Remove ${name} from saved hotels` }).click();
-  await expect(sidebar.getByText('Press the heart on a hotel to keep it here.')).toBeVisible();
-  await expect(cards.first().getByRole('button', { name: /^Save / })).toHaveAttribute('aria-pressed', 'false');
-
-  expect(errors).toEqual([]);
+  test('Cancel and Escape leave the currency as it was, and send nothing', async ({ page, app, searched }) => {
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    let edits = 0;
+    page.on('request', (r) => r.url().endsWith('/edit') && edits++);
+    for (const how of ['Cancel', 'Escape'] as const) {
+      await app.results.currency().click();
+      const editor = app.results.filterEditor('currency');
+      await editor.getByLabel('Currency', { exact: true }).selectOption('GBP');
+      if (how === 'Cancel') await editor.getByRole('button', { name: 'Cancel' }).click();
+      else await editor.getByLabel('Currency', { exact: true }).press('Escape');
+      await expect(editor).toHaveCount(0);
+      await expect(app.results.currency()).toHaveText('Prices in EUR ✎');
+    }
+    // Apply with the same currency changes nothing either.
+    await app.results.currency().click();
+    await app.results.filterEditor('currency').getByRole('button', { name: 'Apply' }).click();
+    expect(edits).toBe(0);
+    await app.results.currency().click();
+    await expect(app.results.filterEditor('currency').getByLabel('Currency', { exact: true })).toHaveValue('EUR');
+  });
 });

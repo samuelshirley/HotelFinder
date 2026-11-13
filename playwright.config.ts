@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { ADMIN_EMAILS, BASE_URL, BYPASS_HEADERS, DEPLOYED, PORT } from './e2e/support/env';
+import { ADMIN_EMAILS, BASE_URL, BYPASS_HEADERS, DEPLOYED, E2E_CRON_SECRET, PORT } from './e2e/support/env';
 
 /**
  * The e2e framework (docs/testing.md). Drives the real UI and the real API
@@ -70,6 +70,8 @@ export default defineConfig({
           ANTHROPIC_ADMIN_KEY: '',
           // Sign-in codes are shown on the page, never emailed: a test run must not send real email.
           RESEND_API_KEY: '',
+          // The Deal Freeze sweep's bearer secret (api/freeze/sweep), a test value: e2e/api/freeze.spec.ts calls it.
+          CRON_SECRET: E2E_CRON_SECRET,
           // The admin fixture signs in as one of these; any other address is not an admin.
           ADMIN_EMAILS: ADMIN_EMAILS.join(','),
         },

@@ -36,13 +36,15 @@ test.describe('results', { tag: '@ui' }, () => {
       expect(row.offer?.audience ?? 'public').toBe('public');
       expect(await card.rank()).toBe(row.source === 'finder' ? String(i + 1) : '•');
       expect(await card.name()).toBe(row.property.name);
-      const lines = card.root.locator('h3 ~ p');
+      const lines = card.lines();
       await expect(lines.nth(0)).toHaveText(RATING_LINE);
       // The reason it is on the list: always said, never blank.
       await expect(lines.nth(1)).toHaveText(/\S{3,}/);
       if (i > 0 && (row.reason as { kind?: string } | null)?.kind === 'runner_up') await expect(lines.nth(1)).toHaveText(/^Than the first: /);
       if (!row.offer) continue;
-      await expect(lines.nth(2)).toHaveText(CANCELLATION);
+      await expect(card.cancellation()).toHaveText(CANCELLATION);
+      // The rooms the price is for, whenever there were rooms to choose: one name, or "2 rooms: …".
+      if (row.offer.rooms > 1) await expect(card.roomsLine()).toHaveText(new RegExp(`^${row.offer.rooms} rooms: `));
       const total = (await card.total().textContent())!.trim();
       expect(total).toMatch(MONEY);
       expect(minor(total)).toBe(row.offer.totalMinor);
@@ -207,14 +209,22 @@ test.describe('results', { tag: '@ui' }, () => {
     await app.results.waitForCards();
     const editor = app.results.editor('who');
     await app.results.changeWho().click();
+    const rooms = editor.getByRole('button', { name: 'More rooms' }).locator('xpath=..').locator('output');
     await expect(editor.getByRole('button', { name: 'Fewer children' })).toBeDisabled();
-    await expect(editor.getByRole('button', { name: 'More rooms' })).toBeEnabled();
+    // No rooms chosen: "Best price".
+    await expect(rooms).toHaveText('Best price');
+    await expect(editor.getByRole('button', { name: 'Fewer rooms' })).toBeDisabled();
     await editor.getByRole('button', { name: 'More children' }).click();
     await expect(editor.getByLabel('Age of child 1')).toHaveValue('8');
     await editor.getByLabel('Age of child 1').selectOption('5');
+    // Two adults: at most two rooms.
     await editor.getByRole('button', { name: 'More rooms' }).click();
+    await editor.getByRole('button', { name: 'More rooms' }).click();
+    await expect(rooms).toHaveText('2');
     await expect(editor.getByRole('button', { name: 'More rooms' })).toBeDisabled();
     await editor.getByRole('button', { name: 'Fewer rooms' }).click();
+    await editor.getByRole('button', { name: 'Fewer rooms' }).click();
+    await expect(rooms).toHaveText('Best price');
     await editor.getByRole('button', { name: 'Fewer children' }).click();
     await expect(editor.getByLabel('Age of child 1')).toHaveCount(0);
     // Back where it started: Apply sends nothing, there is nothing to change.
@@ -345,9 +355,10 @@ test.describe('results', { tag: '@ui' }, () => {
     // This browser owns the search (its cookie), but has no search open: a new tab, or after New search and a reload.
     await app.goto();
     await expect(app.trip.box()).toBeVisible();
-    await expect(app.sidebar.trip(/Porto, Portugal/), 'GET /api/session lists it').toBeVisible();
+    await expect(app.sidebar.trip(/Porto, Portugal/).first(), 'GET /api/session lists it').toBeVisible();
     await expect(app.sidebar.nav().getByText(COPY.noTrips)).toHaveCount(0);
-    await app.sidebar.trip(/Porto, Portugal/).click();
+    // (The fixture may have started more than one search when the sandbox refused one: the newest is first.)
+    await app.sidebar.trip(/Porto, Portugal/).first().click();
     await expect(app.results.cards()).toHaveCount(searched.view.shortlist.length);
   });
 
