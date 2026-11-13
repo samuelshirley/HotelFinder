@@ -72,7 +72,9 @@ test('search for a hotel in Porto', async ({ page }) => {
   await expect(page.getByText("Hi, I'm Penny.", { exact: false }).first()).toBeVisible();
   await expect(page.getByText(/hotels fit, so here is a nudge: I like .+, rated [\d.]+/)).toBeVisible();
   await expect(page.getByRole('button', { name: /^Open / })).toBeVisible();
-  const cards = page.locator('ol > li');
+  // Hotels only: the trips list in the sidebar is an `ol` too, and the line
+  // above the near-misses is a list item with the separator role.
+  const cards = page.getByRole('region', { name: 'Hotels' }).locator('ol > li:not([role="separator"])');
   await expect(cards).toHaveCount(5);
   await expect(cards.first()).toContainText('Cheapest available');
   await expect(cards.first()).toContainText(/€\d/);

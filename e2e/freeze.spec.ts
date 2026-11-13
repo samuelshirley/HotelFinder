@@ -27,14 +27,29 @@ async function refundableCard(page: Page): Promise<{ card: Locator; hotel: strin
   const cards = page.locator('ol > li');
   // The cards load after skeletons: wait for real ones.
   await expect(cards.first().getByRole('heading', { level: 3 })).toBeVisible({ timeout: 60_000 });
-  for (let i = 0; i < (await cards.count()); i++) {
-    const card = cards.nth(i);
-    if ((await card.getByText(/^Free cancellation until /).count()) > 0) {
-      const hotel = (await card.getByRole('heading', { level: 3 }).textContent())!.replace(/^\s*\d+\s*/, '').trim();
-      return { card, hotel };
+  const scan = async () => {
+    for (let i = 0; i < (await cards.count()); i++) {
+      const card = cards.nth(i);
+      if ((await card.getByText(/^Free cancellation until /).count()) > 0) {
+        const hotel = (await card.getByRole('heading', { level: 3 }).textContent())!.replace(/^\s*\d+\s*/, '').trim();
+        return { card, hotel };
+      }
     }
+    return null;
+  };
+  const top = await scan();
+  if (top) return top;
+  // None of the top picks is refundable today (2026-11-13: none of five): the
+  // full list under them books the same way and shows the same cancellation line.
+  const all = page.getByRole('button', { name: /^Show all \d+ hotels$/ });
+  if ((await all.count()) > 0) {
+    const before = await cards.count();
+    await all.click();
+    await expect.poll(() => cards.count(), { timeout: 30_000 }).toBeGreaterThan(before);
+    const more = await scan();
+    if (more) return more;
   }
-  throw new Error('no free-cancellation card on the shortlist: the sandbox answered without one');
+  throw new Error('no free-cancellation card on the shortlist or the full list: the sandbox answered without one');
 }
 
 test('freeze a free-cancellation room: frozen with no payment, then confirmed; frozen again, then released', async ({ page }) => {

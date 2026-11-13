@@ -69,7 +69,9 @@ test('filter chips: star class and brand', async ({ page }) => {
   await expect(page.getByText(`${chain} only.`, { exact: false }).last()).toBeVisible();
   const others = page.locator('ol > li[data-near-miss="true"]');
   for (let i = 0; i < (await others.count()); i++) {
-    await expect(others.nth(i)).toContainText(/Misses: .*(it is .+|the listing names no brand)/);
+    // Another brand, or none named; or the brand but a members-only rate
+    // (2026-11-13: a hotel of the picked chain, missing only for its price).
+    await expect(others.nth(i)).toContainText(/Misses: .*(it is .+|the listing names no brand|its rate is a member price)/);
   }
   await page.screenshot({ path: 'test-results/filters-02-brand.png' });
 
