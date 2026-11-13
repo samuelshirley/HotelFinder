@@ -1,5 +1,6 @@
 # Every PR and every push to main. Branch protection on main should require
-# all three jobs (docs/deploy.md).
+# checks, migrations and "Playwright (live LiteAPI sandbox)" (docs/deploy.md,
+# docs/testing.md).
 name: CI
 
 on:
@@ -76,11 +77,21 @@ jobs:
           [ "$code" = 200 ] || { cat /tmp/server.log; exit 1; }
 
   e2e:
-    name: Playwright (live LiteAPI sandbox)
+    # Sharded across runners; within a shard, E2E_WORKERS parallel workers on one
+    # dev server and its embedded database. The shard and worker counts, and the
+    # measurements behind them, are in docs/testing.md. Every shard shares the one
+    # LiteAPI sandbox key and its rate limit: raise them together, and measure.
+    name: Playwright shard ${{ matrix.shard }}/${{ strategy.job-total }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       CI: 'true'
+      E2E_SHARDED: '1'
+      E2E_WORKERS: '2'
       # The SANDBOX key: test bookings only, cancelled by the specs.
       LITE_API_KEY: ${{ secrets.LITE_API_KEY }}
     steps:
@@ -100,15 +111,61 @@ jobs:
         with: { node-version: 22, cache: npm }
       - if: env.SKIP != '1'
         run: npm ci
+      - name: Cache the Playwright browser
+        if: env.SKIP != '1'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - if: env.SKIP != '1'
         run: npx playwright install --with-deps chromium
-      - if: env.SKIP != '1'
-        run: npx playwright test
+      - name: Run shard ${{ matrix.shard }}
+        if: env.SKIP != '1'
+        run: npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always() && env.SKIP != '1'
         with:
-          name: playwright
-          path: |
-            playwright-report/
-            test-results/
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure() && env.SKIP != '1'
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 14
+
+  e2e-report:
+    # One HTML report for all shards, and the one check branch protection requires
+    # (the same name the single e2e job had, so the rule does not change).
+    name: Playwright (live LiteAPI sandbox)
+    if: always()
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/download-artifact@v4
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+      - name: Merge the shards into one HTML report
+        id: merge
+        run: |
+          if [ -z "$(ls -A all-blob-reports 2>/dev/null)" ]; then echo "::notice::No shard ran (a fork's PR, or no LITE_API_KEY)."; exit 0; fi
+          npm ci
+          npx playwright merge-reports --reporter html ./all-blob-reports
+          echo "merged=1" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: steps.merge.outputs.merged == '1'
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+      - name: Every shard passed
+        run: |
+          echo "shards: ${{ needs.e2e.result }}"
+          [ "${{ needs.e2e.result }}" = "success" ] || [ "${{ needs.e2e.result }}" = "skipped" ]
