@@ -20,6 +20,7 @@ pick up from the first unfinished step.
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |
+| 13 | Saved hotels (the heart) and the currency picker (`docs/saved.md`) | built 2026-11-13; e2e `saved.spec.ts` in a real browser on the live sandbox; Jev and the agent run live on the save cases |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.
