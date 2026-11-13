@@ -169,7 +169,12 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   const spent = scan ? await logModelCalls(session, 'scan', [scan.reply]) : { model_calls: 0, cost_microcents: 0 };
   const { destination, ...rest } = scan?.trip ?? {};
   const meta = { by: 'form' as const, field, scan: scan ? { ok: scan.reply.ok, fields: Object.keys(scan.trip) } : { skipped: budget.ok ? 'none' : 'budget' }, ...spent };
-  if (Object.keys(rest).length > 0) await updateSession(session.id, { draft: { ...session.draft, scanned: rest } });
+  // Merged, not replaced: a typed place must not wipe the dates, party or pets read earlier.
+  if (Object.keys(rest).length > 0) {
+    await updateSession(session.id, {
+      draft: { ...session.draft, scanned: { ...session.draft.scanned, ...rest }, words: { ...session.draft.words, ...rest } },
+    });
+  }
 
   // The place itself is always looked up at the supplier and always picked by the user.
   const places = await deps.supplier.searchPlaces(destination ?? turn.userMessage);

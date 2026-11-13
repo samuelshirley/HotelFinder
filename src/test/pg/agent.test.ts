@@ -477,6 +477,16 @@ describe('the first message: one forced extraction, then the form asks only for 
     }
   });
 
+  it('a second message adds to what the first said: a typed place with a party keeps the dates and the dog', async () => {
+    const supplier = recordedSupplier();
+    const session = await createSession({ anonId: 'a' });
+    await askQuestion(session.id, 'destination');
+    await say(session, 'a week from next Monday with my dog', deps(supplier.supplier, scan({ check_in: '2026-11-16', nights: 7, must_haves: ['pets_allowed'] }).callModel));
+    await say((await getSession(session.id))!, 'porto, two of us', deps(supplier.supplier, scan({ destination: 'Porto', adults: 2 }).callModel));
+    const draft = (await getSession(session.id))!.draft;
+    expect(draft.scanned).toMatchObject({ checkIn: '2026-11-16', checkOut: '2026-11-23', mustHaves: ['pets_allowed'], guests: { adults: 2 } });
+  });
+
   it('with no key, or with the model down, the message is still looked up as a place', async () => {
     const { sessionId, supplier } = await start('ribeira porto', scripted('fail'));
     expect(supplier.placeQueries).toEqual(['ribeira porto']);
@@ -624,6 +634,20 @@ describe('the first screen: one box, three pills', () => {
     expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: ['nicest', 'closest'] });
     expect(await stayOf(sessionId)).toMatchObject({ destinationText: 'Annecy, France', checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 1, destKind: 'area' });
     expect((await listMessages(sessionId)).map((x) => x.content)).toContain('Searching Annecy, France.');
+  });
+
+  it('a start day with no length, and a place to pick: the nights card opens on that day, not tonight', async () => {
+    // Sam, 2026-11-13: "Annex for a week with dogs let's say next week Monday" lost its dates on the place question.
+    const m = scanOf({ destination: 'Lisbon', check_in: '2026-11-16', must_haves: ['pets_allowed'] });
+    const { sessionId, supplier } = await submit(brief({ text: 'Lisbon from next Monday with my dog' }), m, () => 'places-lisbon');
+    expect((await listMessages(sessionId)).at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination' } });
+    // Picked through the form route, which passes no words: the read-back must still be the words only.
+    await answerForm({ sessionId, answer: { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Lisbon, Portugal' }, guestsAnswered: false, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
+    const rows = await listMessages(sessionId);
+    const line = rows.find((r) => r.content.startsWith('From your message'))!;
+    expect(line.content).toBe('From your message: nights from Mon 16 Nov · pets allowed.');
+    expect(line.content).not.toMatch(/2 adults/); // the default was never in the words
+    expect(rows.at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'dates', checkIn: '2026-11-16', prompt: 'Which nights from Mon 16 Nov? Tap the last night.' } });
   });
 
   it('four towns called Lisbon, and "3 nights in March": asks which, then the nights; never tonight', async () => {

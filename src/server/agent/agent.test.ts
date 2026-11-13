@@ -146,8 +146,13 @@ describe('validateScan: the model transcribes, the server decides what to keep',
     expect(validateScan({ priorities: ['basic', 'luxury'] }, T, 'EUR')).toEqual({});
     expect(validateScan({ priorities: [] }, T, 'EUR')).toEqual({});
   });
-  it('a check-in alone is not a stay', () => {
-    expect(validateScan({ check_in: '2026-12-11' }, T, 'EUR')).toEqual({});
+  it('a check-in alone is not a stay: it only says where the nights card opens', () => {
+    // 2026-11-13: "a week from next Monday" lost its Monday and the card opened on tonight.
+    expect(validateScan({ check_in: '2026-12-11' }, T, 'EUR')).toEqual({ datesHint: { checkIn: '2026-12-11' } });
+    expect(validateScan({ check_in: '2026-11-10' }, T, 'EUR')).toEqual({});
+  });
+  it('a stated length with a start is a stay ("a week from Monday" = 7 nights)', () => {
+    expect(validateScan({ check_in: '2026-11-16', nights: 7 }, T, 'EUR')).toMatchObject({ checkIn: '2026-11-16', checkOut: '2026-11-23' });
   });
   it('drops what is wrong rather than repairing it', () => {
     expect(validateScan({ check_in: '2026-11-10', check_out: '2026-11-12' }, T, 'EUR')).toEqual({});

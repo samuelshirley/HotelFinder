@@ -134,7 +134,7 @@ export async function startFromBrief(args: {
     }
   }
   const { trip, priorities, askDates } = mergeBrief(brief, scanned, today);
-  await updateSession(session.id, { draft: { ...session.draft, scanned: trip }, priorities });
+  await updateSession(session.id, { draft: { ...session.draft, scanned: trip, words: scanned }, priorities });
 
   const place = brief.place ?? (await findPlace(supplier, scanned.destination ?? text));
   if (place === 'unavailable') {

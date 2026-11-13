@@ -135,6 +135,8 @@ export const searchSessions = pgTable(
         /** `point` is the supplier's place details for it; absent when the lookup failed. */
         destination?: { placeId: string; label: string; point?: { latitude: number; longitude: number; kind: 'area' | 'point'; country: string | null } };
         scanned?: ScannedTrip;
+        /** What the first message's words alone said: the "From your message" line, never the defaults. */
+        words?: ScannedTrip;
       }>()
       .notNull()
       .default({}),

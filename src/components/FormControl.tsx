@@ -26,12 +26,12 @@ const PRIORITY_CHIPS: Array<{ key: 'cheapest' | 'nicest' | 'closest'; label: (ne
 
 /** The control for the onboarding question currently being asked. */
 export function FormControl({ question, disabled, onAnswer }: Props) {
-  const meta = (question.meta ?? {}) as { field?: string; suggestions?: Array<{ placeId: string; label: string; display?: string }>; near?: string; nights?: number; month?: string };
+  const meta = (question.meta ?? {}) as { field?: string; suggestions?: Array<{ placeId: string; label: string; display?: string }>; near?: string; nights?: number; month?: string; checkIn?: string };
   switch (meta.field) {
     case 'destination':
       return <Destination suggestions={meta.suggestions} disabled={disabled} onAnswer={onAnswer} />;
     case 'dates':
-      return <Dates hint={{ nights: meta.nights, month: meta.month }} disabled={disabled} onAnswer={onAnswer} />;
+      return <Dates hint={{ nights: meta.nights, month: meta.month, checkIn: meta.checkIn }} disabled={disabled} onAnswer={onAnswer} />;
     case 'guests':
       return <Guests disabled={disabled} onAnswer={onAnswer} />;
     case 'priorities':
@@ -67,10 +67,11 @@ function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<
  * two dates. "3 nights in March" opens on March with a 3-night stay: one tap
  * on the first night sets both dates.
  */
-function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: string }; disabled: boolean; onAnswer: Props['onAnswer'] }) {
+function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: string; checkIn?: string }; disabled: boolean; onAnswer: Props['onAnswer'] }) {
   const today = todayLocal();
   const nights = hint.nights ?? null;
-  const firstDay = hint.month && `${hint.month}-01` > today ? `${hint.month}-01` : today;
+  // "From next Monday": the card opens on that day, never on tonight.
+  const firstDay = hint.checkIn && hint.checkIn >= today ? hint.checkIn : hint.month && `${hint.month}-01` > today ? `${hint.month}-01` : today;
   const [range, setRange] = useState({ checkIn: firstDay, checkOut: addDays(firstDay, nights ?? 1) });
   const valid = range.checkIn >= today && range.checkOut > range.checkIn;
   const n = Math.round((Date.parse(range.checkOut) - Date.parse(range.checkIn)) / 86_400_000);

@@ -107,9 +107,13 @@ function scannedStayFields(scanned: ScannedTrip) {
 }
 
 /** "3 nights in March", "2 nights", "some nights in March": what the words said about when, short of two dates. */
-export function hintText(hint: { nights?: number; month?: string }): string {
-  const month = hint.month ? new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(`${hint.month}-01T00:00:00Z`)) : null;
+export function hintText(hint: { nights?: number; month?: string; checkIn?: string }): string {
   const what = hint.nights ? `${hint.nights} night${hint.nights === 1 ? '' : 's'}` : 'nights';
+  if (hint.checkIn) {
+    const from = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${hint.checkIn}T00:00:00Z`));
+    return `${what} from ${from}`;
+  }
+  const month = hint.month ? new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(`${hint.month}-01T00:00:00Z`)) : null;
   return `${what}${month ? ` in ${month}` : ''}`;
 }
 
@@ -202,7 +206,8 @@ export async function answerForm(args: {
       if (scanned.checkIn && scanned.checkOut && scanned.checkIn >= today) {
         stay = await addStay(sessionId, { destinationText: answer.label, placeId: answer.placeId, ...destFields(current), checkIn: scanned.checkIn, checkOut: scanned.checkOut, ...scannedStayFields(scanned) });
       }
-      understood = understoodLine(args.words ?? scanned, stay !== null, session.currency);
+      // Only what the words said: the draft also holds the pills and the 2-adult default (2026-11-13).
+      understood = understoodLine(args.words ?? session.draft.words ?? {}, stay !== null, session.currency);
       break;
     }
     case 'dates': {
@@ -269,7 +274,8 @@ export function questionExtra(field: Field, stay: Stay | null, session?: SearchS
     const hint = session?.draft.scanned?.datesHint;
     if (!hint) return {};
     // With a length one tap sets the stay; without one the card takes two taps.
-    return { ...hint, prompt: `Which ${hintText(hint)}? ${hint.nights ? 'Tap the first night.' : 'Tap the first night, then the last.'}` };
+    const tap = hint.checkIn ? 'Tap the last night.' : hint.nights ? 'Tap the first night.' : 'Tap the first night, then the last.';
+    return { ...hint, prompt: `Which ${hintText(hint)}? ${tap}` };
   }
   if (field !== 'priorities' || !stay) return {};
   return { near: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) };
