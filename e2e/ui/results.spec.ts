@@ -32,10 +32,12 @@ test.describe('results', { tag: '@ui' }, () => {
     expect(row.offer!.totalMinor).toBe(row.offer!.suggestedSellingMinor);
     await expect(card.signInLower()).toBeVisible();
     await expect(card.memberPrice()).toHaveCount(0);
-    // No other amount on the card than the stay, the night, what the hotel collects and the reason's own: never a saving.
-    const count = (text: string | null) => (text ?? '').match(MONEY_IN_TEXT)?.length ?? 0;
-    const reasonAmounts = count(await card.root.locator('h3 ~ p').nth(1).textContent());
-    expect(count(await card.root.textContent())).toBe(2 + (row.offer!.payAtPropertyMinor > 0 ? 1 : 0) + reasonAmounts);
+    // No other amount on the card than the stay, the night and what the hotel collects (and a
+    // runner-up's comparison with the first): never a saving.
+    const amounts = (await card.root.locator('p').allTextContents())
+      .filter((line) => !/^Than the first: /.test(line))
+      .flatMap((line) => line.match(MONEY_IN_TEXT) ?? []);
+    expect(amounts.length).toBe(2 + (row.offer!.payAtPropertyMinor > 0 ? 1 : 0));
 
     // Not now closes it with nothing changed.
     await card.signInLower().click();
