@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, sql } from 'drizzle-orm';
 
 import { isUniqueViolation } from '@/lib/pgErrors';
 import { db } from '@/server/db/client';
@@ -104,4 +104,15 @@ export async function listTurns(sessionId: string): Promise<AgentTurn[]> {
     .from(agentTurns)
     .where(eq(agentTurns.sessionId, sessionId))
     .orderBy(asc(agentTurns.seq));
+}
+
+/** The turn right before `turn` in its session, whatever its status: the only one whose stage a yes may honour. */
+export async function turnBefore(turn: Pick<AgentTurn, 'sessionId' | 'seq'>): Promise<AgentTurn | null> {
+  const [row] = await db
+    .select()
+    .from(agentTurns)
+    .where(and(eq(agentTurns.sessionId, turn.sessionId), lt(agentTurns.seq, turn.seq)))
+    .orderBy(desc(agentTurns.seq))
+    .limit(1);
+  return row ?? null;
 }

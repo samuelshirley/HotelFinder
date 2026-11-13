@@ -4,7 +4,7 @@ import type { PriorityKey } from '@/lib/finder/rank';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import { HOTEL_FACTS, SEARCH_FIELDS, SUPERLATIVES, type HotelFact, type Intent, type SearchField, type Superlative, type Tier } from './catalogue';
-import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget } from './slots';
+import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget, wantsMapHidden } from './slots';
 
 /**
  * Turn Jev's label choices plus the message into typed actions, or defer.
@@ -150,7 +150,13 @@ export type AnswerPlan =
   | { about: 'ranking'; superlative: Superlative }
   | { about: 'search'; field: SearchField };
 
-export type UiHint = { open: { propertyId: string; offerId: string | null } } | { book: { propertyId: string; offerId: string | null } };
+export type UiHint =
+  | { open: { propertyId: string; offerId: string | null } }
+  | { book: { propertyId: string; offerId: string | null } }
+  /** The map band shown or folded away. */
+  | { map: 'show' | 'hide' }
+  /** One listed hotel marked on the map (and the map shown). */
+  | { focus: { propertyId: string } };
 
 export type RouteDecision =
   | { kind: 'actions'; intent: Intent; actions: Action[] }
@@ -164,7 +170,7 @@ export type RouteDecision =
 export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
 
 /** Intents a named place never turns into "be close to it". */
-const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'exclude', 'new_search', 'greeting_or_thanks'];
+const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'map', 'exclude', 'new_search', 'greeting_or_thanks'];
 
 export function routeMessage(input: {
   message: string;
@@ -273,6 +279,13 @@ export function routeMessage(input: {
       const row = target();
       if (!row) return defer('slot_missing');
       return { kind: 'ui', intent, hint: { open: { propertyId: row.propertyId, offerId: row.offerId } } };
+    }
+
+    case 'map': {
+      // "Where is the second one?" marks it; anything else shows or hides the map.
+      const row = target();
+      if (row) return { kind: 'ui', intent, hint: { focus: { propertyId: row.propertyId } } };
+      return { kind: 'ui', intent, hint: { map: wantsMapHidden(message) ? 'hide' : 'show' } };
     }
 
     case 'book': {

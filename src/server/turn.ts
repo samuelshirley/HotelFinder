@@ -22,10 +22,14 @@ import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { listShortlist } from '@/server/repos/shortlist';
-import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, type AgentTurn } from '@/server/repos/turns';
+import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
 import { nearInWords } from '@/server/nearInWords';
+import { checkStage, isPlainNo, isPlainYes, makeStage, readStage } from '@/lib/stagedPlan';
+import { fingerprint } from '@/lib/store/reduce';
+import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS } from '@/lib/turnBudget';
+import { insertIdea } from '@/server/repos/ideas';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
 
@@ -59,6 +63,10 @@ export type TurnDeps = {
   now: () => Date;
   /** The user's date, YYYY-MM-DD. */
   today: string;
+  /** When this request must have stopped working, epoch ms (lib/turnBudget.ts). Absent = no limit. */
+  deadline?: number;
+  /** The wall clock in ms; tests move it. */
+  clock?: () => number;
 };
 
 export async function runTurn(args: {
@@ -97,6 +105,14 @@ export async function runTurn(args: {
     emit({ type: 'done', turnId: finished.id, status: finished.status });
     const next = await nextQueuedTurn(session.id);
     current = next ? await promoteToRunning(next.id) : null;
+    // A message queued behind this one, with no time left to handle it: say so rather than leave it queued for nobody.
+    while (current && !hasTimeFor(deps.deadline, (deps.clock ?? Date.now)(), MODEL_CALL_MAX_MS)) {
+      await appendMessage({ sessionId: current.sessionId, turnId: current.id, role: 'assistant', kind: 'error', content: '', meta: { code: 'turn_timeout' } });
+      const failed: AgentTurn = (await failTurn(current.id, { errorCode: 'turn_timeout' })) ?? current;
+      emit({ type: 'done', turnId: failed.id, status: failed.status });
+      const after = await nextQueuedTurn(session.id);
+      current = after ? await promoteToRunning(after.id) : null;
+    }
   }
   return result;
 }
@@ -247,6 +263,10 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
   const shortlist = rows
     .map((r) => ({ propertyId: r.property.id, offerId: r.offer?.id ?? null, name: r.property.name }));
 
+  // A plain yes or no to the question the turn before ended on: answered from its stage. No Jev, no model.
+  const staged = await stagedAnswer(session, stay, state, turn, deps);
+  if (staged) return staged;
+
   emit({ type: 'working', by: 'router' });
   const jev = await deps.askJev({
     message: turn.userMessage,
@@ -324,6 +344,11 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
     }
     case 'ui': {
       const hint = decision.hint;
+      if ('map' in hint) return { text: hint.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...trace, intent: decision.intent, ui: { map: hint.map }, model_calls: 0 } };
+      if ('focus' in hint) {
+        const marked = shortlist.find((r) => r.propertyId === hint.focus.propertyId);
+        return { text: `${marked?.name ?? 'That hotel'} is marked on the map.`, meta: { ...trace, intent: decision.intent, ui: { focus: hint.focus }, model_calls: 0 } };
+      }
       const row = shortlist.find((r) => r.propertyId === ('open' in hint ? hint.open.propertyId : hint.book.propertyId));
       const text =
         'book' in hint
@@ -410,6 +435,7 @@ async function agentTurn(args: {
   if (!budget.ok) return { text: FIXED_LINES.ai_budget, meta: { ...args.trace, by: 'agent', budget: budget.cap, model_calls: 0 } };
 
   args.emit({ type: 'working', by: 'agent' });
+  const clock = deps.clock ?? Date.now;
   const state = toSearchState(session, stay);
   const nights = nightsBetween(stay.checkIn, stay.checkOut);
   const recent = (await listModelVisibleTail(session.id, 9))
@@ -448,6 +474,7 @@ async function agentTurn(args: {
         const details = await readPropertyDetails(deps.supplier, propertyId);
         return details.ok ? detailsAsText(details.value) : null;
       },
+      outOfTime: () => !hasTimeFor(deps.deadline, clock(), MODEL_CALL_MAX_MS),
     },
   );
   const spent = await logModelCalls(session, 'agent', agent.replies);
@@ -458,7 +485,20 @@ async function agentTurn(args: {
     const refused = /^http_4\d\d$/.test(agent.failure) && agent.failure !== 'http_408' && agent.failure !== 'http_429';
     return { text: agent.failure === 'not_configured' ? FIXED_LINES.agent_not_configured : refused ? FIXED_LINES.agent_misconfigured : FIXED_LINES.agent_unavailable, meta };
   }
+  // Out of time: what the agent queued is NOT applied. A change half-made, or made after the user was told it was not, is worse than none.
+  if (agent.outOfTime) return { text: FIXED_LINES.out_of_time, meta: { ...meta, timed_out: 'model', dropped_actions: agent.actions.length } };
+  // Stored before anything else can fail: the request is the user's, whatever the turn then does.
+  if (agent.idea) await insertIdea({ sessionId: session.id, userId: session.userId, text: agent.idea });
+  // Held for a yes: staged on this turn's row, not applied. The question is the model's if it passed the guards, else the fixed one.
+  if (agent.hold && agent.actions.length > 0) {
+    return {
+      text: agent.text || FIXED_LINES.confirm,
+      kind: agent.text ? 'ai' : 'line',
+      meta: { ...meta, staged: agent.actions.length, stagedPlan: makeStage(agent.actions, fingerprint(state), deps.now()) },
+    };
+  }
   if (agent.actions.length > 0) {
+    if (!hasTimeFor(deps.deadline, clock(), DISPATCH_MAX_MS)) return { text: FIXED_LINES.out_of_time, meta: { ...meta, timed_out: 'dispatch', dropped_actions: agent.actions.length } };
     const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
     const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
     return {
@@ -470,7 +510,7 @@ async function agentTurn(args: {
         rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
         effect: dispatched.effect,
         finder: dispatched.finder?.kind ?? null,
-        ...(agent.open ? { ui: { open: { propertyId: agent.open } } } : {}),
+        ...(agentUi(agent) ? { ui: agentUi(agent) } : {}),
       },
     };
   }
@@ -478,9 +518,57 @@ async function agentTurn(args: {
     const row = rows.find((r) => r.property.id === agent.open);
     return { text: `${row?.property.name ?? 'That hotel'} is open.`, meta: { ...meta, ui: { open: { propertyId: agent.open } } } };
   }
+  if (agent.focus) {
+    const row = rows.find((r) => r.property.id === agent.focus);
+    return { text: `${row?.property.name ?? 'That hotel'} is marked on the map.`, meta: { ...meta, ui: agentUi(agent) } };
+  }
+  if (agent.idea) return { text: FIXED_LINES.idea_noted, meta: { ...meta, idea: true } };
+  if (agent.map) return { text: agent.map === 'hide' ? FIXED_LINES.map_hidden : FIXED_LINES.map_shown, meta: { ...meta, ui: agentUi(agent) } };
   if (agent.text) return { text: agent.text, kind: 'ai', meta };
   if (agent.rejected.length > 0) return { text: REJECTION_LINE[agent.rejected[0]], meta: { ...meta, rejected: agent.rejected } };
   return { text: FIXED_LINES.cannot_yet, meta };
+}
+
+/**
+ * The previous turn staged a change and asked for a yes (lib/stagedPlan.ts).
+ * A plain yes applies it through the normal dispatch path; a plain no drops
+ * it. Anything else is not an answer to the question: null, and the message
+ * takes the normal path (the stage is then behind another turn and can never
+ * be applied).
+ */
+async function stagedAnswer(session: SearchSession, stay: Stay, state: SearchState, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult | null> {
+  const yes = isPlainYes(turn.userMessage);
+  if (!yes && !isPlainNo(turn.userMessage)) return null;
+  const previous = await turnBefore(turn);
+  const stage = previous?.status === 'done' ? readStage(previous.resultMeta) : null;
+  if (!stage) return null;
+  const trace = { by: 'staged' as const, staged_turn: previous!.id, model_calls: 0 };
+  if (!yes) return { text: FIXED_LINES.stage_dropped, meta: { ...trace, answer: 'no' } };
+  const check = checkStage(stage, fingerprint(state), deps.now());
+  if (check !== 'live') return { text: FIXED_LINES.stage_lapsed, meta: { ...trace, answer: 'yes', stage: check } };
+  const actions = withCloseness(stage.actions, state.priorities);
+  const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+  return {
+    text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder),
+    meta: {
+      ...trace,
+      answer: 'yes',
+      actions,
+      applied: dispatched.results.filter((r) => r.ok).length,
+      rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
+      effect: dispatched.effect,
+      finder: dispatched.finder?.kind ?? null,
+    },
+  };
+}
+
+/** What the agent asked the screen to do, in the shape the client reads off the last message. */
+function agentUi(agent: { open: string | null; focus: string | null; map: 'show' | 'hide' | null }): Record<string, unknown> | null {
+  const ui: Record<string, unknown> = {};
+  if (agent.open) ui.open = { propertyId: agent.open };
+  if (agent.focus) ui.focus = { propertyId: agent.focus };
+  if (agent.map) ui.map = agent.map;
+  return Object.keys(ui).length ? ui : null;
 }
 
 /** Where the shortlist's distances were measured from: a named place, a point destination, else the middle of the results. */

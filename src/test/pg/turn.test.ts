@@ -251,6 +251,25 @@ describe('a chat turn on a running search', () => {
     expect(book.turn.finalText).toBe(`${names[1]} is open: press Book there to check the price and pay.`);
   });
 
+  it('the map: Penny folds it away, brings it back, or marks one hotel on it; no model, no supplier, nothing changed', async () => {
+    const { session, supplier } = await onboarded();
+    const names = await shortlistNames(session.id);
+    const searches = supplier.searches.length;
+    const hide = await say(session, 'hide the map', deps(supplier.supplier, jevSays('map')));
+    expect(hide.turn.finalText).toBe('The map is folded away. Say "show the map" to bring it back.');
+    expect((await lastLine(session.id)).meta).toEqual({ ui: { map: 'hide' } });
+    const show = await say(session, 'show me the map again', deps(supplier.supplier, jevSays('map')));
+    expect(show.turn.finalText).toBe('The map is showing.');
+    expect((await lastLine(session.id)).meta).toEqual({ ui: { map: 'show' } });
+    const mark = await say(session, 'where is the third one on the map', deps(supplier.supplier, jevSays('map')));
+    expect(mark.turn.finalText).toBe(`${names[2]} is marked on the map.`);
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { focus: { propertyId: expect.any(String) } } });
+    expect(mark.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', model_calls: 0 });
+    expect(supplier.searches).toHaveLength(searches);
+    expect(await shortlistNames(session.id)).toEqual(names);
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
+  });
+
   it('with no Anthropic key, what the router will not settle says so and changes nothing', async () => {
     const { session, supplier } = await onboarded();
     const before = await shortlistNames(session.id);
@@ -302,6 +321,32 @@ describe('a chat turn on a running search', () => {
     const done = await first;
     expect(done.events.filter((e) => e.type === 'done')).toHaveLength(2);
     expect((await listTurns(session.id)).map((t) => t.status)).toEqual(['done', 'done']);
+  });
+
+  it('a message queued behind a turn that used up the time is told so, not left queued for nobody', async () => {
+    const { session, supplier } = await onboarded();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let t = 0;
+    const slow = { ...deps(supplier.supplier, jevSays('price_cap')), deadline: 280_000, clock: () => t };
+    const realAsk = slow.askJev;
+    slow.askJev = async (input) => {
+      if (input.message === 'under 70 a night') await gate;
+      return realAsk(input);
+    };
+    const first = say(session, 'under 70 a night', slow, 'k1');
+    await new Promise((r) => setTimeout(r, 30));
+    await say(session, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')), 'k2');
+    t = 250_000; // the first turn took 250 s
+    release();
+    const done = await first;
+    expect(done.turn.status).toBe('done'); // the first turn itself finished
+    const turns = await listTurns(session.id);
+    expect(turns.map((x) => [x.status, x.errorCode])).toEqual([['done', null], ['error', 'turn_timeout']]);
+    expect((await lastLine(session.id)).meta).toEqual({ code: 'turn_timeout' });
+    // The session is free again: the next message runs.
+    const next = await say((await getSession(session.id))!, 'thanks', deps(supplier.supplier, jevSays('greeting_or_thanks')), 'k3');
+    expect(next.turn.status).toBe('done');
   });
 
   it('a crash inside a turn is recorded, shown as an error row, and frees the session', async () => {

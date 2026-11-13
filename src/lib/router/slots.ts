@@ -134,3 +134,12 @@ export function addDays(isoDate: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * For the `map` intent: does the message want the map away? Anything else
+ * about the map means show it. Read only after Jev picked the intent; this is
+ * a value for an intent, never a way to choose one.
+ */
+export function wantsMapHidden(message: string): boolean {
+  return /\b(hide|close|remove|collapse|fold|lose|get rid of|turn off|switch off|no|without|don'?t (?:need|want|show))\b/i.test(message);
+}

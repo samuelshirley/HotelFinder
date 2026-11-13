@@ -30,6 +30,9 @@ describe('tool calls become typed actions, with ids from the server', () => {
     expect(parseToolCall('hotel_details', { position: 2 }, ctx())).toEqual({ kind: 'hotel_details', propertyId: P(2), position: 2 });
     expect(parseToolCall('show_others', {}, ctx())).toEqual({ kind: 'actions', actions: [{ type: 'more_options', propertyIds: [P(1), P(2)] }] });
     expect(parseToolCall('show_others', {}, ctx({ shortlist: [] })).kind).toBe('invalid');
+    expect(parseToolCall('show_map', { visible: false }, ctx())).toEqual({ kind: 'map', visible: false });
+    expect(parseToolCall('mark_on_map', { position: 2 }, ctx())).toEqual({ kind: 'focus', propertyId: P(2) });
+    expect(parseToolCall('mark_on_map', { position: 3 }, ctx()).kind).toBe('invalid');
   });
 
   it('a destination is a ref from this turn, resolved by the server', () => {

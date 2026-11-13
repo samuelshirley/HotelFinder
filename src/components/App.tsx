@@ -22,6 +22,7 @@ const STORAGE_KEY = 'hf_session';
 // v3: the right column is now the chat (30% of the window); widths stored for the old layouts are dropped.
 const PANEL_KEY = 'hf_chat_width_v3';
 const SIDEBAR_KEY = 'hf_sidebar';
+const MAP_KEY = 'hf_map';
 /** The chat on the right, with a search on screen. */
 const PANEL_MIN = 320;
 const PANEL_DEFAULT = 520;
@@ -75,6 +76,13 @@ export function App() {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
   /** On a narrow window only one of the two is on screen. */
   const [tab, setTab] = useState<'chat' | 'hotels'>('chat');
+  /** The map over the list: open unless the user (or Penny, asked to) folded it away. */
+  const [mapOpen, setMapOpen] = useState(true);
+  /** The hotel under the pointer, on the map or in the list, and the one last pressed. */
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  /** Bumped to bring a hotel's pin into view. */
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   const booted = useRef(false);
   const resultsRef = useRef<HTMLElement>(null);
   const viewRef = useRef<SessionView | null>(null);
@@ -85,6 +93,7 @@ export function App() {
     // 30% of the window unless the user dragged it.
     setPanelWidth(Number.isFinite(w) && w >= PANEL_MIN ? w : halfWindow());
     if (stored(SIDEBAR_KEY) === 'closed') setSidebar(false);
+    if (stored(MAP_KEY) === 'closed') setMapOpen(false);
   }, []);
 
   const refreshAccount = useCallback(async () => {
@@ -155,6 +164,21 @@ export function App() {
     });
   };
 
+  const showMap = useCallback((open: boolean) => {
+    setMapOpen(open);
+    store(MAP_KEY, open ? 'open' : 'closed');
+  }, []);
+  /** A leave clears the hover only if it is still on what was left (see MapLink.onHover). */
+  const hover = useCallback((id: string, on: boolean) => setHovered((h) => (on ? id : h === id ? null : h)), []);
+  const cardIntoView = (propertyId: string) =>
+    requestAnimationFrame(() => document.getElementById(`hotel-${propertyId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  /** Mark a hotel on the map and in the list: a pin was pressed, a card was opened, or Penny pointed at it. */
+  const markHotel = useCallback((propertyId: string) => {
+    setSelected(propertyId);
+    setFocus((f) => ({ id: propertyId, n: (f?.n ?? 0) + 1 }));
+    cardIntoView(propertyId);
+  }, []);
+
   const fail = (err: unknown) => setError(errorCopy(err instanceof ApiError ? err.code : 'server_error'));
 
   const start = useCallback(async (fresh: boolean) => {
@@ -194,6 +218,7 @@ export function App() {
     setBusy('boot');
     setError(null);
     setOpenProperty(null);
+    setSelected(null);
     setDrawer(false);
     try {
       setView(await loadSession(id));
@@ -218,6 +243,8 @@ export function App() {
     (propertyId: string) => {
       setOpenProperty((current) => (current === propertyId && variant === 'expand' ? null : propertyId));
       setTab('hotels');
+      setSelected(propertyId);
+      setFocus((f) => ({ id: propertyId, n: (f?.n ?? 0) + 1 }));
       if (viewRef.current) void logEvent('detail_open', { variant, sessionId: viewRef.current.session.id });
       if (variant === 'expand') {
         // The opened card moves to the top of the list's viewport.
@@ -321,8 +348,15 @@ export function App() {
       const next = await loadSession(id);
       setView(next);
       const last = [...next.messages].reverse().find((m) => m.role === 'assistant');
-      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string } } }).ui;
+      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide' } }).ui;
       if (ui?.open?.propertyId) openHotel(ui.open.propertyId);
+      // Penny can fold the map away, bring it back, or point at one hotel on it.
+      if (ui?.map) showMap(ui.map === 'show');
+      if (ui?.focus?.propertyId) {
+        showMap(true);
+        setTab('hotels');
+        markHotel(ui.focus.propertyId);
+      }
     } catch (err) {
       fail(err);
     } finally {
@@ -461,7 +495,7 @@ export function App() {
             onKeyDown={nudgePanel}
             onDoubleClick={() => { const w = clampPanel(halfWindow()); setPanelWidth(w); store(PANEL_KEY, String(w)); }}
           />
-          <section ref={resultsRef} className={styles.results} aria-label="Hotels">
+          <section ref={resultsRef} className={styles.results} data-layout={view?.stay ? 'map' : undefined} aria-label="Hotels">
             {view ? (
               <ResultsPanel
                 view={view}
@@ -473,6 +507,19 @@ export function App() {
                 booking={booking}
                 onEdit={onEdit}
                 busy={busy !== null}
+                map={{
+                  open: mapOpen,
+                  onToggle: () => showMap(!mapOpen),
+                  hovered,
+                  selected,
+                  focus,
+                  onHover: hover,
+                  onPinHover: (id, on) => {
+                    hover(id, on);
+                    if (on) cardIntoView(id);
+                  },
+                  onSelect: markHotel,
+                }}
               />
             ) : (
               <FirstSearch place={pendingBrief?.place ?? null} />

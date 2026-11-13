@@ -55,6 +55,17 @@ export async function buildSessionView(session: SearchSession) {
       /** Where "close" is measured from, in words. */
       nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }),
       nearIsNamed: stay.nearLabel !== null,
+      /**
+       * The point distances are measured from, for the map: the place the user
+       * named, else a point destination. null for an area with nothing named:
+       * the finder then measures from the middle of the results, which is no place.
+       */
+      anchor:
+        stay.nearLabel !== null && stay.latitude !== null && stay.longitude !== null
+          ? { latitude: stay.latitude, longitude: stay.longitude, label: stay.nearLabel }
+          : stay.destKind === 'point' && stay.destLatitude !== null && stay.destLongitude !== null
+            ? { latitude: stay.destLatitude, longitude: stay.destLongitude, label: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }) }
+            : null,
     },
     messages: messages.map((m) => ({
       id: m.id,

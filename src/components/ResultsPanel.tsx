@@ -2,8 +2,10 @@
 
 import { isMustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
+import { pinsFor, ringKmFor } from '@/lib/mapView';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
-import { Fragment, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import type { PriorityKey } from '@/lib/finder/rank';
@@ -18,14 +20,50 @@ import styles from './App.module.css';
 
 type Row = SessionView['shortlist'][number];
 
+// The map library needs a browser (WebGL): it is loaded on the client only, and only when the map is open.
+const MapPanel = dynamic(() => import('./MapPanel').then((m) => m.MapPanel), { ssr: false, loading: () => <p className={styles.mapLoading}>Loading the map…</p> });
+
+/** How the map and the list talk to each other; owned by App so Penny can drive it too. */
+export type MapLink = {
+  open: boolean;
+  onToggle: () => void;
+  hovered: string | null;
+  selected: string | null;
+  focus: { id: string; n: number } | null;
+  /**
+   * The pointer came onto a card (or left it). A leave names what was left: React
+   * reports the card's enter BEFORE the browser reports the pin's leave, so a
+   * leave that simply cleared the hover wiped out the card just entered.
+   */
+  onHover: (id: string, on: boolean) => void;
+  /** The same for a pin, which also brings its card into view. */
+  onPinHover: (id: string, on: boolean) => void;
+  /** A pin was pressed: mark its card and bring it into view. */
+  onSelect: (id: string) => void;
+};
+
 /** Shown only to fill the list to five: it fails a constraint, and its card says which (finder/rank.ts). */
 const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kind?: unknown } | null)?.kind === 'near_miss';
 
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink }) {
   const { stay, session, shortlist } = view;
+  const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
+  const pins = useMemo(
+    () =>
+      pinsFor(shortlist, {
+        money: formatMoney,
+        miss: (row) => reasonText(row.reason as ReasonLike | null, { currency: row.offer?.currency ?? session.currency, hasMustHaves: hasMusts }),
+      }),
+    [shortlist, session.currency, hasMusts],
+  );
+  const anchor = stay?.anchor ?? null;
+  const ringKm = useMemo(
+    () => ringKmFor(shortlist, { hasAnchor: anchor !== null, closenessMatters: session.priorities?.includes('closest') ?? false }),
+    [shortlist, anchor, session.priorities],
+  );
   if (!stay) {
     const p = view.pending;
     const who = p?.guests ? `${formatGuests(p.guests.adults, p.guests.childrenAges, p.guests.rooms)}${p.pets ? ', with a pet' : ''}` : null;
@@ -57,12 +95,25 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
   }
   const nights = Math.max(1, nightsBetween(stay.checkIn, stay.checkOut));
   const musts = stay.mustHaves.filter(isMustHave);
+  // A point picked on the map: be close to it, and closeness joins what "best" means (as a place named in the chat does).
+  const nearPoint = (point: { latitude: number; longitude: number; label?: string }) =>
+    onEdit([{ type: 'set_near_point', ...point }, { type: 'set_priorities', priorities: [...new Set([...(session.priorities ?? []), 'closest' as const])] }]);
+  // The map is offered once there is something to put on it.
+  const canMap = pins.length > 0;
+  const mapShown = canMap && map.open;
   return (
-    <div className={styles.column}>
+    <div className={styles.resultsLayout} data-map={mapShown ? 'open' : 'closed'}>
       <header className={styles.summary}>
         <div className={styles.summaryTop}>
           <h2>{stay.destination}</h2>
-          {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
+          <span className={styles.summaryRight}>
+            {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
+            {canMap && (
+              <button className={styles.ghost} aria-pressed={map.open} onClick={map.onToggle}>
+                {map.open ? 'Hide map' : 'Show map'}
+              </button>
+            )}
+          </span>
         </div>
         <div className={styles.tags}>
           <WhereChip label={stay.destination} busy={busy} onEdit={onEdit} />
@@ -91,6 +142,24 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           </p>
         )}
       </header>
+      {mapShown && (
+        <div className={styles.mapBand}>
+          <MapPanel
+            pins={pins}
+            anchor={anchor}
+            ringKm={ringKm}
+            hovered={map.hovered}
+            selected={map.selected}
+            focus={map.focus}
+            busy={busy}
+            onHover={map.onPinHover}
+            onSelect={map.onSelect}
+            onMeasureFrom={(label, point) => nearPoint({ ...point, label })}
+            onSearchHere={nearPoint}
+          />
+        </div>
+      )}
+      <div className={styles.listScroll}>
       {shortlist.length === 0 ? (
         <p className={styles.empty}>{session.status === 'onboarding' ? 'Answer the questions in the chat to search.' : 'Nothing on the shortlist. The last message in the chat says why.'}</p>
       ) : (
@@ -112,11 +181,14 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onClose={onClose}
               onBook={onBook}
               booking={booking}
+              marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
+              onHover={map.onHover}
             />
             </Fragment>
           ))}
         </ol>
       )}
+      </div>
     </div>
   );
 }
@@ -306,6 +378,8 @@ function Card({
   onClose,
   onBook,
   booking,
+  marked,
+  onHover,
 }: {
   view: SessionView;
   row: Row;
@@ -316,6 +390,9 @@ function Card({
   onClose: () => void;
   onBook: (offerId: string) => void;
   booking: string | null;
+  /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
+  marked: 'hover' | 'selected' | null;
+  onHover: (id: string, on: boolean) => void;
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
@@ -329,7 +406,15 @@ function Card({
     else onOpen(property.id);
   };
   return (
-    <li id={`hotel-${property.id}`} className={styles.cardItem} data-open={open ? 'true' : undefined} data-near-miss={isNearMiss(row) ? 'true' : undefined}>
+    <li
+      id={`hotel-${property.id}`}
+      className={styles.cardItem}
+      data-open={open ? 'true' : undefined}
+      data-near-miss={isNearMiss(row) ? 'true' : undefined}
+      data-marked={marked ?? undefined}
+      onMouseEnter={() => onHover(property.id, true)}
+      onMouseLeave={() => onHover(property.id, false)}
+    >
       <div className={styles.card} onClick={onCard}>
         {property.photo ? (
           // eslint-disable-next-line @next/next/no-img-element

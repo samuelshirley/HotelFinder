@@ -12,8 +12,7 @@ import { askJev } from './index';
  *
  * Each case is a message a user would type and the decision it must produce.
  * A failure here means the catalogue's wording or the settle threshold needs
- * work. As of 2026-11-11 this has NOT been run: the build session was not
- * permitted to call api.typesafe.ai.
+ * work. Run live on 2026-11-12 (46 cases): docs/jev-expansion.md has the result.
  */
 const live = process.env.LIVE_JEV === '1';
 
@@ -43,7 +42,8 @@ const CASES: Array<[string, string]> = [
   ['somewhere close and nice', 'defer'],
   ['nice but not crazy expensive', 'defer'],
   ['cheap, near the station', 'defer'],
-  ['close to the old town please', 'defer'],
+  // Since 2026-11-11 a named place to be close to is settled in code (route.ts `near`); run live 2026-11-12: wants_location 0.95, names_place 0.93.
+  ['close to the old town please', 'near'],
   ['not the second one', 'actions:exclude_property'],
   ['show me some other options', 'actions:more_options'],
   ['tell me more about the yotel', 'ui'],
@@ -74,6 +74,13 @@ const CASES: Array<[string, string]> = [
   ['what dates did I pick?', 'answer:search'],
   ['how many are we?', 'answer:search'],
   ['what is my budget?', 'answer:search'],
+  // The map (docs/design/map.md): shown, folded away, or one hotel marked. Added 2026-11-12.
+  ['hide the map', 'ui:map:hide'],
+  ['can you get rid of the map', 'ui:map:hide'],
+  ['show me the map', 'ui:map:show'],
+  ['can I see them on a map?', 'ui:map:show'],
+  ['where is the second one on the map?', 'ui:focus'],
+  ['show the yotel on the map', 'ui:focus'],
   // Asking is not requiring, and requiring is not asking.
   ['it has to have parking', 'actions:add_must_have'],
   // No listing field answers these: the agent's.
@@ -109,7 +116,11 @@ describe.runIf(live)('Jev, live', () => {
         ? `actions:${decision.actions[0].type}`
         : decision.kind === 'answer'
           ? ['answer', decision.plan.about, ...('fact' in decision.plan ? [decision.plan.fact] : [])].join(':')
-          : decision.kind;
+          : decision.kind === 'ui' && 'map' in decision.hint
+            ? `ui:map:${decision.hint.map}`
+            : decision.kind === 'ui' && 'focus' in decision.hint
+              ? 'ui:focus'
+              : decision.kind;
     expect(got).toBe(expected);
   }, 20_000);
 });
