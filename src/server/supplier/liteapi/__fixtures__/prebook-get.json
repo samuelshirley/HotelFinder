@@ -1,0 +1,103 @@
+{
+  "data": {
+    "prebookId": "h3nXKqEIY",
+    "offerId": "AwJ2MQAAAABq-EDHz8QUUaEXMQVQFo_m64qWgXCCNbJNJ_VQvMLvyk-uk7bmLH3TRdB4EPaW55pTT19cjVvWdPc8m2S29T0uFm2nuizx5h317Brqig8c8ktLgaiMkyq5pehMsSaDIqwHLHx9vQZ5BTwxCnID46LRtUYGwIL7LaIQjd5T26qYe7xlbh73gnAyYJQgoaVqV-8nzMUH_qAmAPj5-9gxy9dyzkBaB-vv82sm1w7YXQTdo1HpqUGHe1QaStCsUJvZVLiPFVLDCx7VuKoFQRUVUtYzvuRJClXLfPizhSmGUl76FV-QNk1VVsbeSzxm4TXhyPpbABasIA3RCQGCOM3au4j3GnAOokswUPk9WUlPn8b2u0FxmYUKE8azfMJZ2vkeiVUWqxT91p5cR9r_JaqaOOXeqCr_rB__YbYe0mvVur7GAie-pn8F2lXmjV3_Eya4Yfv-rp1eoSrb2i6YXPUKVYrcEAPeLkEYOh_ctFy6NsLWXBlujmvPxEzSqLZN2fM0AsfApUesUaSifDBwGoF7ciW5-AWhXO9nkxxqhNkIP6jtryD6sBjYBgOUk-WzbxL-I-IJzY-yRFZsDp-zGm5BdG8rI0iYpI97HKxNTSgfbXKdxstrXQpTuxVIEmUCKZAoetJqiA5mAaFm4DYcZAqNKMeIL32rgR8Ps3c8by89SZLotLgL80FXOeahHrrD_FhW-8etmoOL5o58hnTiPD3bvXuFhpLgYKoG8QTO0JeeFpAV_ulvDOoT61RRE1wtEfpeVFQ2D2FADrZ0bn-Tt0ZGsd35eJI8uWmXMlJSFqu5QqE3B6nf_DwuI7QSr2gDrD8S2bhc6ZVPUCsN0kZbLTx0D0ueIXqu1gONDWz6dXiZwEB0x75aqwXtiPPTZ9CA5wzo3zsAsRSOBd0wQkM2EIrG2d5Kku_3OrqhaWCUpUy3sHtl9dP_iK3M8UbSP7OidoVM0At8HrTwDLY5KkvrFTmsjFKF_z7jdgObgI9pTt3MdwzYs5jvjZYJSz8KS5j88EFfa_N1SU4unNpcvDLliDOXx2aAoK1SfQ3vA66WeGGHpq9w5zr0639ES3SjyI1duBYFC9yg6E3-cAdVnX8J9H2Ppjsabd3BVg==",
+    "hotelId": "lp76a2a",
+    "currency": "EUR",
+    "termsAndConditions": "",
+    "roomTypes": [
+      {
+        "rates": [
+          {
+            "rateId": "G43DMOJWMU3DGNRTGY4TEMBXGI3GMNTGGZSHYMJDGIYDENRRGIYTG7BSGAZDMMJSGE2XYZLOL5KVG7CFKN6EKVKSPQZECMCDPQ2DKMRZPRUVAZ2VJB6DCNZZGQ2TMOBQGA2DQOJQJVXWW3BDGQ4DKOJTGARTCOJTGUWTIOBVHEZTA7CSIZHHYMRQGI3DCMJSG4YDSNJZPQYXYURRGAYTQ7BRGQZTQNBDKJHSGUSGJYRTEMBSGYWTCMJNGI3SAMBZHI2TSIY",
+            "occupancyNumber": 0,
+            "name": "Vincci Room",
+            "maxOccupancy": 2,
+            "adultCount": 2,
+            "childCount": 0,
+            "childrenAges": [],
+            "boardType": "RO",
+            "boardName": "Room Only",
+            "remarks": "",
+            "priceType": "",
+            "commission": [
+              {
+                "amount": 0,
+                "currency": "EUR"
+              }
+            ],
+            "retailRate": {
+              "total": [
+                {
+                  "amount": 143.84,
+                  "currency": "EUR"
+                }
+              ],
+              "suggestedSellingPrice": [
+                {
+                  "amount": 146.43,
+                  "currency": "EUR",
+                  "source": ""
+                }
+              ],
+              "initialPrice": null,
+              "taxesAndFees": [
+                {
+                  "included": false,
+                  "description": "CITY_TAX",
+                  "amount": 12,
+                  "currency": "EUR"
+                }
+              ]
+            },
+            "cancellationPolicies": {
+              "cancelPolicyInfos": [
+                {
+                  "cancelTime": "2026-11-27 09:59:00",
+                  "amount": 143.84,
+                  "currency": "EUR",
+                  "type": "amount",
+                  "timezone": "GMT"
+                }
+              ],
+              "hotelRemarks": [],
+              "refundableTag": "RFN"
+            },
+            "paymentTypes": [
+              "NUITEE_PAY"
+            ],
+            "providerCommission": {
+              "amount": 0,
+              "currency": ""
+            },
+            "perks": null,
+            "promotions": null
+          }
+        ]
+      }
+    ],
+    "suggestedSellingPrice": 146.43,
+    "isPackageRate": true,
+    "commission": 0,
+    "price": 143.84,
+    "priceType": "commission",
+    "priceDifferencePercent": 0,
+    "cancellationChanged": false,
+    "boardChanged": false,
+    "supplier": "nuitee",
+    "supplierId": 2,
+    "transactionId": "tr_cts_yR9fE81-8RhUKEkddsM28",
+    "secretKey": "REDACTED_AT_CAPTURE",
+    "paymentTypes": [
+      "NUITEE_PAY",
+      "TRANSACTION_ID",
+      "ACC_CREDIT_CARD",
+      "WALLET"
+    ],
+    "username": "liteapionboarding",
+    "checkin": "2026-12-13",
+    "checkout": "2026-12-15",
+    "sellingPriceToUser": 143.84
+  },
+  "guestLevel": 0
+}
