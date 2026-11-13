@@ -13,6 +13,7 @@ const shortlist: ShortlistRow[] = [
 const state: SearchState = {
   priorities: null,
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: {
     destinationText: 'Porto',
     placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,

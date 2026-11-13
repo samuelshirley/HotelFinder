@@ -8,6 +8,8 @@ export type SearchState = {
   /** null = not asked yet; [] = no preference. Kept in canonical order. */
   priorities: PriorityKey[] | null;
   guestNationality: string | null;
+  /** ISO 4217; what prices and the price cap are in. */
+  currency: string;
   stay: {
     destinationText: string;
     placeId: string | null;
@@ -134,6 +136,11 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
       if (state.guestNationality === action.code) return { ok: false, rejection: 'no_change' };
       return { ok: true, state: { ...state, guestNationality: action.code }, effect: 'refetch' };
 
+    case 'set_currency':
+      if (state.currency === action.code) return { ok: false, rejection: 'no_change' };
+      // The cap was in the old currency, and we never convert: it goes, and the chip said so before the change.
+      return { ok: true, state: { ...state, currency: action.code, stay: { ...stay, priceCapMinor: null } }, effect: 'refetch' };
+
     case 'exclude_property':
       if (stay.excludedPropertyIds.includes(action.propertyId)) return { ok: false, rejection: 'no_change' };
       return withStay({ excludedPropertyIds: [...stay.excludedPropertyIds, action.propertyId] }, 'rerank');
@@ -193,6 +200,7 @@ export function fingerprint(state: SearchState): string {
   return JSON.stringify([
     state.priorities === null ? null : canonicalPriorities(state.priorities),
     state.guestNationality,
+    state.currency,
     s.placeId,
     s.near?.placeId ?? null,
     s.checkIn,

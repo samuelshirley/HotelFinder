@@ -14,6 +14,7 @@ export const ERROR_COPY = {
   stay_too_long: 'Stays are limited to 30 nights.',
   more_rooms_than_adults: 'Each room needs at least one adult.',
   unknown_country: 'That country is not in the list. Pick it from the menu.',
+  unknown_currency: 'That currency is not in the list. Pick it from the menu.',
   place_unavailable: 'The place lookup did not answer. Try again in a moment.',
   near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
   empty_brief: 'Type where you are going, or pick a place, then search.',

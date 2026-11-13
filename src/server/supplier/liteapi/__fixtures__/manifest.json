@@ -609,6 +609,104 @@
       "bytes": 144,
       "redactedFields": [],
       "sha256": "421886107242c238152dde9bf597d8fe296153d9aac817a7f1a3f31bc8269ebb"
+    },
+    "currencies.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/currencies",
+      "request": null,
+      "status": 200,
+      "latencyMs": 202,
+      "bytes": 10842,
+      "redactedFields": [],
+      "sha256": "e4bcf18a3a438e594159e9e53ddb4d2d438c1a2b11b044666d6116c60a5150f6"
+    },
+    "rates-city-porto-usd.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "currency": "USD"
+      },
+      "status": 200,
+      "latencyMs": 3379,
+      "bytes": 66839,
+      "redactedFields": [],
+      "sha256": "d8bbca67149cd5e89bb7a6d1b29364db27dc2dcde8c539d2b8780b23bfc71183"
+    },
+    "rates-currency-unknown.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "hotelIds": [
+          "lp76a2a",
+          "lp55362",
+          "lp1f67a6",
+          "lp37469a",
+          "lp6554c343",
+          "lp1b51f",
+          "lp6556bad0",
+          "lp6557699a",
+          "lp34e59",
+          "lp6557454d",
+          "lp5ead4",
+          "lpb0c3b",
+          "lp6556ee72",
+          "lp6554f833",
+          "lp2563c",
+          "lpa0fef",
+          "lp90400",
+          "lpadfd9",
+          "lp20ecc8",
+          "lp655855eb"
+        ],
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "currency": "XQZ"
+      },
+      "status": 200,
+      "latencyMs": 2967,
+      "bytes": 57,
+      "redactedFields": [],
+      "sha256": "abfe80628a02e9ec0517138c113f63f1e134061eaf176e221c3aae4644a9a679"
     }
   }
 }

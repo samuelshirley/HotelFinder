@@ -19,6 +19,7 @@ const live = process.env.LIVE_JEV === '1';
 const state: SearchState = {
   priorities: null,
   guestNationality: 'ES',
+  currency: 'EUR',
   stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [] },
 };
 const P = (n: number) => `a0000000-0000-4000-8000-00000000000${n}`;

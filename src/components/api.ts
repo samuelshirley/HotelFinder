@@ -36,7 +36,7 @@ export const loadSession = (id: string) => request<SessionView>(`/api/session/${
 export const answerForm = (id: string, answer: FormAnswer) =>
   request<SessionView>(`/api/session/${id}/form`, { method: 'POST', body: JSON.stringify({ answer, today: todayLocal() }) });
 /** The results header's chips: nationality, what "best" means, where "close" is from. */
-export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_priorities' | 'set_near' | 'set_near_point' | 'clear_near' }>;
+export type EditAction = Extract<Action, { type: 'set_destination' | 'set_dates' | 'set_guests' | 'add_must_have' | 'remove_must_have' | 'set_nationality' | 'set_currency' | 'set_priorities' | 'set_near' | 'set_near_point' | 'clear_near' }>;
 export const editSearch = (id: string, actions: EditAction | EditAction[]) =>
   request<SessionView>(`/api/session/${id}/edit`, { method: 'POST', body: JSON.stringify({ actions: Array.isArray(actions) ? actions : [actions], today: todayLocal() }) });
 export type PlaceSuggestion = { placeId: string; label: string; name: string; where: string | null; kind: string };

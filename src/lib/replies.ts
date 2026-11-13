@@ -119,6 +119,8 @@ function actionLine(action: ResolvedAction, state: SearchState, currency: string
       return `Searching ${state.stay.destinationText}.`;
     case 'set_nationality':
       return '';
+    case 'set_currency':
+      return `Prices in ${action.code}.`;
     case 'exclude_property':
       return 'Set aside.';
     case 'more_options':

@@ -20,6 +20,7 @@ export function toSearchState(session: SearchSession, stay: Stay): SearchState {
   return {
     priorities: session.priorities ? canonicalPriorities(session.priorities) : null,
     guestNationality: session.guestNationality,
+    currency: session.currency,
     stay: {
       destinationText: stay.destinationText,
       placeId: stay.placeId,
@@ -92,10 +93,11 @@ export async function dispatchActions(args: {
 
   if (effect !== 'none') {
     const samePriorities = JSON.stringify(state.priorities) === JSON.stringify(before.priorities);
-    if (!samePriorities || state.guestNationality !== before.guestNationality) {
+    if (!samePriorities || state.guestNationality !== before.guestNationality || state.currency !== before.currency) {
       await updateSession(session.id, {
         priorities: state.priorities,
         guestNationality: state.guestNationality,
+        currency: state.currency,
         // A changed nationality came from the user (the chip or a message): it is theirs now.
         ...(state.guestNationality !== before.guestNationality ? { nationalitySource: 'user' as const } : {}),
       });

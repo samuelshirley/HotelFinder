@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
+import { COMMON_CURRENCIES, CURRENCIES, isCurrencyCode } from '@/lib/currencies';
 import type { PriorityKey } from '@/lib/finder/rank';
 import { formatDates, formatGuests, formatMoney, MUST_HAVE_LABEL, prioritiesLabel } from '@/lib/replies';
 import type { EditAction } from './api';
@@ -107,6 +108,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         <div className={styles.summaryTop}>
           <h2>{stay.destination}</h2>
           <span className={styles.summaryRight}>
+            <CurrencyChip code={session.currency} capSet={stay.priceCapMinor !== null} busy={busy} onEdit={onEdit} />
             {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
             {canMap && (
               <button className={styles.ghost} aria-pressed={map.open} onClick={map.onToggle}>
@@ -357,6 +359,43 @@ function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; 
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+/**
+ * The currency prices are quoted in. A change is a new search priced by the
+ * supplier; nothing on screen is converted. A price cap was set in the old
+ * currency, so it goes, and the picker says so before it is used.
+ */
+function CurrencyChip({ code, capSet, busy, onEdit }: { code: string; capSet: boolean; busy: boolean; onEdit: OnEdit }) {
+  const common = new Set<string>(COMMON_CURRENCIES);
+  const label = (c: (typeof CURRENCIES)[number]) => `${c.code} · ${c.name}`;
+  return (
+    <label className={styles.note}>
+      Currency:{' '}
+      <select
+        aria-label="Currency"
+        aria-describedby={capSet ? 'currency-cap-note' : undefined}
+        value={code}
+        disabled={busy}
+        onChange={(e) => isCurrencyCode(e.target.value) && onEdit({ type: 'set_currency', code: e.target.value })}
+      >
+        {CURRENCIES.filter((c) => common.has(c.code))
+          .sort((a, b) => COMMON_CURRENCIES.indexOf(a.code as never) - COMMON_CURRENCIES.indexOf(b.code as never))
+          .map((c) => (
+            <option key={c.code} value={c.code}>
+              {label(c)}
+            </option>
+          ))}
+        <option disabled>──────────</option>
+        {CURRENCIES.filter((c) => !common.has(c.code)).map((c) => (
+          <option key={c.code} value={c.code}>
+            {label(c)}
+          </option>
+        ))}
+      </select>
+      {capSet && <span id="currency-cap-note"> (changing it removes the price cap, which is in {code})</span>}
     </label>
   );
 }
