@@ -15,8 +15,19 @@ async function search(page: Page) {
   await page.goto('./');
   await page.getByLabel('Your trip', { exact: true }).fill('porto');
   await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();
+  // About five weeks out, not next weekend: a freeze needs a free-cancellation
+  // deadline at least 72 h away, and a week out the sandbox often has none left
+  // among the hotels a signed-out visitor sees (CI, 2026-11-13: 0 of 11).
   await page.getByRole('button', { name: /^When:/ }).click();
-  await page.getByRole('button', { name: 'Next weekend' }).click();
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000);
+  const label = (d: Date) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(d);
+  const pick = async (d: Date) => {
+    const cell = page.getByRole('button', { name: label(d), exact: true });
+    for (let i = 0; i < 3 && !(await cell.isVisible()); i++) await page.getByRole('button', { name: 'Next month' }).click();
+    await cell.click();
+  };
+  await pick(day(35));
+  await pick(day(37));
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Find my hotel' }).click();
   await expect(page.locator('ol > li').first()).toBeVisible({ timeout: 60_000 });
