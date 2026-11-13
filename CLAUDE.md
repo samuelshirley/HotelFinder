@@ -13,6 +13,8 @@
 **feraltravels.com/hotels**: every browser-side URL goes through `withBase`
 (`lib/basePath.ts`), guarded by `basePathGuard`. What works, what is not built and what
 has never been verified: **`docs/build-log.md`**. Read that first.
+Every PR gets its own preview (own Neon branch, emptied; sandbox key):
+`.github/workflows/preview.yml`, `docs/deploy.md`.
 
 ## Scope — hold the line
 
@@ -129,8 +131,9 @@ empty catch) · `basePathGuard` (no root path in a fetch, href, src or
 navigation; `<Link>` exempt, never wrapped in withBase) · `meterGuard` (only
 five server files call out, each writes the usage ledger; every supplier op
 priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `mapPointGuard` (a map
-point enters only from the map: `docs/design/map.md`) · `devDatabase` (migrations build exactly the schema). Mutation
-logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`.
+point enters only from the map: `docs/design/map.md`) · `devDatabase` (migrations build exactly the schema) · `previewGuard`
+(a preview never reaches the production database: `docs/deploy.md`). Mutation
+logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`, `docs/deploy.md`.
 
 ### Agent tools (`src/server/agent/tools.ts`)
 
@@ -147,7 +150,9 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 capture-liteapi-fixtures.mjs (`docs/supplier.md`), dev.sh, jev-live.sh,
 agent-live.sh (14 real cases against Anthropic; prints the cost),
 setup-hosting.sh (one-time Neon + Vercel setup; secrets read from .env,
-Neon URL kept in .env.neon so dev stays on embedded Postgres)
+Neon URL kept in .env.neon so dev stays on embedded Postgres; production
+env only for DATABASE_URL and AUTH_SECRET), wipe-preview-db.mjs and
+delete-pr-previews.sh (run by the preview workflows: `docs/deploy.md`)
 
 ### Agent tooling
 
@@ -183,6 +188,8 @@ The ones most easily broken:
   the `paid → booking` claim, and never retry it: `docs/supplier.md`.
 - Card data never reaches our server.
 - `JEV_BASE_URL` is server-only and a privacy boundary.
+- A preview never reaches the production database, and no production row
+  sits behind a preview URL (`previewGuard`, `docs/deploy.md`).
 
 ## Working rules
 

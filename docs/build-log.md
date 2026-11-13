@@ -49,6 +49,13 @@ the search → new search. `e2e/search.spec.ts`.
 
 ## Not verified
 
+- **Per-PR preview environments** (2026-11-13, `docs/deploy.md`): Neon
+  branch per PR, migrated then emptied, Vercel preview pointed at it, sticky
+  comment, teardown on close; Git-integration deploys limited to `main`.
+  Never run in GitHub Actions: needs Sam's four repo secrets and the Preview
+  `DATABASE_URL` removed in Vercel first. The wipe ran against a local
+  Postgres; the sweep against a stubbed API.
+
 - **Jev's settle rate on real traffic.** `scripts/jev-live.sh` was run on
   2026-11-12 from Sam's Mac: 46 of 46 cases, median 151 ms, about 2,290 input
   tokens a message. Two things it changed: "close to the old town please" now
