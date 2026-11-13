@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutPins, fitKeyFor, fitPoints, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
+import { layoutPins, fitKeyFor, fitPoints, framePadding, PIN_HALF_PX, STACK_OFFSETS, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
 
 const row = (id: string, rank: number, lat: number | null, lng: number | null, over: Record<string, unknown> = {}) => ({
   rank,
@@ -127,5 +127,20 @@ describe('labels never cover each other', () => {
     const places = layoutPins([box('m', null, 100, 100), box('a', 1, 100, 100)]);
     expect(places.has('m')).toBe(false);
     expect(places.get('a')).toEqual({ dy: 0, compact: false });
+  });
+});
+
+describe('framePadding', () => {
+  it('keeps a label stacked furthest below or above its hotel inside the map', () => {
+    const p = framePadding(700, 600);
+    const reach = Math.max(...STACK_OFFSETS.map(Math.abs)) + PIN_HALF_PX;
+    expect(p.top).toBeGreaterThan(reach);
+    expect(p.bottom).toBeGreaterThan(reach);
+    expect(p.left).toBe(72);
+  });
+  it('never takes more than a third of a side, so MapLibre can still fit', () => {
+    const p = framePadding(150, 200);
+    expect(p.top + p.bottom).toBeLessThan(200);
+    expect(p.left + p.right).toBeLessThan(150);
   });
 });

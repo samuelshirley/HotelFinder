@@ -159,6 +159,7 @@ export async function startFromBrief(args: {
     // Pills only: the user's bubble already says it all. Words: say which place they were read as.
     quiet: !text,
     readBack: text ? `Searching ${place.label}.` : undefined,
+    words: scanned,
   });
   // When the nights are missing (askDates), answerForm has just asked for them.
   if (!result.ok) throw new Error(`brief: destination step refused (${result.error})`);

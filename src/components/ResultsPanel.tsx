@@ -5,7 +5,7 @@ import { nightsBetween } from '@/lib/finder/geo';
 import { pinsFor, ringKmFor } from '@/lib/mapView';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
 import dynamic from 'next/dynamic';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import type { PriorityKey } from '@/lib/finder/rank';
@@ -194,15 +194,24 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
 }
 
 /** A header chip that opens an editor in place and applies with one button. */
-function Editable({ label, name, busy, children, onApply }: { label: string; name: string; busy: boolean; children: React.ReactNode; onApply: (() => void) | null }) {
+function Editable({ label, name, busy, children, onApply, onOpen }: { label: string; name: string; busy: boolean; children: React.ReactNode; onApply: (() => void) | null; onOpen?: () => void }) {
   const [open, setOpen] = useState(false);
+  const chip = useRef<HTMLButtonElement>(null);
+  // Escape closes without applying, like Cancel, and hands focus back to the chip.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(false);
+    chip.current?.focus();
+  };
   return (
     <span className={styles.editable}>
-      <button className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={`Change ${name}`} onClick={() => setOpen(!open)}>
+      <button ref={chip} className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={`Change ${name}`} onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
         {label} ✎
       </button>
       {open && (
-        <div className={styles.editor} role="dialog" aria-label={`Change ${name}`}>
+        <div className={styles.editor} role="dialog" aria-label={`Change ${name}`} onKeyDown={onKeyDown}>
           {children}
           {onApply && (
             <div className={styles.editorActions}>
@@ -255,7 +264,8 @@ function WhereChip({ label, busy, onEdit }: { label: string; busy: boolean; onEd
 function WhenChip({ checkIn, checkOut, busy, onEdit }: { checkIn: string; checkOut: string; busy: boolean; onEdit: OnEdit }) {
   const [range, setRange] = useState({ checkIn, checkOut });
   return (
-    <Editable label={formatDates(checkIn, checkOut)} name="when" busy={busy} onApply={() => onEdit({ type: 'set_dates', ...range })}>
+    // Each opening starts from the search as it is: Cancel or Esc then discards what was picked (e2e, 2026-11-13).
+    <Editable label={formatDates(checkIn, checkOut)} name="when" busy={busy} onOpen={() => setRange({ checkIn, checkOut })} onApply={() => onEdit({ type: 'set_dates', ...range })}>
       <RangeCalendar value={range} min={todayLocal()} maxNights={30} onChange={setRange} />
       <span className={styles.muted}>{formatDates(range.checkIn, range.checkOut)}</span>
     </Editable>
@@ -286,7 +296,7 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
     if (actions.length) onEdit(actions);
   };
   return (
-    <Editable label={`${formatGuests(adults, childrenAges, rooms)}${pets ? ' · pet' : ''}`} name="who" busy={busy} onApply={apply}>
+    <Editable label={`${formatGuests(adults, childrenAges, rooms)}${pets ? ' · pet' : ''}`} name="who" busy={busy} onOpen={() => setG({ adults, childrenAges, rooms, pets })} onApply={apply}>
       {step('Adults', g.adults, 1, 12, (n) => setG({ ...g, adults: n, rooms: Math.min(g.rooms, n) }))}
       {step('Children', g.childrenAges.length, 0, 8, (n) => setG({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) }))}
       {g.childrenAges.map((age, i) => (
@@ -327,18 +337,24 @@ function PrioritiesChip({ priorities, near, busy, onEdit }: { priorities: Priori
     );
   }
   return (
-    <span className={styles.chips} role="group" aria-label="What matters most">
+    <span className={styles.chips} role="group" aria-label="What matters most" onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
       {keys.map(([k, label]) => (
         <button key={k} className={styles.chip} aria-pressed={picked.includes(k)} disabled={busy} onClick={() => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]))}>
           {label}
         </button>
       ))}
+      <button className={styles.secondary} onClick={() => setOpen(false)}>
+        Cancel
+      </button>
       <button className={styles.primary} disabled={busy} onClick={() => { setOpen(false); onEdit({ type: 'set_priorities', priorities: picked }); }}>
         Apply
       </button>
     </span>
   );
 }
+
+/** Listed by name, as people look for them; COUNTRIES itself is in ISO code order (e2e, 2026-11-13). */
+const COUNTRIES_BY_NAME = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name, 'en'));
 
 /** The nationality the rates are for: inferred, never asked, changeable here. */
 function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; onEdit: OnEdit }) {
@@ -351,7 +367,7 @@ function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; 
         disabled={busy}
         onChange={(e) => isCountryCode(e.target.value) && onEdit({ type: 'set_nationality', code: e.target.value })}
       >
-        {COUNTRIES.map((c) => (
+        {COUNTRIES_BY_NAME.map((c) => (
           <option key={c.code} value={c.code}>
             {c.name}
           </option>
@@ -399,6 +415,14 @@ function Card({
   const why = reason
     ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves })
     : 'You asked about this one; it has no price for these dates yet';
+  // Open, Esc folds it as Collapse does (docs/design/hotel-detail.md). The photo viewer and the
+  // header editors take their own Esc first and stop it.
+  useEffect(() => {
+    if (!open) return;
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && onClose();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [open, onClose]);
   // The card body opens the hotel too; its own buttons keep their own jobs.
   const onCard = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, a, details')) return;
@@ -453,7 +477,8 @@ function Card({
           <div className={styles.priceCol}>
             <p className={styles.price}>{formatMoney(offer.totalMinor, offer.currency)}</p>
             <p className={styles.muted}>
-              total for {nights} night{nights === 1 ? '' : 's'} · {formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency)} a night
+              <span className={styles.keep}>total for {nights} night{nights === 1 ? '' : 's'} ·</span>{' '}
+              <span className={styles.keep}>{formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency)} a night</span>
             </p>
             {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>+ {formatMoney(offer.payAtPropertyMinor, offer.currency)} paid at the hotel</p>}
             <div className={styles.cardActions}>

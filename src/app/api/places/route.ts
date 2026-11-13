@@ -26,7 +26,9 @@ export const GET = handled(async (req: Request) => {
     places: places.value
       .flatMap((p) => {
         const kind = placeKindWord(p.types);
-        return kind ? [{ placeId: p.placeId, label: p.address ? `${p.name}, ${p.address}` : p.name, name: p.name, where: p.address, kind }] : [];
+        // An empty address is no address: `where` is null, never "" (e2e, 2026-11-13).
+        const where = p.address?.trim() || null;
+        return kind ? [{ placeId: p.placeId, label: where ? `${p.name}, ${where}` : p.name, name: p.name, where, kind }] : [];
       })
       .slice(0, 6),
   });

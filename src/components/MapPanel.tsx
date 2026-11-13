@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Map as MlMap, Marker as MlMarker } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 
-import { layoutPins, fitKeyFor, fitPoints, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
+import { layoutPins, fitKeyFor, fitPoints, framePadding, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
 import styles from './MapPanel.module.css';
@@ -103,6 +103,11 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         m.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
         map.current = m;
         m.on('load', () => !dead && setReady(true));
+        // The credits start folded to their (i) button: drawn open, the full line covered the bottom pins
+        // (2026-11-13). MapLibre opens a compact control on first draw and folds it only on a drag.
+        const foldCredits = () => box.current?.querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')?.classList.remove('maplibregl-compact-show');
+        m.once('load', foldCredits);
+        m.once('idle', foldCredits);
         // Any move we did not start is the user's: a drag, the wheel, a pinch, the zoom buttons.
         // (Not told apart by the event's input: measured in the browser, a wheel zoom's events carry none.)
         m.on('movestart', () => {
@@ -203,6 +208,9 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       const el = document.createElement('div');
       el.className = styles.anchor;
       el.dataset.anchor = 'true';
+      // A mark, not a control: without its own role and name MapLibre makes it a "Map marker" button (e2e, 2026-11-13).
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', `Distances are measured from ${anchor.label}`);
       // The diamond is a child: the map positions the marker with a transform on the element itself,
       // and a rotation on that same element moved it 145 px off its point (seen in the browser).
       const diamond = document.createElement('span');
@@ -229,6 +237,8 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
       const el = document.createElement('div');
       el.className = styles.ringLabel;
       el.textContent = formatKm(ringKm);
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', `${formatKm(ringKm)} from ${anchor.label}`);
       extras.current.push(new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat(ring[0] as [number, number]).addTo(m));
     }
 
@@ -247,7 +257,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
         setMoved(false);
         setAway(false);
         ours.current = true;
-        m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+        m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
         if (!m.isMoving()) ours.current = false; // already framed: no move, so no end to wait for
       }
     }
@@ -291,7 +301,7 @@ export function MapPanel({ pins, anchor, ringKm, hovered, selected, focus, busy,
     setAway(false);
     setPicked(null);
     ours.current = true;
-    m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+    m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
     if (!m.isMoving()) ours.current = false;
   };
 

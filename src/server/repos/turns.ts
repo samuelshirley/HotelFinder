@@ -19,10 +19,13 @@ export async function enqueueTurn(input: {
   const inserted = await db
     .insert(agentTurns)
     .values(input)
-    .onConflictDoNothing({ target: agentTurns.idempotencyKey })
+    .onConflictDoNothing({ target: [agentTurns.sessionId, agentTurns.idempotencyKey] })
     .returning();
   if (inserted[0]) return { turn: inserted[0], created: true };
-  const [existing] = await db.select().from(agentTurns).where(eq(agentTurns.idempotencyKey, input.idempotencyKey));
+  const [existing] = await db
+    .select()
+    .from(agentTurns)
+    .where(and(eq(agentTurns.sessionId, input.sessionId), eq(agentTurns.idempotencyKey, input.idempotencyKey)));
   return { turn: existing, created: false };
 }
 

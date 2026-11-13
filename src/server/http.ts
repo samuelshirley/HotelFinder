@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/ids';
 import { BASE_PATH } from '@/lib/basePath';
 import 'server-only';
 import { randomUUID } from 'node:crypto';
@@ -67,7 +68,7 @@ export async function signOutBrowser(): Promise<void> {
 /** The session if this visitor owns it; otherwise a 404 that does not say whether it exists. */
 export async function ownedSession(id: string): Promise<SearchSession | NextResponse> {
   const owner = await currentOwner();
-  if (!owner || !/^[0-9a-f-]{36}$/i.test(id)) return errorResponse('session_not_found', 404);
+  if (!owner || !isUuid(id)) return errorResponse('session_not_found', 404);
   try {
     return await assertSessionOwned(id, owner);
   } catch (err) {

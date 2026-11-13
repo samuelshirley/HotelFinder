@@ -230,7 +230,7 @@ function Lightbox({ urls, start, name, onClose }: { urls: string[]; start: numbe
         ‹
       </button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={urls[i]} alt="" />
+      <img src={urls[i]} alt={`${name}, photo ${i + 1} of ${urls.length}`} />
       <button type="button" className={styles.lbNext} onClick={() => setI((n) => (n + 1) % urls.length)} aria-label="Next photo">
         ›
       </button>

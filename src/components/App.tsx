@@ -233,10 +233,12 @@ export function App() {
     }
   };
 
-  // The list changes when a search gets its place or dates, or when another one is opened.
+  // The list changes when a search gets its place or dates, or when another one is opened. It is also
+  // read on the first screen with no search open: a visitor with trips and no remembered search (another
+  // tab, cleared storage, back from a checkout link) would otherwise have no way back to them (e2e, 2026-11-13).
   const tripKey = view ? `${view.session.id}|${view.stay?.destination ?? ''}|${view.stay?.checkIn ?? ''}|${view.stay?.checkOut ?? ''}` : '';
   useEffect(() => {
-    if (tripKey) void refreshTrips();
+    void refreshTrips();
   }, [tripKey, refreshTrips]);
 
   /** How a hotel opens: the `detail` flag (components/flags.ts), read once on the client. */

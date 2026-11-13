@@ -164,6 +164,12 @@ export async function answerForm(args: {
    * already shows: no echo, and no "From your message" line for it.
    */
   quiet?: boolean;
+  /**
+   * What the words alone said, for the "From your message" line. The draft's
+   * scanned trip also holds the pills and the 2-adult default, which the line
+   * then claimed the message said (e2e, 2026-11-13).
+   */
+  words?: ScannedTrip;
 }): Promise<FormResult> {
   const { sessionId, answer, supplier, now, today } = args;
   const session = await getSession(sessionId);
@@ -196,7 +202,7 @@ export async function answerForm(args: {
       if (scanned.checkIn && scanned.checkOut && scanned.checkIn >= today) {
         stay = await addStay(sessionId, { destinationText: answer.label, placeId: answer.placeId, ...destFields(current), checkIn: scanned.checkIn, checkOut: scanned.checkOut, ...scannedStayFields(scanned) });
       }
-      understood = understoodLine(scanned, stay !== null, session.currency);
+      understood = understoodLine(args.words ?? scanned, stay !== null, session.currency);
       break;
     }
     case 'dates': {
