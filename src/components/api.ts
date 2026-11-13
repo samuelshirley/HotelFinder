@@ -100,8 +100,11 @@ export type BookingPage = Me & { booking: BookingView; me: { email: string } | n
 
 export const loadMe = () => request<Me>('/api/me');
 export const sendSignInCode = (email: string) => request<{ sent: true; devCode?: string }>('/api/auth/code', { method: 'POST', body: JSON.stringify({ email }) });
-export const verifySignInCode = (email: string, code: string) =>
-  request<{ signedIn: true }>('/api/auth/verify', { method: 'POST', body: JSON.stringify({ email, code }) });
+export const verifySignInCode = (email: string, code: string, sessionId?: string) =>
+  request<{ signedIn: true; view?: SessionView }>('/api/auth/verify', {
+    method: 'POST',
+    body: JSON.stringify(sessionId ? { email, code, sessionId, today: todayLocal() } : { email, code }),
+  });
 export const signOut = () => request<{ signedIn: false }>('/api/auth/sign-out', { method: 'POST', body: '{}' });
 export const startCheckout = (sessionId: string, offerId: string) =>
   request<{ bookingId: string }>(`/api/session/${sessionId}/checkout`, { method: 'POST', body: JSON.stringify({ offerId }) });

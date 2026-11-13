@@ -30,7 +30,7 @@ export const COPY = {
   placeLookupFailed: 'The place search did not answer. Keep typing to try again.',
   noTrips: 'A search appears here once it has a place and dates.',
   pennyHello: "Hi, I'm Penny. I'll ask only what I need, then show you the few hotels worth your time.",
-  publicPrices: 'These are public prices. Sign in when you book, and your next searches show member prices.',
+  publicPrices: 'These are public prices. Sign in for member prices',
   composerActive: 'Ask Penny, or change the search',
   checkout: {
     recheck: 'Price re-checked with the hotel just now. If it changes, you see both prices before paying.',

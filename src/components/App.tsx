@@ -12,6 +12,7 @@ import styles from './App.module.css';
 import { ChatPanel, Penny, PENNY_HELLO } from './ChatPanel';
 import { HotelDetail } from './HotelDetail';
 import { detailVariant, type DetailVariant } from './flags';
+import { SignInSheet } from './SignInSheet';
 import { SlideOut } from './SlideOut';
 import { ResultsPanel } from './ResultsPanel';
 import { CardSkeleton, Spinner } from './Spinner';
@@ -75,6 +76,8 @@ export function App() {
   /** The offer whose price is being re-checked for checkout. */
   const [booking, setBooking] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(null);
+  // "Sign in to see price": the email-and-code sheet over the results.
+  const [signIn, setSignIn] = useState(false);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [sidebar, setSidebar] = useState(true);
@@ -531,6 +534,7 @@ export function App() {
                 onOpen={openHotel}
                 onClose={closeHotel}
                 onBook={(id) => void onBook(id)}
+                onSignIn={() => setSignIn(true)}
                 booking={booking}
                 onEdit={onEdit}
                 busy={busy !== null}
@@ -558,6 +562,17 @@ export function App() {
         <SlideOut title={openRow.property.name} onClose={closeHotel}>
           <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} />
         </SlideOut>
+      )}
+      {view && signIn && (
+        <SignInSheet
+          sessionId={view.session.id}
+          onClose={() => setSignIn(false)}
+          onSignedIn={(next) => {
+            setSignIn(false);
+            if (next) setView(next);
+            void loadMe().then(setMe).catch(() => undefined);
+          }}
+        />
       )}
     </div>
   );

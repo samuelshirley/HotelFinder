@@ -266,6 +266,8 @@ export const bookingsBody = z
 export const meBody = z.object({ user: z.object({ email: z.string().email() }).strict().nullable(), lastHolder: holder }).strict();
 export const codeSentBody = z.object({ sent: z.literal(true), devCode: z.string().regex(/^\d{6}$/).optional() }).strict();
 export const signedInBody = z.object({ signedIn: z.literal(true) }).strict();
+/** Signed in from a search ("Sign in to see price"): that search comes back ranked at member prices. */
+export const signedInWithViewBody = z.object({ signedIn: z.literal(true), view: sessionView }).strict();
 export const signedOutBody = z.object({ signedIn: z.literal(false) }).strict();
 export const okBody = z.object({ ok: z.literal(true) }).strict();
 export const healthBody = z

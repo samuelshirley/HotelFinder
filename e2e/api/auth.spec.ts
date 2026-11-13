@@ -1,5 +1,6 @@
 import { expect, newRequest, stranger, test } from '../fixtures/test';
-import { expectError, json } from '../support/api';
+import { Api, expectError, json } from '../support/api';
+import { todayLocal } from '../support/dates';
 import { uniqueEmail } from '../support/env';
 import * as S from '../support/schemas';
 
@@ -54,6 +55,33 @@ test.describe('POST /api/auth/verify', { tag: '@api' }, () => {
     expect(cookie).toMatch(/SameSite=lax/i);
     const me = await json(await api.me(), S.meBody);
     expect(me.user).toEqual({ email: email.toLowerCase() });
+  });
+
+  test('signed in from a search: that search is ranked again at member prices and comes back', async ({ api }) => {
+    // Sam, 2026-11-13: a hotel whose rate is a member price shows "Sign in to see price"; after the code, the price.
+    const { sessionId, view: before } = await api.search();
+    expect(before.session.signedIn).toBe(false);
+    expect(before.shortlist.every((r) => !r.offer || r.offer.audience === 'public')).toBe(true);
+    const email = uniqueEmail('see-price');
+    const code = await api.sendCode(email);
+    const { view } = await json(await api.verify({ email, code, sessionId, today: todayLocal() }), S.signedInWithViewBody);
+    expect(view.session.signedIn).toBe(true);
+    expect(view.shortlist.length).toBeGreaterThan(0);
+    expect(view.shortlist.filter((r) => r.offer).every((r) => r.offer!.audience === 'member')).toBe(true);
+    expect(view.messages.at(-1)?.content).toBe('Signed in. These are member prices now.');
+  });
+
+  test('a session id that is not this browser\'s is ignored: signed in, and that search is left alone', async ({ api, ip }) => {
+    const { sessionId, view: before } = await api.search();
+    const ctx = await stranger(ip);
+    const other = new Api(ctx);
+    const email = uniqueEmail('stranger');
+    const code = await other.sendCode(email);
+    await json(await other.verify({ email, code, sessionId, today: todayLocal() }), S.signedInBody);
+    const after = await json(await api.session(sessionId), S.sessionView);
+    expect(after.session.signedIn).toBe(false);
+    expect(after.messages.length).toBe(before.messages.length);
+    await ctx.dispose();
   });
 
   test('a code works once', async ({ api }) => {

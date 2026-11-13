@@ -54,8 +54,12 @@ export const CLAIMS: Claim[] = [
   { control: /^combobox "Age of child \d"$/, by: `${FIRST} › the Who pill: adults, children and their ages, rooms never more than adults, the pet` },
   { control: /^checkbox "Bringing a pet"$/, by: `${FIRST} › the Who pill: adults, children and their ages, rooms never more than adults, the pet` },
 
+  // ── Sign in to see member prices ───────────────────────────────────────────
+  { control: /^button "(Sign in for member prices|Sign in to see price)"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
+  { control: /^textbox "6-digit code"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
+  { control: /^button "Change"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
+
   // ── Questions in the chat ──────────────────────────────────────────────────
-  { control: /^textbox "Destination"$/, by: `${ASK} › words that name no place are asked "Where are you going?", with a place search` },
   { control: /^button ".+ · .+"$/, by: `${ASK} › a place with several matches is asked as "Which …?", one chip each` },
   { control: /^button "[^"]+, [^"]+"$/, by: `${ASK} › words that name no place are asked "Where are you going?", with a place search` },
   { control: /^button "Use these nights"$/, by: `${ASK} › words about when, with no two dates, ask for the nights; "Use these nights" runs the search` },

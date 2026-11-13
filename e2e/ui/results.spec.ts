@@ -17,6 +17,40 @@ const CANCELLATION = /^(Non-refundable|Refundable; see the hotel for the deadlin
 const RATING_LINE = /^(\d{1,2}(\.\d)? )?(\(\d{1,3}(,\d{3})* reviews?\) )?(· \d(\.\d)?★ ?)?(· (\d+ m|\d+\.\d km))?$/;
 
 test.describe('results', { tag: '@ui' }, () => {
+  test('sign in from the results with an emailed code: the same search comes back at member prices', async ({ page, app, searched }) => {
+    // Sam, 2026-11-13: a price we cannot show before sign-in is one sign-in away, in a sheet over the results.
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    const priced = app.results.region().getByRole('button', { name: 'Sign in to see price' });
+    // A member-priced near miss carries its own button; the note is on every public search.
+    await ((await priced.count()) > 0 ? priced.first() : app.results.region().getByRole('button', { name: 'Sign in for member prices' })).click();
+    const sheet = page.getByRole('dialog', { name: 'Sign in to see member prices' });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole('button', { name: 'Close' }).click();
+    await expect(sheet).toBeHidden();
+
+    await app.results.region().getByRole('button', { name: 'Sign in for member prices' }).click();
+    await expect(sheet.getByLabel('Email')).toBeFocused();
+    await sheet.getByLabel('Email').fill(`see-price-${Date.now()}@example.com`);
+    await sheet.getByRole('button', { name: 'Send code' }).click();
+    const devCode = sheet.getByText(/^Dev mailbox: \d{6}$/);
+    await expect(devCode).toBeVisible();
+    await sheet.getByRole('button', { name: 'Change' }).click();
+    await expect(sheet.getByLabel('Email')).toBeVisible();
+    // Back at the email step, the old code is gone: only the latest one works.
+    await expect(devCode).toHaveCount(0);
+    await sheet.getByRole('button', { name: 'Send code' }).click();
+    await expect(devCode).toBeVisible();
+    await expect(sheet.getByLabel('6-digit code')).toBeFocused();
+    const code = (await devCode.textContent())!.match(/\d{6}/)![0];
+    await sheet.getByLabel('6-digit code').fill(code);
+    await sheet.getByRole('button', { name: 'Sign in' }).click();
+    await expect(sheet).toBeHidden({ timeout: 60_000 });
+    await expect(app.results.publicNote()).toHaveCount(0);
+    await expect(app.results.region().getByRole('button', { name: 'Sign in to see price' })).toHaveCount(0);
+    await expect(app.chat.region().getByText('Signed in. These are member prices now.', { exact: true })).toBeAttached();
+  });
+
   test('every card has a rank, a reason, the total, the price a night and its terms', { tag: '@content' }, async ({ page, app, searched, api }) => {
     await openSession(page, searched.sessionId);
     await app.results.waitForCards();

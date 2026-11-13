@@ -48,7 +48,7 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, onSignIn, booking, onEdit, busy, map }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; onSignIn: () => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink }) {
   const { stay, session, shortlist } = view;
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
   const pins = useMemo(
@@ -135,7 +135,14 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           ))}
           {stay.excludedCount > 0 && <span className={styles.tag}>{stay.excludedCount} set aside</span>}
         </div>
-        {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>These are public prices. Sign in when you book, and your next searches show member prices.</p>}
+        {!session.signedIn && shortlist.length > 0 && (
+          <p className={styles.note}>
+            These are public prices.{' '}
+            <button type="button" className={styles.inlineLink} onClick={onSignIn}>
+              Sign in for member prices
+            </button>
+          </p>
+        )}
         {working && (
           <p className={styles.working}>
             <Spinner label={working} />
@@ -180,6 +187,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onOpen={onOpen}
               onClose={onClose}
               onBook={onBook}
+              onSignIn={onSignIn}
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
@@ -393,6 +401,7 @@ function Card({
   onOpen,
   onClose,
   onBook,
+  onSignIn,
   booking,
   marked,
   onHover,
@@ -405,6 +414,7 @@ function Card({
   onOpen: (id: string) => void;
   onClose: () => void;
   onBook: (offerId: string) => void;
+  onSignIn: () => void;
   booking: string | null;
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
@@ -412,6 +422,7 @@ function Card({
 }) {
   const { property, offer } = row;
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
+  const memberOnly = Boolean((reason as { misses?: Array<{ kind: string }> } | null)?.misses?.some((m) => m.kind === 'member_price'));
   const why = reason
     ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves })
     : 'You asked about this one; it has no price for these dates yet';
@@ -467,6 +478,12 @@ function Card({
         {!offer && (
           <div className={styles.priceCol}>
             <div className={styles.cardActions}>
+              {memberOnly && !view.session.signedIn && (
+                // Sam, 2026-11-13: show these, and let the price be one sign-in away.
+                <button className={styles.book} onClick={onSignIn}>
+                  Sign in to see price
+                </button>
+              )}
               <button className={styles.secondary} aria-expanded={open} onClick={() => (open ? onClose() : onOpen(property.id))}>
                 {open ? 'Collapse ▲' : 'Details'}
               </button>
