@@ -20,6 +20,7 @@ pick up from the first unfinished step.
 | 10 | Guards, e2e | guards done; two Playwright flows: search, and book (OTP sign-in, test wallet, real sandbox booking, cancel) |
 | 12 | Checkout: re-check, email-code sign-in, Apple Pay / Google Pay (TEST stand-ins), book, receipt, cancel | built 2026-11-11; verified live in the sandbox |
 | 11 | Cost measurement | not started |
+| 13 | A second language: Spanish. Catalogues for UI, fixed lines, answers, reasons and errors; a picker; Spanish slot extraction; the supplier asked in Spanish (`docs/i18n.md`) | built 2026-11-13; `e2e/spanish.spec.ts` passes against the sandbox. **Not done:** HotelDetail, Checkout. **Never run:** Jev and the agent on Spanish (live cases added) |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.

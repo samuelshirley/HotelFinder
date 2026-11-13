@@ -65,8 +65,9 @@ src/
   components/     App, ChatPanel, FormControl, ResultsPanel, MapPanel, DetailSheet, api.ts
   lib/            PURE logic, unit-tested
     store/        actions (closed Zod union), reducers, fingerprint
-    router/       catalogue (Jev's questions), slots (code extracts values), route
+    router/       catalogue (Jev's questions), slots + lexicon (code extracts values, en/es), route
     finder/       rank, geo, candidates, personas — docs/finder.md
+    i18n/         locale choice, en/es catalogues of every word shown — docs/i18n.md
     replies.ts    fixed lines for changes and answers made without a model
     answers.ts    a question about what is on screen → typed values from the rows
     reasonText.ts words for a ranking reason
@@ -161,7 +162,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 
 ### E2E specs (`e2e/`)
 
-search, book, admin, map
+search, book, admin, map, spanish
 
 ## Lockdown invariants (load-bearing)
 
