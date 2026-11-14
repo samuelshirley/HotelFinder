@@ -82,6 +82,23 @@ test.describe('every page', { tag: ['@content', '@ui'] }, () => {
     await expect(page).toHaveWorkingLinks(api.request);
   });
 
+  test('in Spanish: the tab title and description are Spanish, by the picker\'s cookie and by the browser\'s languages', async ({ page, context, browser }) => {
+    await context.addCookies([{ name: 'hf_locale', value: 'es', url: `${ORIGIN}/hotels` }]);
+    await page.goto('./');
+    await expect(page).toHaveTitle(es.site.title);
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', es.site.description);
+    // No cookie: the browser's Accept-Language decides.
+    const byHeader = await browser.newContext({ locale: 'es-ES', extraHTTPHeaders: { 'Accept-Language': 'es-ES,es;q=0.9' } });
+    try {
+      const p2 = await byHeader.newPage();
+      await p2.goto(new URL('./', page.url()).toString());
+      await expect(p2.locator('html')).toHaveAttribute('lang', 'es');
+      await expect(p2).toHaveTitle(es.site.title);
+    } finally {
+      await byHeader.close();
+    }
+  });
+
   test('the browser tab has an icon that loads, under /hotels', async ({ page, api }) => {
     await page.goto('./');
     const declared = await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => (e as HTMLLinkElement).href));
