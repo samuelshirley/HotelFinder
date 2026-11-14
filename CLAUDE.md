@@ -65,7 +65,7 @@ scripts/jev-live.sh      # ask the real Jev 87 messages (87 of 87 on 2026-11-13)
 ```
 src/
   app/            page.tsx + api/ (each route: one Zod payload)
-  components/     App (phone tab bar: docs/design/mobile.md), ChatPanel, FormControl, ResultsPanel, MapPanel, SightsPlan, DetailSheet, SignInSheet, api.ts
+  components/     App (phone tab bar: docs/design/mobile.md), ChatPanel, FormControl, ResultsPanel, MapPanel, SightsPlan, DetailSheet, SignInModal, api.ts
   lib/            PURE logic, unit-tested
     store/        actions (closed Zod union), reducers, fingerprint
     router/       catalogue (Jev's questions), slots + lexicon (code extracts values, en/es), route

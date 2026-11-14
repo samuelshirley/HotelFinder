@@ -18,16 +18,16 @@ const payload = z
   .object({
     email: z.string().max(300),
     code: z.string().max(12),
-    /** Signed in from a search's "Sign in to see price": that search is re-run at member prices. */
+    /** Signed in from a search ("Sign in for member prices", a card's "Sign in for a lower price"): that search is re-run at member prices. */
     sessionId: z.string().uuid().optional(),
     today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })
   .strict();
 
 /**
- * Signs this browser in with a code from /api/auth/code, outside checkout
- * (the admin page, and "Sign in to see price" on a hotel whose rate is a
- * member price). Same codes, same attempt limits, same cookie as checkout.
+ * Signs this browser in with a code from /api/auth/code: the admin page and
+ * the sign-in modal (results and checkout). Same codes, same attempt limits,
+ * same cookie as the checkout's confirm.
  * With a session id, that search (now the account's) is ranked again at
  * member prices through the one dispatch path, and its view is returned.
  */
