@@ -1,0 +1,88 @@
+# When a branch gets new commits, every open PR based on it gets them too:
+# GitHub merges the base into the PR's branch (the Update branch button), then
+# this job starts ci.yml on the new commit. PRs stacked on an updated PR are
+# updated next, down the stack. docs/testing.md, "Open PRs follow their base".
+#
+# Merge, never rebase (Sam, 2026-11-14): agents keep local copies of PR
+# branches, and a rebase rewrites what they already have.
+#
+# The update is made with GITHUB_TOKEN, which starts no workflow by itself: no
+# pull_request event, so neither e2e-author (no Claude spend on a base merge)
+# nor preview runs on it, and this job never runs on its own merges. It starts
+# ci.yml with workflow_dispatch instead, as e2e-author does.
+name: Update PRs
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: update-prs-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update:
+    name: Merge the new base into its open PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      BASE: ${{ github.ref_name }}
+    steps:
+      - name: Update each open PR on this branch, then the PRs stacked on those
+        run: |
+          set -uo pipefail
+          MARK='<!-- update-prs -->'
+          queue=("$BASE")
+          seen=' '
+          while [ ${#queue[@]} -gt 0 ]; do
+            base="${queue[0]}"
+            queue=("${queue[@]:1}")
+            case "$seen" in *" $base "*) continue ;; esac
+            seen="$seen$base "
+            # Not a fork's PR (this token cannot push there); the label no-auto-update turns it off for one PR.
+            gh pr list -R "$REPO" --base "$base" --state open --limit 100 \
+              --json number,headRefName,headRefOid,isCrossRepository,labels \
+              --jq '.[] | select(.isCrossRepository | not) | select([.labels[].name] | index("no-auto-update") | not) | "\(.number) \(.headRefName) \(.headRefOid)"' > prs.txt
+            while read -r n head sha; do
+              [ -n "$n" ] || continue
+              queue+=("$head")
+              out="$(gh api -X PUT "repos/$REPO/pulls/$n/update-branch" -f expected_head_sha="$sha" 2>&1)"
+              if [ $? -eq 0 ]; then
+                # The merge is made after the 202: wait for the branch to move before starting CI on it.
+                new="$sha"
+                for _ in $(seq 1 45); do
+                  new="$(gh pr view "$n" -R "$REPO" --json headRefOid --jq .headRefOid)"
+                  [ "$new" != "$sha" ] && break
+                  sleep 2
+                done
+                if [ "$new" = "$sha" ]; then
+                  echo "::warning::#$n: asked GitHub to merge $base in, but $head had not moved after 90 s; CI not started"
+                  continue
+                fi
+                gh workflow run ci.yml -R "$REPO" --ref "$head"
+                echo "::notice::#$n: merged $base into $head ($new); CI started"
+              elif grep -qi 'no new commits' <<<"$out"; then
+                echo "#$n: $head already has every commit of $base"
+              elif grep -qi 'conflict' <<<"$out"; then
+                body="$MARK
+          \`$base\` has new commits that conflict with this branch, so it was not updated automatically. Merge \`$base\` into \`$head\` by hand and push; CI runs on that push."
+                cid="$(gh api "repos/$REPO/issues/$n/comments" --paginate --jq ".[] | select(.body | startswith(\"$MARK\")) | .id" | tail -1)"
+                # One comment per PR, edited after that: a push to the base never notifies twice.
+                if [ -n "$cid" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$cid" -f body="$body" >/dev/null
+                else gh pr comment "$n" -R "$REPO" --body "$body"; fi
+                echo "::warning::#$n: $base conflicts with $head; said so on the PR"
+              elif grep -qi 'expected head sha' <<<"$out"; then
+                echo "#$n: $head moved while this ran; its own push starts CI"
+              else
+                echo "::warning::#$n: not updated: $out"
+              fi
+            done < prs.txt
+          done

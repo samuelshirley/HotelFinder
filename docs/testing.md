@@ -231,6 +231,26 @@ sentence, or says why none were needed.
   the prompt now has it go commit by commit, find the covering test for every
   behaviour, and list those ("Already covered") in the comment as evidence.
 
+## Open PRs follow their base
+
+`.github/workflows/update-prs.yml` (Sam, 2026-11-14). On every push to any
+branch, each open PR based on it is brought up to date by GitHub's Update
+branch (a merge of the base into the PR's branch), and `ci.yml` is started on
+the new commit. PRs stacked on an updated PR are updated next, down the stack.
+
+- **Merge, never rebase** (Sam, 2026-11-14): agents keep local copies of PR
+  branches, and a rebase would rewrite what they already have.
+- The merge is made with GITHUB_TOKEN, so it starts no `pull_request` run:
+  e2e-author (no Claude spend on a base merge) and the preview do not run on
+  it, and CI's step that applies the base branch's migrations first is skipped
+  (it runs on `pull_request` only). The PR's next real push runs all three.
+- A conflict is not resolved for you: one comment on the PR, edited on later
+  tries, says to merge the base by hand.
+- Off for one PR: the label `no-auto-update`. A fork's PR is never updated.
+- The repo settings that go with it (2026-11-14): "Always suggest updating
+  pull request branches" (the Update branch button) and "Automatically delete
+  head branches", so a PR stacked on a merged one is moved to its base.
+
 ## Isolation and the sandbox's rate limit
 
 - **Each test is its own visitor**: its own cookies, and its own client IP
