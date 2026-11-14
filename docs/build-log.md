@@ -75,6 +75,14 @@ the search → new search. `e2e/search.spec.ts`.
   Whether Haiku calls `hold_for_confirmation` and `submit_idea` when it should
   is untested: the turn tests script the model.
 - macOS: Sam ran it (2026-11-11 18:18); the form works there.
+- **Changing Where on production** (2026-11-14). On feraltravels.com
+  (`main`, PR #4) Porto → Austin through the Where chip said "The hotel search
+  did not answer" twice: a retryable supplier error (timeout, 429 or 5xx).
+  The same change works locally on `main` and on PR #5 against the sandbox
+  key, so it is the live key or the live inventory, not the code path. The
+  call's error is in the ledger (`/hotels/admin/search/<id>`); not yet read.
+  If it is the 20 s rates timeout, PR #5's 200 hotels a search makes it
+  likelier.
 
 ## Cost per search (2026-11-12, branch `admin-cost-view`)
 
