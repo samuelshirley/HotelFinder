@@ -12,6 +12,9 @@ import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
 import { listLiveOffersForRanking } from '@/server/repos/offers';
 import { createSession, getSession, listStays } from '@/server/repos/sessions';
 import { buildSessionView } from '@/server/view';
+import { fixture } from '@/server/supplier/liteapi/fixtures';
+import { normalizeRates } from '@/server/supplier/liteapi/normalize';
+import { ratesResponse } from '@/server/supplier/liteapi/schemas';
 
 beforeEach(resetDb);
 
@@ -101,22 +104,35 @@ describe("a hotel's rooms and rates", () => {
     expect(await startCheckout({ session: t.session, offerId: r.offers[0].id, supplier: sup })).toEqual({ ok: false, error: 'rate_gone' });
   });
 
-  it('an anonymous visitor never sees a rate under the hotel\'s public price, in any hotel\'s rooms and rates, nor can buy one by its id', async () => {
+  it("an anonymous visitor is quoted the hotel's public price in every hotel's rooms and rates, and no number from the member rate is kept", async () => {
     const t = await searched();
     const later = new Date(RECORDED_AT.getTime() + 60_000);
     const props = await rawQuery<{ id: string }>('select distinct property_id as id from offers where session_id = $1', [t.session.id]);
-    let hidden = 0;
     for (const { id } of props) {
       const r = await hotelRates({ session: t.session, stay: t.stay, propertyId: id, supplier: t.recorded.supplier, now: later });
       if (!r.ok) throw new Error(r.error);
       for (const o of r.offers) if (o.suggestedSellingMinor !== null) expect(o.totalMinor).toBeGreaterThanOrEqual(o.suggestedSellingMinor);
     }
-    // The recorded search holds such rates, so the rule above was tested, not vacuous.
-    const below = await rawQuery<{ id: string }>('select id from offers where session_id = $1 and total_minor < suggested_selling_minor', [t.session.id]);
-    hidden = below.length;
-    expect(hidden).toBeGreaterThan(0);
-    for (const { id } of below) {
-      expect(await startCheckout({ session: t.session, offerId: id, supplier: t.recorded.supplier })).toEqual({ ok: false, error: 'property_not_found' });
+    // Every row this session holds, searched or opened: never under the hotel's price.
+    expect(await rawQuery('select id from offers where session_id = $1 and total_minor < suggested_selling_minor', [t.session.id])).toEqual([]);
+    // The recording's rates are all under the hotel's price (it is the net rate), so the rule was tested, not vacuous:
+    const lowered = await rawQuery<{ total_minor: number; suggested_selling_minor: number; taxes_and_fees: Array<{ included: boolean }>; cancellation: { penalties: unknown[] } }>(
+      'select total_minor, suggested_selling_minor, taxes_and_fees, cancellation from offers where session_id = $1 and lower_for_members',
+      [t.session.id],
+    );
+    expect(lowered.length).toBeGreaterThan(20);
+    for (const row of lowered) {
+      // shown at the hotel's price, with no share of the rate beside it: no included tax amounts, no cancellation charges.
+      expect(row.total_minor).toBe(row.suggested_selling_minor);
+      expect(row.taxes_and_fees.filter((f) => f.included)).toEqual([]);
+      expect(row.cancellation.penalties).toEqual([]);
     }
+    // And no recorded rate amount is stored anywhere in the session.
+    const memberRates = normalizeRates(ratesResponse.parse(fixture('rates-city-porto')), 3, RECORDED_AT)
+      .offers.filter((o) => o.suggestedSelling && o.total.amountMinor < o.suggestedSelling.amountMinor)
+      .map((o) => o.total.amountMinor);
+    expect(memberRates.length).toBeGreaterThan(0);
+    const kept = await rawQuery<{ total_minor: number }>('select total_minor from offers where session_id = $1', [t.session.id]);
+    expect(kept.filter((k) => memberRates.includes(k.total_minor))).toEqual([]);
   });
 });

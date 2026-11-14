@@ -3,10 +3,11 @@ import 'server-only';
 import { AMENITIES, isMustHave, type Amenity, type MustHave } from '@/lib/amenities';
 import { readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { rankStay, type Candidate, type RankResult } from '@/lib/finder/rank';
-import { cheapestPerHotel, occupanciesFor, roomsLabel, roomsOf } from '@/lib/finder/rooms';
+import { cheapestPerHotel, occupanciesFor, roomsOf } from '@/lib/finder/rooms';
 import { MIN_HOTELS, planSearch, type SearchWhere } from '@/lib/finder/searchPlan';
 import { FULL_LIST_KIND } from '@/lib/fullList';
-import { marginFor, OFFER_TTL_MS } from '@/lib/pricing';
+import { OFFER_TTL_MS, searchMarginPct } from '@/lib/pricing';
+import { offerRow } from '@/server/offerRows';
 import { replaceFinderShortlist, type FinderEntry } from '@/server/repos/finderShortlist';
 import { insertOffers, listLiveOffersForRanking } from '@/server/repos/offers';
 import { setPropertyPets, upsertProperty, type Property } from '@/server/repos/properties';
@@ -55,13 +56,13 @@ export type FinderOutcome =
 /**
  * How many hotels one search asks the supplier for. Measured on the sandbox
  * 2026-11-13 (Porto, 2 adults): 30 → 29 hotels in 3.5 s (97 KB); 200 → 166 in
- * 4.6 s (546 KB); 500 → 326 in 4.4 s. Raising it to 200 left a signed-out
- * search with 3 of 170 hotels fitting (11 of 29 at 30): most of the extra
- * hotels only have rates under the hotel's public price, which an anonymous
- * session never sees (docs/architecture.md decision 6). It stays at 30 until
- * that is settled.
+ * 4.6 s (546 KB); 500 → 326 in 4.4 s. 200 was held back while a signed-out
+ * visitor could not see a rate under the hotel's public price (3 of 170
+ * fitting). Now that visitor sees every hotel at that price (lib/pricing.ts):
+ * signed out, Porto 11–13 Dec, 2 adults, the same day: 1 of 189 fit before,
+ * 189 of 189 after, in 5.8 s (docs/supplier.md "Public and member prices").
  */
-export const MAX_HOTELS = 30;
+export const MAX_HOTELS = 200;
 
 export async function runFinder(args: {
   sessionId: string;
@@ -97,7 +98,7 @@ export async function runFinder(args: {
   if (held.length === 0) {
     if (!plan) return { kind: 'needs_place' };
     if (!session.guestNationality) return { kind: 'needs_nationality' };
-    const marginPct = marginFor(audience, args.env);
+    const marginPct = searchMarginPct(args.env);
 
     const request = {
       checkIn: stay.checkIn,
@@ -158,29 +159,7 @@ export async function runFinder(args: {
       search.value.offers.flatMap((o) => {
         const propertyId = propertyIds.get(o.supplierHotelId);
         if (!propertyId) return []; // an offer with no property cannot be shown
-        return [
-          {
-            sessionId,
-            stayId,
-            propertyId,
-            supplier: o.supplier,
-            supplierOfferId: o.supplierOfferId,
-            audience,
-            marginPct: o.marginPct.toFixed(2),
-            currency: o.total.currency,
-            totalMinor: o.total.amountMinor,
-            suggestedSellingMinor: o.suggestedSelling?.currency === o.total.currency ? o.suggestedSelling.amountMinor : null,
-            payAtPropertyMinor: o.payAtProperty.amountMinor,
-            taxesAndFees: o.fees,
-            roomName: roomsLabel(o.rooms),
-            boardName: o.rooms[0]?.boardName ?? null,
-            rooms: o.rooms,
-            refundableTag: o.cancellation.tag,
-            cancellation: o.cancellation,
-            fetchedAt: now,
-            expiresAt,
-          },
-        ];
+        return [offerRow(o, { sessionId, stayId, propertyId, audience, now, expiresAt })];
       }),
     );
     fetched = true;

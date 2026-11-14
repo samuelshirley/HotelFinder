@@ -101,8 +101,8 @@ describe('onboarding: a form in the chat, no model', () => {
       ['form_answer', '2 adults'],
       ['form_question', 'What matters most? Pick any, or say it in your own words.'],
       ['form_answer', 'Low price'],
-      ['line', '18 of 20 hotels fit. The best 5 are listed, each with the reason it is there.'],
-      ['line', '18 hotels fit, so here is a nudge: I like YOTEL Porto, rated 8.7, the cheapest of the top three. Which of these appeals to you?'],
+      ['line', '20 of 20 hotels fit. The best 5 are listed, each with the reason it is there.'],
+      ['line', '20 hotels fit, so here is a nudge: I like YOTEL Porto, rated 8.7, the cheapest of the top three. Which of these appeals to you?'],
     ]);
     // The priorities card names where "close" is measured from.
     expect(rows[6].meta).toMatchObject({ field: 'priorities', near: 'central Porto' });
@@ -110,7 +110,8 @@ describe('onboarding: a form in the chat, no model', () => {
     // No browser or IP signal here, so the destination's country is the nationality, marked as such.
     expect(session).toMatchObject({ guestNationality: 'PT', nationalitySource: 'destination', priorities: ['cheapest'] });
     expect(supplier.searches).toHaveLength(1);
-    expect(supplier.searches[0]).toMatchObject({ guestNationality: 'PT', marginPct: 15, checkIn: '2026-12-11' });
+    // One search margin for everyone; a signed-out visitor is shown each hotel's public price.
+    expect(supplier.searches[0]).toMatchObject({ guestNationality: 'PT', marginPct: 3, checkIn: '2026-12-11' });
     expect(await rawQuery('select 1 from usage_events')).toHaveLength(0); // no AI was called
     expect(await shortlistNames(session.id)).toHaveLength(5);
     // The destination's point and kind came from the supplier, once.
@@ -223,8 +224,8 @@ describe('a chat turn on a running search', () => {
     const { turn, events } = await say(session, 'under 70 a night', d);
 
     expect(turn.status).toBe('done');
-    // An anonymous visitor is quoted the public margin: only one hotel is under €70 a night.
-    expect(turn.finalText).toBe('Capped at €70 a night. Under it, the 4 closest misses are listed, each saying what it misses.');
+    // An anonymous visitor is quoted each hotel's public price: two are under €70 a night.
+    expect(turn.finalText).toBe('Capped at €70 a night. Under them, the 3 closest misses are listed, each saying what it misses.');
     expect(turn.resultMeta).toMatchObject({ by: 'router', intent: 'price_cap', applied: 1, effect: 'rerank', finder: 'ok', model_calls: 0 });
     expect(events.map((e) => e.type)).toEqual(['received', 'working', 'done']);
     expect(supplier.searches).toHaveLength(1); // still only the first search
@@ -303,10 +304,10 @@ describe('a chat turn on a running search', () => {
     const names = await shortlistNames(session.id);
     const searches = supplier.searches.length;
     const all = await say(session, 'show me all of them', deps(supplier.supplier, jevSays('more')));
-    // An anonymous Porto search: 18 of 20 fit (two are below the public price).
-    expect(all.turn.finalText).toBe('All 18 hotels that fit are listed under the top picks, in the same order.');
+    // An anonymous Porto search: all 20 fit, each at the hotel's public price.
+    expect(all.turn.finalText).toBe('All 20 hotels that fit are listed under the top picks, in the same order.');
     expect((await lastLine(session.id)).meta).toEqual({ ui: { all: 'show' } });
-    expect(all.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', intent: 'more', full_list: { fits: 5, more: 13 }, model_calls: 0 });
+    expect(all.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', intent: 'more', full_list: { fits: 5, more: 15 }, model_calls: 0 });
     expect(supplier.searches).toHaveLength(searches);
     expect(await shortlistNames(session.id)).toEqual(names);
     expect((await listStays(session.id))[0].excludedPropertyIds).toEqual([]);
@@ -473,30 +474,30 @@ describe('questions about what is on screen are answered from the rows, with no 
   };
 
   it.each<[string, Partial<Readings>, string]>([
-    ['how much is the first one?', { fact: sure('price') }, 'YOTEL Porto: €127.93 for 2 nights, €63.97 a night, plus €19.36 paid at the hotel.'],
+    ['how much is the first one?', { fact: sure('price') }, 'YOTEL Porto: €111.01 for 2 nights, €55.51 a night, plus €19.26 paid at the hotel.'],
     ['can I cancel the YOTEL?', { fact: sure('cancellation') }, 'YOTEL Porto: non-refundable at this price.'],
     ['can I cancel the second one?', { fact: sure('cancellation') }, 'Mercure Porto Centro Santa Catarina: free cancellation until 10 Dec, 09:59 UTC.'],
     ['is breakfast included at the carris?', { fact: sure('breakfast') }, 'Hotel Carris Porto Ribeira: breakfast is not included; the rate is Room Only.'],
     ['what is the neya rated?', { fact: sure('rating') }, 'NEYA Porto Hotel: rated 9 from 2,856 reviews.'],
-    ['how many stars is the third?', { fact: sure('stars') }, 'Hotel Carris Porto Ribeira: 4 stars.'],
+    ['how many stars is the third?', { fact: sure('stars') }, 'Porto Palácio Hotel by The Editory: 5 stars.'],
     ['what room is the first one?', { fact: sure('room') }, 'YOTEL Porto: the price is for Premium Queen.'],
-    ['how far is the aliados?', { fact: sure('distance') }, 'Mercure Porto Centro Aliados: 300 m from the middle of the results.'],
+    ['how far is the santa catarina?', { fact: sure('distance') }, 'Mercure Porto Centro Santa Catarina: 400 m from the middle of the results.'],
     ['does the second one have parking?', { fact: sure('facility'), amenity: sure('parking') }, 'Mercure Porto Centro Santa Catarina does not list parking.'],
     ['does the yotel have parking?', { fact: sure('facility'), amenity: sure('parking') }, 'YOTEL Porto lists parking.'],
-    ['which is the cheapest?', { superlative: sure('cheapest') }, 'Cheapest of the 5 listed: YOTEL Porto, €127.93 for 2 nights.'],
-    ['which is closest?', { superlative: sure('closest'), fact: sure('distance') }, 'Closest of the 5 listed: Mercure Porto Centro Aliados, 300 m from the middle of the results.'],
-    ['which has the best reviews?', { superlative: sure('best_rated'), fact: sure('rating') }, 'Best rated of the 5 listed: Mercure Porto Centro Aliados, rated 9.2 from 2,361 reviews.'],
+    ['which is the cheapest?', { superlative: sure('cheapest') }, 'Cheapest of the 5 listed: YOTEL Porto, €111.01 for 2 nights.'],
+    ['which is closest?', { superlative: sure('closest'), fact: sure('distance') }, 'Closest of the 5 listed: Mercure Porto Centro Santa Catarina, 400 m from the middle of the results.'],
+    ['which has the best reviews?', { superlative: sure('best_rated'), fact: sure('rating') }, 'Best rated of the 5 listed: NEYA Porto Hotel, rated 9 from 2,856 reviews.'],
     ['is breakfast included at the cheapest?', { superlative: sure('cheapest'), fact: sure('breakfast') }, 'YOTEL Porto: breakfast is not included; the rate is Room Only.'],
-    ['does the best rated one take dogs?', { superlative: sure('best_rated'), fact: sure('facility'), amenity: sure('pets_allowed') }, 'Mercure Porto Centro Aliados lists pets allowed.'],
+    ['does the best rated one take dogs?', { superlative: sure('best_rated'), fact: sure('facility'), amenity: sure('pets_allowed') }, 'NEYA Porto Hotel does not list pets allowed.'],
     [
       'which of them have parking?',
       { fact: sure('facility'), amenity: sure('parking') },
-      'Listing parking: YOTEL Porto and NEYA Porto Hotel. Not listing it: Mercure Porto Centro Santa Catarina, Hotel Carris Porto Ribeira and Mercure Porto Centro Aliados.',
+      'Listing parking: YOTEL Porto, Porto Palácio Hotel by The Editory and NEYA Porto Hotel. Not listing it: Mercure Porto Centro Santa Catarina and Hotel Carris Porto Ribeira.',
     ],
     [
       'which can I still cancel?',
       { fact: sure('cancellation') },
-      'Refundable: Mercure Porto Centro Santa Catarina and Hotel Carris Porto Ribeira. Non-refundable: YOTEL Porto, NEYA Porto Hotel and Mercure Porto Centro Aliados.',
+      'Refundable: Mercure Porto Centro Santa Catarina and Hotel Carris Porto Ribeira. Non-refundable: YOTEL Porto, Porto Palácio Hotel by The Editory and NEYA Porto Hotel.',
     ],
   ])('%s', async (message, over, reply) => {
     const turn = await ask(message, over);
@@ -536,11 +537,11 @@ describe('questions about what is on screen are answered from the rows, with no 
     // Asked of all of them, the silent hotel is named as silent rather than counted as a no.
     const all = await ask('which of them have parking?', { fact: sure('facility'), amenity: sure('parking') }, session);
     expect(all.finalText).toBe(
-      'Listing parking: NEYA Porto Hotel. Not listing it: Mercure Porto Centro Santa Catarina, Hotel Carris Porto Ribeira and Mercure Porto Centro Aliados. The listing does not say for YOTEL Porto.',
+      'Listing parking: Porto Palácio Hotel by The Editory and NEYA Porto Hotel. Not listing it: Mercure Porto Centro Santa Catarina and Hotel Carris Porto Ribeira. The listing does not say for YOTEL Porto.',
     );
     // And it is left out of a ranking it has no value for, and counted.
     expect((await ask('which has the best reviews?', { superlative: sure('best_rated') }, session)).finalText).toBe(
-      'Best rated of the 5 listed: Mercure Porto Centro Aliados, rated 9.2 from 2,361 reviews. 1 has no guest rating listed.',
+      'Best rated of the 5 listed: NEYA Porto Hotel, rated 9 from 2,856 reviews. 1 has no guest rating listed.',
     );
   });
 
@@ -571,9 +572,9 @@ describe('questions about what is on screen are answered from the rows, with no 
     const fresh = (await getSession(session.id))!;
     const budget = await say(fresh, 'what is my budget?', deps(supplier.supplier, jevSays('ask_search', { searchField: sure('budget') }), COUNTING_MODEL));
     expect(budget.turn.finalText).toBe('Capped at €70 a night.');
-    // Only one hotel is left on screen, so that is the one a ranking is over.
+    // Two hotels fit under the cap, so those are the ones a ranking is over.
     const cheapest = await say(fresh, 'which is cheapest?', deps(supplier.supplier, jevSays('ask_hotels', { superlative: sure('cheapest') }), COUNTING_MODEL));
-    expect(cheapest.turn.finalText).toBe('Cheapest of the 1 listed: YOTEL Porto, €127.93 for 2 nights.');
+    expect(cheapest.turn.finalText).toBe('Cheapest of the 2 listed: YOTEL Porto, €111.01 for 2 nights.');
   });
 
   it('a tie for "the cheapest" has no single hotel to answer for, so it goes to the agent', async () => {

@@ -65,7 +65,7 @@ scripts/jev-live.sh      # ask the real Jev 87 messages (87 of 87 on 2026-11-13)
 ```
 src/
   app/            page.tsx + api/ (each route: one Zod payload)
-  components/     App (phone tab bar: docs/design/mobile.md), ChatPanel, FormControl, ResultsPanel, MapPanel, SightsPlan, DetailSheet, SignInSheet, api.ts
+  components/     App (phone tab bar: docs/design/mobile.md), ChatPanel, FormControl, ResultsPanel, MapPanel, SightsPlan, DetailSheet, SignInModal, api.ts
   lib/            PURE logic, unit-tested
     store/        actions (closed Zod union), reducers, fingerprint
     router/       catalogue (Jev's questions), slots + lexicon (code extracts values, en/es), route
@@ -109,6 +109,7 @@ api/places  api/session (POST new, GET this visitor's trips)  api/session/[id]  
 api/session/[id]/property/[propertyId]  api/session/[id]/turn
 api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/auth/verify (sign in with a code outside checkout)
 api/saved (POST the heart, GET this visitor's saved hotels: `docs/saved.md`)
+api/session/[id]/reprice  api/booking/[id]/not-you  api/booking/[id]/reprice (re-price for whoever is looking now)
 api/health (live DB vs schema.ts and drizzle/; 503 names what is missing)
 ```
 
@@ -211,7 +212,8 @@ The ones most easily broken:
 - Shortlist rows come only from the finder. Supplier ids are opaque.
 - A sight is never named or placed by a model: producers give a kind, dispatch
   looks the places up, and a failed lookup changes nothing (`docs/sights.md`).
-- A member-priced offer never reaches an anonymous session.
+- The member rate never reaches an anonymous session: its rows hold the
+  hotel's public price, and "members pay less" never says how much (`docs/supplier.md` §9).
 - A rate is re-checked before any payment form; a changed rate is shown.
 - **The supplier's book call is not idempotent.** Call it only after winning
   the `paid → booking` claim, and never retry it: `docs/supplier.md`.

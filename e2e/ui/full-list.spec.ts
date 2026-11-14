@@ -1,7 +1,8 @@
 import type { Page, Route } from '@playwright/test';
 
 import { expect, openSession, test } from '../fixtures/test';
-import type { AppPage } from '../pages/app';
+import { SignInModal, type AppPage } from '../pages/app';
+import { uniqueEmail } from '../support/env';
 import { ERROR_COPY } from '../support/copy';
 
 /**
@@ -99,6 +100,8 @@ test.describe('the full list', { tag: '@ui' }, () => {
     await expect(page.getByText(ERROR_COPY.property_not_found)).toHaveCount(0);
     await page.keyboard.press('Escape');
     await card.book().click();
+    // Signed out, Book asks who is booking first.
+    await new SignInModal(page, 'Sign in to book').signIn(uniqueEmail('full-list'));
     await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
     const stay = page.getByRole('region', { name: 'Your stay' });
     await expect(stay.getByRole('heading', { name })).toBeVisible();

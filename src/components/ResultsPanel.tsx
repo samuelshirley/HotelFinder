@@ -326,21 +326,22 @@ function Editable({ label, name, busy, children, onApply, onOpen }: { label: str
   const [open, setOpen] = useState(false);
   const { t } = useLocale();
   const chip = useRef<HTMLButtonElement>(null);
-  // Escape closes without applying, like Cancel, and hands focus back to the chip.
+  // Escape closes without applying, like Cancel, and hands focus back to the chip:
+  // from inside the editor or from the chip that opened it (focus stays there on a click).
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Escape') return;
+    if (e.key !== 'Escape' || !open) return;
     e.preventDefault();
     e.stopPropagation();
     setOpen(false);
     chip.current?.focus();
   };
   return (
-    <span className={styles.editable}>
+    <span className={styles.editable} onKeyDown={onKeyDown}>
       <button ref={chip} className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={t.ui.change(name)} onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
         {label} ✎
       </button>
       {open && (
-        <div className={styles.editor} role="dialog" aria-label={t.ui.change(name)} onKeyDown={onKeyDown}>
+        <div className={styles.editor} role="dialog" aria-label={t.ui.change(name)}>
           {children}
           {onApply && (
             <div className={styles.editorActions}>
@@ -684,6 +685,7 @@ function Card({
   onOpen: (id: string) => void;
   onClose: () => void;
   onBook: (offerId: string) => void;
+  /** Signed out, on a hotel where members pay less: the sign-in modal. */
   onSignIn: () => void;
   booking: string | null;
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
@@ -783,6 +785,15 @@ function Card({
               {t.ui.totalFor(t.words.nights(nights), formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency, locale))}
             </p>
             {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>{t.ui.paidAtHotel(formatMoney(offer.payAtPropertyMinor, offer.currency, locale))}</p>}
+            {/* Never by how much: that would publish the member rate (lib/pricing.ts). */}
+            {offer.lowerForMembers &&
+              (view.session.signedIn ? (
+                <p className={styles.member}>{t.ui.memberPrice}</p>
+              ) : (
+                <button type="button" className={styles.memberLink} onClick={onSignIn}>
+                  {t.ui.signInLower}
+                </button>
+              ))}
             <div className={styles.cardActions}>
               <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
                 {booking === offer.id ? (

@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { expect, test } from '../fixtures/test';
+import { SignInModal } from '../pages/app';
 
 /**
  * The checkout additions, through the real UI against the LiteAPI SANDBOX:
@@ -54,7 +55,9 @@ test('checkout extras: the hotel FAQ, pay now and at the hotel, a special reques
   await expect(sheet).toBeHidden();
 
   // The checkout: the price paid now, and what the hotel charges on top, named.
+  // Booking needs an account: signed out, Book asks who is booking first, then checks the member rate.
   await card.getByRole('button', { name: 'Book' }).click();
+  await new SignInModal(page, 'Sign in to book').signIn(EMAIL);
   await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 120_000 });
   const stay = page.getByRole('region', { name: 'Your stay' });
   await expect(stay.getByRole('heading', { name: hotel })).toBeVisible();
@@ -64,11 +67,6 @@ test('checkout extras: the hotel FAQ, pay now and at the hotel, a special reques
   // No countdown: nothing in the supplier's answer says when this price lapses.
   await expect(page.getByText(/expires in|\d+:\d\d left/i)).toHaveCount(0);
 
-  await page.getByLabel(/^Email\./).fill(EMAIL);
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const shown = page.getByRole('status').filter({ hasText: 'No email service is set up here' });
-  const code = (await shown.locator('strong').textContent())!.trim();
-  await page.getByLabel('6-digit code').fill(code);
   await page.getByLabel('First name (as on the guest\'s ID)').fill('Ana');
   await page.getByLabel('Last name').fill('Silva');
 

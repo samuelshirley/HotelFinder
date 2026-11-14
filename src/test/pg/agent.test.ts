@@ -270,7 +270,7 @@ describe('the agent: what the router did not settle', () => {
     const all = scripted([{ tool: 'show_all_hotels', input: {} }]);
     const turn = await say(session, 'can you just list everything you found', deps(supplier.supplier, all.callModel));
     expect(all.calls).toHaveLength(1);
-    expect(turn.finalText).toBe('All 18 hotels that fit are listed under the top picks, in the same order.');
+    expect(turn.finalText).toBe('All 20 hotels that fit are listed under the top picks, in the same order.');
     expect((await last(session.id)).meta).toEqual({ ui: { all: 'show' } });
     expect((await last(session.id)).kind).toBe('line');
     expect(await names(session.id)).toEqual(before);
@@ -669,7 +669,7 @@ describe('the first screen: one box, three pills', () => {
       ['user', 'user', 'Porto, Portugal'],
       ['assistant', 'line', expect.stringMatching(/^\d+ of \d+ hotels fit\./)],
       // A lot fit, so Penny names one: her own pick (no hotel is sponsored), with real numbers.
-      ['assistant', 'line', '18 hotels fit, so here is a nudge: I like Mercure Porto Centro Aliados, rated 9.2, the cheapest of the top three. Which of these appeals to you?'],
+      ['assistant', 'line', '20 hotels fit, so here is a nudge: I like Mercure Porto Centro Aliados, rated 9.2, the cheapest of the top three. Which of these appeals to you?'],
     ]);
   });
 

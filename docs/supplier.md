@@ -204,3 +204,53 @@ importing the adapter (alias and relative path).
   `rates-four-adults-one-room` (6 hotels), `rates-four-adults-two-rooms` (20),
   `rates-family-one-room` (9), `rates-family-two-rooms-split` (20), and
   `rates-mixed-rooms` (2 + 1 adults, 5 rates a hotel: the offer booked).
+
+## 9. Public and member prices (2026-11-13)
+
+What LiteAPI's terms and the sandbox allow, for showing and booking a price to
+a visitor who is not signed in. Sources: LiteAPI's revenue-management guide
+(`docs.nuitee.com/docs/revenue-management-and-commission`) and the prebook
+reference (`docs.nuitee.com/reference/post_rates-prebook`), read 2026-11-13;
+sandbox probes the same day (Porto, 2 adults, 30 hotels, margins 0, 3, 15).
+
+**The terms.**
+- `suggestedSellingPrice` (SSP) is "the floor for public selling". Selling
+  under it "in a public forum" is a rate violation. Selling at or above it on
+  a public website is allowed.
+- Closed user groups may be sold under it; "discounts to logged-in users only"
+  is the guide's own example. Our signed-in members (email code) are one.
+- `margin` is set on the rates search only. The prebook has no margin or price
+  field: the price is fixed in the `offerId`.
+
+**Verified in the sandbox.**
+- **The SSP LiteAPI reports is the larger of the hotel's floor and our
+  price.** At margin 15 a hotel whose 15% price was above its floor came back
+  with `suggestedSellingPrice` equal to the price; one under it kept the floor
+  (lp775dd: 210.99 against 211.02). So "under the SSP" is decidable from the
+  rates response alone, at any margin.
+- At the member margin (3%) 20 of 30 hotels were under their SSP; at 15%, 8
+  of 30, several by 3 cents (the group searches: `prebook-mixed-rooms` is
+  363.46 against 363.49).
+- **Booking a public visitor at the SSP works**: search that one hotel again
+  with the margin that lifts the net rate to the SSP (net = total less
+  `commission`, which every rate carried), rounded up. lp775dd, net 183.49,
+  SSP 211.02: margin 15.01 gave 211.03, and the prebook held 211.03 with
+  `suggestedSellingPrice` 211.03. A `margin` sent with the prebook is ignored
+  (same price; it is not in the spec).
+
+**What the app does with it** (`lib/pricing.ts`, `server/checkout.ts`).
+- Every search is made at one margin, the member margin. A signed-out
+  visitor's row holds the hotel's SSP when the rate is under it
+  (`lower_for_members`), and nothing derived from the rate: no included tax
+  amounts, no cancellation charges. The member rate is never written to an
+  anonymous session.
+- A signed-out card says "Sign in for a lower price", never by how much: the
+  amount plus the price shown would publish the member rate.
+- Booking needs an account, so the UI asks for the email first and checks the
+  member rate. The API still takes a signed-out checkout (and a signed-out
+  confirm, which signs in with the code): for a room under its SSP it searches
+  the hotel at the margin that reaches the SSP and prebooks that, so the
+  signed-out price is a real, bookable public price. A prebook that comes back
+  under its SSP for a signed-out visitor is fetched again, or refused.
+- The 15% public margin is gone: since sign-in comes before payment, nobody
+  paid it except those who signed in with the code in the same press.

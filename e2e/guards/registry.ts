@@ -65,9 +65,8 @@ export const CLAIMS: Claim[] = [
   { control: /^checkbox "Bringing a pet"$/, by: `${FIRST} › the Who pill: adults, children and their ages, rooms never more than adults, the pet` },
 
   // ── Sign in to see member prices ───────────────────────────────────────────
-  { control: /^button "(Sign in for member prices|Sign in to see price)"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
-  { control: /^textbox "6-digit code"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
-  { control: /^button "Change"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
+  // ("Sign in to see price" is gone: a hotel signed out is shown at its public price, never without one.)
+  { control: /^button "Sign in for member prices"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
 
   // ── Questions in the chat ──────────────────────────────────────────────────
   { control: /^button ".+ · .+"$/, by: `${ASK} › a place with several matches is asked as "Which …?", one chip each` },
@@ -104,6 +103,10 @@ export const CLAIMS: Claim[] = [
   // ── Cards ──────────────────────────────────────────────────────────────────
   { control: /^button "(Book|Checking the price…)"$/, by: `${BOOK} › Book re-checks the price and opens the checkout for that hotel` },
   { control: /^button "(Details|Collapse ▲)"$/, by: `${DETAIL} › Details expands the card in place; Collapse at the top and the bottom fold it` },
+  { control: /^button "Sign in for a lower price"$/, by: `${RESULTS} › signed out, a card where members pay less offers a sign-in, never the amount; signed in, it shows the member price` },
+  // The sign-in modal on the results.
+  { control: /^textbox "Email\. A sign-in code goes here; no password\."$/, by: `${RESULTS} › signed out, a card where members pay less offers a sign-in, never the amount; signed in, it shows the member price` },
+  { control: /^button "Not now"$/, by: `${RESULTS} › signed out, a card where members pay less offers a sign-in, never the amount; signed in, it shows the member price` },
 
   // ── Map ────────────────────────────────────────────────────────────────────
   { control: new RegExp(`^button "\\d+\\. .+(, ${MONEY})?"$`), by: `${MAP} › a pin and its card point at each other; a pressed pin stays marked and opens nothing` },
@@ -135,15 +138,17 @@ export const CLAIMS: Claim[] = [
 
   // ── Checkout and receipt ───────────────────────────────────────────────────
   { control: /^link "(← )?Back to the shortlist"$/, by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
-  { control: /^textbox "Email\. Your booking and a sign-in code go here; no password\."$/, by: `${BOOK} › the wallet does not open until email, code and names are there; each gap is named` },
-  { control: /^button "(Send code|Send a new code|Sending…)"$/, by: `${BOOK} › the wallet does not open until email, code and names are there; each gap is named` },
-  { control: /^textbox "6-digit code"$/, by: `${BOOK} › a wrong code: the sheet opens, nothing is paid, and the code field says why` },
-  { control: /^textbox "(First name \(as on the guest's ID\)|Last name)"$/, by: `${BOOK} › the wallet does not open until email, code and names are there; each gap is named` },
+  { control: /^textbox "Email\. Your booking and a sign-in code go here; no password\."$/, by: `${BOOK} › signed out, the checkout waits behind a sign-in: each gap is named, then the same room is priced for the account` },
+  { control: /^button "(Send code|Send a new code|Sending…)"$/, by: `${BOOK} › signed out, the checkout waits behind a sign-in: each gap is named, then the same room is priced for the account` },
+  { control: /^textbox "The 6-digit code sent to .+"$/, by: `${BOOK} › a wrong code: the modal says why, and nothing is signed in, priced again or paid` },
+  // The sign-in modal's own button, pressed only on a code typed by hand (the sixth digit usually signs in).
+  { control: /^button "(Sign in|Checking the price…|Checking the prices…)"$/, by: `${BOOK} › signed out, the checkout waits behind a sign-in: each gap is named, then the same room is priced for the account` },
+  { control: /^textbox "(First name \(as on the guest's ID\)|Last name)"$/, by: `${BOOK} › signed out, the checkout waits behind a sign-in: each gap is named, then the same room is priced for the account` },
   { control: new RegExp(`^button "Pay ${MONEY} with Apple Pay"$`), by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
   { control: new RegExp(`^button "Pay ${MONEY} with Google Pay"$`), by: `${BOOK} › signed in: no email and no code, the names remembered, Google Pay` },
   { control: new RegExp(`^button "(Confirm ${MONEY}|Booking with the hotel…)"$`), by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
   { control: /^button "Check the price again"$/, by: `${BOOK} › a price check older than 20 minutes: the wallets wait, and "Check the price again" re-checks` },
-  { control: /^button "Not you\?"$/, by: `${BOOK} › Not you? signs out, and the checkout asks for an email instead` },
+  { control: /^button "Not you\?"$/, by: `${BOOK} › Not you? signs out and asks who is booking; whoever signs in keeps the hotel and room, priced again for them` },
   { control: /^button "Cancel this booking"$/, by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
   { control: /^button "Keep it"$/, by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },
   { control: /^button "(Yes, cancel it|Cancelling…)"$/, by: `${BOOK} › book with Apple Pay (test), keep it once, then cancel it` },

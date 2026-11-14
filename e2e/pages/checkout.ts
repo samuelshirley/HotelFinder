@@ -1,6 +1,8 @@
 /** Page objects for /hotels/book/[id] (the checkout and the receipt) and /hotels/admin. */
 import { expect, type Page } from '@playwright/test';
 
+import { SignInModal } from './app';
+
 export class CheckoutPage {
   constructor(readonly page: Page) {}
   async goto(bookingId: string): Promise<void> {
@@ -25,6 +27,10 @@ export class CheckoutPage {
   confirmIn = (wallet: 'Apple Pay' | 'Google Pay') => this.sheet(wallet).getByRole('button', { name: /^Confirm / });
   cancelIn = (wallet: 'Apple Pay' | 'Google Pay') => this.sheet(wallet).getByRole('button', { name: 'Cancel', exact: true });
   notYou = () => this.page.getByRole('button', { name: 'Not you?' });
+  /** Signed out, the checkout waits behind this: email, code, then the same room priced for the account. */
+  signIn = () => new SignInModal(this.page, 'Who is booking?');
+  /** The booking on screen: a sign-in swaps the page to a new one for the same room. */
+  bookingId = () => new URL(this.page.url()).pathname.split('/').pop()!;
   heading = () => this.page.getByRole('heading', { level: 1 });
   /** What the hotel charges on top: a named list, or one line ("Nothing listed"). */
   atHotel = () => this.stay().getByRole('group', { name: 'Pay at the hotel' }).or(this.dd('Pay at the hotel'));

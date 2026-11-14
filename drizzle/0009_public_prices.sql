@@ -1,0 +1,1 @@
+ALTER TABLE "offers" ADD COLUMN "lower_for_members" boolean DEFAULT false NOT NULL;

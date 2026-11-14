@@ -4,10 +4,11 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/server/db/client', async () => (await import('./harness')).clientModule());
 vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 
-import { rawQuery, resetDb } from './harness';
+import { rawQuery, resetDb, seedUser } from './harness';
 import { seedOffer, seedProperty, seedSearch } from './fixtures';
 import { DOWN, RECORDED_AT, recordedSupplier } from './recordedSupplier';
 import { roomsLabel } from '@/lib/finder/rooms';
+import { searchMarginPct } from '@/lib/pricing';
 import { sendCode, MAX_ATTEMPTS } from '@/server/auth/otp';
 import { bookPaid, bookingView, cancelBooking, confirmCheckout, PRICE_CHECK_TTL_MS, startCheckout, type ConfirmInput } from '@/server/checkout';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
@@ -18,7 +19,8 @@ import { fixture } from '@/server/supplier/liteapi/fixtures';
 import { normalizeBooking, normalizeCancel, normalizePrebook, normalizeRates } from '@/server/supplier/liteapi/normalize';
 import { bookingResponse, cancelResponse, prebookResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { BookRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
-import { buildSessionView } from '@/server/view';
+import { buildSessionView, offerFees } from '@/server/view';
+import { getOffer } from '@/server/repos/offers';
 
 beforeEach(resetDb);
 const KEY = process.env.LITE_API_KEY;
@@ -65,7 +67,8 @@ function bookingSupplier(opts: { price: number; book?: 'ok' | 'timeout' | 'refus
       const check = normalizePrebook(prebookResponse.parse(fixture('prebook-payment-sdk')), RECORDED_AT);
       // Each re-check is a new prebook at the supplier (the row is unique per prebook id).
       prebooks += 1;
-      return { ok: true, value: { ...check, prebookId: `${check.prebookId}-${prebooks}`, total: { amountMinor: opts.price, currency: 'EUR' } } };
+      // The recording is another hotel's prebook at the net rate: its suggested price is not this room's.
+      return { ok: true, value: { ...check, suggestedSelling: null, prebookId: `${check.prebookId}-${prebooks}`, total: { amountMinor: opts.price, currency: 'EUR' } } };
     },
     async book(request) {
       books.push(request);
@@ -277,7 +280,10 @@ describe('checkout', () => {
   it('what is paid at the hotel is kept with the booking, each charge named and in its own currency', async () => {
     const t = await started();
     const view = bookingView(t.booking, RECORDED_AT);
-    const atHotel = t.offer.fees.filter((f) => !f.included);
+    // The charges of the room the re-check held: signed out, the card's room fetched at the hotel's public price.
+    const held = (await getOffer(t.booking.offerId!, t.session.id, 'public'))!;
+    expect(held.lowerForMembers).toBe(false);
+    const atHotel = offerFees(held.taxesAndFees).filter((f) => !f.included);
     expect(atHotel.length).toBeGreaterThan(0);
     expect(view.payAtPropertyFees).toEqual(atHotel.map(({ description, amountMinor, currency }) => ({ description, amountMinor, currency })));
     // The sum already on the row is the same charges, in the offer's currency.
@@ -291,13 +297,15 @@ describe('checkout', () => {
     // different rooms, that offer's prebook, and the one booking it made.
     const prebooked = () => normalizePrebook(prebookResponse.parse(fixture('prebook-mixed-rooms')), RECORDED_AT);
     async function twoRoomCard(over: { roomName?: string | null } = {}) {
-      const { session, stay } = await seedSearch({ anonId: 'anon-rooms' });
+      // Signed in: this is about the rooms. The recorded group prebook is 3 cents under
+      // the hotel's public price, which a signed-out visitor is never held at.
+      const { session, stay } = await seedSearch({ userId: (await seedUser('rooms@pg.test')).id });
       await updateStay(stay.id, session.id, { adults: 3, childrenAges: [], rooms: null });
       const searched = normalizeRates(ratesResponse.parse(fixture('rates-mixed-rooms')), 15, RECORDED_AT).offers.find((o) => o.supplierOfferId === prebooked().supplierOfferId)!;
       const property = await seedProperty(searched.supplierHotelId, 'Vincci Porto');
       const offer = await seedOffer(
         { sessionId: session.id, stayId: stay.id, propertyId: property.id },
-        { supplierOfferId: searched.supplierOfferId, totalMinor: searched.total.amountMinor, suggestedSellingMinor: null, payAtPropertyMinor: searched.payAtProperty.amountMinor, rooms: searched.rooms, roomName: roomsLabel(searched.rooms), fetchedAt: RECORDED_AT, expiresAt: new Date(RECORDED_AT.getTime() + 15 * 60_000), ...over },
+        { supplierOfferId: searched.supplierOfferId, audience: 'member', marginPct: searchMarginPct().toFixed(2), totalMinor: searched.total.amountMinor, suggestedSellingMinor: null, payAtPropertyMinor: searched.payAtProperty.amountMinor, rooms: searched.rooms, roomName: roomsLabel(searched.rooms), fetchedAt: RECORDED_AT, expiresAt: new Date(RECORDED_AT.getTime() + 15 * 60_000), ...over },
       );
       return { session: (await getSession(session.id))!, offer };
     }
