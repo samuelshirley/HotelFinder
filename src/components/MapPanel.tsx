@@ -170,12 +170,18 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
           const spot = named.geometry.type === 'Point' ? { latitude: named.geometry.coordinates[1], longitude: named.geometry.coordinates[0] } : { latitude: e.lngLat.lat, longitude: e.lngLat.lng };
           setPicked({ x: e.point.x, y: e.point.y, name: String(named.properties.name_en ?? named.properties['name:latin'] ?? named.properties.name).trim().slice(0, 80), point: spot });
         });
+        let shown = box.current!.clientWidth > 0 && box.current!.clientHeight > 0;
         observer = new ResizeObserver(() => {
           // A resize moves the camera's frame, synchronously; it is not the user steering.
           const was = ours.current;
           ours.current = true;
           m.resize();
           ours.current = was;
+          // Hidden, then shown (a phone's Map tab): the frame made at zero size framed nothing
+          // (it showed West Africa for Porto, 2026-11-14). Frame the hotels again, unless the user moved it.
+          const nowShown = box.current !== null && box.current.clientWidth > 0 && box.current.clientHeight > 0;
+          if (nowShown && !shown && !userMoved.current) refitRef.current();
+          shown = nowShown;
         });
         observer.observe(box.current);
       })
@@ -337,6 +343,20 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.n, ready]);
+
+  // The hotels framed again with no animation: after the map was hidden at zero size (the observer above).
+  const refitRef = useRef<() => void>(() => undefined);
+  refitRef.current = () => {
+    const m = map.current;
+    const ml = lib.current;
+    const points = fitPoints(pins, anchor, frame);
+    if (!m || !ml || points.length === 0) return;
+    const bounds = new ml.LngLatBounds();
+    for (const p of points) bounds.extend([p.longitude, p.latitude]);
+    ours.current = true;
+    m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: 0 });
+    if (!m.isMoving()) ours.current = false;
+  };
 
   const recentre = () => {
     const m = map.current;
