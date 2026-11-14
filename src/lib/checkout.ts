@@ -7,9 +7,28 @@
 /** One charge the offer marks not included: paid at the hotel, in its own currency, named as the supplier names it. */
 export type HotelCharge = { description: string; amountMinor: number; currency: string };
 
-/** The not-included charges of an offer's fee list, as listed. Included fees are in the total and are left out. */
+/**
+ * One line per charge, however many rooms carry it. A room split lists each
+ * room's own copy of a fee (two rooms: "City tax" twice); shown as listed,
+ * that read "City tax, City tax" (bug 2026-11-14). Charges with the same name,
+ * the same currency and the same included-or-not are added up, in the order
+ * first listed; nothing is added across currencies or across included and
+ * paid at the hotel. The name stays the supplier's, spaces tidied.
+ */
+export function mergeFees<T extends { description: string; amountMinor: number; currency: string; included?: boolean }>(fees: ReadonlyArray<T>): T[] {
+  const merged = new Map<string, T>();
+  for (const f of fees) {
+    const description = f.description.trim().replace(/\s+/g, ' ');
+    const key = JSON.stringify([description, f.currency, f.included ?? null]);
+    const seen = merged.get(key);
+    merged.set(key, seen ? { ...seen, amountMinor: seen.amountMinor + f.amountMinor } : { ...f, description });
+  }
+  return [...merged.values()];
+}
+
+/** The not-included charges of an offer's fee list, one line each across rooms. Included fees are in the total and are left out. */
 export function payAtHotelCharges(fees: ReadonlyArray<{ description: string; amountMinor: number; currency: string; included: boolean }>): HotelCharge[] {
-  return fees.filter((f) => !f.included).map(({ description, amountMinor, currency }) => ({ description, amountMinor, currency }));
+  return mergeFees(fees.filter((f) => !f.included)).map(({ description, amountMinor, currency }) => ({ description, amountMinor, currency }));
 }
 
 /** The longest special request sent to the hotel, in characters. */
