@@ -162,8 +162,8 @@ lookup; it never sees an id or writes a price. Rules: `docs/agent.md`.
 ### Scripts (`scripts/`)
 
 capture-liteapi-fixtures.mjs (`docs/supplier.md`),
-capture-google-fixtures.mjs and google-key.sh (borrows Feral's Google key
-into .env and Vercel, never printed: `docs/sights.md`), dev.sh, jev-live.sh,
+capture-google-fixtures.mjs and google-key.sh (`--vercel` sends .env's
+Google key to Vercel, never printed: `docs/sights.md`), dev.sh, jev-live.sh,
 agent-live.sh (20 real cases against Anthropic, 6 in Spanish; prints the cost),
 migrate.mjs (applies drizzle/; run by `vercel-build` on production builds
 only, and by the preview workflow on the PR's own Neon branch: `docs/deploy.md`),

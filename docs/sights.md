@@ -83,11 +83,12 @@ sights. "Remove the plan" is the near chip's own clear.
 
 ## The key
 
-One Google key, borrowed from Feral Travels (its
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`), stored here as `GOOGLE_MAPS_API_KEY`:
-**server-only**, never `NEXT_PUBLIC_` in this repo, sent in a header.
-`scripts/google-key.sh` copies it into `.env` and into Vercel (production and
-preview, sensitive) without printing it. With no key the lookup answers
+One Google key, `GOOGLE_MAPS_API_KEY`: **server-only**, never `NEXT_PUBLIC_`
+in this repo, sent in a header. Since 2026-11-14 it is this project's own key,
+set by Sam in `.env`; `scripts/google-key.sh --vercel` sends it to Vercel
+(production and preview, sensitive) without printing it. The script's default
+still borrows Feral Travels' `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` into `.env` and
+Vercel. With no key the lookup answers
 "not configured": the line says the lookup did not answer and nothing changes.
 
 Cost: Nearby Search with rating and review count is the **Enterprise SKU,
