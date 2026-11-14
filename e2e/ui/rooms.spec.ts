@@ -60,3 +60,37 @@ test('four adults, rooms left to us: each card names its rooms, and the checkout
   await page.screenshot({ path: 'test-results/21-rooms-checkout.png' });
   expect(errors).toEqual([]);
 });
+
+/**
+ * A room split lists each room's own copy of a fee; the detail names each fee
+ * once ("City tax", not "City tax, City tax": bug 2026-11-14).
+ */
+test('four adults on a room split: the detail names each pay-at-the-hotel fee once', { tag: ['@ui', '@booking'] }, async ({ page, signedIn: _signedIn }) => {
+  test.setTimeout(180_000);
+  await page.goto('./');
+  await page.getByLabel('Your trip', { exact: true }).fill('porto');
+  await page.getByRole('button', { name: /^Porto\s*Portugal · City$/ }).click();
+  await page.getByRole('button', { name: /^When:/ }).click();
+  await page.getByRole('button', { name: 'Next weekend' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: /^Who:/ }).click();
+  await page.getByRole('button', { name: 'More adults' }).click();
+  await page.getByRole('button', { name: 'More adults' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Low price' }).click();
+  await page.getByRole('button', { name: 'Find my hotel' }).click();
+  await expect(page.getByText(/\d+ of \d+ hotels fit\. The best \d are listed/)).toBeVisible({ timeout: 90_000 });
+
+  const cards = page.locator('ol > li').filter({ has: page.locator('[data-rooms]', { hasText: /^2 rooms: / }) });
+  const n = await cards.count();
+  test.skip(n === 0, 'the sandbox offered no two-room split for this search');
+  for (let i = 0; i < n; i++) {
+    const card = cards.nth(i);
+    await card.getByRole('button', { name: /^(Details|Collapse ▲)$/ }).first().click();
+    const lines = await card.getByText(/paid at the hotel \(/).allTextContents();
+    for (const line of lines) {
+      const names = line.slice(line.indexOf('(') + 1, line.lastIndexOf(')')).split(', ');
+      expect(new Set(names).size, line).toBe(names.length);
+    }
+  }
+});
