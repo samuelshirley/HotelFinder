@@ -2,6 +2,7 @@ import type { MustHave } from '@/lib/amenities';
 import { PROPERTY_TYPES, type StayFilters } from '@/lib/filters';
 import { haversineKm, nightsBetween, type LatLng } from '@/lib/finder/geo';
 import { canonicalPriorities, type PriorityKey } from '@/lib/finder/rank';
+import { SIGHTS_LABEL, sightsCentre, sightsPlaceId, type StaySights } from '@/lib/sights';
 import { mapPointNear, type Action, type ResolvedAction, type ResolvedPoint } from './actions';
 
 /** The part of a search an action can change. A plain value: no database, no clock. */
@@ -20,6 +21,12 @@ export type SearchState = {
     destCountry: string | null;
     /** A place the user named to be close to. null = measure from the destination. */
     near: ResolvedPoint | null;
+    /**
+     * The sights the user wants to see. While set, `near` is the middle of the
+     * ones this stay has time for (`sightsNear`); naming another place to be
+     * close to drops them.
+     */
+    sights: StaySights | null;
     checkIn: string;
     checkOut: string;
     adults: number;
@@ -50,6 +57,10 @@ export type Rejection =
   | 'near_too_far'
   /** Set by dispatch, not the reducer: the supplier could not say where a named place is. */
   | 'place_unavailable'
+  /** Set by dispatch: the sights lookup failed, is not set up, or the destination has no point to look around. */
+  | 'sights_unavailable'
+  /** Set by dispatch: too few well-rated places of that kind near the destination. */
+  | 'sights_none'
   | 'no_change';
 
 export type Reduced = { ok: true; state: SearchState; effect: Effect } | { ok: false; rejection: Rejection };
@@ -58,6 +69,12 @@ export const MAX_NIGHTS = 30;
 
 /** A place to be near must be within this of the destination; further is a different trip. */
 export const NEAR_MAX_KM = 50;
+
+/** The point "close" is measured from while sights are set: the middle of the ones the nights have time for. */
+export function sightsNear(sights: StaySights, checkIn: string, checkOut: string): ResolvedPoint | null {
+  const centre = sightsCentre(sights, nightsBetween(checkIn, checkOut));
+  return centre ? { placeId: sightsPlaceId(sights.kind), label: SIGHTS_LABEL[sights.kind], ...centre } : null;
+}
 
 const stronger = (a: Effect, b: Effect): Effect => (a === 'refetch' || b === 'refetch' ? 'refetch' : a === 'rerank' || b === 'rerank' ? 'rerank' : 'none');
 
@@ -84,12 +101,22 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
       if (stay.near?.placeId === action.near.placeId) return { ok: false, rejection: 'no_change' };
       if (stay.destPoint && haversineKm(stay.destPoint, action.near) > NEAR_MAX_KM) return { ok: false, rejection: 'near_too_far' };
       // A new point to search around, not just a re-sort: the hotels near it may not be in hand.
-      return withStay({ near: action.near }, 'refetch');
+      // The place named now is where "close" is; sights asked for earlier go.
+      return withStay({ near: action.near, sights: null }, 'refetch');
     }
 
     case 'clear_near':
-      if (!stay.near) return { ok: false, rejection: 'no_change' };
-      return withStay({ near: null }, 'refetch');
+    case 'clear_sights':
+      if (action.type === 'clear_sights' ? !stay.sights : !stay.near) return { ok: false, rejection: 'no_change' };
+      return withStay({ near: null, sights: null }, 'refetch');
+
+    case 'set_sights': {
+      const ids = (v: StaySights) => v.places.map((p) => p.placeId).join();
+      if (stay.sights?.kind === action.sights.kind && ids(stay.sights) === ids(action.sights)) return { ok: false, rejection: 'no_change' };
+      const near = sightsNear(action.sights, stay.checkIn, stay.checkOut);
+      if (!near) return { ok: false, rejection: 'sights_none' };
+      return withStay({ sights: action.sights, near }, 'refetch');
+    }
 
     case 'set_price_cap':
       if (stay.priceCapMinor === action.perNightMinor) return { ok: false, rejection: 'no_change' };
@@ -138,7 +165,8 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
       if (!(nights >= 1)) return { ok: false, rejection: 'checkout_not_after_checkin' };
       if (nights > MAX_NIGHTS) return { ok: false, rejection: 'stay_too_long' };
       if (stay.checkIn === action.checkIn && stay.checkOut === action.checkOut) return { ok: false, rejection: 'no_change' };
-      return withStay({ checkIn: action.checkIn, checkOut: action.checkOut }, 'refetch');
+      // More nights have time for more sights, so the middle of them moves.
+      return withStay({ checkIn: action.checkIn, checkOut: action.checkOut, ...(stay.sights ? { near: sightsNear(stay.sights, action.checkIn, action.checkOut) } : {}) }, 'refetch');
     }
 
     case 'set_destination':
@@ -153,6 +181,7 @@ export function reduce(state: SearchState, action: ResolvedAction, today: string
           destKind: action.point?.kind ?? null,
           destCountry: action.point?.country ?? null,
           near: null,
+          sights: null,
           excludedPropertyIds: [],
         },
         'refetch',
@@ -197,6 +226,8 @@ export function previewReduce(state: SearchState, action: Action, today: string)
     return reduce(state, { type: 'set_near', near: mapPointNear(action) }, today);
   }
   if (action.type === 'set_destination') return reduce(state, { ...action, point: null }, today);
+  // The places are looked up by dispatch: all that can be said here is whether the kind is already set.
+  if (action.type === 'set_sights') return state.stay.sights?.kind === action.kind ? { ok: false, rejection: 'no_change' } : { ok: true, state, effect: 'refetch' };
   return reduce(state, action, today);
 }
 
@@ -229,6 +260,7 @@ export function fingerprint(state: SearchState): string {
     state.currency,
     s.placeId,
     s.near?.placeId ?? null,
+    s.sights ? [s.sights.kind, ...s.sights.places.map((p) => p.placeId)] : null,
     s.checkIn,
     s.checkOut,
     s.adults,

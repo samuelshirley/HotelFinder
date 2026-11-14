@@ -1,0 +1,304 @@
+{
+  "places": [
+    {
+      "id": "ChIJ01B3qIBlJA0R98XaUsUgXdM",
+      "location": {
+        "latitude": 41.1598058,
+        "longitude": -8.6596149999999987
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 7216,
+      "displayName": {
+        "text": "Serralves Museum of Contemporary Art",
+        "languageCode": "en"
+      },
+      "primaryType": "art_museum"
+    },
+    {
+      "id": "ChIJ6e4RqB5lJA0Rvs6lTv9w5hg",
+      "location": {
+        "latitude": 41.143482899999995,
+        "longitude": -8.620800899999999
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 7463,
+      "displayName": {
+        "text": "World of Discoveries",
+        "languageCode": "en"
+      },
+      "primaryType": "history_museum"
+    },
+    {
+      "id": "ChIJ2afQih1lJA0R0f_etf8nBFg",
+      "location": {
+        "latitude": 41.1445837,
+        "longitude": -8.615825
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 2087,
+      "displayName": {
+        "text": "Portuguese Centre of Photography",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ5Yh_pxxlJA0RcXNhyTydYVc",
+      "location": {
+        "latitude": 41.1477127,
+        "longitude": -8.621638299999999
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 3678,
+      "displayName": {
+        "text": "Soares dos Reis",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJbU9dbg1lJA0R_LvITIM-k7A",
+      "location": {
+        "latitude": 41.1475668,
+        "longitude": -8.632932799999999
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 3602,
+      "displayName": {
+        "text": "Porto Tram Museum",
+        "languageCode": "en"
+      },
+      "primaryType": "history_museum"
+    },
+    {
+      "id": "ChIJQViaXvRlJA0RdejWJFRUKnM",
+      "location": {
+        "latitude": 41.1634927,
+        "longitude": -8.6063662
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1287,
+      "displayName": {
+        "text": "3D Fun Art Museum Porto",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJecwJEKJlJA0RSv5WVv_Y7HA",
+      "location": {
+        "latitude": 41.1484345,
+        "longitude": -8.6145338
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1846,
+      "displayName": {
+        "text": "Neonia Porto",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJX92nSOBkJA0RkhBxN-sSyKQ",
+      "location": {
+        "latitude": 41.1407707,
+        "longitude": -8.6143246
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 558,
+      "displayName": {
+        "text": "Casa do Infante",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJNwtn-4dkJA0RicAKon9EXrI",
+      "location": {
+        "latitude": 41.160768999999995,
+        "longitude": -8.582716
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 7925,
+      "displayName": {
+        "text": "FC Porto Museum",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJI8uSz29vJA0RXT82HP03gEo",
+      "location": {
+        "latitude": 41.1648132,
+        "longitude": -8.673301
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1427,
+      "displayName": {
+        "text": "Fundação António Cupertino de Miranda",
+        "languageCode": "pt"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ5wBwPYFlJA0Rha7IhuHNBLQ",
+      "location": {
+        "latitude": 41.1596786,
+        "longitude": -8.6565376
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1657,
+      "displayName": {
+        "text": "Casa de Serralves",
+        "languageCode": "en"
+      },
+      "primaryType": "art_museum"
+    },
+    {
+      "id": "ChIJIZ_AHxBlJA0RwO3OejsDW-A",
+      "location": {
+        "latitude": 41.1475562,
+        "longitude": -8.6284562
+      },
+      "rating": 4.1,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 966,
+      "displayName": {
+        "text": "Museu Romântico",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJu622MHRlJA0RE3aAlr-qPYU",
+      "location": {
+        "latitude": 41.1537329,
+        "longitude": -8.6425638
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1588,
+      "displayName": {
+        "text": "Galeria da Biodiversidade",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ_U2sjuFkJA0RwmXYAqi8HAY",
+      "location": {
+        "latitude": 41.1437057,
+        "longitude": -8.6145436
+      },
+      "rating": 4.2,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 603,
+      "displayName": {
+        "text": "MMIPO - Museu da Misericórdia do Porto",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJxTgChOJkJA0REX0QOgyVauc",
+      "location": {
+        "latitude": 41.146173399999995,
+        "longitude": -8.615831
+      },
+      "rating": 4.3,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 662,
+      "displayName": {
+        "text": "Museu de História Natural e da Ciência da Universidade do Porto",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJryoPF-1lJA0RkH4rJOSqCXU",
+      "location": {
+        "latitude": 41.1713738,
+        "longitude": -8.6765606
+      },
+      "rating": 4.3,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 928,
+      "displayName": {
+        "text": "The Water Pavilion",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJDdPTE4lkJA0R94a56WMbtCw",
+      "location": {
+        "latitude": 41.1577018,
+        "longitude": -8.5869001999999988
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 800,
+      "displayName": {
+        "text": "Casa São Roque",
+        "languageCode": "en"
+      },
+      "primaryType": "art_museum"
+    },
+    {
+      "id": "ChIJg6Yso21lJA0R2eUYhoXfgxM",
+      "location": {
+        "latitude": 41.1345184,
+        "longitude": -8.6150066
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1103,
+      "displayName": {
+        "text": "Pink Palace - Rosé Wine Museum",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJbcpAsexkJA0Rr1msfCKkvC8",
+      "location": {
+        "latitude": 41.145866399999996,
+        "longitude": -8.5951709999999988
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 905,
+      "displayName": {
+        "text": "Military Museum Porto",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJh-8ffyllJA0RpYVBpYhwFxY",
+      "location": {
+        "latitude": 41.136198,
+        "longitude": -8.613571799999999
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 1016,
+      "displayName": {
+        "text": "The Chocolate Experience by 20|20",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    }
+  ]
+}

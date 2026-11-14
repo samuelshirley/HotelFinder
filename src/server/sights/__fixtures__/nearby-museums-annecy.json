@@ -1,0 +1,122 @@
+{
+  "places": [
+    {
+      "id": "ChIJ5bRNx_uPi0cRXMaH2xyev9g",
+      "location": {
+        "latitude": 45.8985762,
+        "longitude": 6.1270850999999995
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 5444,
+      "displayName": {
+        "text": "Palais de I'Île",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ5bRNx_uPi0cRTpk8wBmOJH0",
+      "location": {
+        "latitude": 45.897677099999996,
+        "longitude": 6.1260826999999995
+      },
+      "rating": 4.1,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 5926,
+      "displayName": {
+        "text": "Musée-Château d'Annecy",
+        "languageCode": "fr"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJZ85kWwKRi0cRYI3UOJDefKo",
+      "location": {
+        "latitude": 45.844275499999995,
+        "longitude": 6.1508876000000008
+      },
+      "rating": 4.6,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 941,
+      "displayName": {
+        "text": "Musée de la Cloche PACCARD",
+        "languageCode": "fr"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ09mp6USQi0cRw2f9_8KL1Sw",
+      "location": {
+        "latitude": 45.8641548,
+        "longitude": 6.1420993999999993
+      },
+      "rating": 4.6,
+      "businessStatus": "CLOSED_TEMPORARILY",
+      "userRatingCount": 262,
+      "displayName": {
+        "text": "Ecomusée du Lac d'Annecy",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJsT6crP6Pi0cR23CgK_4Dtsw",
+      "location": {
+        "latitude": 45.897600399999995,
+        "longitude": 6.1266545999999993
+      },
+      "rating": 4.2,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 29,
+      "displayName": {
+        "text": "Espace Archéologie et environnement du lac d'Annecy",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ1U5G4AuFi0cRQKhOS9ez8oI",
+      "location": {
+        "latitude": 45.903473399999996,
+        "longitude": 6.103687
+      },
+      "rating": 5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 3,
+      "displayName": {
+        "text": "Rond point de la Chapelle",
+        "languageCode": "fr"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJ74mgKgCFi0cRuBlEYi3pjHg",
+      "location": {
+        "latitude": 45.910320299999995,
+        "longitude": 6.1197526999999994
+      },
+      "businessStatus": "OPERATIONAL",
+      "displayName": {
+        "text": "Espace archéologique - Les Thermes de Boutae",
+        "languageCode": "en"
+      },
+      "primaryType": "museum"
+    },
+    {
+      "id": "ChIJMzgYZCOPi0cRGqDvpfGka7g",
+      "location": {
+        "latitude": 45.9047224,
+        "longitude": 6.1268262
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 74,
+      "displayName": {
+        "text": "Cité internationale du cinéma d'animation",
+        "languageCode": "fr"
+      },
+      "primaryType": "museum"
+    }
+  ]
+}

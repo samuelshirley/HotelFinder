@@ -50,7 +50,7 @@ describe('filters on the recorded Porto search', () => {
     // 8 five-star hotels; 11 four-star; one, Hotel Spot Family Suites, lists 0 stars, which is no class at all.
     expect(out.finder).toMatchObject({ kind: 'ok', eligible: 8, shortlisted: 5, nearMisses: 0, filterUnknown: 1, rejected: { filtered_out: 12 } });
     for (const row of await s.list()) expect(row.property.stars).toBe(5);
-    expect(describeChange(out.results, out.state, 'EUR', out.finder)).toBe('5 stars only. 8 of 20 hotels fit.');
+    expect(describeChange(out.results, out.state, 'EUR', out.finder)).toBe('5 stars only.');
   });
 
   it('a brand: the two Mercure hotels fit, and the misses under them say what they are or that the listing names none', async () => {

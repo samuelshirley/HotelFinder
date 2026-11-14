@@ -25,6 +25,7 @@ const FULL = 'ui/full-list.spec.ts';
 const FREEZE = 'ui/freeze.spec.ts';
 const SPANISH = 'ui/spanish.spec.ts';
 const EXTRAS = 'ui/checkout-extras.spec.ts';
+const SIGHTS = 'ui/sights.spec.ts';
 
 const DAY = '(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December)';
 const MONEY = '(?:[€£$¥]|[A-Z]{2,3}\\$?)[\\d,]+(?:\\.\\d{2})?';
@@ -90,6 +91,12 @@ export const CLAIMS: Claim[] = [
   { control: /^button "Apply"$/, by: `${RESULTS} › Change who: one more adult searches again; the pet becomes a requirement` },
   { control: /^button "Cancel"$/, by: `${RESULTS} › What matters: \${how} closes the toggles without changing the ranking` },
   { control: /^button "Change what matters most"$/, by: `${RESULTS} › What matters: three toggles and Apply, and the chat says how it is ranked` },
+  // Sights (docs/sights.md). These appear only after a museum request, which needs the model: the tests are @ai.
+  { control: /^button "Remove the plan"$/, by: `${SIGHTS} › the plan starts from another listed hotel when one is picked, and Remove the plan puts "close" back` },
+  { control: /^combobox "Starting from"$/, by: `${SIGHTS} › the plan starts from another listed hotel when one is picked, and Remove the plan puts "close" back` },
+  { control: /^link ".+ on Google Maps"$/, by: `${SIGHTS} › museums asked for in the chat: Penny names the most popular, hotels are ranked close to them, and the plan starts from the best hotel` },
+  { control: /^link "Open the walking route for day \d+ in Google Maps"$/, by: `${SIGHTS} › museums asked for in the chat: Penny names the most popular, hotels are ranked close to them, and the plan starts from the best hotel` },
+  { control: /^link ".+, on your plan"$/, by: `${SIGHTS} › museums asked for in the chat: Penny names the most popular, hotels are ranked close to them, and the plan starts from the best hotel` },
   { control: /^button "Near .+ ✕"$/, by: `${MAP} › Search around here searches around the middle of the map; its chip undoes it` },
   { control: /^combobox "Nationality for rates"$/, by: `${RESULTS} › Nationality for rates: another country prices the search again` },
   { control: /^button "(Hide|Show) map"$/, by: `${MAP} › Hide map folds it away, and it stays away over a reload until Show map` },

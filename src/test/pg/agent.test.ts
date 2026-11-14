@@ -106,7 +106,7 @@ describe('staged confirmation: a yes that costs no model call (lib/stagedPlan.ts
     await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
     const yes = await say((await getSession(session.id))!, 'yup', noJev(supplier.supplier, NEVER));
     expect(yes.status).toBe('done');
-    expect(yes.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(yes.finalText).toBe('18–20 Dec, 2 nights.');
     expect(yes.resultMeta).toMatchObject({ by: 'staged', answer: 'yes', applied: 1, effect: 'refetch', model_calls: 0 });
     expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-18', checkOut: '2026-12-20' });
     expect(await rawQuery("select count(*)::int as n from usage_events where provider = 'anthropic'")).toEqual([{ n: 1 }]); // the question, not the yes
@@ -242,7 +242,7 @@ describe('the turn stops itself before the platform does (lib/turnBudget.ts)', (
     const m = scripted([{ tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);
     const t = timed(m, 3_000);
     const turn = await say(session, 'the weekend after', { ...deps(supplier.supplier, t.callModel), clock: t.clock, deadline: t.deadline });
-    expect(turn.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(turn.finalText).toBe('18–20 Dec, 2 nights.');
   });
 });
 
@@ -318,7 +318,7 @@ describe('the agent: what the router did not settle', () => {
     expect(m.calls).toHaveLength(1); // only changes were asked for: no second call to write a reply
     expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-18', checkOut: '2026-12-20' });
     expect(supplier.searches).toHaveLength(2); // the dates changed, so rates were fetched again
-    expect(turn.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(turn.finalText).toBe('18–20 Dec, 2 nights.');
     expect((await last(session.id)).kind).toBe('line'); // not the model's words
     expect(turn.resultMeta).toMatchObject({ by: 'agent', deferred: 'no_reading', model_calls: 1, applied: 1, effect: 'refetch' });
     expect(await rawQuery("select model, input_tokens, output_tokens, cost_microcents::int as cost, success, meta from usage_events where provider = 'anthropic'")).toEqual([
@@ -383,7 +383,7 @@ describe('the agent: what the router did not settle', () => {
     const turn = await say((await getSession(session.id))!, 'I stayed at the second one before and hated it', deps(supplier.supplier, m.callModel));
     expect(await names(session.id)).not.toContain(before[1]);
     expect((await stayOf(session.id)).excludedPropertyIds).toHaveLength(1);
-    expect(turn.finalText).toBe('Set aside. 17 of 20 hotels fit.');
+    expect(turn.finalText).toBe('Set aside.');
   });
 
   it('a question about a hotel is answered from its own listing, in the model\'s words, marked as such', async () => {

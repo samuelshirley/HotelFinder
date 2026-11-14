@@ -40,6 +40,7 @@ import { insertIdea } from '@/server/repos/ideas';
 import { listSaved } from '@/server/repos/saved';
 import { ownerOf, saveFromSearch } from '@/server/saved';
 import { aiBudget } from '@/server/spend';
+import type { FindSights } from '@/server/sights';
 import type { SupplierAdapter } from '@/server/supplier';
 
 /**
@@ -76,6 +77,8 @@ export type TurnDeps = {
   deadline?: number;
   /** The wall clock in ms; tests move it. */
   clock?: () => number;
+  /** The sights lookup (server/sights/). Absent = the configured one, in English. */
+  findSights?: FindSights;
   /** The language every line of this turn is written in (server/http.ts requestLocale). English when absent. */
   locale?: Locale;
 };
@@ -371,6 +374,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         fact: jev.readings?.fact ?? null,
         superlative: jev.readings?.superlative ?? null,
         search_field: jev.readings?.searchField ?? null,
+        sight_kind: jev.readings?.sightKind ?? null,
         decision: decision.kind,
         deferred: decision.kind === 'defer' ? decision.reason : null,
         turn_id: turn.id,
@@ -386,13 +390,14 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
 
   switch (decision.kind) {
     case 'actions': {
-      const dispatched = await dispatchActions({ session, stay, actions: decision.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+      const actions = decision.actions;
+      const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today, findSights: deps.findSights });
       return {
         text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
         meta: {
           ...trace,
           intent: decision.intent,
-          actions: decision.actions,
+          actions,
           applied: dispatched.results.filter((r) => r.ok).length,
           rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
           effect: dispatched.effect,
@@ -571,7 +576,7 @@ async function agentTurn(args: {
   if (agent.actions.length > 0) {
     if (!hasTimeFor(deps.deadline, clock(), DISPATCH_MAX_MS)) return { text: fixedLine('out_of_time', L), meta: { ...meta, timed_out: 'dispatch', dropped_actions: agent.actions.length } };
     const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
-    const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+    const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today, findSights: deps.findSights });
     return {
       text: [describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L), savedText].filter(Boolean).join(' '),
       meta: {
@@ -629,7 +634,7 @@ async function stagedAnswer(session: SearchSession, stay: Stay, state: SearchSta
   const check = checkStage(stage, fingerprint(state), deps.now());
   if (check !== 'live') return { text: fixedLine('stage_lapsed', L), meta: { ...trace, answer: 'yes', stage: check } };
   const actions = withCloseness(stage.actions, state.priorities);
-  const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+  const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today, findSights: deps.findSights });
   return {
     text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
     meta: {

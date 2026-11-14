@@ -95,7 +95,8 @@ export class Results {
   constructor(readonly page: Page) {}
   region = () => this.page.getByRole('region', { name: 'Hotels' });
   /** The top picks, in rank order (not the divider before near-misses, not skeletons, not the full list). */
-  cards = () => this.region().locator('ol').first().locator('> li[id^="hotel-"]');
+  // The first list that holds hotels: the day plan (docs/sights.md) is a list too, and sits above them.
+  cards = () => this.region().locator('ol:has(> li[id^="hotel-"])').first().locator('> li[id^="hotel-"]');
   card = (i: number) => new Card(this.cards().nth(i));
   heading = () => this.region().getByRole('heading', { level: 2 });
   changeWhere = () => this.page.getByRole('button', { name: 'Change where' });

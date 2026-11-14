@@ -220,9 +220,9 @@ test.describe('POST /api/session/[id]/edit', { tag: '@api' }, () => {
     let view = await json(await api.edit(searched.sessionId, { actions: [{ type: 'set_priorities', priorities: ['cheapest'] }], today: today() }), S.sessionView);
     expect(view.session.priorities).toEqual(['cheapest']);
     const lines = () => view.messages.filter((m) => m.content.startsWith('Ranked for'));
-    expect(lines().map((m) => m.content)).toEqual([expect.stringMatching(/^Ranked for low price\. \d+ of \d+ hotels fit\.$/)]);
+    expect(lines().map((m) => m.content)).toEqual([expect.stringMatching(/^Ranked for low price\.$/)]);
     view = await json(await api.edit(searched.sessionId, { actions: [{ type: 'set_priorities', priorities: ['nicest'] }], today: today() }), S.sessionView);
-    expect(lines().map((m) => m.content)).toEqual([expect.stringMatching(/^Ranked for great reviews\. \d+ of \d+ hotels fit\.$/)]);
+    expect(lines().map((m) => m.content)).toEqual([expect.stringMatching(/^Ranked for great reviews\.$/)]);
     const totals = view.shortlist.map((r) => r.rank);
     expect(totals).toEqual(totals.map((_, i) => i + 1));
   });

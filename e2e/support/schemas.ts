@@ -159,6 +159,21 @@ export const sessionView = z
         excludedCount: z.number().int().nonnegative(),
         nearLabel: z.string().min(1),
         nearIsNamed: z.boolean(),
+        /** The sights asked for ("tour some museums"): Google's rows, most reviewed first, as many as the nights have time for. */
+        sights: z
+          .object({
+            kind: z.enum(['museums', 'galleries']),
+            places: z
+              .array(
+                z
+                  .object({ placeId: z.string().min(1), name: z.string().min(1), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), rating: z.number().min(4).max(5), reviewCount: z.number().int().min(50) })
+                  .strict(),
+              )
+              .min(2)
+              .max(8),
+          })
+          .strict()
+          .nullable(),
         anchor: z.object({ latitude: z.number(), longitude: z.number(), label: z.string().min(1) }).strict().nullable(),
       })
       .strict()

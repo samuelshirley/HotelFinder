@@ -26,7 +26,7 @@ const state: SearchState = {
   priorities: ['cheapest'],
   guestNationality: 'ES',
   currency: 'EUR',
-  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], filters: NO_FILTERS, excludedPropertyIds: [] },
+  stay: { destinationText: 'Porto, Portugal', placeId: 'p', destPoint: null, destKind: null, destCountry: null, near: null, sights: null, checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], filters: NO_FILTERS, excludedPropertyIds: [] },
 };
 const hotel = (position: number, name: string, totalMinor: number, rating: number): HotelOnScreen => ({
   position, name, stars: 3, rating, reviewCount: 6206, totalMinor, perNightMinor: totalMinor / 2, payAtPropertyMinor: 1200, roomName: 'Double Room', boardName: 'Room Only', refundable: false, freeCancellationUntil: null, reason: position === 1 ? 'Cheapest available' : '',
@@ -63,6 +63,24 @@ describe.skipIf(!live)(`the agent, live (${model})`, () => {
     const r = await ask('change it to 18 to 21 december');
     expect(r.actions).toEqual([{ type: 'set_dates', checkIn: '2026-12-18', checkOut: '2026-12-21' }]);
     expect(r.replies).toHaveLength(1);
+  }, 60_000);
+
+  // Sights (docs/sights.md). The agent gives the kind and never names a museum: the places are Google's.
+  it('"actually I want to go 4 nights and tour some musems": the dates and the sights, both, and no museum named', async () => {
+    const r = await ask('actually I want to go 4 nights and tour some musems');
+    expect(r.actions).toEqual(expect.arrayContaining([{ type: 'set_dates', checkIn: '2026-12-11', checkOut: '2026-12-15' }, { type: 'set_sights', kind: 'museums' }]));
+    expect(r.actions).toHaveLength(2);
+    expect(r.text).not.toMatch(/Serralves|Soares|museu/i);
+  }, 60_000);
+
+  it('"somewhere close to the museums" is the kind, not a place to look up', async () => {
+    const r = await ask('somewhere close to the museums');
+    expect(r.actions).toEqual([{ type: 'set_sights', kind: 'museums' }]);
+  }, 60_000);
+
+  it('in Spanish: "quiero ver galerías de arte y que tenga aparcamiento"', async () => {
+    const r = await ask('quiero ver galerías de arte y que tenga aparcamiento', 'es');
+    expect(r.actions).toEqual(expect.arrayContaining([{ type: 'set_sights', kind: 'galleries' }, { type: 'add_must_have', mustHave: 'parking' }]));
   }, 60_000);
 
   it('a date with no year is the next one', async () => {

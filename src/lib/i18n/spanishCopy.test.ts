@@ -18,7 +18,7 @@ const state: SearchState = {
   currency: 'EUR',
   stay: {
     destinationText: 'Oporto, Portugal',
-    placeId: 'p', destPoint: null, destKind: 'area', destCountry: 'PT', near: null,
+    placeId: 'p', destPoint: null, destKind: 'area', destCountry: 'PT', near: null, sights: null,
     checkIn: '2026-12-11', checkOut: '2026-12-13', adults: 2, childrenAges: [], rooms: 1, priceCapMinor: null, mustHaves: [], excludedPropertyIds: [], filters: NO_FILTERS,
   },
 };
@@ -39,7 +39,7 @@ describe('Spanish lines', () => {
       { ok: true as const, action: { type: 'add_must_have' as const, mustHave: 'parking' as const } },
     ];
     const outcome = { kind: 'ok' as const, shortlisted: 5, eligible: 7, rejected: { over_price_cap: 13 }, uncheckable: 0, amenityFactsMissing: false };
-    expect(describeChange(results, state, 'EUR', outcome, 'es')).toBe('Con un máximo de 120\u00a0€ por noche. Imprescindible: aparcamiento. 7 de 20 hoteles encajan.');
+    expect(describeChange(results, state, 'EUR', outcome, 'es')).toBe('Con un máximo de 120\u00a0€ por noche. Imprescindible: aparcamiento.');
     expect(outcomeLine({ kind: 'ok', shortlisted: 0, eligible: 0, rejected: { over_price_cap: 4, excluded_by_user: 1 }, uncheckable: 0, amenityFactsMissing: false }, 'es')).toBe(
       'Ninguno de los 5 hoteles encaja: 4 superan el límite de precio, 1 los apartaste tú.',
     );

@@ -80,7 +80,7 @@ test.describe('chat', { tag: '@ui' }, () => {
     await openSession(page, searched.sessionId);
     await app.results.waitForCards();
     await app.chat.say('under 120 a night');
-    await expect(app.chat.region().getByText(/Capped at €120 a night\. (\d+ of \d+ hotels fit\.|No hotel)/)).toBeVisible({ timeout: 90_000 });
+    await expect(app.chat.region().getByText(/Capped at €120 a night\./)).toBeVisible({ timeout: 90_000 });
     await expect(app.results.region().getByText('Up to €120 a night', { exact: true })).toBeVisible();
   });
 });

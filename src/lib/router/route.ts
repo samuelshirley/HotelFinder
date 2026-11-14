@@ -1,6 +1,7 @@
 import { AMENITIES, isMustHave, type Amenity } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
 import type { PriorityKey } from '@/lib/finder/rank';
+import { isSightKind } from '@/lib/sights';
 import type { Action } from '@/lib/store/actions';
 import type { SearchState } from '@/lib/store/reduce';
 import { HOTEL_FACTS, SEARCH_FIELDS, SUPERLATIVES, type HotelFact, type Intent, type SearchField, type Superlative, type Tier } from './catalogue';
@@ -43,6 +44,8 @@ export type Readings = {
   searchField: ChoiceReading<string> | null;
   /** Which filter is set or dropped. Absent in readings made before filters existed. */
   filterKind?: ChoiceReading<string> | null;
+  /** Which kind of sight the user wants to visit. Absent in readings made before sights existed. */
+  sightKind?: ChoiceReading<string> | null;
 };
 
 /**
@@ -89,6 +92,8 @@ export function settles(r: { top: number; margin: number } | null, min = SETTLE.
  * detail question settles at the FULL bar on a real label, not `none`.
  *
  * Only for intents where a wrong settle is cheap:
+ *  - `sights` is one visible, undoable change (the chip removes it), and its
+ *    detail question is asked of nothing else;
  *  - `ask_hotels`, `ask_search` change nothing, so they need the smaller margin;
  *  - `priority` is one visible, undoable re-rank, so it keeps the full margin.
  * `must_have` is deliberately absent: its detail question (the amenity) is the
@@ -103,6 +108,8 @@ function corroborated(readings: Readings, min: number): boolean {
     case 'priority':
       // Its detail questions are the yes/no wants: at least one a clear yes.
       return intent.margin >= SETTLE.margin && [readings.wantsPrice, readings.wantsQuality, readings.wantsLocation].some((w) => decided(w) === true);
+    case 'sights':
+      return intent.margin >= SETTLE.margin && real(readings.sightKind ?? null);
     case 'ask_hotels':
       return intent.margin >= SETTLE.answerMargin && (real(readings.fact) || real(readings.superlative));
     case 'ask_search':
@@ -197,7 +204,10 @@ export function routeMessage(input: {
   // label says (Sam's "i wanna stay on east manor" read as must_have at 0.23, with
   // wants_location 0.87 and names_place 0.86). Questions and actions on a listed
   // hotel are excluded: "is the Westin close to the airport?" changes nothing.
-  if (decided(readings.wantsLocation) === true && decided(readings.namesPlace) === true && !NOT_NEAR.includes(readings.intent.choice)) {
+  // A kind of sight is not a place to look up: the sights case below decides. Measured live 2026-11-13:
+  // one museum named by name reads as `priority` (0.39-0.96) with names_place 0.97-0.98, so it still comes here.
+  const aKindOfSight = readings.intent.choice === 'sights';
+  if (!aKindOfSight && decided(readings.wantsLocation) === true && decided(readings.namesPlace) === true && !NOT_NEAR.includes(readings.intent.choice)) {
     return { kind: 'near', intent: readings.intent.choice };
   }
   if (!settles(readings.intent, min) && !corroborated(readings, min)) return defer('intent_unsettled');
@@ -278,6 +288,17 @@ export function routeMessage(input: {
         return { kind: 'actions', intent, actions: [{ type: 'set_property_types', types: next }] };
       }
       return defer('slot_missing');
+    }
+
+    case 'sights': {
+      // Read as naming a place too ("somewhere close to the museums": names_place 0.85, live 2026-11-13):
+      // a kind or one museum, the agent tells them apart; it has plan_sights and the place lookup.
+      if (decided(readings.namesPlace) === true) return defer('intent_for_agent');
+      if (!settles(readings.sightKind ?? null, min)) return defer('slot_ambiguous');
+      const kind = readings.sightKind!.choice;
+      if (!isSightKind(kind)) return defer('slot_missing');
+      // The kind only: dispatch looks the places up (server/sights/), and the turn adds closeness to what "best" means.
+      return { kind: 'actions', intent, actions: [{ type: 'set_sights', kind }] };
     }
 
     case 'guests': {

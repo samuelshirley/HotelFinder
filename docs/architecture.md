@@ -31,6 +31,7 @@ write, price alerts, group bookings, saved cards, a second supplier, native app.
 | 10 | Desktop web first. Chat on the left, results panel on the right. **Amended 2026-11-13:** phones get their own layout, one pane at a time over a bottom tab bar (Chat · Hotels · Map · Trips): docs/design/mobile.md | D |
 | 11 | Same stack and visual language as Feral Travels (Nocturne tokens) | D |
 | 12 | Saved cards are phase 2 | D |
+| 13 | **2026-11-13:** a kind of sight the user wants to see (museums, galleries) moves where "close" is and draws a day-by-day plan with Google Maps links. Beyond the one-line scope, asked for knowingly; held to rows and geometry, nothing a model writes: `docs/sights.md` | D |
 
 ## 3. Stack
 
@@ -375,7 +376,7 @@ accent `#9184d9`, Inter, Phosphor icons) **[V]**.
 | 2 | LiteAPI's contract terms for a closed user group: does an OTP email account qualify? | Sam, at signup |
 | 3 | TypeSafe's data-handling terms for user messages, for the privacy page | Sam |
 | 4 | Names: the product, the agent, the finder | Sam |
-| 5 | New Neon project, Vercel project, Resend sender, Google Maps key (or reuse Feral's) | Sam |
+| 5 | New Neon project, Vercel project, Resend sender, Google Maps key (or reuse Feral's). **2026-11-13:** Feral's key is reused, server-only (`scripts/google-key.sh`) | Sam |
 | 6 | Are `docs/` in git here? (Feral keeps them local.) Currently in git | Sam |
 | 7 | Jev settle threshold for intents: 0.85 is Feral's tier value, not measured for hotel intents | measured in step 9 |
 | 8 | SDK receipt fields and saved cards (section 10) | sandbox |

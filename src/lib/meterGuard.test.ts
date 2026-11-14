@@ -32,6 +32,7 @@ const METERED: Record<string, string> = {
   'server/agent/anthropic.ts': 'server/modelLedger.ts',
   'server/auth/mailer.ts': 'server/auth/mailer.ts',
   'server/providerUsage.ts': 'server/providerUsage.ts', // Admin API reads, free, provider 'admin:anthropic'
+  'server/sights/google.ts': 'server/sights/index.ts', // Google Places Nearby Search, provider 'google:places'
 };
 
 describe('every outbound call is metered', () => {

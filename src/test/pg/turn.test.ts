@@ -224,7 +224,7 @@ describe('a chat turn on a running search', () => {
 
     expect(turn.status).toBe('done');
     // An anonymous visitor is quoted the public margin: only one hotel is under €70 a night.
-    expect(turn.finalText).toBe('Capped at €70 a night. 1 of 20 hotels fit. Under it, the 4 closest misses are listed, each saying what it misses.');
+    expect(turn.finalText).toBe('Capped at €70 a night. Under it, the 4 closest misses are listed, each saying what it misses.');
     expect(turn.resultMeta).toMatchObject({ by: 'router', intent: 'price_cap', applied: 1, effect: 'rerank', finder: 'ok', model_calls: 0 });
     expect(events.map((e) => e.type)).toEqual(['received', 'working', 'done']);
     expect(supplier.searches).toHaveLength(1); // still only the first search
@@ -252,10 +252,10 @@ describe('a chat turn on a running search', () => {
   it('a must-have, then dropping a hotel by name, each re-rank what is held', async () => {
     const { session, supplier } = await onboarded();
     const first = await say(session, 'it needs parking', deps(supplier.supplier, jevSays('must_have', { amenity: sure('parking') })));
-    expect(first.turn.finalText).toMatch(/^Must have parking\. \d+ of 20 hotels fit\.$/);
+    expect(first.turn.finalText).toMatch(/^Must have parking\.$/);
     const before = await shortlistNames(session.id);
     const second = await say((await getSession(session.id))!, `not the ${before[0].split(' ')[0]}`, deps(supplier.supplier, jevSays('exclude')));
-    expect(second.turn.finalText).toMatch(/^Set aside\. \d+ of 20 hotels fit\.$/);
+    expect(second.turn.finalText).toMatch(/^Set aside\.$/);
     expect(await shortlistNames(session.id)).not.toContain(before[0]);
     expect(supplier.searches).toHaveLength(1);
   });
@@ -264,7 +264,7 @@ describe('a chat turn on a running search', () => {
     const { session, supplier } = await onboarded();
     const { turn } = await say(session, 'there are four of us', deps(supplier.supplier, jevSays('guests')));
     expect(turn.resultMeta).toMatchObject({ effect: 'refetch' });
-    expect(turn.finalText).toMatch(/^4 adults\. /);
+    expect(turn.finalText).toMatch(/^4 adults\.$/);
     expect(supplier.searches).toHaveLength(2);
     expect(supplier.searches[1].occupancies).toEqual([{ adults: 4, childrenAges: [] }]);
   });

@@ -18,6 +18,7 @@ import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import { CardSkeleton, Spinner } from './Spinner';
 import { HotelDetail } from './HotelDetail';
+import { SightsPlan, type PlanHotel } from './SightsPlan';
 import { Heart, type SaveLink } from './Heart';
 import type { SessionView } from '@/server/view';
 import type { FullList } from './useFullList';
@@ -79,6 +80,16 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
   const ringKm = useMemo(
     () => ringKmFor(shortlist, { hasAnchor: anchor !== null, closenessMatters: session.priorities?.includes('closest') ?? false }),
     [shortlist, anchor, session.priorities],
+  );
+  // The hotels a day plan can start from: the ones that fit, best first (components/SightsPlan.tsx).
+  const planHotels = useMemo(
+    () =>
+      shortlist.flatMap((r): PlanHotel[] =>
+        r.source === 'finder' && !isNearMiss(r) && r.property.latitude !== null && r.property.longitude !== null
+          ? [{ id: r.property.id, name: r.property.name, latitude: r.property.latitude, longitude: r.property.longitude }]
+          : [],
+      ),
+    [shortlist],
   );
   if (!stay) {
     const p = view.pending;
@@ -172,6 +183,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           <MapPanel
             pins={pins}
             anchor={anchor}
+            sights={stay.sights?.places ?? null}
             ringKm={ringKm}
             frame={frame}
             hovered={map.hovered}
@@ -186,6 +198,9 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         </div>
       )}
       <div className={styles.listScroll}>
+      {stay.sights && planHotels.length > 0 && (
+        <SightsPlan kind={stay.sights.kind} places={stay.sights.places} hotels={planHotels} nights={nights} town={stay.destination.split(',')[0].trim()} busy={busy} onRemove={() => onEdit({ type: 'clear_near' })} />
+      )}
       {shortlist.length === 0 ? (
         <p className={styles.empty}>{session.status === 'onboarding' ? t.ui.answerToSearch : t.ui.nothingShortlisted}</p>
       ) : (

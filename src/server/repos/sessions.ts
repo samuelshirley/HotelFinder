@@ -93,6 +93,7 @@ export type StayInput = Pick<Stay, 'destinationText' | 'checkIn' | 'checkOut'> &
       | 'longitude'
       | 'nearPlaceId'
       | 'nearLabel'
+      | 'sights'
       | 'adults'
       | 'childrenAges'
       | 'rooms'

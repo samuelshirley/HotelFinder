@@ -2,6 +2,7 @@ import type { MustHave } from '@/lib/amenities';
 import type { ListedPropertyType, PropertyType } from '@/lib/filters';
 import type { PriorityKey } from '@/lib/finder/rank';
 import type { Superlative } from '@/lib/router/catalogue';
+import type { SightKind } from '@/lib/sights';
 import type { Rejection } from '@/lib/store/reduce';
 
 /**
@@ -40,6 +41,8 @@ const rejection: Record<Rejection, string> = {
   more_rooms_than_adults: 'Each room needs at least one adult.',
   near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
   place_unavailable: 'The place lookup did not answer. Try again in a moment.',
+  sights_unavailable: 'The lookup for places to visit did not answer, so nothing was changed. Try again in a moment.',
+  sights_none: 'I could not find enough well-rated places of that kind near where you are searching, so nothing was changed.',
   no_change: 'That is already how the search is set.',
 };
 
@@ -120,6 +123,8 @@ export const en = {
     unknown_country: 'That country is not in the list. Pick it from the menu.',
     unknown_currency: 'That currency is not in the list. Pick it from the menu.',
     place_unavailable: 'The place lookup did not answer. Try again in a moment.',
+  sights_unavailable: 'The lookup for places to visit did not answer, so nothing was changed. Try again in a moment.',
+  sights_none: 'I could not find enough well-rated places of that kind near where you are searching, so nothing was changed.',
     near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
     empty_brief: 'Type where you are going, or pick a place, then search.',
     not_active: 'Finish the questions in the chat first.',
@@ -222,6 +227,7 @@ export const en = {
     saved: (name: string) => `${name} is saved. Your saved hotels are listed beside your trips.`,
     savedList: (n: number, names: string, more: number) =>
       `You have saved ${n === 1 ? 'one hotel' : `${n} hotels`}: ${names}${more > 0 ? ` and ${more} more` : ''}. They are listed beside your trips.`,
+    /** The first search's line (server/onboarding.ts). A change's line no longer counts the fits: the list shows them. */
     fit: (eligible: number, considered: number) => `${eligible} of ${considered} hotels fit.`,
     noneFit: (considered: number, why: string) => `None of ${considered} hotels fit${why ? `: ${why}` : ''}.`,
     whyOverCap: (n: number) => `${n} are over the price cap`,
@@ -267,6 +273,32 @@ export const en = {
       saved_none: 'You have not saved any hotels yet. Press the heart on one to keep it.',
       save_failed: 'That hotel is no longer in this search, so it was not saved.',
     },
+  },
+
+  /** Sights and the day-by-day plan (lib/sights.ts): every name, rating and distance is a Google row or geometry on one. */
+  sights: {
+    /** Where "close" is measured from: "Close to the museums". */
+    near: { museums: 'the museums', galleries: 'the galleries' } as Record<SightKind, string>,
+    plural: { museums: 'museums', galleries: 'art galleries' } as Record<SightKind, string>,
+    /** `more`: how many others are on the plan beyond the ones named. */
+    /** The opening of the line, whole: Spanish needs the article to agree with the kind. */
+    popular: { museums: 'The most popular museums', galleries: 'The most popular art galleries' } as Record<SightKind, string>,
+    line: (popular: string, town: string, names: string, more: number) =>
+      `${popular} in ${town}, by Google reviews: ${names}${more > 0 ? `, and ${more} more` : ''}. A plan for each day is above the hotels.`,
+    planTitle: (plural: string, town: string) => `${plural.charAt(0).toUpperCase()}${plural.slice(1)} in ${town}, day by day`,
+    planFrom: (hotel: string) => `Starting from ${hotel}`,
+    planNote: 'The most reviewed on Google Maps, all rated 4.0 or higher. Distances are straight lines; each route opens the walk in Google Maps.',
+    day: (n: number) => `Day ${n}`,
+    dayKm: (km: string) => `${km} in a straight line`,
+    route: 'Walking route',
+    routeLabel: (n: number) => `Open the walking route for day ${n} in Google Maps`,
+    onMaps: (name: string) => `${name} on Google Maps`,
+    rated: (rating: string, reviews: string) => `${rating} from ${reviews} Google reviews`,
+    fromHotel: (km: string) => `${km} from the hotel`,
+    fromPrevious: (km: string) => `then ${km}`,
+    remove: 'Remove the plan',
+    pin: (name: string) => `${name}, on your plan`,
+    planFromLabel: 'Starting from',
   },
 
   /** Answers about what is on screen (lib/answers.ts): templates over row values. */

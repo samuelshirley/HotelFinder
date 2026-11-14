@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { layoutPins, fitKeyFor, fitPoints, framePadding, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
+import { sightMapsUrl, type Sight } from '@/lib/sights';
 import styles from './MapPanel.module.css';
 import { useLocale } from './i18n';
 
@@ -15,6 +16,8 @@ type Props = {
   pins: MapPin[];
   /** Where distance is measured from, when it is a real place. */
   anchor: (MapPoint & { label: string }) | null;
+  /** The sights on the day plan (lib/sights.ts): marked, each a link to it on Google Maps. */
+  sights?: Sight[] | null;
   /** Drawn only when closeness is part of the ranking: every ranked hotel is within this of the anchor. */
   ringKm: number | null;
   /** With the full list open: the hotels on its page, which the camera frames instead (lib/mapView.ts fitPoints). */
@@ -44,7 +47,7 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
  * or zooms it is theirs, and a later change offers "Recentre" instead of
  * moving it; a new anchor or a marked hotel still moves it.
  */
-export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
+export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
   const { locale, t } = useLocale();
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
@@ -230,6 +233,23 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
       extras.current.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([anchor.longitude, anchor.latitude]).addTo(m));
     }
 
+    for (const sight of sights ?? []) {
+      // A link, square and unfilled: never read as a hotel (round, violet) or as the anchor (a diamond).
+      const el = document.createElement('a');
+      el.className = styles.sight;
+      el.dataset.sight = sight.placeId;
+      el.href = sightMapsUrl(sight);
+      el.target = '_blank';
+      el.rel = 'noopener noreferrer';
+      el.setAttribute('aria-label', t.sights.pin(sight.name));
+      el.addEventListener('click', (e) => e.stopPropagation());
+      const tip = document.createElement('span');
+      tip.className = styles.sightTip;
+      tip.textContent = sight.name;
+      el.appendChild(tip);
+      extras.current.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([sight.longitude, sight.latitude]).addTo(m));
+    }
+
     // The ring: a plain distance, labelled as one. Cards quote the same straight-line figure.
     const ring = anchor && ringKm ? ringPolygon(anchor, ringKm) : null;
     const data = { type: 'FeatureCollection' as const, features: ring ? [{ type: 'Feature' as const, properties: {}, geometry: { type: 'Polygon' as const, coordinates: [ring] } }] : [] };
@@ -269,7 +289,7 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
       }
     }
     declutterRef.current();
-  }, [ready, pins, anchor, ringKm, frame]);
+  }, [ready, pins, anchor, sights, ringKm, frame]);
 
   // Hover and selection are styles on pins that already exist.
   useEffect(() => {

@@ -112,7 +112,7 @@ test.describe('currency', { tag: '@ui' }, () => {
     await expect(editor).toContainText('The hotels are searched again and priced in this currency.');
     await select.selectOption('USD');
     await editor.getByRole('button', { name: 'Apply' }).click();
-    await expect(app.chat.region().getByText(/^Prices in USD\. /).last()).toBeVisible({ timeout: 90_000 });
+    await expect(app.chat.region().getByText(/^Prices in USD\./).last()).toBeVisible({ timeout: 90_000 });
     await expect(app.results.currency()).toHaveText('Prices in USD ✎');
     await app.results.waitForCards();
     for (let i = 0; i < (await app.results.cards().count()); i++) {

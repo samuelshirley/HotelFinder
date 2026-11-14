@@ -7,6 +7,7 @@ import { errorResponse, handled, ownedSession, rateLimit, requestLocale, resolve
 import { TURN_BUDGET_MS } from '@/lib/turnBudget';
 import { chatBreaker } from '@/server/breakers';
 import { askJev, jevCostMicrocents } from '@/server/jev';
+import { getSightsFinder } from '@/server/sights';
 import { getSupplier } from '@/server/supplier';
 import { runTurn, type TurnEvent } from '@/server/turn';
 
@@ -65,6 +66,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
         idempotencyKey: parsed.data.idempotencyKey,
         deps: {
           supplier: getSupplier({ sessionId: session.id, userId: session.userId, language: locale }),
+          findSights: getSightsFinder({ sessionId: session.id, userId: session.userId, language: locale }),
           askJev,
           jevCost: jevCostMicrocents,
           callModel: callAnthropic,

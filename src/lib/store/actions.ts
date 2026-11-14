@@ -5,6 +5,7 @@ import { isCountryCode } from '@/lib/countries';
 import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
 import { isCurrencyCode } from '@/lib/currencies';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
+import { SIGHT_KINDS, type StaySights } from '@/lib/sights';
 
 /**
  * Every change to a search is one of these. The Jev router and the Haiku
@@ -48,6 +49,15 @@ export const actionSchema = z.discriminatedUnion('type', [
     .strict(),
   /** Measure "close" from the destination again. */
   z.object({ type: z.literal('clear_near') }).strict(),
+  /**
+   * "I want to tour some museums": be close to the most popular sights of one
+   * kind, and plan the days around them (lib/sights.ts). The producer gives
+   * only the kind, from a closed list; dispatch looks the places up. No
+   * producer can name a sight or author its coordinates.
+   */
+  z.object({ type: z.literal('set_sights'), kind: z.enum(SIGHT_KINDS) }).strict(),
+  /** Drop the sights and the plan; "close" is measured from the destination again. */
+  z.object({ type: z.literal('clear_sights') }).strict(),
   /** Per night for the whole party, minor units. null removes the cap. */
   z.object({ type: z.literal('set_price_cap'), perNightMinor: z.number().int().positive().nullable() }).strict(),
   z.object({ type: z.literal('add_must_have'), mustHave: z.enum(MUST_HAVES) }).strict(),
@@ -122,8 +132,9 @@ export type ResolvedDestination = ResolvedPoint & { kind: 'area' | 'point'; coun
  * replaced by the supplier's point for it. Built only in dispatch.
  */
 export type ResolvedAction =
-  | Exclude<Action, { type: 'set_near' } | { type: 'set_near_point' } | { type: 'set_destination' }>
+  | Exclude<Action, { type: 'set_near' } | { type: 'set_near_point' } | { type: 'set_destination' } | { type: 'set_sights' }>
   | { type: 'set_near'; near: ResolvedPoint }
+  | { type: 'set_sights'; sights: StaySights }
   | { type: 'set_destination'; placeId: string; destinationText: string; point: ResolvedDestination | null };
 
 /** What a point picked on the map is called, on the chip and in Penny's line. */

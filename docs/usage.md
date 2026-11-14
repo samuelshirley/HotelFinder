@@ -11,11 +11,12 @@ what does one search really cost?
 | `anthropic` | agent, intent scan, priorities, near | `server/modelLedger.ts` | `lib/models.ts` (per token) |
 | `jev` | router, every chat message | `server/turn.ts` | `jevCostMicrocents` in `server/jev/index.ts` |
 | `liteapi:<op>` | places, place, search, facts, content, prebook, book, booking, cancel | `server/supplier/index.ts` (adapter meter) | `lib/supplierPrices.ts` |
+| `google:places` | the sights lookup, one Nearby Search per request (`docs/sights.md`) | `server/sights/index.ts` | `GOOGLE_NEARBY_MICROCENTS` in `lib/supplierPrices.ts`: $35 per 1,000 (Enterprise SKU), 1,000 free a month not subtracted |
 | `resend:email` | sign-in codes | `server/auth/mailer.ts` | unpriced (plan, not per message) |
 | `admin:anthropic` | Admin API reads for the /admin check | `server/providerUsage.ts` | free |
 | `app` | UI analytics events, not calls | `api/events` | — excluded from every cost view |
 
-`meterGuard.test.ts` makes this table structural: only these five server files
+`meterGuard.test.ts` makes this table structural: only these six server files
 may call out (`fetch`, an injected `fetch`, or the Anthropic client), each has
 a `logUsage` writer, the browser only fetches our own API through `withBase`,
 and every supplier op the adapter uses has a price entry (also a type error

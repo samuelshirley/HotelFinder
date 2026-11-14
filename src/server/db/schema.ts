@@ -175,6 +175,14 @@ export const stays = pgTable(
     longitude: doublePrecision('longitude'),
     nearPlaceId: text('near_place_id'),
     nearLabel: text('near_label'),
+    /**
+     * The sights the user wants to see ("tour some museums"): the kind they
+     * named and the places Google lists for it, most popular first
+     * (lib/sights.ts StaySights, docs/sights.md). While set, "close" is
+     * measured from the middle of them (near_place_id is `sights:<kind>`).
+     * Places come from the lookup in dispatch only, never from a model.
+     */
+    sights: jsonb('sights').$type<{ kind: string; places: Array<{ placeId: string; name: string; latitude: number; longitude: number; rating: number; reviewCount: number }> }>(),
     /** Machine dates, never free text. */
     checkIn: date('check_in', { mode: 'string' }).notNull(),
     checkOut: date('check_out', { mode: 'string' }).notNull(),

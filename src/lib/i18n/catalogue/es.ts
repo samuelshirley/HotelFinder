@@ -2,6 +2,7 @@ import type { MustHave } from '@/lib/amenities';
 import type { ListedPropertyType, PropertyType } from '@/lib/filters';
 import type { PriorityKey } from '@/lib/finder/rank';
 import type { Superlative } from '@/lib/router/catalogue';
+import type { SightKind } from '@/lib/sights';
 import type { Rejection } from '@/lib/store/reduce';
 import type { Messages } from './en';
 
@@ -41,6 +42,8 @@ const rejection: Record<Rejection, string> = {
   more_rooms_than_adults: 'Cada habitación necesita al menos un adulto.',
   near_too_far: 'Ese lugar está demasiado lejos de donde buscas. Empieza una búsqueda nueva allí.',
   place_unavailable: 'La búsqueda de lugares no ha respondido. Inténtalo de nuevo en un momento.',
+  sights_unavailable: 'La búsqueda de sitios que visitar no respondió, así que no he cambiado nada. Inténtalo de nuevo en un momento.',
+  sights_none: 'No he encontrado suficientes sitios bien valorados de ese tipo cerca de donde buscas, así que no he cambiado nada.',
   no_change: 'La búsqueda ya está así.',
 };
 
@@ -120,6 +123,8 @@ export const es: Messages = {
     unknown_country: 'Ese país no está en la lista. Elígelo en el menú.',
     unknown_currency: 'Esa moneda no está en la lista. Elígela en el menú.',
     place_unavailable: 'La búsqueda de lugares no ha respondido. Inténtalo de nuevo en un momento.',
+  sights_unavailable: 'La búsqueda de sitios que visitar no respondió, así que no he cambiado nada. Inténtalo de nuevo en un momento.',
+  sights_none: 'No he encontrado suficientes sitios bien valorados de ese tipo cerca de donde buscas, así que no he cambiado nada.',
     near_too_far: 'Ese lugar está demasiado lejos de donde buscas. Empieza una búsqueda nueva allí.',
     empty_brief: 'Escribe adónde vas, o elige un lugar, y busca.',
     not_active: 'Termina antes las preguntas del chat.',
@@ -262,6 +267,28 @@ export const es: Messages = {
       saved_none: 'Aún no has guardado ningún hotel. Pulsa el corazón de uno para guardarlo.',
       save_failed: 'Ese hotel ya no está en esta búsqueda, así que no se ha guardado.',
     },
+  },
+
+  sights: {
+    near: { museums: 'los museos', galleries: 'las galerías' } as Record<SightKind, string>,
+    plural: { museums: 'museos', galleries: 'galerías de arte' } as Record<SightKind, string>,
+    popular: { museums: 'Los museos más populares', galleries: 'Las galerías de arte más populares' } as Record<SightKind, string>,
+    line: (popular: string, town: string, names: string, more: number) =>
+      `${popular} de ${town}, según las reseñas de Google: ${names}${more > 0 ? `, y ${more} más` : ''}. Encima de los hoteles tienes un plan para cada día.`,
+    planTitle: (plural: string, town: string) => `${plural.charAt(0).toUpperCase()}${plural.slice(1)} de ${town}, día a día`,
+    planFrom: (hotel: string) => `Saliendo de ${hotel}`,
+    planNote: 'Los que más reseñas tienen en Google Maps, todos con 4,0 o más. Las distancias son en línea recta; cada ruta abre el paseo en Google Maps.',
+    day: (n: number) => `Día ${n}`,
+    dayKm: (km: string) => `${km} en línea recta`,
+    route: 'Ruta a pie',
+    routeLabel: (n: number) => `Abrir la ruta a pie del día ${n} en Google Maps`,
+    onMaps: (name: string) => `${name} en Google Maps`,
+    rated: (rating: string, reviews: string) => `${rating} con ${reviews} reseñas de Google`,
+    fromHotel: (km: string) => `a ${km} del hotel`,
+    fromPrevious: (km: string) => `luego ${km}`,
+    remove: 'Quitar el plan',
+    pin: (name: string) => `${name}, en tu plan`,
+    planFromLabel: 'Saliendo de',
   },
 
   answers: {

@@ -22,6 +22,11 @@
 .anchor { width: 14px; height: 14px; pointer-events: none; }
 .anchorMark { position: absolute; inset: 0; background: var(--tp-text); box-shadow: 0 0 0 2px #161826; rotate: 45deg; }
 .anchorLabel { position: absolute; left: calc(100% + 10px); top: 50%; translate: 0 -50%; padding: 2px 8px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-text); font: 400 12px/1.35 var(--font); white-space: nowrap; }
+/* A sight on the day plan: a small open square, its name on hover or focus. */
+.sight { display: block; width: 12px; height: 12px; border: 2px solid var(--tp-text); border-radius: 2px; background: #161826; box-shadow: 0 0 0 1px #161826; cursor: pointer; }
+.sight:hover, .sight:focus-visible { border-color: var(--tp-primary-hover); z-index: 3; }
+.sightTip { display: none; position: absolute; left: 50%; bottom: calc(100% + 6px); translate: -50% 0; padding: 2px 8px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-text); font: 400 12px/1.35 var(--font); white-space: nowrap; pointer-events: none; }
+.sight:hover .sightTip, .sight:focus-visible .sightTip { display: block; }
 .ringLabel { padding: 1px 7px; border: 1px solid var(--tp-border); border-radius: 6px; background: var(--tp-surface); color: var(--tp-muted); font: 400 12px/1.35 var(--font); white-space: nowrap; pointer-events: none; }
 
 .chips { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; z-index: 4; }
