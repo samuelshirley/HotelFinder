@@ -448,3 +448,36 @@ The `more` criterion now reads "...or the whole list of every hotel found"; code
 `wantsWholeList` to tell "show me all of them" (opens the full list, `ui.all`) from "show me some
 other options" (`more_options`). `scripts/jev-live.sh` with three new cases: **49 of 49**, the three
 new ones settle to `ui:all` and "show me some other options" still to `more_options`.
+
+## Two facts in one message (2026-11-14)
+
+**The bug (live).** A search with a dog; "does Hotel Universal allow dogs, and can I cancel
+for free?". Penny answered "I could not read its full listing to confirm the terms" while the
+Details sheet showed "Pets allowed" and the terms. Live readings of that message: `ask_hotels`
+0.97, amenity `pets_allowed` 0.88, and `fact` **split** between `cancellation` 0.51 and
+`facility` 0.49, so `fact` did not settle and the router deferred (`slot_ambiguous`; with the
+YOTEL list on screen the same question read `multi_intent` 0.45 to 0.5 and deferred as
+`multi_intent`). The agent's `<hotels_on_screen>` held the offer's cancellation but no
+facilities, so its only source for pets was `hotel_details`, a live supplier fetch; when that
+fetch fails it hedges. The property row already held the answer: on a pet search the finder
+reads every hotel's own listing for pets and stores it (`confirmPets`, `server/finder.ts`).
+
+**Fix.**
+
+- `readChoice` (`server/jev/schema.ts`) also returns the runner-up label.
+- `route.ts`: a sure `ask_hotels` about one named hotel, no ranking, whose `fact` splits
+  between two real facts (each at least `twoFactsEach` 0.25, the two together the full bar)
+  is an `AnswerPlan` `hotel_facts` with both asks. Both are read off the rows by
+  `hotelAnswer` and said by the same templates, one line each; a silent row is "does not
+  say", per fact. Such a question may read `multi_intent` up to `twoFactsMultiMax` (0.6) and
+  still settle; anything else read as two requests still goes to the agent. The 0.25 and 0.6
+  are fitted to three live readings: revisit them with the rest once wrong settles are counted.
+  Ledger: `answered` is each part's kind, e.g. `cancellation+facility`, so `not_held` still
+  counts per fact.
+- The agent (when it does get such a question) reads each hotel's listed facilities and its
+  cancellation off the same rows (`hotelFacts` in `turn.ts`), with a silent cancellation tag
+  said as "the listing does not say" (it was read as non-refundable), and a failed
+  `hotel_details` points it back at those rows.
+
+Live Jev: 89 of 89 with the two new cases. 16 mutations, 16 killed (route, answers, the
+agent's input, `readChoice`). Not built: two facts asked of all the hotels, or of a ranked one.

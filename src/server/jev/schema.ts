@@ -20,7 +20,8 @@ export const systemOneResponse = z
   })
   .passthrough();
 
-export type Choice<L extends string> = { choice: L; top: number; margin: number };
+/** `runnerUp`: the second most probable label (its probability is `top - margin`); null when no other label has any. */
+export type Choice<L extends string> = { choice: L; top: number; margin: number; runnerUp: L | null };
 
 export function readChoice<L extends string>(answers: Record<string, unknown>, key: string, labels: readonly L[]): Choice<L> | null {
   const parsed = choiceAnswer.safeParse(answers[key]);
@@ -31,13 +32,17 @@ export function readChoice<L extends string>(answers: Record<string, unknown>, k
   if (Object.keys(probabilities).some((label) => !allowed.has(label))) return null;
   const top = probabilities[choice];
   let second = 0;
+  let runnerUp: L | null = null;
   for (const label of labels) {
     if (label === choice) continue;
     const p = probabilities[label] ?? 0;
     if (p > top) return null;
-    if (p > second) second = p;
+    if (p > second) {
+      second = p;
+      runnerUp = label;
+    }
   }
-  return { choice: choice as L, top, margin: top - second };
+  return { choice: choice as L, top, margin: top - second, runnerUp };
 }
 
 export function readNoul(answers: Record<string, unknown>, key: string): number | null {

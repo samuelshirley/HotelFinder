@@ -1,3 +1,4 @@
+import type { Amenity } from '@/lib/amenities';
 import { LANGUAGE_NAME_EN, type Locale } from '@/lib/i18n/locale';
 import { MUST_HAVE_LABEL, filtersLine, formatMoney, nearLabel } from '@/lib/replies';
 import type { SearchState } from '@/lib/store/reduce';
@@ -48,8 +49,15 @@ export type HotelOnScreen = {
   payAtPropertyMinor: number | null;
   roomName: string | null;
   boardName: string | null;
+  /** null = the offer row does not say. */
   refundable: boolean | null;
   freeCancellationUntil: string | null;
+  /**
+   * The facilities the property row lists (pets read from the hotel's own listing when the
+   * search needs them: server/finder.ts). null = the supplier sent no list: unknown, not none.
+   * Absent = not given to the agent.
+   */
+  listedFacilities?: readonly Amenity[] | null;
   reason: string;
 };
 
@@ -83,7 +91,13 @@ export function buildUserTurn(input: AgentInput): string {
       h.payAtPropertyMinor ? `plus ${money(h.payAtPropertyMinor)} paid at the hotel` : null,
       h.roomName ? `room: ${esc(h.roomName)}` : null,
       h.boardName ? `board: ${esc(h.boardName)}` : null,
-      h.refundable === null ? null : h.refundable ? (h.freeCancellationUntil ? `free cancellation until ${h.freeCancellationUntil}` : 'refundable') : 'non-refundable',
+      h.refundable === null ? 'cancellation: the listing does not say' : h.refundable ? (h.freeCancellationUntil ? `free cancellation until ${h.freeCancellationUntil}` : 'refundable') : 'non-refundable',
+      // The same rows the router's answers read (lib/answers.ts): pets and the rest without a supplier call.
+      h.listedFacilities === undefined
+        ? null
+        : h.listedFacilities === null
+          ? 'facilities: the listing does not say'
+          : `facilities its listing names (anything else is not listed, which is not a no): ${h.listedFacilities.length ? h.listedFacilities.map((a) => MUST_HAVE_LABEL[a]).join(', ') : 'none'}`,
       h.reason ? `why it is listed: ${esc(h.reason)}` : null,
     ]
       .filter(Boolean)

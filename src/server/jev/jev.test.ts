@@ -65,7 +65,7 @@ describe('config', () => {
 
 describe('reading an answer', () => {
   it('uses our own reading of the probabilities, never the backend confidence', () => {
-    expect(readChoice(answers().answers, 'tier', ['T1', 'T2', 'T3'])).toEqual({ choice: 'T1', top: 0.97, margin: 0.95 });
+    expect(readChoice(answers().answers, 'tier', ['T1', 'T2', 'T3'])).toEqual({ choice: 'T1', top: 0.97, margin: 0.95, runnerUp: 'T2' });
     expect(readNoul(answers().answers, 'multi_intent')).toBe(0.04);
   });
 
@@ -77,8 +77,15 @@ describe('reading an answer', () => {
     expect(tier({ type: 'choice', choice: 'T1', probabilities: { T2: 1 } })).toBeNull();
     expect(tier({ type: 'noul', noul: 0.9 })).toBeNull();
     expect(tier(undefined)).toBeNull();
-    expect(tier({ type: 'choice', choice: 'T1', probabilities: { T1: 0.5, T2: 0.5 } })).toEqual({ choice: 'T1', top: 0.5, margin: 0 });
+    expect(tier({ type: 'choice', choice: 'T1', probabilities: { T1: 0.5, T2: 0.5 } })).toEqual({ choice: 'T1', top: 0.5, margin: 0, runnerUp: 'T2' });
+    expect(tier({ type: 'choice', choice: 'T1', probabilities: { T1: 1 } })).toEqual({ choice: 'T1', top: 1, margin: 1, runnerUp: null });
     expect(readNoul({ x: { type: 'noul', noul: 1.4 } }, 'x')).toBeNull();
+  });
+
+  it('names the runner-up label: a two-part question splits one choice between two labels', () => {
+    // Measured live 2026-11-14 on "Does Hotel Universal allow dogs, and can I cancel for free?".
+    const fact = readChoice({ fact: { type: 'choice', choice: 'cancellation', probabilities: { cancellation: 0.51, facility: 0.49 } } }, 'fact', ['price', 'cancellation', 'facility', 'none']);
+    expect(fact).toEqual({ choice: 'cancellation', top: 0.51, margin: expect.closeTo(0.02, 5), runnerUp: 'facility' });
   });
 
   it('logs an echoed model only if it looks like a model id', () => {

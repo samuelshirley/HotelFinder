@@ -434,7 +434,9 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       });
       // No single honest answer in the rows (a tie for "the cheapest"): the agent's.
       if (!answer) return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, decision: 'defer', deferred: 'answer_unavailable', plan: decision.plan } });
-      return { text: answerLine(answer, session.currency, L), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
+      // Two facts: each part's kind, so a silent listing (`not_held`) is still counted per fact (docs/jev-expansion.md §7).
+      const answered = answer.kind === 'facts' ? answer.answers.map((a) => a.kind).join('+') : answer.kind;
+      return { text: answerLine(answer, session.currency, L), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered, model_calls: 0 } };
     }
     case 'near': {
       // Be close to a named place: looked up and applied in code (server/nearInWords.ts).
@@ -523,21 +525,26 @@ async function agentTurn(args: {
       recent,
       brands,
       shortlist: rows.map((r) => ({ propertyId: r.property.id })),
-      hotels: rows.map((r, i) => ({
-        position: i + 1,
-        name: r.property.name,
-        stars: r.property.stars,
-        rating: r.property.rating,
-        reviewCount: r.property.reviewCount,
-        totalMinor: r.offer?.totalMinor ?? null,
-        perNightMinor: r.offer && nights > 0 ? Math.round(r.offer.totalMinor / nights) : null,
-        payAtPropertyMinor: r.offer?.payAtPropertyMinor ?? null,
-        roomName: r.offer?.roomName ?? null,
-        boardName: r.offer?.boardName ?? null,
-        refundable: r.offer ? r.offer.refundableTag === 'RFN' : null,
-        freeCancellationUntil: (r.offer?.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
-        reason: reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0, locale: L }),
-      })),
+      hotels: rows.map((r, i) => {
+        // Read the way the router's answers read them: a silent row stays silent.
+        const facts = hotelFacts(r);
+        return {
+          position: i + 1,
+          name: r.property.name,
+          stars: r.property.stars,
+          rating: r.property.rating,
+          reviewCount: r.property.reviewCount,
+          totalMinor: r.offer?.totalMinor ?? null,
+          perNightMinor: r.offer && nights > 0 ? Math.round(r.offer.totalMinor / nights) : null,
+          payAtPropertyMinor: r.offer?.payAtPropertyMinor ?? null,
+          roomName: r.offer?.roomName ?? null,
+          boardName: r.offer?.boardName ?? null,
+          refundable: facts.refundable,
+          freeCancellationUntil: facts.freeCancellationUntil,
+          listedFacilities: facts.amenities,
+          reason: reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0, locale: L }),
+        };
+      }),
     },
     {
       callModel: deps.callModel,

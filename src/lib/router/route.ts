@@ -20,7 +20,8 @@ import { addDays, extractGuests, extractMinRating, extractMinStars, extractNight
  *  - anything it is not sure of goes to the agent.
  */
 
-export type ChoiceReading<L extends string> = { choice: L; top: number; margin: number };
+/** `runnerUp`: the second most probable label, whose probability is `top - margin`. Absent in readings made before it was read. */
+export type ChoiceReading<L extends string> = { choice: L; top: number; margin: number; runnerUp?: L | null };
 
 export type Readings = {
   tier: ChoiceReading<Tier> | null;
@@ -75,6 +76,19 @@ export const SETTLE = {
   corroboratedTop: 0.6,
   /** The margin floor for an intent that only answers a question and changes nothing. */
   answerMargin: 0.1,
+  /**
+   * Two facts asked at once ("does it take dogs, and can I cancel?"): Jev splits `fact`
+   * between them (measured live 2026-11-14: cancellation 0.51, facility 0.49). Each of the
+   * two must hold at least this much, and the two together the full bar.
+   */
+  twoFactsEach: 0.25,
+  /**
+   * The same two-fact question reads `multi_intent` 0.26 to 0.5 (live, 2026-11-14): it IS two
+   * requests, and the two-fact plan carries both. Up to this, and only for a sure `ask_hotels`
+   * whose `fact` splits between two facts, it is not sent to the agent for being two. Fitted to
+   * those readings: revisit once wrong settles are counted (docs/jev-expansion.md §7).
+   */
+  twoFactsMultiMax: 0.6,
 };
 
 export function settles(r: { top: number; margin: number } | null, min = SETTLE.top): boolean {
@@ -154,6 +168,8 @@ const RANKED_ON: Record<Superlative, HotelFact> = {
  */
 export type AnswerPlan =
   | ({ about: 'hotel'; propertyId: string } & FactAsk)
+  /** Two facts about one named hotel, asked in one message. Each is read off the rows on its own. */
+  | { about: 'hotel_facts'; propertyId: string; asks: FactAsk[] }
   | ({ about: 'hotel_by_rank'; superlative: Superlative } & FactAsk)
   | ({ about: 'all' } & FactAsk)
   | { about: 'ranking'; superlative: Superlative }
@@ -180,6 +196,53 @@ export type RouteDecision =
 
 export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
 
+/** A `fact` label → what to read off the row; null for `none`. A facility needs a settled amenity. */
+function factAsk(fact: string, readings: Readings, min: number): FactAsk | null | 'ambiguous' | 'missing' {
+  if (fact === 'none') return null;
+  if (fact === 'facility') {
+    if (!settles(readings.amenity, min)) return 'ambiguous';
+    const key = readings.amenity!.choice;
+    // The two must-haves an offer answers are facts of their own.
+    if (key === 'free_cancellation') return { fact: 'cancellation' };
+    if (key === 'breakfast_included') return { fact: 'breakfast' };
+    if ((AMENITIES as readonly string[]).includes(key)) return { fact: 'facility', amenity: key as Amenity };
+    return 'missing';
+  }
+  if ((HOTEL_FACTS as readonly string[]).includes(fact)) return { fact: fact as Exclude<HotelFact, 'facility'> };
+  return 'missing';
+}
+
+const sameAsk = (a: FactAsk, b: FactAsk) => a.fact === b.fact && (a.fact !== 'facility' || (b.fact === 'facility' && a.amenity === b.amenity));
+
+/**
+ * The two labels of a `fact` reading split between two real facts, or null. Each holds
+ * at least `twoFactsEach`, and the two together the full bar: the message asks both.
+ */
+function twoFacts(fact: ChoiceReading<string> | null, min: number): [string, string] | null {
+  if (!fact || !fact.runnerUp || fact.choice === 'none' || fact.runnerUp === 'none') return null;
+  const second = fact.top - fact.margin;
+  if (second < SETTLE.twoFactsEach || fact.top + second < min) return null;
+  return [fact.choice, fact.runnerUp];
+}
+
+/**
+ * Two requests that are two facts about the listed hotels: a question, sure at the full bar
+ * (not rescued by `corroborated`), no ranking, `fact` split between two facts, and
+ * `multi_intent` no higher than `twoFactsMultiMax`. Anything else that reads as two requests
+ * is still the agent's.
+ */
+function twoFactQuestion(readings: Readings, min: number): boolean {
+  return (
+    readings.intent?.choice === 'ask_hotels' &&
+    settles(readings.intent, min) &&
+    readings.multiIntent !== null &&
+    readings.multiIntent <= SETTLE.twoFactsMultiMax &&
+    settles(readings.superlative, min) &&
+    readings.superlative!.choice === 'none' &&
+    twoFacts(readings.fact, min) !== null
+  );
+}
+
 /** Intents a named place never turns into "be close to it". */
 const NOT_NEAR: readonly string[] = ['ask_hotels', 'ask_search', 'question', 'open', 'book', 'map', 'save', 'exclude', 'new_search', 'greeting_or_thanks'];
 
@@ -199,7 +262,7 @@ export function routeMessage(input: {
   if (!settles(readings.tier, min)) return defer('tier_unsettled');
   // Jev may wave a message through. Saying no is the agent's job.
   if (readings.tier.choice !== 'T1') return defer('not_about_search');
-  if (readings.multiIntent === null || readings.multiIntent > SETTLE.multiIntentMax) return defer('multi_intent');
+  if (readings.multiIntent === null || (readings.multiIntent > SETTLE.multiIntentMax && !twoFactQuestion(readings, min))) return defer('multi_intent');
   // Wanting to be somewhere AND naming the place is the intent, whatever the intent
   // label says (Sam's "i wanna stay on east manor" read as must_have at 0.23, with
   // wants_location 0.87 and names_place 0.86). Questions and actions on a listed
@@ -353,27 +416,34 @@ export function routeMessage(input: {
     case 'ask_hotels': {
       if (shortlist.length === 0) return defer('slot_missing');
       // Both readings must be sure, including a sure "none": an unsure one could
-      // answer the wrong question.
-      if (!settles(readings.superlative, min) || !settles(readings.fact, min)) return defer('slot_ambiguous');
+      // answer the wrong question. The one exception answers every question it could be.
+      if (!settles(readings.superlative, min)) return defer('slot_ambiguous');
+      if (!settles(readings.fact, min)) {
+        // "Does it take dogs, and can I cancel?" about one named hotel: `fact` is split
+        // between two real facts that together hold the bar. Both are answered, each from
+        // its row, so neither reading is a guess.
+        const pair = twoFacts(readings.fact, min);
+        const row = readings.superlative!.choice === 'none' && pair ? target() : null;
+        if (!pair || !row) return defer('slot_ambiguous');
+        const asks: FactAsk[] = [];
+        for (const label of pair) {
+          const ask = factAsk(label, readings, min);
+          if (ask === 'ambiguous') return defer('slot_ambiguous');
+          if (ask === 'missing' || ask === null) return defer('slot_missing');
+          if (!asks.some((a) => sameAsk(a, ask))) asks.push(ask);
+        }
+        asks.sort((a, b) => HOTEL_FACTS.indexOf(a.fact) - HOTEL_FACTS.indexOf(b.fact));
+        if (asks.length === 1) return { kind: 'answer', intent, plan: { about: 'hotel', propertyId: row.propertyId, ...asks[0] } };
+        return { kind: 'answer', intent, plan: { about: 'hotel_facts', propertyId: row.propertyId, asks } };
+      }
       const sup = readings.superlative!.choice;
       const fact = readings.fact!.choice;
       const ranked = (SUPERLATIVES as readonly string[]).includes(sup) ? (sup as Superlative) : null;
       if (ranked === null && sup !== 'none') return defer('slot_missing');
 
-      let ask: FactAsk | null = null;
-      if (fact === 'facility') {
-        if (!settles(readings.amenity, min)) return defer('slot_ambiguous');
-        const key = readings.amenity!.choice;
-        // The two must-haves an offer answers are facts of their own.
-        if (key === 'free_cancellation') ask = { fact: 'cancellation' };
-        else if (key === 'breakfast_included') ask = { fact: 'breakfast' };
-        else if ((AMENITIES as readonly string[]).includes(key)) ask = { fact: 'facility', amenity: key as Amenity };
-        else return defer('slot_missing');
-      } else if ((HOTEL_FACTS as readonly string[]).includes(fact)) {
-        ask = { fact: fact as Exclude<HotelFact, 'facility'> };
-      } else if (fact !== 'none') {
-        return defer('slot_missing');
-      }
+      const ask = factAsk(fact, readings, min);
+      if (ask === 'ambiguous') return defer('slot_ambiguous');
+      if (ask === 'missing') return defer('slot_missing');
 
       const row = target();
       if (ranked !== null) {

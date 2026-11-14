@@ -143,6 +143,10 @@ const CASES: Array<[string, string]> = [
   ['actually I want to go 4 nights and tour some museums', 'defer'],
   // One museum named by name is a place to be close to, not every museum.
   ['near the Serralves museum', 'near'],
+  // Two facts about one hotel in one message (2026-11-14): `fact` splits between the two (live: cancellation
+  // 0.51 / facility 0.49, amenity pets 0.88), and both are answered from the rows (route.ts `twoFacts`).
+  ['does the yotel take dogs, and can I cancel for free?', 'answer:hotel_facts'],
+  ['is the second one ok with my dog and what are the cancellation terms?', 'answer:hotel_facts'],
   // Still nothing a hotel search can act on.
   ['what is the weather like in December?', 'defer'],
   ['any good restaurants nearby?', 'defer'],
