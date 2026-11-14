@@ -259,3 +259,35 @@ test('switch to Spanish and search Oporto', { tag: ['@ui'] }, async ({ page }) =
 
   expect(errors).toEqual([]);
 });
+
+/**
+ * "Madrid, España" typed in Spanish (2026-11-14): the words say which Madrid,
+ * so it is searched at once, never "¿Cuál?" against Plaza de España in Madrid.
+ * No model here: with no scan, the box's words are the place looked up.
+ * (The first message's country kept when the place is retyped needs the scan:
+ * src/test/pg/turn.test.ts.)
+ */
+for (const phone of [false, true]) {
+  test(`a place with its country is searched, not asked${phone ? ' (phone)' : ''}`, { tag: ['@ui'] }, async ({ page }) => {
+    await page.goto('./');
+    // The picker is in the sidebar, which a phone keeps under its Trips tab: chosen first, then the phone.
+    await page.getByRole('combobox', { name: /Language/ }).selectOption('es');
+    if (phone) await page.setViewportSize({ width: 390, height: 780 });
+    await expect(page.getByRole('heading', { name: 'No 400 hoteles. El adecuado, y por qué.' })).toBeVisible();
+
+    await page.getByLabel('Tu viaje', { exact: true }).fill('Madrid, España');
+    await page.getByRole('button', { name: 'Buscar mi hotel' }).click();
+
+    // A phone opens on its Hotels tab once the hotels are in: Penny's lines are under Chat.
+    if (phone) {
+      // The tab bar is named in Spanish too: a screen reader says "Vista", never "View".
+      const tabs = page.getByRole('tablist', { name: 'Vista' });
+      await expect(page.getByRole('tablist', { name: 'View' })).toHaveCount(0);
+      await expect(tabs.getByRole('tab', { name: /^Hoteles \(\d+\)$/ })).toHaveAttribute('aria-selected', 'true', { timeout: 60_000 });
+      await tabs.getByRole('tab', { name: 'Chat' }).click();
+    }
+    await expect(page.getByText('Buscando en Madrid, España.', { exact: false }).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('¿Cuál?', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('La búsqueda de lugares no ha respondido', { exact: false })).toHaveCount(0);
+  });
+}

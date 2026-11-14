@@ -133,7 +133,8 @@ export async function runAgent(input: AgentInput & { shortlist: ToolContext['sho
           lookedUp = true;
           const details = await deps.hotelDetails(parsed.propertyId);
           if (details === null) {
-            answer("The hotel's listing could not be read.", true);
+            // Its line in <hotels_on_screen> still holds what the rows say (price, cancellation, facilities).
+            answer("The hotel's own listing text could not be read just now. Answer from its line in <hotels_on_screen>; for anything not there, say the listing does not say.", true);
             break;
           }
           const content = `<hotel_listing position="${parsed.position}">\n${details.replace(/[<>]/g, ' ').slice(0, DETAILS_CHARS)}\n</hotel_listing>`;

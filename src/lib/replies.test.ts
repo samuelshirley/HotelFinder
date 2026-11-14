@@ -35,6 +35,12 @@ describe('what a change says', () => {
     expect(describeChange(cap, state(2), 'EUR', fits(0, 20))).toBe('Capped at €10 a night. None of 20 hotels fit: 20 are over the price cap.');
   });
 
+  it('none fit, some for being out of town: said with the rest', () => {
+    const none: OutcomeForReply = { kind: 'ok', shortlisted: 0, nearMisses: 5, eligible: 0, rejected: { over_price_cap: 170, out_of_town: 12 }, uncheckable: 0, amenityFactsMissing: false };
+    expect(outcomeLine(none)).toBe('None of 182 hotels fit: 170 are over the price cap, 12 are out of town. The 5 closest misses are listed, each saying what it misses.');
+    expect(outcomeLine(none, 'es')).toContain('12 están fuera de la ciudad');
+  });
+
   it('a change with no words of its own is never silent: the count is said after all', () => {
     const nationality: Applied[] = [{ ok: true, action: { type: 'set_nationality', code: 'FR' } }];
     expect(describeChange(nationality, state(2), 'EUR', fits(19, 11))).toBe('19 of 30 hotels fit.');

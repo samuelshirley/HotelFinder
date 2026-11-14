@@ -12,7 +12,9 @@ import type { Locale } from '@/lib/i18n/locale';
  *    tourist office called "France Travail") are dropped too.
  *  - Exactly one left: it. Several: ask "Which one?", unless exactly one of
  *    them carries every word typed ("Porto airport" → Porto Airport (OPO),
- *    not Porto Santo's).
+ *    not Porto Santo's), or the words say where it is after a comma and
+ *    exactly one is called by the name and lies there ("Madrid, España" →
+ *    Madrid, España; not Plaza de España, Madrid, nor Madrid, Iowa).
  */
 export type PlaceLike = { placeId: string; name: string; address: string | null; types: string[] };
 
@@ -46,7 +48,43 @@ export function pickPlace<P extends PlaceLike>(query: string, places: readonly P
   const words = query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
   const full = left.filter((p) => words.every((w) => p.name.toLowerCase().includes(w)));
   if (full.length === 1 && words.length > 1) return { kind: 'one', place: full[0] };
+  const [head, ...where] = query.split(/[,()]/).map((part) => part.trim()).filter(Boolean);
+  if (head && where.length > 0) {
+    const named = wordsOf(head);
+    const lies = where.flatMap(wordsOf);
+    const there = left.filter((p) => {
+      const name = wordsOf(p.name);
+      const address = new Set(wordsOf(p.address ?? ''));
+      return named.every((w) => name.includes(w)) && lies.every((w) => address.has(w));
+    });
+    if (there.length === 1) return { kind: 'one', place: there[0] };
+  }
   return { kind: 'ask', places: left.slice(0, 5) };
+}
+
+/** Whole words, lower case, accents folded: "España" and "Espana" are one word. */
+function wordsOf(text: string): string[] {
+  return text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+/**
+ * The place typed at "Where to?", with where it is taken from the first message
+ * when that message named the same place and said more (Sam, 2026-11-14: the
+ * first message said "Madrid, España", its lookup failed, and the retyped
+ * "Madrid" was asked "Which one?" as if España had never been said). A typed
+ * place with its own "where", or a different place, is left as typed. Pure.
+ */
+export function withEarlierPlace(typed: string, earlier: string | undefined): string {
+  if (!earlier || /[,()]/.test(typed)) return typed;
+  const [head, ...where] = earlier.split(/[,()]/).map((part) => part.trim()).filter(Boolean);
+  if (!head || where.length === 0) return typed;
+  const same = wordsOf(typed).join(' ') === wordsOf(head).join(' ');
+  return same ? `${typed.trim()}, ${where.join(', ')}` : typed;
 }
 
 const MONTHS = /\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i;

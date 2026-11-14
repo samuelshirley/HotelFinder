@@ -1,0 +1,48 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJgTwKgJcpQg0RaSKMYcHeNsQ",
+      "displayName": "Madrid",
+      "formattedAddress": "España",
+      "types": [
+        "locality",
+        "geocode",
+        "political"
+      ]
+    },
+    {
+      "placeId": "ChIJ95G7OAAnQg0Ra6EQLHW-5Yk",
+      "displayName": "Madrid España",
+      "formattedAddress": "Calle de la Ruda, Madrid, España",
+      "types": [
+        "point_of_interest",
+        "establishment",
+        "service",
+        "lodging"
+      ]
+    },
+    {
+      "placeId": "EiFQbGF6YSBkZSBFc3Bhw7FhLCBNYWRyaWQsIEVzcGHDsWEiLiosChQKEgmVggH7byhCDRFrW_tsjXZwJBIUChIJgTwKgJcpQg0RaSKMYcHeNsQ",
+      "displayName": "Plaza de España",
+      "formattedAddress": "Madrid, España",
+      "types": [
+        "geocode",
+        "route"
+      ]
+    },
+    {
+      "placeId": "ChIJqQdoMVsoQg0RnMCxXRnSaaw",
+      "displayName": "España en la Mesa",
+      "formattedAddress": "Calle de Guzmán el Bueno, Madrid, España",
+      "types": [
+        "point_of_interest",
+        "food_store",
+        "food",
+        "grocery_store",
+        "establishment",
+        "store"
+      ]
+    }
+  ],
+  "fromCache": true
+}

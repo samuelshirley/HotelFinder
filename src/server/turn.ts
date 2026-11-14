@@ -20,12 +20,14 @@ import { dispatchActions, toSearchState } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, answerPrioritiesInWords, askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
 import { readingFromJev } from '@/lib/priorityReading';
-import { placeKindWord, whichOne } from '@/lib/placePick';
+import { pickPlace, placeKindWord, whichOne, withEarlierPlace } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { listLiveOffersForRanking } from '@/server/repos/offers';
-import { countFullList, listShortlist } from '@/server/repos/shortlist';
+import { countFullList, listFullListNames, listFullListRanks, listShortlist } from '@/server/repos/shortlist';
+import { FULL_LIST_KIND } from '@/lib/fullList';
+import { fullListMentions } from '@/lib/router/slots';
 import { enqueueTurn, failLostTurns, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
@@ -190,11 +192,32 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
     });
   }
 
-  // The place itself is always looked up at the supplier and always picked by the user.
-  const places = await deps.supplier.searchPlaces(destination ?? turn.userMessage);
+  // The place itself is always looked up at the supplier and picked by the user, with one
+  // exception: the first message already said where it is ("Madrid, España") and that settles
+  // which one, so "Which one?" is not asked again (2026-11-14, docs/i18n.md).
+  const typed = destination ?? turn.userMessage;
+  const query = withEarlierPlace(typed, session.draft.words?.destination);
+  const places = await deps.supplier.searchPlaces(query);
   if (!places.ok) return { text: copy(L).onboarding.placeSearchFailed, meta: { ...meta, error: places.error.kind } };
   if (places.value.length === 0) {
     return { text: destination || Object.keys(rest).length === 0 ? copy(L).onboarding.noPlaceByThatName : fixedLine('which_place', L), meta: { ...meta, places: 0 } };
+  }
+  const settled = query !== typed ? pickPlace(query, places.value) : null;
+  if (settled?.kind === 'one') {
+    const p = settled.place;
+    const label = p.address ? `${p.name}, ${p.address}` : p.name;
+    const result = await answerForm({
+      sessionId: session.id,
+      answer: { field: 'destination', placeId: p.placeId, label },
+      guestsAnswered: guestsAnsweredIn(session, await listMessages(session.id)),
+      supplier: deps.supplier,
+      now: deps.now(),
+      today: deps.today,
+      // The app's pick, so it says so and invites the correction, as the first screen does.
+      readBack: copy(L).replies.searchingPicked(label),
+      locale: L,
+    });
+    if (result.ok) return { text: '', meta: { ...meta, places: places.value.length, picked: 'earlier_words' } };
   }
   await askQuestion(session.id, 'destination', whichOne(places.value.filter((p) => placeKindWord(p.types) !== null).slice(0, 5), L), L);
   return { text: '', meta: { ...meta, places: places.value.length } };
@@ -316,13 +339,45 @@ async function prioritiesInWords(session: SearchSession, stay: Stay, turn: Agent
 
 /** A message about a search that is already running. */
 async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void): Promise<TurnResult> {
-  const L = loc(deps);
   const stay = (await listStays(session.id))[0];
-  if (!stay) return { text: fixedLine('use_the_form', L), meta: { by: 'form' } };
+  if (!stay) return { text: fixedLine('use_the_form', loc(deps)), meta: { by: 'form' } };
+  const audience = audienceFor(session);
+  const top = (await listShortlist(session.id, stay.id, audience)).filter((r) => r.entry.source === 'finder');
+  // A hotel the message names further down the full list ("is number 12 refundable?",
+  // "tell me about the Ibis") joins the top picks for this turn only, with its card number:
+  // the router, the answers and the agent read it like the others (lib/router/slots.ts).
+  const mentioned = fullListMentions(turn.userMessage, top.map((r) => r.property.name), await listFullListNames(session.id, stay.id, audience), stay.destinationText);
+  const rows = [...top, ...(await listFullListRanks(session.id, stay.id, audience, mentioned))];
+  const result = await searchTurnOn(session, stay, turn, deps, emit, top, rows);
+  return withCardNumbers(result, rows);
+}
+
+/**
+ * A reply that opens or marks a full-list hotel says which card it is, so the
+ * app can page the full list to it before opening it (components/App.tsx): it
+ * may be on a page nobody has loaded.
+ */
+function withCardNumbers(result: TurnResult, rows: ShortlistRow[]): TurnResult {
+  const ui = result.meta.ui as Record<string, unknown> | undefined | null;
+  if (!ui) return result;
+  const card = (hint: unknown) => {
+    const id = (hint as { propertyId?: unknown } | null)?.propertyId;
+    const row = rows.find((r) => r.property.id === id && r.entry.reason?.kind === FULL_LIST_KIND);
+    return row ? { ...(hint as object), listedAs: row.entry.rank } : hint;
+  };
+  if (!ui.open && !ui.focus) return result;
+  return { ...result, meta: { ...result.meta, ui: { ...ui, ...(ui.open ? { open: card(ui.open) } : {}), ...(ui.focus ? { focus: card(ui.focus) } : {}) } } };
+}
+
+async function searchTurnOn(session: SearchSession, stay: Stay, turn: AgentTurn, deps: TurnDeps, emit: (e: TurnEvent) => void, top: ShortlistRow[], rows: ShortlistRow[]): Promise<TurnResult> {
+  const L = loc(deps);
   const state = toSearchState(session, stay);
-  const rows = (await listShortlist(session.id, stay.id, audienceFor(session))).filter((r) => r.entry.source === 'finder');
-  const shortlist = rows
-    .map((r) => ({ propertyId: r.property.id, offerId: r.offer?.id ?? null, name: r.property.name }));
+  const shortlist = rows.map((r) => ({
+    propertyId: r.property.id,
+    offerId: r.offer?.id ?? null,
+    name: r.property.name,
+    ...(r.entry.reason?.kind === FULL_LIST_KIND ? { listedAs: r.entry.rank } : {}),
+  }));
 
   // A plain yes or no to the question the turn before ended on: answered from its stage. No Jev, no model.
   const staged = await stagedAnswer(session, stay, state, turn, deps);
@@ -346,7 +401,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         filters: filtersLine(state.stay.filters) ?? 'none',
         currency: session.currency,
       },
-      hotels_on_screen: shortlist.map((r, i) => `${i + 1}. ${r.name}`),
+      hotels_on_screen: shortlist.map((r, i) => `${r.listedAs ?? i + 1}. ${r.name}`),
     },
   });
   const decision: RouteDecision = jev.readings
@@ -410,7 +465,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       const hint = decision.hint;
       if ('map' in hint) return { text: fixedLine(hint.map === 'hide' ? 'map_hidden' : 'map_shown', L), meta: { ...trace, intent: decision.intent, ui: { map: hint.map }, model_calls: 0 } };
       if ('all' in hint) {
-        const all = await fullList(session, stay, rows, L);
+        const all = await fullList(session, stay, top, L);
         return { text: all.text, meta: { ...trace, intent: decision.intent, ...all.meta, model_calls: 0 } };
       }
       if ('focus' in hint) {
@@ -434,7 +489,9 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
       });
       // No single honest answer in the rows (a tie for "the cheapest"): the agent's.
       if (!answer) return agentTurn({ session, stay, turn, deps, emit, rows, trace: { ...trace, decision: 'defer', deferred: 'answer_unavailable', plan: decision.plan } });
-      return { text: answerLine(answer, session.currency, L), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered: answer.kind, model_calls: 0 } };
+      // Two facts: each part's kind, so a silent listing (`not_held`) is still counted per fact (docs/jev-expansion.md §7).
+      const answered = answer.kind === 'facts' ? answer.answers.map((a) => a.kind).join('+') : answer.kind;
+      return { text: answerLine(answer, session.currency, L), meta: { ...trace, intent: decision.intent, plan: decision.plan, answered, model_calls: 0 } };
     }
     case 'near': {
       // Be close to a named place: looked up and applied in code (server/nearInWords.ts).
@@ -523,21 +580,30 @@ async function agentTurn(args: {
       recent,
       brands,
       shortlist: rows.map((r) => ({ propertyId: r.property.id })),
-      hotels: rows.map((r, i) => ({
-        position: i + 1,
-        name: r.property.name,
-        stars: r.property.stars,
-        rating: r.property.rating,
-        reviewCount: r.property.reviewCount,
-        totalMinor: r.offer?.totalMinor ?? null,
-        perNightMinor: r.offer && nights > 0 ? Math.round(r.offer.totalMinor / nights) : null,
-        payAtPropertyMinor: r.offer?.payAtPropertyMinor ?? null,
-        roomName: r.offer?.roomName ?? null,
-        boardName: r.offer?.boardName ?? null,
-        refundable: r.offer ? r.offer.refundableTag === 'RFN' : null,
-        freeCancellationUntil: (r.offer?.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
-        reason: reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0, locale: L }),
-      })),
+      hotels: rows.map((r, i) => {
+        // Read the way the router's answers read them: a silent row stays silent.
+        const facts = hotelFacts(r);
+        return {
+          position: i + 1,
+          name: r.property.name,
+          stars: r.property.stars,
+          rating: r.property.rating,
+          reviewCount: r.property.reviewCount,
+          totalMinor: r.offer?.totalMinor ?? null,
+          perNightMinor: r.offer && nights > 0 ? Math.round(r.offer.totalMinor / nights) : null,
+          payAtPropertyMinor: r.offer?.payAtPropertyMinor ?? null,
+          roomName: r.offer?.roomName ?? null,
+          boardName: r.offer?.boardName ?? null,
+          refundable: facts.refundable,
+          freeCancellationUntil: facts.freeCancellationUntil,
+          listedFacilities: facts.amenities,
+          // A full-list hotel the message named: the agent learns which card it is, so "number 12" finds it.
+          reason:
+            r.entry.reason?.kind === FULL_LIST_KIND
+              ? copy(L).reasons.inFullList(r.entry.rank)
+              : reasonText(r.entry.reason as ReasonLike | null, { currency: session.currency, hasMustHaves: state.stay.mustHaves.length > 0, locale: L }),
+        };
+      }),
     },
     {
       callModel: deps.callModel,

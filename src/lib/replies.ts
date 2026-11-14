@@ -180,6 +180,7 @@ export function outcomeLine(outcome: OutcomeForReply | null, locale: Locale = 'e
       if (outcome.rejected.filtered_out) why.push(c.whyFilteredOut(outcome.rejected.filtered_out, outcome.filterUnknown ?? 0));
       if (outcome.rejected.excluded_by_user) why.push(c.whyYouSetAside(outcome.rejected.excluded_by_user));
       if (outcome.rejected.below_public_price) why.push(c.whyMemberOnly(outcome.rejected.below_public_price));
+      if (outcome.rejected.out_of_town) why.push(c.whyOutOfTown(outcome.rejected.out_of_town));
       return `${c.noneFit(considered, why.join(', '))}${near}`;
     }
     case 'no_availability':
@@ -358,6 +359,8 @@ export function answerLine(a: Answer, currency: string, locale: Locale = 'en'): 
       return a.listed ? t.facilityListed(a.name, facilityName(a.amenity, locale)) : t.facilityNotListed(a.name, facilityName(a.amenity, locale));
     case 'not_held':
       return notHeldLine(a.name, a.ask, locale);
+    case 'facts':
+      return a.answers.map((x) => answerLine(x, currency, locale)).join(' ');
     case 'across': {
       const [yes, no] =
         a.ask.fact === 'facility'

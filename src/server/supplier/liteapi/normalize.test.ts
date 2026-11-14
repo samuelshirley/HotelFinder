@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { mergeFees, payAtHotelCharges } from '@/lib/checkout';
+
 import { fixture } from './fixtures';
 import {
   bookingStatus,
@@ -156,6 +158,40 @@ describe('rooms with different cancellation terms', () => {
 
   it('two refundable rooms are free only until the earlier deadline', () => {
     expect(mixed('RFN', 'RFN')).toMatchObject({ refundable: true, freeCancellationUntil: '2026-12-01T12:00:00.000Z' });
+  });
+});
+
+describe('two rooms of one offer: fees and cancellation charges are for both rooms (recorded 4 adults, 2 rooms)', () => {
+  const body = () => ratesResponse.parse(fixture('rates-four-adults-two-rooms'));
+  const offers = normalizeRates(body(), 0, AT).offers.filter((o) => o.supplierHotelId === 'lp76a2a' && o.rooms.length === 2);
+  const refundable = offers.find((o) => o.cancellation.refundable && o.total.amountMinor === 36754)!;
+
+  it('the city tax of each room is listed once per room, and named once when shown (bug 2026-11-14)', () => {
+    expect(refundable.fees.filter((f) => !f.included).map((f) => f.description)).toEqual(['CITY_TAX', 'CITY_TAX']);
+    const shown = payAtHotelCharges(mergeFees(refundable.fees.map((f) => ({ description: f.description, ...f.amount, included: f.included }))));
+    expect(shown).toEqual([{ description: 'CITY_TAX', amountMinor: refundable.payAtProperty.amountMinor, currency: 'EUR' }]);
+    expect(refundable.payAtProperty).toEqual({ amountMinor: 2400, currency: 'EUR' });
+  });
+
+  it('cancelling costs what both rooms cost, once per moment, not one room per line', () => {
+    // Each room: 183.77 from 2026-11-25 09:59 GMT. The offer is 367.54 for both.
+    expect(refundable.cancellation.penalties.map((p) => [p.from, p.amount.amountMinor])).toEqual([['2026-11-25T09:59:00.000Z', 36754]]);
+    expect(refundable.cancellation.freeCancellationUntil).toBe('2026-11-25T09:59:00.000Z');
+  });
+
+  it('rooms charging from different moments: each moment charges every room already charging then', () => {
+    const b = body();
+    const rates = b.data.find((h) => h.hotelId === 'lp76a2a')!.roomTypes.find((rt) => rt.offerRetailRate.amount === 367.54)!.rates;
+    const at = (cancelTime: string, amount: number) => ({ cancelTime, amount, currency: 'EUR', type: 'amount', timezone: 'GMT' });
+    rates[0].cancellationPolicies = { refundableTag: 'RFN', cancelPolicyInfos: [at('2026-12-01 12:00:00', 50), at('2026-12-08 12:00:00', 100)] };
+    rates[1].cancellationPolicies = { refundableTag: 'RFN', cancelPolicyInfos: [at('2026-12-05 12:00:00', 80)] };
+    const c = normalizeRates(b, 0, AT).offers.find((o) => o.supplierOfferId === refundable.supplierOfferId)!.cancellation;
+    expect(c.penalties.map((p) => [p.from, p.amount.amountMinor])).toEqual([
+      ['2026-12-01T12:00:00.000Z', 5000],
+      ['2026-12-05T12:00:00.000Z', 13000],
+      ['2026-12-08T12:00:00.000Z', 18000],
+    ]);
+    expect(c.freeCancellationUntil).toBe('2026-12-01T12:00:00.000Z');
   });
 });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AMENITIES } from '@/lib/amenities';
 import { haversineKm, medianPoint, nightsBetween } from './geo';
-import { CANONICAL_PRIORITIES, dominates, meetsMustHave, MIN_SHOWN, rankStay, type Candidate, type PriorityKey } from './rank';
+import { CANONICAL_PRIORITIES, CITY_BOUND_MIN_KM, cityBoundKm, dominates, meetsMustHave, MIN_SHOWN, rankStay, type Candidate, type PriorityKey } from './rank';
 
 /** Every set of priorities: none, each alone, every pair, all three. */
 const SUBSETS: PriorityKey[][] = [0, 1, 2, 3, 4, 5, 6, 7].map((mask) => CANONICAL_PRIORITIES.filter((_, i) => mask & (1 << i)));
@@ -336,5 +336,103 @@ describe('never a list of one: near-misses fill the list to MIN_SHOWN', () => {
   it('minShown is a setting: 0 turns the filling off', () => {
     const candidates = randomCandidates(mulberry32(3), 8);
     expect(rankStay({ ...base, candidates, priorities: [], priceCapMinor: 1, minShown: 0 }).nearMisses).toEqual([]);
+  });
+});
+
+describe('the city bound (docs/finder.md, "In the city")', () => {
+  // A point `km` east of 40.4168, -3.7038 (Puerta del Sol), along the parallel.
+  const east = (km: number) => ({ latitude: 40.4168, longitude: -3.7038 + km / (111.32 * Math.cos((40.4168 * Math.PI) / 180)) });
+  const hotel = (i: number, over: Partial<Candidate>): Candidate => ({
+    offerId: `o${i}`,
+    propertyId: `p${i}`,
+    name: `Hotel ${i}`,
+    totalMinor: 20000,
+    suggestedSellingMinor: null,
+    location: east(0),
+    rating: 8,
+    reviewCount: 100,
+    stars: 3,
+    amenities: [],
+    refundable: false,
+    boardName: 'Room Only',
+    ...over,
+  });
+  /** Nine central hotels, then a cheap, well-rated one `km` out. */
+  const city = (farKm: number) => [
+    ...Array.from({ length: 9 }, (_, i) => hotel(i, { location: east(((i % 3) - 1) * 0.5), totalMinor: 20000 + i * 1000 })),
+    hotel(9, { name: 'Out of town', location: east(farKm), totalMinor: 9000, rating: 9.5, reviewCount: 5000 }),
+  ];
+
+  it('is the larger of the floor and four times the median distance, in 100 m steps', () => {
+    expect(cityBoundKm([])).toBeNull();
+    expect(cityBoundKm([0, 0, 0])).toBe(CITY_BOUND_MIN_KM);
+    expect(cityBoundKm([1, 1.3, 1.5, 20])).toBe(8);
+    expect(cityBoundKm([1, 3.4, 3.4, 25])).toBe(13.6);
+    expect(cityBoundKm([3.04])).toBe(12.2);
+  });
+
+  it('a hotel past it does not fit, whatever the priorities; one inside it does', () => {
+    for (const priorities of SUBSETS) {
+      const out = rankStay({ ...base, candidates: city(12), priorities });
+      expect(out.ordered.map((r) => r.candidate.name), label(priorities)).not.toContain('Out of town');
+      expect(out.rejected.out_of_town).toBe(1);
+      const inside = rankStay({ ...base, candidates: city(7.5), priorities });
+      expect(inside.ordered.map((r) => r.candidate.name), label(priorities)).toContain('Out of town');
+      expect(inside.rejected.out_of_town).toBe(0);
+    }
+  });
+
+  it('is decided on the distance shown: 8.04 km reads 8.0 km and fits', () => {
+    const r = rankStay({ ...base, candidates: city(8.04), priorities: ['cheapest'] });
+    expect(r.shortlist[0]).toMatchObject({ candidate: { name: 'Out of town' }, km: 8 });
+  });
+
+  it('a hotel with no position is not known to be out of town', () => {
+    const r = rankStay({ ...base, candidates: [...city(12).slice(0, 9), hotel(9, { name: 'Nowhere', location: null, totalMinor: 9000 })], priorities: ['cheapest'] });
+    expect(r.shortlist[0].candidate.name).toBe('Nowhere');
+    expect(r.rejected.out_of_town).toBe(0);
+  });
+
+  it('not applied when a place is named, or a brand asked for', () => {
+    const sol = { point: east(0), label: 'Sol', from: 'place' as const };
+    expect(rankStay({ ...base, candidates: city(12), priorities: ['cheapest'], near: sol })).toMatchObject({ cityBoundKm: null, rejected: { out_of_town: 0 } });
+    const brand = city(12).map((c) => ({ ...c, chain: 'Crowne Plaza' }));
+    const r = rankStay({ ...base, candidates: brand, priorities: ['cheapest'], filters: { minStars: null, minRating: null, propertyTypes: [], chains: ['Crowne Plaza'] } });
+    expect(r).toMatchObject({ cityBoundKm: null, rejected: { out_of_town: 0 } });
+    expect(r.shortlist[0].candidate.name).toBe('Out of town');
+  });
+
+  it('an out-of-town hotel is a near miss that says how far out it is, counted once by its first miss', () => {
+    const r = rankStay({ ...base, candidates: city(12), priorities: ['cheapest'], priceCapMinor: 10_000 });
+    expect(r.shortlist).toHaveLength(1);
+    expect(r.nearMisses[0]).toMatchObject({ candidate: { name: 'Out of town' }, misses: [{ kind: 'out_of_town', km: 12, max_km: 8 }] });
+    expect(r.rejected).toMatchObject({ out_of_town: 1, over_price_cap: 8 });
+    const capped = rankStay({ ...base, candidates: city(12), priorities: ['cheapest'], priceCapMinor: 1, minShown: 10 });
+    expect(capped.rejected).toMatchObject({ out_of_town: 0, over_price_cap: 10 });
+    expect(capped.nearMisses.find((n) => n.candidate.name === 'Out of town')?.misses.map((m) => m.kind)).toEqual(['over_price_cap', 'out_of_town']);
+  });
+
+  it('dominance holds when the bound cuts: 400 random cities with suburbs, every set of priorities', () => {
+    const rand = mulberry32(20261114);
+    let cut = 0;
+    for (const priorities of SUBSETS) {
+      for (let round = 0; round < 400; round++) {
+        const candidates = randomCandidates(rand, 6 + Math.floor(rand() * 12)).map((c) => ({
+          ...c,
+          location: c.location === null ? null : east([0, 0.4, 1, 2, 6, 9, 14][Math.floor(rand() * 7)]),
+        }));
+        const r = rankStay({ ...base, candidates, priorities });
+        cut += r.rejected.out_of_town;
+        for (const row of r.ordered) expect(row.km === null || row.km <= r.cityBoundKm!).toBe(true);
+        for (let i = 0; i < r.ordered.length; i++) {
+          for (let j = i + 1; j < r.ordered.length; j++) {
+            const upper = { ...r.ordered[i].candidate, km: r.ordered[i].km };
+            const lower = { ...r.ordered[j].candidate, km: r.ordered[j].km };
+            if (dominates(lower, upper)) throw new Error(`round ${round}: ${lower.name} dominates ${upper.name} (priorities ${label(priorities)})`);
+          }
+        }
+      }
+    }
+    expect(cut).toBeGreaterThan(500); // the bound was actually exercised
   });
 });

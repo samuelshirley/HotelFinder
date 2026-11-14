@@ -56,8 +56,10 @@ const addHotelTypes = process.argv.includes('--add-hotel-types');
 const addCurrencies = process.argv.includes('--add-currencies');
 const addRoomSplits = process.argv.includes('--add-room-splits');
 const addPetDetails = process.argv.includes('--add-pet-details');
+const addFarCities = process.argv.includes('--add-far-cities');
+const addSpanishPlaces = process.argv.includes('--add-spanish-places');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes || addCurrencies || addRoomSplits || addPetDetails
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes || addCurrencies || addRoomSplits || addPetDetails || addFarCities || addSpanishPlaces
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -71,13 +73,16 @@ function redact(value) {
   return value;
 }
 
-async function capture(name, method, url, body) {
-  const started = Date.now();
-  const res = await fetch(url, {
+async function send(method, url, body) {
+  return fetch(url, {
     method,
     headers: { 'X-API-Key': key, accept: 'application/json', 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+
+/** Writes one response as received (bar the redaction) and its manifest entry. */
+async function save(name, method, url, body, res, started) {
   const text = await res.text();
   let json;
   try {
@@ -99,8 +104,14 @@ async function capture(name, method, url, body) {
     sha256: createHash('sha256').update(serialized).digest('hex'),
   };
   console.log(`${String(res.status).padEnd(4)} ${name}  ${text.length} B  ${Date.now() - started} ms`);
-  await new Promise((r) => setTimeout(r, 300)); // sandbox allows 5 requests per second
   return { status: res.status, json };
+}
+
+async function capture(name, method, url, body) {
+  const started = Date.now();
+  const saved = await save(name, method, url, body, await send(method, url, body), started);
+  await new Promise((r) => setTimeout(r, 300)); // sandbox allows 5 requests per second
+  return saved;
 }
 
 if (addNonrefundableCancel) {
@@ -206,6 +217,23 @@ if (addRoomSplits) {
   process.exit(0);
 }
 
+if (addFarCities) {
+  // Two city searches exactly as the app makes them since MAX_HOTELS became 200
+  // (server/finder.ts): the city's place id, 2 adults, the default 3% margin,
+  // one rate per hotel, up to 200 hotels. Both reach hotels 10+ km out (Madrid:
+  // Barajas, Valdebebas, Alcobendas; Lisbon: Caparica across the river), which
+  // the city bound in finder/rank.ts is tested on (docs/finder.md, "In the city").
+  const cityStay = { occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13', margin: 3, limit: 200, maxRatesPerHotel: 1, includeHotelData: true };
+  const madrid = (await capture('places-madrid', 'GET', `${DATA}/data/places?textQuery=${encodeURIComponent('Madrid')}`)).json.data ?? [];
+  const lisbon = JSON.parse(readFileSync(path.join(outDir, 'places-lisbon.json'), 'utf8')).data;
+  const locality = (places) => places.find((p) => (p.types ?? []).includes('locality'));
+  await capture('rates-city-madrid', 'POST', `${DATA}/hotels/rates`, { ...cityStay, placeId: locality(madrid).placeId });
+  await capture('rates-city-lisbon', 'POST', `${DATA}/hotels/rates`, { ...cityStay, placeId: locality(lisbon).placeId });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added places-madrid.json, rates-city-madrid.json, rates-city-lisbon.json');
+  process.exit(0);
+}
+
 if (addStaticFacts) {
   const recorded = JSON.parse(readFileSync(path.join(outDir, 'rates-city-porto.json'), 'utf8'));
   const ids = recorded.data.map((h) => h.hotelId).join(',');
@@ -270,6 +298,30 @@ if (addCurrencies) {
   await capture('rates-currency-unknown', 'POST', `${DATA}/hotels/rates`, { ...sameStay, currency: 'XQZ' });
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added currencies.json, rates-city-porto-usd.json, rates-currency-unknown.json');
+  process.exit(0);
+}
+
+if (addSpanishPlaces) {
+  // "Madrid, España, del 8 al 10 de enero…" in Spanish (bug of 2026-11-14,
+  // docs/i18n.md "The first message's place"): the place searches the brief and
+  // the retyped answer make, Madrid's details, and the supplier's answer to one
+  // request too many. Adds files; leaves the others untouched.
+  await capture('places-madrid-espana-es', 'GET', `${DATA}/data/places?textQuery=${encodeURIComponent('Madrid, España')}&language=es`);
+  const madrid = await capture('places-madrid-es', 'GET', `${DATA}/data/places?textQuery=${encodeURIComponent('Madrid')}&language=es`);
+  const city = madrid.json.data.find((p) => (p.types ?? []).includes('locality') && p.formattedAddress === 'España');
+  await capture('place-madrid', 'GET', `${DATA}/data/places/${encodeURIComponent(city.placeId)}`);
+  // The sandbox allows about 5 place searches a second per key (repeats come from its cache):
+  // the trip box's lookups as "Madrid, España, del 8 al 10 de enero" is typed, sent at once,
+  // are answered partly with 429. The first refusal is recorded.
+  const typed = 'Madrid, España, del 8 al 10 de enero';
+  const urls = Array.from({ length: typed.length - 2 }, (_, i) => `${DATA}/data/places?textQuery=${encodeURIComponent(typed.slice(0, i + 3))}&language=es`);
+  const started = Date.now();
+  const burst = await Promise.all(urls.map(async (url) => ({ url, res: await send('GET', url) })));
+  const refused = burst.find((r) => r.res.status === 429);
+  if (!refused) throw new Error('no 429 in the burst; try again');
+  await save('places-rate-limited', 'GET', refused.url, undefined, refused.res, started);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added places-madrid-espana-es.json, places-madrid-es.json, place-madrid.json, places-rate-limited.json');
   process.exit(0);
 }
 

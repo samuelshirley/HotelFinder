@@ -338,11 +338,58 @@ test.describe('results', { tag: '@ui' }, () => {
     await app.results.changeWhere().click();
     await editor.getByLabel('New place').fill('lisbon');
     await editor.getByRole('button', { name: /^Lisbon\s*Portugal · City$/ }).click();
+    // The pick is the change: the list closes at once, never sitting over the new results (Sam, 2026-11-14).
+    await expect(editor).toHaveCount(0);
     await expect(app.results.heading()).toHaveText('Lisbon, Portugal', { timeout: 90_000 });
+    // Opened again, it starts empty: no list of the last place's matches.
+    await app.results.changeWhere().click();
+    await expect(editor.getByLabel('New place')).toHaveValue('');
+    await expect(editor.getByRole('button')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(app.chat.region().getByText('Searching Lisbon, Portugal.').last()).toBeVisible();
     await app.results.waitForCards();
     await expect(app.sidebar.trip(/Lisbon, Portugal/)).toHaveAttribute('aria-current', 'true');
   });
+
+  test('a phone: Change where closes on a pick and searches there', async ({ page, app, searched }) => {
+    await openSession(page, searched.sessionId);
+    await app.results.waitForCards();
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.getByRole('tablist', { name: 'View' }).getByRole('tab', { name: /^Hotels/ }).click();
+    const editor = app.results.editor('where');
+    await app.results.changeWhere().click();
+    await editor.getByLabel('New place').fill('lisbon');
+    await editor.getByRole('button', { name: /^Lisbon\s*Portugal · City$/ }).click();
+    await expect(editor).toHaveCount(0);
+    await expect(app.results.heading()).toHaveText('Lisbon, Portugal', { timeout: 90_000 });
+    await app.results.waitForCards();
+  });
+
+  for (const size of [{ name: 'desktop', width: 1360, height: 860 }, { name: 'phone', width: 390, height: 780 }]) {
+    test(`every dropdown's arrow sits 10px in from its right edge, with room kept for it (${size.name})`, async ({ page, app, searched }) => {
+      // The browser's own arrow sat against the edge of Language and Nationality for rates (Sam, 2026-11-14).
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await openSession(page, searched.sessionId);
+      if (size.name === 'phone') await page.getByRole('tablist', { name: 'View' }).getByRole('tab', { name: /^Hotels/ }).click();
+      await app.results.waitForCards();
+      await expect(app.results.nationality()).toBeVisible();
+      const selects = await page.evaluate(() =>
+        [...document.querySelectorAll('select')]
+          .filter((s) => (s as HTMLElement).offsetParent !== null)
+          .map((s) => {
+            const c = getComputedStyle(s);
+            return { name: s.getAttribute('aria-label'), appearance: c.appearance, image: c.backgroundImage.startsWith('url("data:image/svg+xml'), position: c.backgroundPosition, right: parseFloat(c.paddingRight), left: parseFloat(c.paddingLeft) };
+          }),
+      );
+      expect(selects.map((s) => s.name)).toContain('Nationality for rates');
+      if (size.name === 'desktop') expect(selects.map((s) => s.name)).toContain('Language / Idioma');
+      for (const s of selects) {
+        expect(s, `${s.name}`).toMatchObject({ appearance: 'none', image: true, position: 'calc(100% - 10px) 50%', right: 28 });
+        // The text starts as far in from the left as the arrow sits from the right.
+        expect(s.left, `${s.name}`).toBe(10);
+      }
+    });
+  }
 
   test('What matters: three toggles and Apply, and the chat says how it is ranked', async ({ page, app, searched }) => {
     await openSession(page, searched.sessionId);

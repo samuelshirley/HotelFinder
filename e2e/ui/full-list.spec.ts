@@ -138,6 +138,9 @@ test.describe('the full list', { tag: '@ui' }, () => {
     await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled();
     await pager.getByRole('button', { name: 'Previous' }).click();
     await expect(pager).toContainText('Page 2 of 3');
+    // The label moves at once; wait for the page's rows too, or the test ends while the route above is
+    // still fetching them and the closing context disposes its response ("Response has been disposed").
+    await expect(app.results.fullList()).toContainText(`Hotels ${s.picks + 21}–${s.picks + 40} of`);
   });
 
   test('a page that does not load says so, and Try again loads it', async ({ page, app, diagnostics }) => {
@@ -153,6 +156,44 @@ test.describe('the full list', { tag: '@ui' }, () => {
     await alert.getByRole('button', { name: 'Try again' }).click();
     await expect(app.results.fullCards()).toHaveCount(Math.min(s.more, 20));
     await expect(alert).toHaveCount(0);
+  });
+
+  test('a change that searches again (the currency) keeps your place in the full list', async ({ page, app }) => {
+    // 2026-11-14: scrolled down the full list, a new currency brought the list back at about hotel 10.
+    const s = session();
+    await open(page, app, s.sessionId);
+    await app.results.showAll().click();
+    const onPage = Math.min(s.more, 20);
+    await expect(app.results.fullCards()).toHaveCount(onPage);
+    const id = (await app.results.fullCard(Math.min(onPage - 3, 12)).root.getAttribute('id'))!;
+    /** The list's own scroller, and where the hotel sits in it. */
+    const place = () =>
+      page.evaluate((id) => {
+        let view = document.getElementById('full-list')!.parentElement;
+        while (view && !/(auto|scroll)/.test(getComputedStyle(view).overflowY)) view = view.parentElement;
+        const card = document.getElementById(id);
+        return { scrollTop: Math.round(view!.scrollTop), offset: card ? Math.round(card.getBoundingClientRect().top - view!.getBoundingClientRect().top) : null };
+      }, id);
+    // A browser without scroll anchoring (Safari), so the place is the app's to keep, not Chromium's to repair.
+    await page.evaluate(() => {
+      let view = document.getElementById('full-list')!.parentElement;
+      while (view && !/(auto|scroll)/.test(getComputedStyle(view).overflowY)) view = view.parentElement;
+      view!.style.overflowAnchor = 'none';
+    });
+    await page.evaluate((id) => document.getElementById(id)!.scrollIntoView({ block: 'start' }), id);
+    const before = await place();
+    expect(before.scrollTop, 'the list is scrolled well down the full list').toBeGreaterThan(1000);
+
+    await app.results.currency().click();
+    const editor = app.results.filterEditor('currency');
+    await editor.getByLabel('Currency', { exact: true }).selectOption('GBP');
+    await editor.getByRole('button', { name: 'Apply' }).click();
+    await expect(app.results.currency()).toHaveText('Prices in GBP ✎', { timeout: 90_000 });
+    await expect(app.results.fullCard(0).total()).toContainText('£', { timeout: 60_000 });
+    await expect(app.results.fullList()).not.toHaveAttribute('aria-busy', 'true');
+    // The same hotel, while the new ranking's page still holds it, sits where it was; else the list stays where it was.
+    if ((await place()).offset !== null) await expect.poll(async () => Math.abs((await place()).offset! - before.offset!)).toBeLessThanOrEqual(2);
+    else await expect.poll(async () => (await place()).scrollTop).toBe(before.scrollTop);
   });
 
   test('Penny opens it when asked for all of them', { tag: '@ai' }, async ({ page, app }) => {

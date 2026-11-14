@@ -118,6 +118,18 @@
   .groups { grid-template-columns: 1fr 1fr; }
   .detail[data-mode='slideout'] .about { -webkit-line-clamp: 4; }
 }
+/* The panel itself, on a wide screen (below 900px it is a full-screen sheet and goes by width, as above).
+   The query above can never match it: the panel is min(720px, 60vw) and .detail is measured inside its
+   border, scrollbar and 2 × 24px padding, so the panel never had its own timeline (docs/design/hotel-detail.md). */
+@media (min-width: 901px) {
+  .detail[data-mode='slideout'] .timeline { display: flex; }
+  .detail[data-mode='slideout'] .cancelText { display: none; }
+  .detail[data-mode='slideout'] .bars { grid-template-columns: 1fr 1fr; }
+  .detail[data-mode='slideout'] .proscons { grid-template-columns: 1fr 1fr; }
+  .detail[data-mode='slideout'] .amenityGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .detail[data-mode='slideout'] .groups { grid-template-columns: 1fr 1fr; }
+  .detail[data-mode='slideout'] .about { -webkit-line-clamp: 4; }
+}
 @container (max-width: 520px) {
   .rateRows { margin-left: 0; }
   .rateRows li { grid-template-columns: 1fr auto; }

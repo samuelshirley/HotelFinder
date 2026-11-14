@@ -5,9 +5,10 @@
  *
  * The finder stores every hotel that fits as a finder row. The top picks keep
  * their reasons; the rest of the ranked order is stored under this one reason
- * kind, holding only the two facts every card shows. They are never in the
+ * kind, holding only the two facts every card shows. They are not in the
  * shortlist the chat, the answers or the agent read (`listShortlist` leaves
- * them out); they are read a page at a time.
+ * them out), except one a message names (`fullListMentions`); they are read a
+ * page at a time.
  */
 export const FULL_LIST_KIND = 'full_list' as const;
 

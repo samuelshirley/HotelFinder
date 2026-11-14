@@ -29,6 +29,7 @@ pick up from the first unfinished step.
 | 13c | A second language: Spanish. Catalogues for UI, fixed lines, answers, reasons and errors; a picker; Spanish slot extraction; the supplier asked in Spanish (`docs/i18n.md`) | built 2026-11-13; the hotel page, checkout, receipt, booking lines, reminder and sign-in emails 2026-11-14 (`bookings.locale`); `e2e/ui/spanish.spec.ts` passes against the sandbox at desktop and phone size. **Not done:** country names; supplier text with no language (review summary, room and board names). **Never run:** Jev and the agent on Spanish (live cases added) |
 | 14 | Phone audit fixes (2026-11-13): pets read from the hotel's own listing; no onboarding dead ends; sent messages never vanish; first-message dates kept; "Sign in to see price"; checkout sign-in first; phones get a Chat · Hotels · Map · Trips tab bar (`docs/design/mobile.md`) | built 2026-11-13; unit, pg and e2e at 390×780 in Chromium; **keyboard handling not yet checked on a real iPhone** |
 | 15 | Sights: "tour some museums" → Google's most popular museums or galleries, hotels ranked close to the middle of them, a day-by-day plan with Google Maps links, marks on the map (`docs/sights.md`). Change lines no longer end in "N of M hotels fit" | built 2026-11-13; unit and PGlite on recorded Google responses; Jev live 87 of 87; agent live on Sam's message; `e2e/ui/sights.spec.ts` (`@ai`, desktop and 390×780) on the sandbox. **CI does not run it** (needs Jev and a Google key) |
+| 15b | The city bound: a city searched with no place named keeps to `max(8 km, 4 × median distance)` of the middle of its results; out-of-town hotels are near misses (`docs/finder.md`, "In the city") | built 2026-11-14; unit and PGlite on recorded Madrid and Lisbon searches (200 hotels each); `e2e/ui/city-bound.spec.ts` passed on the live sandbox, desktop and 390×780. **Not checked on production data** |
 
 **Milestone reached 2026-11-11: it runs locally.** `scripts/dev.sh`, then
 http://localhost:3000.
@@ -75,6 +76,14 @@ the search → new search. `e2e/search.spec.ts`.
   Whether Haiku calls `hold_for_confirmation` and `submit_idea` when it should
   is untested: the turn tests script the model.
 - macOS: Sam ran it (2026-11-11 18:18); the form works there.
+- **Changing Where on production** (2026-11-14). On feraltravels.com
+  (`main`, PR #4) Porto → Austin through the Where chip said "The hotel search
+  did not answer" twice: a retryable supplier error (timeout, 429 or 5xx).
+  The same change works locally on `main` and on PR #5 against the sandbox
+  key, so it is the live key or the live inventory, not the code path. The
+  call's error is in the ledger (`/hotels/admin/search/<id>`); not yet read.
+  If it is the 20 s rates timeout, PR #5's 200 hotels a search makes it
+  likelier.
 
 ## Cost per search (2026-11-12, branch `admin-cost-view`)
 
@@ -87,7 +96,10 @@ floor while content calls are unpriced. All of it: `docs/usage.md`.
 
 ## Notes for whoever resumes
 
+- 2026-11-14: Spanish first message "Madrid, España, …": place lookups retry the supplier's 429; "Madrid, España" picks Madrid in España; a retyped place keeps the first message's country. `docs/i18n.md`, `docs/supplier.md` "Rate limits".
+
 - 2026-11-13 outage (migration 0005 never applied; typed searches 500): migrations now run on production builds, `/api/health`, refs on 500s, CI on PRs. `docs/deploy.md`.
+- 2026-11-14: a new currency with the full list open no longer jumps the list to about hotel 10 (`docs/finder.md`, "Keeping the place"). Verified in Chromium with scroll anchoring off; not on a real Safari. The pager e2e test is flaky in a parallel run on `main` too ("Response has been disposed").
 
 - Tests: `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc --noEmit`,
   `npx playwright test` (starts its own dev server on a fresh database; live

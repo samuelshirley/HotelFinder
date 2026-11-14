@@ -61,19 +61,49 @@ export function extractPriceCap(message: string): PriceCapSlot | null {
 
 const ORDINALS = ORDINAL_WORDS.en;
 
+const MORE_ORDINALS: Record<string, number> = { sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10 };
+
 /**
- * Which shortlisted row the user means: "the second one", "#3", "option 2", "the last one",
- * "el segundo", "la opción 3", "el último", or a hotel name.
+ * The numbers a message gives a hotel by its card, the full list's included:
+ * "number 12", "#7", "option 12", "hotel 12", "the 12th one", "the seventh hotel",
+ * "el número 12", "la opción 7", "el 12º". Never a bare number ("12 nights",
+ * "under 120"), never "no 12" ("no 12 euro fee"), never "the 15th" alone (a
+ * date), never "hotel 5" (a hotel 5 minutes away).
  */
-export function extractTarget(message: string, shortlistNames: string[]): number | null {
-  if (shortlistNames.length === 0) return null;
+function listedNumbers(message: string): number[] {
+  const found: number[] = [];
+  const add = (s: string) => found.push(Number(s));
+  for (const m of message.matchAll(/(?:#|\bnumber\s+|\boption\s+)(\d{1,3})\b/gi)) add(m[1]);
+  for (const m of message.matchAll(/\bhotel\s+(\d{2,3})\b/gi)) add(m[1]);
+  for (const m of message.matchAll(/\b(\d{1,3})(?:st|nd|rd|th)\s+(?:one|hotel|option|place)\b/gi)) add(m[1]);
+  for (const [word, n] of Object.entries(MORE_ORDINALS)) {
+    if (new RegExp(String.raw`\b${word}\s+(?:one|hotel|option|place)\b`, 'i').test(message)) found.push(n);
+  }
+  for (const m of message.matchAll(new RegExp(String.raw`${START}(?:n[uú]mero|n[º°]|opci[oó]n)\s*(\d{1,3})${END}`, 'giu'))) add(m[1]);
+  for (const m of message.matchAll(new RegExp(String.raw`${START}hotel\s+(\d{2,3})${END}`, 'giu'))) add(m[1]);
+  for (const m of message.matchAll(new RegExp(String.raw`${START}(\d{1,3})\s*[ºª](?!\s+de${END})`, 'gu'))) add(m[1]);
+  return found;
+}
+
+/**
+ * Which listed row the user means: "the second one", "#3", "option 2", "the last one",
+ * "el segundo", "la opción 3", "el último", "number 12", or a hotel name. Returns the
+ * row's 1-based index in `names`. `listed` is the number each row's card shows
+ * (default its position): a full-list row the message named sits after the top
+ * picks with its own number (`fullListMentions`), so "#12" means card 12.
+ */
+export function extractTarget(message: string, names: string[], listed: number[] = names.map((_, i) => i + 1)): number | null {
+  if (names.length === 0) return null;
+  // The top picks are the rows whose card number is their position; "the last one" is the last of them.
+  const top = listed.findIndex((n, i) => n !== i + 1);
+  const last = top === -1 ? names.length : top;
   const found = new Set<number>();
   for (const [word, n] of Object.entries(ORDINALS)) {
     if (new RegExp(String.raw`\b${word}\b`, 'i').test(message)) found.add(n);
   }
   for (const m of message.matchAll(/(?:#|\bno\.?\s*|\bnumber\s+|\boption\s+)(\d)\b/gi)) found.add(Number(m[1]));
   for (const m of message.matchAll(/\b(?:number|option)\s+(one|two|three|four|five)\b/gi)) found.add(toInt(m[1]));
-  if (/\b(last|bottom) (one|option|hotel)\b/i.test(message)) found.add(shortlistNames.length);
+  if (/\b(last|bottom) (one|option|hotel)\b/i.test(message) && last > 0) found.add(listed[last - 1]);
 
   // Spanish: "el segundo", "la 3ª", "la opción 2", "el número tres", "el último".
   for (const [word, n] of Object.entries(ORDINAL_WORDS.es)) {
@@ -81,25 +111,48 @@ export function extractTarget(message: string, shortlistNames: string[]): number
   }
   for (const m of message.matchAll(new RegExp(String.raw`${START}(?:n[uú]mero|n[º°]|opci[oó]n)\s*(\d)${END}`, 'giu'))) found.add(Number(m[1]));
   for (const m of message.matchAll(new RegExp(String.raw`${START}(?:n[uú]mero|opci[oó]n)\s+(uno|una|dos|tres|cuatro|cinco)${END}`, 'giu'))) found.add(toIntEs(m[1]));
-  if (es(String.raw`${START}([uú]ltim[oa]|el\s+de\s+abajo|la\s+de\s+abajo)${END}`).test(message)) found.add(shortlistNames.length);
+  if (es(String.raw`${START}([uú]ltim[oa]|el\s+de\s+abajo|la\s+de\s+abajo)${END}`).test(message) && last > 0) found.add(listed[last - 1]);
+  for (const n of listedNumbers(message)) found.add(n);
 
-  // A hotel named in the message: a word that belongs to exactly one shortlisted
+  // A hotel named in the message: a word that belongs to exactly one listed
   // name ("the Carris", "the palacio"). Two hotels named is ambiguous.
   const said = new Set(normalise(message).split(/[^a-z0-9]+/));
-  const named = shortlistNames
-    .map((name, i) => ({ i, words: distinctiveWords(name, shortlistNames) }))
+  const named = names
+    .map((name, i) => ({ i, words: distinctiveWords(name, names) }))
     .filter(({ words }) => words.some((w) => said.has(w)));
-  if (named.length === 1) found.add(named[0].i + 1);
+  if (named.length === 1) found.add(listed[named[0].i]);
 
   if (found.size !== 1) return null;
   const [n] = [...found];
-  return n >= 1 && n <= shortlistNames.length ? n : null;
+  const index = listed.indexOf(n);
+  return index === -1 ? null : index + 1;
+}
+
+/** The most full-list hotels one message may bring into view: a comparison, never a page. */
+export const FULL_LIST_MENTIONS_MAX = 3;
+
+/**
+ * The full-list hotels a message is about, by the number on their card or a word
+ * of their name that no other listed hotel shares (top picks included), as the
+ * card numbers (ranks) of `full`. A word of the destination never names a hotel
+ * ("cheaper ones in Austin" names no "Austin Marriott"). More than
+ * FULL_LIST_MENTIONS_MAX named: none, as too vague to be about particular hotels.
+ */
+export function fullListMentions(message: string, topNames: string[], full: Array<{ name: string; rank: number }>, destination = ''): number[] {
+  if (full.length === 0) return [];
+  const ranks = new Set(full.map((r) => r.rank));
+  const picked = new Set(listedNumbers(message).filter((n) => ranks.has(n)));
+  const place = new Set(normalise(destination).split(/[^a-z0-9]+/));
+  const all = [...topNames, ...full.map((r) => r.name)];
+  const said = new Set(normalise(message).split(/[^a-z0-9]+/).filter((w) => !place.has(w)));
+  for (const r of full) if (distinctiveWords(r.name, all).some((w) => said.has(w))) picked.add(r.rank);
+  return picked.size > FULL_LIST_MENTIONS_MAX ? [] : [...picked].sort((a, b) => a - b);
 }
 
 const normalise = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const GENERIC = new Set(['hotel', 'hotels', 'porto', 'the', 'by', 'and', 'spa', 'suites', 'centro', 'city', 'center', 'centre', 'resort', 'inn']);
 
-/** The words of a name that no other shortlisted name shares. */
+/** The words of a name that no other listed name shares. */
 function distinctiveWords(name: string, all: string[]): string[] {
   const words = (n: string) => normalise(n).split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !GENERIC.has(w));
   const others = new Set(all.filter((n) => n !== name).flatMap(words));

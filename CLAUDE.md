@@ -57,7 +57,7 @@ npm run typecheck        # tsc --noEmit
 npx playwright test      # real browser, own dev server, live LiteAPI sandbox
 npm run db:generate      # after editing schema.ts; a test fails if you forget
 npm run db:migrate       # apply drizzle/ to DATABASE_URL (production builds do it: docs/deploy.md)
-scripts/jev-live.sh      # ask the real Jev 87 messages (87 of 87 on 2026-11-13)
+scripts/jev-live.sh      # ask the real Jev 89 messages (89 of 89 on 2026-11-14)
 ```
 
 ## Layout
@@ -190,14 +190,15 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 ### E2E specs (`e2e/`)
 
 `ui/` (first-screen, onboarding, results, detail, map, chat, booking,
-checkout-extras, rooms, freeze, saved, filters, full-list, spanish, admin,
-errors, sights (`@ai`: needs Jev and the Google key, not run in CI)), `api/` (public, auth, session, turn, property, booking, and the
+checkout-extras, rooms, freeze, saved, filters, full-list, city-bound, spanish, admin,
+errors, sights (`@ai`: needs Jev and the Google key, not run in CI), full-list-chat (`@ai`: needs Jev)), `api/` (public, auth, session, turn, property, booking, and the
 routes PR #4 added), `content/pages`, smoke (`@smoke`; also run against each
 deployment with `E2E_BASE_URL`). Guards: `guards/controls.spec.ts` (every
 control is claimed by a test) and `api/coverage.spec.ts` (every route and
 method has a describe). Tests assert intended behaviour, never today's output.
 CI: `.github/workflows/ci.yml` on every PR, 3 shards merged into one report;
 `e2e-author.yml` (Claude writes a PR's missing e2e tests, pushes them, comments: `docs/testing.md`);
+`update-prs.yml` (a push merges the base into its open PRs and starts CI: `docs/testing.md`);
 `preview.yml` (a preview per PR); `deployed.yml` after every Vercel deploy:
 `docs/testing.md`, `docs/deploy.md`.
 
