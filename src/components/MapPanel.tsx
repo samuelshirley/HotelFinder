@@ -55,7 +55,12 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
   const markers = useRef(new Map<string, { marker: MlMarker; el: HTMLButtonElement; rank: number | null; point: MapPoint; fullWidth: number }>());
   const extras = useRef<MlMarker[]>([]);
   const userMoved = useRef(false);
-  /** True while a camera move of our own is under way: every other move is the user's. */
+  /**
+   * True while a camera move of our own is under way: every other move is the user's. Every move of ours
+   * calls stop() before setting it: starting a move ends the one in flight, and that end (moveend) clears
+   * the flag, so the new move's start would be taken for the user's. Seen 14 Nov 2026 on a phone: the
+   * refit when the Map tab was shown ended the zero-size frame's move and offered Recentre at once.
+   */
   const ours = useRef(false);
   const lastFit = useRef<{ key: string; anchorKey: string; centre: MapPoint | null }>({ key: '', anchorKey: '', centre: null });
   const handlers = useRef({ onHover, onSelect });
@@ -311,6 +316,7 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
         userMoved.current = false;
         setMoved(false);
         setAway(false);
+        m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
         ours.current = true;
         m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
         if (!m.isMoving()) ours.current = false; // already framed: no move, so no end to wait for
@@ -337,6 +343,7 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
     const at = m.project([pin.longitude, pin.latitude]);
     const { clientWidth: w, clientHeight: h } = m.getContainer();
     if (at.x < 48 || at.y < 48 || at.x > w - 48 || at.y > h - 48) {
+      m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
       ours.current = true;
       m.easeTo({ center: [pin.longitude, pin.latitude], duration: reducedMotion() ? 0 : 400 });
       if (!m.isMoving()) ours.current = false;
@@ -353,6 +360,7 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
     if (!m || !ml || points.length === 0) return;
     const bounds = new ml.LngLatBounds();
     for (const p of points) bounds.extend([p.longitude, p.latitude]);
+    m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
     ours.current = true;
     m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: 0 });
     if (!m.isMoving()) ours.current = false;
@@ -369,6 +377,7 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
     setMoved(false);
     setAway(false);
     setPicked(null);
+    m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
     ours.current = true;
     m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
     if (!m.isMoving()) ours.current = false;
