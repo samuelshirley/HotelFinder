@@ -247,11 +247,14 @@ test.describe('hotel detail, slide-out', { tag: '@ui' }, () => {
     const select = section.getByRole('button', { name: 'Select', exact: true }).first();
     const price = (await select.locator('xpath=..').locator('strong').textContent())!.trim();
     const board = (await select.locator('xpath=..').locator('span').first().textContent())!.trim();
+    // The row itself, marked: a hotel can list two identical rates (YOUROPO - Cosy, 2026-11-14: two
+    // "Room Only · €251.57"), so its price and board do not say which one was pressed. React keeps the row.
+    await select.locator('xpath=..').evaluate((li) => li.setAttribute('data-e2e-pressed', ''));
     await select.click();
     await expect(app.detail.bookIn(app.detail.price())).toHaveText(`Book · ${price}`);
     await expect(app.detail.price()).toContainText(board);
     // The chosen rate now says Selected where its button was, and so does its room.
-    const chosen = section.getByRole('listitem').filter({ has: page.locator('strong', { hasText: price }) }).filter({ hasText: board }).last();
+    const chosen = section.locator('li[data-e2e-pressed]');
     await expect(chosen.getByText('Selected')).toBeVisible();
     await expect(other).toContainText('Selected');
     await other.click();
