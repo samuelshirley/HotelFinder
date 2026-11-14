@@ -84,6 +84,28 @@ export type RankInput = {
 export const MIN_SHOWN = 5;
 
 /**
+ * A city searched with nothing named to be close to: a hotel farther than
+ * this from the middle of the results is not in the city, and does not fit
+ * (docs/finder.md, "In the city"). The bound is the larger of a floor and a
+ * multiple of the median hotel's distance, so a spread-out city (London,
+ * Berlin) keeps its outer districts while a compact one (Lisbon, Porto) does
+ * not reach across the river or out to the airport. Measured on the sandbox,
+ * 2026-11-14, 200 hotels a city: Madrid's median hotel is 1.3 km from the
+ * middle, Lisbon's 1.1, London's 3.4.
+ */
+export const CITY_BOUND_MIN_KM = 8;
+export const CITY_BOUND_SPREAD = 4;
+
+/** The city bound for these distances (km from the middle of the results), in the 100 m steps the user is shown. null = nothing located. */
+export function cityBoundKm(distancesKm: readonly number[]): number | null {
+  if (distancesKm.length === 0) return null;
+  const sorted = [...distancesKm].sort((x, y) => x - y);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return Math.max(CITY_BOUND_MIN_KM, round1(CITY_BOUND_SPREAD * median));
+}
+
+/**
  * One constraint a near-miss fails. `member_price` carries no number: that
  * price may not be shown to an anonymous visitor in any form.
  */
@@ -96,7 +118,9 @@ export type Miss =
   | { kind: 'below_stars'; min: number; stars: number | null }
   | { kind: 'below_rating'; min: number; rating: number | null }
   | { kind: 'not_property_type'; wanted: PropertyType[]; listed: ListedPropertyType | null }
-  | { kind: 'not_chain'; wanted: string[]; listed: string | null };
+  | { kind: 'not_chain'; wanted: string[]; listed: string | null }
+  /** A city search with nothing named: farther than `max_km` from the middle of the results (CITY_BOUND_MIN_KM). */
+  | { kind: 'out_of_town'; km: number; max_km: number };
 
 const FILTER_MISSES: ReadonlyArray<Miss['kind']> = ['below_stars', 'below_rating', 'not_property_type', 'not_chain'];
 
@@ -127,7 +151,7 @@ export type NearMiss = {
   perNightMinor: number;
 };
 
-export type RejectionReason = 'over_price_cap' | 'missing_must_have' | 'filtered_out' | 'below_public_price' | 'excluded_by_user';
+export type RejectionReason = 'over_price_cap' | 'missing_must_have' | 'filtered_out' | 'below_public_price' | 'excluded_by_user' | 'out_of_town';
 
 export type Reason =
   | { kind: 'cheapest_meeting_all_musts' }
@@ -171,6 +195,8 @@ export type RankResult = {
   filterUnknown: number;
   distanceFrom: DistanceFrom | null;
   distanceLabel: string | null;
+  /** The city bound applied, in km from the middle of the results; null when none was (a place named, a brand asked for, nothing located). */
+  cityBoundKm: number | null;
 };
 
 const BREAKFAST = /breakfast|half board|full board|all inclusive/i;
@@ -328,6 +354,7 @@ export function rankStay(input: RankInput): RankResult {
     filtered_out: 0,
     below_public_price: 0,
     excluded_by_user: 0,
+    out_of_town: 0,
   };
   let uncheckable = 0;
   let filterUnknown = 0;
@@ -341,6 +368,11 @@ export function rankStay(input: RankInput): RankResult {
   const distanceFrom: DistanceFrom | null = input.near ? input.near.from : centre ? 'search_centre' : null;
   const distanceLabel = input.near?.label ?? null;
   const selected = canonicalPriorities(input.priorities);
+  // A city with nothing named to be close to: the hotels must be in it. Not
+  // when the user named a place (the search is a radius around it already) or
+  // asked for a brand (those hotels are what they asked for, wherever they are).
+  const cityBound =
+    !input.near && centre && filters.chains.length === 0 ? cityBoundKm(located.map((p) => haversineKm(centre, p))) : null;
 
   const eligible: Scored[] = [];
   const missed: Array<Scored & { misses: Miss[] }> = [];
@@ -369,6 +401,8 @@ export function rankStay(input: RankInput): RankResult {
     // number the user is shown. Ranking on the exact distance put a dearer,
     // worse-rated hotel first for being 20 m closer while both read "0.5 km".
     const scored = { c, km: centre && c.location ? round1(haversineKm(centre, c.location)) : null, perNightMinor };
+    // Out of town is decided on that same shown number. A hotel with no position is not known to be out.
+    if (cityBound !== null && scored.km !== null && scored.km > cityBound) misses.push({ kind: 'out_of_town', km: scored.km, max_km: cityBound });
     if (misses.length === 0) {
       eligible.push(scored);
       continue;
@@ -378,6 +412,7 @@ export function rankStay(input: RankInput): RankResult {
     if (first === 'member_price') rejected.below_public_price += 1;
     else if (first === 'over_price_cap') rejected.over_price_cap += 1;
     else if (FILTER_MISSES.includes(first)) rejected.filtered_out += 1;
+    else if (first === 'out_of_town') rejected.out_of_town += 1;
     else {
       rejected.missing_must_have += 1;
       if (misses[0].kind === 'missing_must_have' && misses[0].unknown.length > 0) uncheckable += 1;
@@ -423,6 +458,7 @@ export function rankStay(input: RankInput): RankResult {
     filterUnknown,
     distanceFrom,
     distanceLabel: distanceFrom === 'search_centre' ? null : distanceLabel,
+    cityBoundKm: cityBound,
   };
 }
 

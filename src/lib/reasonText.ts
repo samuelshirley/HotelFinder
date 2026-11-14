@@ -71,7 +71,7 @@ export function reasonText(reason: ReasonLike | null, ctx: { currency: string; h
 export function missText(misses: unknown, currency: string, locale: Locale = 'en'): string {
   const t = copy(locale).reasons;
   const parts = (Array.isArray(misses) ? misses : []).flatMap((m): string[] => {
-    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown; min?: unknown; stars?: unknown; rating?: unknown; wanted?: unknown; listed?: unknown };
+    const miss = m as { kind?: unknown; over_by_minor?: unknown; must?: unknown; unknown?: unknown; min?: unknown; stars?: unknown; rating?: unknown; wanted?: unknown; listed?: unknown; km?: unknown; max_km?: unknown };
     switch (miss.kind) {
       case 'over_price_cap': {
         const over = num(miss.over_by_minor);
@@ -103,6 +103,12 @@ export function missText(misses: unknown, currency: string, locale: Locale = 'en
       case 'not_chain': {
         const listed = typeof miss.listed === 'string' && miss.listed ? miss.listed : null;
         return [listed === null ? t.noBrand : t.itIs(listed)];
+      }
+      // The city bound (finder/rank.ts CITY_BOUND_MIN_KM): both numbers are the finder's.
+      case 'out_of_town': {
+        const km = num(miss.km);
+        const max = num(miss.max_km);
+        return km === null || max === null ? [] : [t.outOfTown(formatKm(km, locale), formatKm(max, locale))];
       }
       default:
         return [];

@@ -71,13 +71,31 @@ const ORACLE: Record<string, (h: RawHotel) => boolean> = {
 };
 
 function eligibleFor(persona: Persona, w: typeof MEMBER): Candidate[] {
+  const outOfTown = cityOracle(persona, w);
   return w.candidates.filter((c) => {
     const raw = w.raw.get(c.propertyId)!;
     if (!persona.mustHaves.every((m) => ORACLE[m](raw))) return false;
     if (persona.capPerNightMinor !== null && Math.ceil(c.totalMinor / NIGHTS) > persona.capPerNightMinor) return false;
     if (persona.audience === 'public' && c.suggestedSellingMinor !== null && c.totalMinor < c.suggestedSellingMinor) return false;
+    if (outOfTown(c)) return false;
     return true;
   });
+}
+
+/**
+ * The city rule (docs/finder.md, "In the city"), written here from the raw
+ * points: a city searched with no place named keeps to the larger of 8 km and
+ * four times the median hotel's distance from the middle of the results, on
+ * the 100 m steps shown. A named place or a radius search has no such bound.
+ */
+function cityOracle(persona: Persona, w: typeof MEMBER): (c: Candidate) => boolean {
+  if (targetFor(persona)) return () => false;
+  const middle = pointFor(persona);
+  const exact = w.candidates.flatMap((c) => (c.location ? [haversineKm(middle, c.location)] : [])).sort((a, b) => a - b);
+  const m = Math.floor(exact.length / 2);
+  const median = exact.length % 2 ? exact[m] : (exact[m - 1] + exact[m]) / 2;
+  const bound = Math.max(8, Math.round(40 * median) / 10);
+  return (c) => c.location !== null && Math.round(haversineKm(middle, c.location) * 10) / 10 > bound;
 }
 
 /** As planSearch decides it: a named place, else the airport's point, else (a city) the middle of the results. */
@@ -280,7 +298,7 @@ describe('the picks a person would recognise as right', () => {
   it('impossible budget: nothing, and it says why', () => {
     const { result } = pick('impossible-budget');
     expect(result.shortlist).toEqual([]);
-    expect(result.rejected).toEqual({ over_price_cap: 20, missing_must_have: 0, filtered_out: 0, below_public_price: 0, excluded_by_user: 0 });
+    expect(result.rejected).toEqual({ over_price_cap: 20, missing_must_have: 0, filtered_out: 0, below_public_price: 0, excluded_by_user: 0, out_of_town: 0 });
   });
 
   it('dog and flexible: no hotel that takes dogs is refundable on these dates', () => {
@@ -299,6 +317,16 @@ describe('the picks a person would recognise as right', () => {
     }
     expect(w.candidates.filter((c) => c.name === 'Vincci Porto')[0].totalMinor).toBeLessThan(18269);
     expect(result.ordered.some((r) => r.candidate.name === 'Vincci Porto')).toBe(false);
+  });
+
+  it('the city bound cuts nothing in the recorded Porto search: its 20 hotels are all central', () => {
+    for (const id of ['backpacker', 'undecided', 'late-flight', 'anonymous-browser']) {
+      const { result } = pick(id);
+      expect(result.cityBoundKm, id).toBe(8);
+      expect(result.rejected.out_of_town, id).toBe(0);
+    }
+    expect(pick('riverside-worker').result.cityBoundKm).toBeNull();
+    expect(pick('airport-cheap').result.cityBoundKm).toBeNull();
   });
 
   it('undecided: a balanced pick, labelled as such, measured from the middle of the results', () => {

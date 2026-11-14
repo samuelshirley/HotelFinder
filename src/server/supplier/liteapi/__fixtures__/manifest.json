@@ -1370,6 +1370,66 @@
       "bytes": 55338,
       "redactedFields": [],
       "sha256": "2a429adfa2d908c5d01eb33851c44da653054da78894b8552af735d005c6fa58"
+    },
+    "places-madrid.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/places?textQuery=Madrid",
+      "request": null,
+      "status": 200,
+      "latencyMs": 83,
+      "bytes": 727,
+      "redactedFields": [],
+      "sha256": "5be95f85d3f91d4c30796948a02fca0d43fabd6a435b245499a92798750b36b2"
+    },
+    "rates-city-madrid.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "margin": 3,
+        "limit": 200,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "placeId": "ChIJgTwKgJcpQg0RaSKMYcHeNsQ"
+      },
+      "status": 200,
+      "latencyMs": 5643,
+      "bytes": 602006,
+      "redactedFields": [],
+      "sha256": "f4952b0562b892705d233ec68608e3b6c8ca73d39c4c92875bf1130266460ec2"
+    },
+    "rates-city-lisbon.json": {
+      "method": "POST",
+      "url": "https://api.liteapi.travel/v3.0/hotels/rates",
+      "request": {
+        "occupancies": [
+          {
+            "adults": 2
+          }
+        ],
+        "currency": "EUR",
+        "guestNationality": "ES",
+        "checkin": "2026-12-11",
+        "checkout": "2026-12-13",
+        "margin": 3,
+        "limit": 200,
+        "maxRatesPerHotel": 1,
+        "includeHotelData": true,
+        "placeId": "ChIJO_PkYRozGQ0R0DaQ5L3rAAQ"
+      },
+      "status": 200,
+      "latencyMs": 5112,
+      "bytes": 645674,
+      "redactedFields": [],
+      "sha256": "255c29e0367e59857b020bdd73a7abcd3a15c0a1bd4fe4c15daa5f19554b0af2"
     }
   }
 }

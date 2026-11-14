@@ -178,6 +178,7 @@ export function outcomeLine(outcome: OutcomeForReply | null, locale: Locale = 'e
       if (outcome.rejected.filtered_out) why.push(c.whyFilteredOut(outcome.rejected.filtered_out, outcome.filterUnknown ?? 0));
       if (outcome.rejected.excluded_by_user) why.push(c.whyYouSetAside(outcome.rejected.excluded_by_user));
       if (outcome.rejected.below_public_price) why.push(c.whyMemberOnly(outcome.rejected.below_public_price));
+      if (outcome.rejected.out_of_town) why.push(c.whyOutOfTown(outcome.rejected.out_of_town));
       return `${c.noneFit(considered, why.join(', '))}${near}`;
     }
     case 'no_availability':
