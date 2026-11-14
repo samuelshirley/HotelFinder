@@ -187,7 +187,7 @@ which would point dev at Neon. The Neon URL lives in `.env.neon`.
 ### E2E specs (`e2e/`)
 
 `ui/` (first-screen, onboarding, results, detail, map, chat, booking,
-checkout-extras, rooms, freeze, saved, filters, full-list, spanish, admin,
+checkout-extras, rooms, freeze, saved, filters, full-list, city-bound, spanish, admin,
 errors, sights (`@ai`: needs Jev and the Google key, not run in CI)), `api/` (public, auth, session, turn, property, booking, and the
 routes PR #4 added), `content/pages`, smoke (`@smoke`; also run against each
 deployment with `E2E_BASE_URL`). Guards: `guards/controls.spec.ts` (every

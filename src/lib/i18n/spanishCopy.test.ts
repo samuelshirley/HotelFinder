@@ -94,6 +94,7 @@ describe('Spanish lines', () => {
     expect(roomsShown(null, 'es')).toBe('Mejor precio');
     expect(formatGuests(4, [], null, 'es')).toBe('4 adultos');
     expect(missText([{ kind: 'below_stars', stars: 3 }, { kind: 'not_property_type', listed: 'hostel', wanted: ['hotel'] }], 'EUR', 'es')).toBe('Le falta: 3 estrellas; es un albergue');
+    expect(missText([{ kind: 'out_of_town', km: 10.7, max_km: 8 }], 'EUR', 'es')).toBe('Le falta: fuera de la ciudad, a 10,7 km del centro de los resultados (una búsqueda por ciudad llega hasta 8,0 km)');
     expect(outcomeLine({ kind: 'ok', shortlisted: 0, eligible: 0, rejected: { filtered_out: 6 }, filterUnknown: 2, uncheckable: 0, amenityFactsMissing: false }, 'es')).toBe(
       'Ninguno de los 6 hoteles encaja: 6 no pasan un filtro (de 2 el anuncio no lo dice).',
     );

@@ -14,7 +14,8 @@ with a machine-readable reason`. No model is involved at any point.
 - **One candidate per hotel**: its cheapest live offer.
 - **Hard constraints**: the per-night cap (whole party, rounded up), every
   must-have, the user's exclusions, and for an anonymous visitor no price
-  under the hotel's suggested public price.
+  under the hotel's suggested public price. For a city searched with no place
+  named, the city bound ("In the city", below).
 - **Must-haves are only what the supplier can answer structurally**
   (`lib/amenities.ts`, 12 amenities from facility ids, plus free cancellation
   and breakfast from the offer). Amenities unknown for a hotel never satisfy a
@@ -192,9 +193,10 @@ tests in `test/pg/`, `e2e/full-list.spec.ts`. Mutation checks: 13 for the server
 and router, all caught (one only after the agent test gained a change queued
 with `show_all_hotels`).
 
-The supplier is asked for 30 hotels (`MAX_HOTELS` in `server/finder.ts`),
-so the list is one page. 200 was tried on 2026-11-13 and backed out: the
-measurements and the reason are on the constant.
+The supplier is asked for up to 200 hotels (`MAX_HOTELS` in
+`server/finder.ts`; 30 until the public-price change made it safe, measured on
+the constant), so the list runs to several pages, and a city's pool reaches its
+suburbs ("In the city", below).
 
 ## Room splits (2026-11-13)
 
@@ -249,3 +251,85 @@ public price) is the fix; not built. The e2e spec signs in for that reason.
 Mutation checks: 18, 17 caught after one test was added (checkout keeping the
 card's name). The survivor: the finder ignoring pay-at-hotel charges, which
 no recording can reach (above); `rooms.test.ts` catches it in the pure function.
+
+## In the city (2026-11-14)
+
+Reported on the live site: "cheap and well rated" in Madrid, no place named,
+put Valdebebas and Alcobendas (11–14 km out) in the top five; in Lisbon, Crowne
+Plaza Caparica, 10.6 km out across the river. Reproduced on two searches
+recorded the way the app makes them (`rates-city-madrid`, `rates-city-lisbon`:
+place id, 200 hotels, `--add-far-cities`): Madrid's top five held INNSiDE
+Valdebebas (10.9 km) first and Hampton Alcobendas (14.3 km) fifth; Lisbon's held
+the Crowne Plaza second; "cheapest" alone in Madrid was all airport, Coslada and
+San Sebastián de los Reyes. Nothing in the ranking was wrong: distance is not a
+metric of cheapest + nicest, and with 200 hotels the place-id search reaches
+the suburbs.
+
+**The rule**: when distance is measured from the middle of the results (a
+city, no place named, no sights), a hotel farther from that middle than the
+**city bound** does not fit. The bound is `max(8 km, 4 × the median hotel's
+distance)` over every hotel the search returned (`CITY_BOUND_MIN_KM`,
+`CITY_BOUND_SPREAD`, `cityBoundKm` in `finder/rank.ts`), on the 100 m steps the
+card shows.
+
+Measured on the sandbox the same day, 200 hotels a city, 11–13 Dec:
+
+| City | Median hotel | Bound | Kept at the edge | Cut |
+|---|---|---|---|---|
+| Madrid | 1.3 km | 8 km | Mirasierra 7.2 | Feria 8.2, Barajas/airport 9.4–12.8, Valdebebas 10.9, Alcobendas 13.8–14.2, S. S. de los Reyes 16.5 |
+| Lisbon | 1.1 km | 8 km | Oriente 6.0–6.6, airport 7.6 | MS Aparthotel 8.9, Caparica 10.7–11.9, Santa Iria 14.1 |
+| Porto | 0.9 km | 8 km | Foz 6.2, Matosinhos 7.1–7.7 | Exponor 8.3, Maia 9.7, airport 10.3–11.0 |
+| Barcelona | 1.3 km | 8 km | Cornellà 7.8 | Badalona 8.1, El Prat/airport 8.2–12.1 |
+| Paris | 2.2 km | 8.8 km | La Défense 7.3 | Orly 15.2 |
+| London | 3.4 km | 13.6 km | Wembley 12.1, ExCeL 10.4–11.8 | Croydon 14.7, Heathrow 16.8–22.6, Watford 25 |
+| Berlin | 3.1 km | 12.4 km | Spandau 12.1 | Adlershof 13.3, BER 15.1–18.3, Potsdam 25 |
+| New York | 1.3 km | 8 km | Downtown Brooklyn 6.2–7.1 | Red Hook 8.1, LaGuardia, Flushing, JFK, Newark, Yonkers |
+
+A fixed 8 km alone would have cut 32 of London's 180 hotels (Canary Wharf's
+edge, Greenwich, Stratford) and 24 of Berlin's; the multiple of the median lets
+a spread-out city keep its districts while a compact one stops at the river.
+
+- **Why a hard constraint, not a weight.** Ranking stays as it was: one
+  priority lexicographic, two or three an equal-weight sum of percentiles, none
+  the balanced score. The bound only decides what fits, before ordering, so the
+  dominance property holds unchanged (a dominating hotel is no farther, so it
+  is never out when the other is in), and the order is the same for any
+  priorities; changing priorities never changes how many hotels fit.
+- **Why in `rankStay`, not at fetch time.** A radius search around the city's
+  map point was the other way. Rejected: the map point is not the middle
+  (Porto's is 1.8–2.3 km off, `searchPlan.ts`), one radius does not fit both
+  Lisbon and London, and hotels dropped by the supplier could never be shown as
+  a near miss or counted.
+- **Not applied** when the user named a place or planned sights (that search
+  is already a radius around it), when a brand is asked for (the hotels of that
+  brand are what was asked for, wherever they are: Crowne Plaza in Lisbon is
+  Caparica), or to a hotel with no position (not known to be out).
+- **Near misses**: `out_of_town` is a miss like the others, with the hotel's
+  distance and the bound (`{ kind: 'out_of_town', km, max_km }`), counted as
+  `rejected.out_of_town`. When fewer than five fit (a tight cap), the cheapest
+  out-of-town hotels under the cap fill the list under the divider, saying
+  "out of town, 9.4 km from the middle of the results (a city search keeps to
+  8.0 km)". When none fit, the chat line says how many were out of town. The
+  far hotels are still fetched and stored, so the count is honest.
+- **Personas**: the oracle gained the rule, written from the raw points. It
+  cuts none of the 20 recorded Porto hotels (all within 3 km of the middle), so no persona's
+  expected pick changed; a test pins that.
+
+Tests: `finder/cityBound.test.ts` (both recordings, every set of priorities,
+against an oracle from the raw points; near misses under a cap; the
+exemptions), `finder/rank.test.ts` (the bound's arithmetic, the shown-number
+edge, unknown positions, 400 random cities with suburbs for dominance),
+`test/pg/finder.test.ts` (Madrid signed in and out, Lisbon, the near-miss rows
+as stored), copy in English and Spanish, `e2e/ui/city-bound.spec.ts` (Madrid on
+the live sandbox, desktop and 390×780). All of these failed before the change.
+
+Mutation checks: 12, all caught (bound never applied; applied with a place
+named; applied with a brand; exact distance instead of the shown one; no floor;
+no spread; `out_of_town` miscounted as a must-have; a hotel with no position
+counted as out; mean instead of median; `>=` for `>`; the card's words; the
+chat's words).
+
+Open for Sam: whether a brand should be exempt (an NH filter in Madrid would
+again admit an airport NH, though none is in today's list); whether the floor
+should be a setting like the margin; airport hotels in a city search are now
+cut, so "near Madrid airport" has to be named (it is then a radius search).

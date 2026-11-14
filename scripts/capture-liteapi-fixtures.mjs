@@ -56,8 +56,9 @@ const addHotelTypes = process.argv.includes('--add-hotel-types');
 const addCurrencies = process.argv.includes('--add-currencies');
 const addRoomSplits = process.argv.includes('--add-room-splits');
 const addPetDetails = process.argv.includes('--add-pet-details');
+const addFarCities = process.argv.includes('--add-far-cities');
 const manifestPath = path.join(outDir, 'manifest.json');
-const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes || addCurrencies || addRoomSplits || addPetDetails
+const manifest = addStaticFacts || addPublicRates || addPlaces || addCountries || addRibeiraDetails || addNonrefundableCancel || addCheckoutExtras || addHotelTypes || addCurrencies || addRoomSplits || addPetDetails || addFarCities
   ? JSON.parse(readFileSync(manifestPath, 'utf8'))
   : { capturedAt: new Date().toISOString(), note: 'LiteAPI sandbox. Do not edit fixture files by hand.', files: {} };
 
@@ -203,6 +204,23 @@ if (addRoomSplits) {
   }
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log('added room-split fixtures');
+  process.exit(0);
+}
+
+if (addFarCities) {
+  // Two city searches exactly as the app makes them since MAX_HOTELS became 200
+  // (server/finder.ts): the city's place id, 2 adults, the default 3% margin,
+  // one rate per hotel, up to 200 hotels. Both reach hotels 10+ km out (Madrid:
+  // Barajas, Valdebebas, Alcobendas; Lisbon: Caparica across the river), which
+  // the city bound in finder/rank.ts is tested on (docs/finder.md, "In the city").
+  const cityStay = { occupancies: [{ adults: 2 }], currency: 'EUR', guestNationality: 'ES', checkin: '2026-12-11', checkout: '2026-12-13', margin: 3, limit: 200, maxRatesPerHotel: 1, includeHotelData: true };
+  const madrid = (await capture('places-madrid', 'GET', `${DATA}/data/places?textQuery=${encodeURIComponent('Madrid')}`)).json.data ?? [];
+  const lisbon = JSON.parse(readFileSync(path.join(outDir, 'places-lisbon.json'), 'utf8')).data;
+  const locality = (places) => places.find((p) => (p.types ?? []).includes('locality'));
+  await capture('rates-city-madrid', 'POST', `${DATA}/hotels/rates`, { ...cityStay, placeId: locality(madrid).placeId });
+  await capture('rates-city-lisbon', 'POST', `${DATA}/hotels/rates`, { ...cityStay, placeId: locality(lisbon).placeId });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log('added places-madrid.json, rates-city-madrid.json, rates-city-lisbon.json');
   process.exit(0);
 }
 
