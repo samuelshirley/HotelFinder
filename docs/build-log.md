@@ -96,6 +96,8 @@ floor while content calls are unpriced. All of it: `docs/usage.md`.
 
 ## Notes for whoever resumes
 
+- 2026-11-14: Spanish first message "Madrid, España, …": place lookups retry the supplier's 429; "Madrid, España" picks Madrid in España; a retyped place keeps the first message's country. `docs/i18n.md`, `docs/supplier.md` "Rate limits".
+
 - 2026-11-13 outage (migration 0005 never applied; typed searches 500): migrations now run on production builds, `/api/health`, refs on 500s, CI on PRs. `docs/deploy.md`.
 - 2026-11-14: a new currency with the full list open no longer jumps the list to about hotel 10 (`docs/finder.md`, "Keeping the place"). Verified in Chromium with scroll anchoring off; not on a real Safari. The pager e2e test is flaky in a parallel run on `main` too ("Response has been disposed").
 

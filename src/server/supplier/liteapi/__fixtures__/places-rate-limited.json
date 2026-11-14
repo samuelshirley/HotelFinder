@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 4290,
+    "description": "Too many requests, please try again later",
+    "message": "You have exceeded the allowed request limit"
+  }
+}

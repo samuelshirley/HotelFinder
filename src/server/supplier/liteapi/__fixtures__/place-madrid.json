@@ -1,0 +1,62 @@
+{
+  "data": {
+    "addressComponents": [
+      {
+        "languageCode": "en",
+        "longText": "Madrid",
+        "shortText": "Madrid",
+        "types": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Madrid",
+        "shortText": "M",
+        "types": [
+          "administrative_area_level_2",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Community of Madrid",
+        "shortText": "MD",
+        "types": [
+          "administrative_area_level_1",
+          "political"
+        ]
+      },
+      {
+        "languageCode": "en",
+        "longText": "Spain",
+        "shortText": "ES",
+        "types": [
+          "country",
+          "political"
+        ]
+      }
+    ],
+    "countryCode": "ES",
+    "displayName": "Madrid",
+    "location": {
+      "latitude": 40.416727900000005,
+      "longitude": -3.7032905
+    },
+    "types": [
+      "locality",
+      "political"
+    ],
+    "viewport": {
+      "high": {
+        "latitude": 40.66384473341083,
+        "longitude": -3.4249115281677405
+      },
+      "low": {
+        "latitude": 40.21206394740597,
+        "longitude": -3.9341618098720565
+      }
+    }
+  }
+}
