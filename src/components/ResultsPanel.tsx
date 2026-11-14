@@ -326,21 +326,22 @@ function Editable({ label, name, busy, children, onApply, onOpen }: { label: str
   const [open, setOpen] = useState(false);
   const { t } = useLocale();
   const chip = useRef<HTMLButtonElement>(null);
-  // Escape closes without applying, like Cancel, and hands focus back to the chip.
+  // Escape closes without applying, like Cancel, and hands focus back to the chip:
+  // from inside the editor or from the chip that opened it (focus stays there on a click).
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Escape') return;
+    if (e.key !== 'Escape' || !open) return;
     e.preventDefault();
     e.stopPropagation();
     setOpen(false);
     chip.current?.focus();
   };
   return (
-    <span className={styles.editable}>
+    <span className={styles.editable} onKeyDown={onKeyDown}>
       <button ref={chip} className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={t.ui.change(name)} onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
         {label} ✎
       </button>
       {open && (
-        <div className={styles.editor} role="dialog" aria-label={t.ui.change(name)} onKeyDown={onKeyDown}>
+        <div className={styles.editor} role="dialog" aria-label={t.ui.change(name)}>
           {children}
           {onApply && (
             <div className={styles.editorActions}>

@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from '../fixtures/test';
+import { SignInModal } from '../pages/app';
 import { CheckoutPage } from '../pages/checkout';
 import { json } from '../support/api';
 import { uniqueEmail } from '../support/env';
@@ -77,7 +78,9 @@ test('freeze a free-cancellation room: frozen with no payment, then confirmed; f
 
   await search(page);
   const { card, hotel } = await refundableCard(page);
+  // Booking needs an account: signed out, Book asks who is booking first, then checks the member rate.
   await card.getByRole('button', { name: 'Book' }).click();
+  await new SignInModal(page, 'Sign in to book').signIn(EMAIL);
   await expect(page).toHaveURL(/\/hotels\/book\/[0-9a-f-]{36}$/, { timeout: 60_000 });
   const stay = page.getByRole('region', { name: 'Your stay' });
   await expect(stay.getByRole('heading', { name: hotel })).toBeVisible();
@@ -91,15 +94,10 @@ test('freeze a free-cancellation room: frozen with no payment, then confirmed; f
   expect(until).toMatch(/^\w{3} \d+ \w{3}, \d{2}:\d{2} UTC$/);
   await page.screenshot({ path: 'test-results/20-freeze-offer.png' });
 
-  // Not signed in and nothing typed: nothing is booked, and the page says what is missing.
+  // No names yet: nothing is booked, and the page says what is missing.
   await freezeButton.click();
-  await expect(page.getByText('That email address does not look complete.')).toBeVisible();
+  await expect(page.getByText("Add the guest's first and last name as on their ID.")).toBeVisible();
 
-  await page.getByLabel(/^Email\./).fill(EMAIL);
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const shown = page.getByRole('status').filter({ hasText: 'No email service is set up here' });
-  const code = (await shown.locator('strong').textContent())!.trim();
-  await page.getByLabel('6-digit code').fill(code);
   await page.getByLabel("First name (as on the guest's ID)").fill('Ana');
   await page.getByLabel('Last name').fill('Silva');
   await freezeButton.click();

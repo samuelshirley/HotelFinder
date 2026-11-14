@@ -1,5 +1,7 @@
 import { expect, openSession, test } from '../fixtures/test';
+import { SignInModal } from '../pages/app';
 import { CheckoutPage } from '../pages/checkout';
+import { uniqueEmail } from '../support/env';
 import { COPY, ERROR_COPY, withRef, type ErrorCode } from '../support/copy';
 
 /**
@@ -95,9 +97,13 @@ test.describe('error copy', { tag: '@ui' }, () => {
     diagnostics.allow(/\/checkout$/, [404, 409, 503], 'the answer is replaced on purpose');
     await openSession(page, searched.sessionId);
     await app.results.waitForCards();
+    let signedIn = false;
     for (const [code, status] of [['rate_gone', 409], ['supplier_unavailable', 503], ['property_not_found', 404]] as const) {
       await page.route(/\/checkout$/, (r) => r.fulfill({ status, json: { error: code } }), { times: 1 });
       await app.results.card(0).book().click();
+      // Signed out, Book asks who is booking first; the check (refused here) follows the sign-in.
+      if (!signedIn) await new SignInModal(page, COPY.signIn.titleBook).signIn(uniqueEmail('refused'));
+      signedIn = true;
       await expect(app.chat.alert()).toHaveText(ERROR_COPY[code]);
       await expect(app.results.card(0).book()).toBeEnabled();
       await expect(page).toHaveURL(/\/hotels\/?(\?.*)?$/);

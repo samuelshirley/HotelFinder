@@ -87,7 +87,7 @@ export function SignInModal({
     setBusy(true);
     setError(null);
     try {
-      await verifySignInCode(email.trim(), typed.trim());
+      await check(email.trim(), typed.trim());
     } catch (err) {
       setError({ code: codeOf(err), field: 'code' });
       setBusy(false);
