@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { copy } from '@/lib/i18n';
 import type { Locale } from '@/lib/i18n/locale';
 import { filterOptions, readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { roomsOf } from '@/lib/finder/rooms';
@@ -58,7 +59,7 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
           priorities: session.priorities ?? session.draft.scanned?.priorities ?? null,
           nearLabel: session.draft.destination
             ? nearLabel({ destinationText: session.draft.destination.label, destKind: session.draft.destination.point?.kind ?? 'area', near: null }, locale)
-            : 'the centre',
+            : copy(locale).words.theCentre,
         },
     stay: stay && {
       id: stay.id,
@@ -102,7 +103,7 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
       meta: m.meta ?? null,
       createdAt: m.createdAt.toISOString(),
     })),
-    shortlist: shortlist.map(viewRow),
+    shortlist: shortlist.map((r) => viewRow(r, locale)),
     /**
      * "Show all N hotels": every hotel that fits, the top picks included. The
      * rows after the top picks are read a page at a time (api/session/[id]/hotels).
@@ -114,7 +115,7 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
 type ListedRow = Awaited<ReturnType<typeof listShortlist>>[number];
 
 /** One row as the client renders it, on the shortlist or a page of the full list. */
-export function viewRow({ entry, property, offer }: ListedRow) {
+export function viewRow({ entry, property, offer }: ListedRow, locale: Locale = 'en') {
   return {
     entryId: entry.id,
     rank: entry.rank,
@@ -152,7 +153,7 @@ export function viewRow({ entry, property, offer }: ListedRow) {
       refundable: offer.refundableTag === 'RFN',
       freeCancellationUntil: (offer.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
       penalties: offerPenalties(offer.cancellation),
-      fees: offerFees(offer.taxesAndFees),
+      fees: offerFees(offer.taxesAndFees, locale),
       fetchedAt: offer.fetchedAt.toISOString(),
       expiresAt: offer.expiresAt.toISOString(),
     },
@@ -169,12 +170,13 @@ export function offerPenalties(cancellation: unknown): Array<{ from: string | nu
   );
 }
 
-/** Taxes and fees, included in the total or paid at the hotel, as the supplier names them. */
-export function offerFees(fees: unknown): Array<{ description: string; amountMinor: number; currency: string; included: boolean }> {
+/** Taxes and fees, included in the total or paid at the hotel, as the supplier names them (our words, in `locale`, when it names none). */
+export function offerFees(fees: unknown, locale: Locale = 'en'): Array<{ description: string; amountMinor: number; currency: string; included: boolean }> {
+  const named = copy(locale).booking;
   const list = (fees as Array<{ description?: string; amount?: { amountMinor?: number; currency?: string }; included?: boolean }> | null) ?? [];
   return list.flatMap((f) =>
     typeof f.amount?.amountMinor === 'number' && f.amount.currency
-      ? [{ description: f.description || (f.included ? 'Taxes and fees' : 'Paid at the hotel'), amountMinor: f.amount.amountMinor, currency: f.amount.currency, included: Boolean(f.included) }]
+      ? [{ description: f.description || (f.included ? named.taxesAndFees : named.paidAtHotel), amountMinor: f.amount.amountMinor, currency: f.amount.currency, included: Boolean(f.included) }]
       : [],
   );
 }

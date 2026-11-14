@@ -126,3 +126,33 @@ describe('the hotel FAQ', () => {
     }
   });
 });
+
+describe('the hotel FAQ in Spanish', () => {
+  const es = byId({ ...BASE, locale: 'es' });
+
+  it('asks the same questions, in Spanish, and answers in the words the Spanish chat uses', () => {
+    expect(hotelFaq({ ...BASE, locale: 'es' }).map((e) => e.id)).toEqual(hotelFaq(BASE).map((e) => e.id));
+    expect(es.price.question).toBe('¿Cuánto cuesta en estas fechas?');
+    expect(es.pool.question).toBe('¿Hay piscina?');
+    expect(es.price.answer).toBe('Vincci Porto: 316,08 € por 2 noches, 158,04 € por noche, más 12 € a pagar en el hotel.');
+    expect(es.check_in.answer).toBe('Vincci Porto: entrada desde las 03:00 PM.');
+    expect(es.wifi.answer).toBe('Vincci Porto indica wifi.');
+    // A noun where the sentence needs one: never "indica que admita mascotas" (the e2e run, 2026-11-14).
+    expect(byId({ ...BASE, amenities: ['pets_allowed'], locale: 'es' }).pets_allowed.answer).toBe('Vincci Porto indica admisión de mascotas.');
+    expect(byId({ ...BASE, amenities: null, locale: 'es' }).pets_allowed.answer).toBe('El anuncio de Vincci Porto no dice si tiene admisión de mascotas.');
+  });
+
+  it('no Spanish question or answer is the English one', () => {
+    const en = byId(BASE);
+    for (const [id, e] of Object.entries(es)) {
+      expect(e.question, id).not.toBe(en[id].question);
+      expect(e.answer, id).not.toBe(en[id].answer);
+    }
+  });
+
+  it('what the listing does not hold is said in Spanish too', () => {
+    const silent = byId({ ...BASE, rate: null, amenities: null, checkInFrom: null, checkOutUntil: null, locale: 'es' });
+    expect(silent.check_out).toMatchObject({ held: false, answer: 'El anuncio de Vincci Porto no dice la hora de salida.' });
+    expect(silent.price).toMatchObject({ held: false, answer: 'No hay precio para Vincci Porto en estas fechas.' });
+  });
+});

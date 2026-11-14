@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { SPECIAL_REQUEST_MAX } from '@/lib/checkout';
 import { bookingView, confirmCheckout } from '@/server/checkout';
-import { currentUser, errorResponse, handled, ownedBooking, rateLimit, signInBrowser } from '@/server/http';
+import { currentUser, errorResponse, handled, ownedBooking, rateLimit, requestLocale, signInBrowser } from '@/server/http';
 import { WALLETS } from '@/server/payments';
 import { getSupplier } from '@/server/supplier';
 
@@ -57,6 +57,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
     signedInUserId: user?.id ?? null,
     supplier: getSupplier({ sessionId: owned.sessionId, userId: user?.id ?? null }),
     now,
+    locale: requestLocale(),
   });
   // A verified code signs the browser in even when the booking then fails: the code is spent.
   if (result.signedInAs) await signInBrowser(result.signedInAs, now);

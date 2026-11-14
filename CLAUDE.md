@@ -144,8 +144,11 @@ navigation; `<Link>` exempt, never wrapped in withBase) · `meterGuard` (only
 six server files call out, each writes the usage ledger; every supplier op
 priced in `lib/supplierPrices.ts`: `docs/usage.md`) · `mapPointGuard` (a map
 point enters only from the map: `docs/design/map.md`) · `devDatabase` (migrations build exactly the schema) · `previewGuard`
-(a preview never reaches the production database: `docs/deploy.md`). Mutation
-logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`, `docs/deploy.md`.
+(a preview never reaches the production database: `docs/deploy.md`) ·
+`catalogueGuard` (every language has every key, translated) ·
+`hardcodedCopyGuard` (no words of their own in the detail, checkout and
+booking files: `docs/i18n.md`). Mutation
+logs: `docs/schema.md`, `docs/supplier.md`, `docs/finder.md`, `docs/deploy.md`, `docs/i18n.md`.
 
 ### Agent tools (`src/server/agent/tools.ts`)
 

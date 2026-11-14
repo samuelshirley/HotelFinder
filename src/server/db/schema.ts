@@ -512,6 +512,13 @@ export const bookings = pgTable(
     freezeReminderSentAt: ts('freeze_reminder_sent_at'),
     /** Deal Freeze: who released the hold, `guest` or `expiry`. Null when not released. */
     releasedBy: text('released_by'),
+    /**
+     * The language of the visitor who checked out, and again of whoever froze
+     * it (docs/i18n.md): the lines and the email written with no one's
+     * request to go by (a hold ended by the sweep, the freeze reminder) use
+     * it. Null on rows from before 2026-11-14: English.
+     */
+    locale: text('locale'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

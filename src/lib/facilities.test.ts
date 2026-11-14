@@ -46,6 +46,30 @@ describe('good to know', () => {
 
 describe('rating words', () => {
   it('bands', () => {
-    expect([9.2, 8.4, 7.1, 6.5, null].map(ratingWord)).toEqual(['Superb', 'Very good', 'Good', null, null]);
+    expect([9.2, 8.4, 7.1, 6.5, null].map((r) => ratingWord(r))).toEqual(['Superb', 'Very good', 'Good', null, null]);
+  });
+});
+
+describe('facilities in Spanish', () => {
+  const c = curateFacilities(MIO, { parking: 'FREE', petsAllowed: true }, 'es');
+
+  it('our names for the top ones and the groups are Spanish; the supplier\'s own strings are kept as sent', () => {
+    expect(c.top.map((f) => f.label)).toEqual(['WiFi gratis', 'Aparcamiento gratis', 'Piscina', 'Aire acondicionado', 'Gimnasio', 'Admite mascotas', 'Restaurante', 'Bar']);
+    expect(c.groups.map((g) => g.name)).toContain('Servicios y recepción');
+    // Past the first eight, ours are in Spanish; everything else is the supplier's string, untouched.
+    const ours = ['Recepción 24 horas', 'Lavandería'];
+    for (const item of c.groups.flatMap((g) => g.items)) expect(MIO.includes(item) || ours.includes(item), item).toBe(true);
+    expect(c.groups.flatMap((g) => g.items)).toEqual(expect.arrayContaining(ours));
+  });
+
+  it('rating words', () => {
+    expect([9.2, 8.4, 7.1, 6.5].map((r) => ratingWord(r, 'es'))).toEqual(['Excepcional', 'Muy bueno', 'Bueno', null]);
+  });
+
+  it('good to know reads a Spanish policy too, verbatim', () => {
+    const text = 'Se admiten mascotas por un suplemento de 15 EUR por noche. El desayuno se sirve de 7:00 a 10:30. Es necesario presentar un documento de identidad y una tarjeta de crédito al llegar. ¿Llegas tarde? Avisa al hotel con antelación.';
+    expect(goodToKnow(text)).toEqual(['Se admiten mascotas por un suplemento de 15 EUR por noche.', 'Es necesario presentar un documento de identidad y una tarjeta de crédito al llegar.']);
+    // "peticiones" is not "pets": the English pattern once matched it (the e2e run, 2026-11-14).
+    expect(goodToKnow('Para ello, puedes utilizar el apartado de peticiones especiales al hacer la reserva.')).toEqual([]);
   });
 });

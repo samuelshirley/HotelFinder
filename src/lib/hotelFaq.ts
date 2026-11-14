@@ -1,4 +1,6 @@
 import { AMENITIES, type Amenity } from '@/lib/amenities';
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
 import { hotelAnswer, type HotelFacts } from '@/lib/answers';
 import type { FactAsk } from '@/lib/router/route';
 import { answerLine } from '@/lib/replies';
@@ -37,29 +39,16 @@ export type FaqInput = {
   nights: number;
   /** For money when no rate is held (nothing is priced then, but answerLine takes one). */
   currency: string;
-};
-
-const AMENITY_QUESTION: Record<Amenity, string> = {
-  pets_allowed: 'Are pets allowed?',
-  parking: 'Is there parking?',
-  free_parking: 'Is parking free?',
-  wifi: 'Is there wifi?',
-  air_conditioning: 'Is there air conditioning?',
-  pool: 'Is there a pool?',
-  lift: 'Is there a lift?',
-  wheelchair_accessible: 'Is it wheelchair accessible?',
-  family_rooms: 'Are there family rooms?',
-  airport_shuttle: 'Is there an airport shuttle?',
-  fitness: 'Is there a gym?',
-  soundproof_rooms: 'Are the rooms soundproofed?',
+  /** The page's language. English when left out. */
+  locale?: Locale;
 };
 
 /** The rate questions first, then the stay's times, then the facilities. */
-const RATE_QUESTIONS: Array<{ id: string; question: string; ask: FactAsk }> = [
-  { id: 'price', question: 'How much is it for these dates?', ask: { fact: 'price' } },
-  { id: 'cancellation', question: 'Can I cancel for free?', ask: { fact: 'cancellation' } },
-  { id: 'breakfast', question: 'Is breakfast included?', ask: { fact: 'breakfast' } },
-  { id: 'room', question: 'Which room is the price for?', ask: { fact: 'room' } },
+const RATE_QUESTIONS: Array<{ id: 'price' | 'cancellation' | 'breakfast' | 'room'; ask: FactAsk }> = [
+  { id: 'price', ask: { fact: 'price' } },
+  { id: 'cancellation', ask: { fact: 'cancellation' } },
+  { id: 'breakfast', ask: { fact: 'breakfast' } },
+  { id: 'room', ask: { fact: 'room' } },
 ];
 
 export function hotelFaq(input: FaqInput): FaqEntry[] {
@@ -82,16 +71,18 @@ export function hotelFaq(input: FaqInput): FaqEntry[] {
   };
   const ctx = { nights: input.nights, distanceFrom: 'destination' as const, distanceLabel: null };
   const currency = r?.currency ?? input.currency;
+  const locale = input.locale ?? 'en';
+  const q = copy(locale).detail.faq;
   const said = (id: string, question: string, ask: FactAsk): FaqEntry => {
     const a = hotelAnswer(facts, ask, ctx);
-    return { id, question, answer: answerLine(a, currency), held: a.kind !== 'not_held' };
+    return { id, question, answer: answerLine(a, currency, locale), held: a.kind !== 'not_held' };
   };
 
   return [
-    ...RATE_QUESTIONS.map((q) => said(q.id, q.question, q.ask)),
-    timeEntry('check_in', 'What time is check-in?', input.checkInFrom, (t) => `${input.name}: check-in from ${t}.`, `The listing for ${input.name} does not say when check-in starts.`),
-    timeEntry('check_out', 'What time is check-out?', input.checkOutUntil, (t) => `${input.name}: check-out by ${t}.`, `The listing for ${input.name} does not say the check-out time.`),
-    ...AMENITIES.map((amenity) => said(amenity, AMENITY_QUESTION[amenity], { fact: 'facility', amenity })),
+    ...RATE_QUESTIONS.map(({ id, ask }) => said(id, q[id], ask)),
+    timeEntry('check_in', q.checkIn, input.checkInFrom, (t) => q.checkInFrom(input.name, t), q.checkInNotHeld(input.name)),
+    timeEntry('check_out', q.checkOut, input.checkOutUntil, (t) => q.checkOutBy(input.name, t), q.checkOutNotHeld(input.name)),
+    ...AMENITIES.map((amenity) => said(amenity, q.amenity[amenity], { fact: 'facility', amenity })),
   ];
 }
 

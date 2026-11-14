@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { bookingView } from '@/server/checkout';
 import { releaseFrozen, type ReleaseError } from '@/server/freeze';
-import { errorResponse, handled, ownedBooking, rateLimit } from '@/server/http';
+import { errorResponse, handled, ownedBooking, rateLimit, requestLocale } from '@/server/http';
 import { getSupplier } from '@/server/supplier';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   const limited = await rateLimit('release', 10);
   if (limited) return limited;
   const now = new Date();
-  const result = await releaseFrozen({ bookingId: owned.id, supplier: getSupplier({ sessionId: owned.sessionId, userId: owned.userId }), by: 'guest', now });
+  const result = await releaseFrozen({ bookingId: owned.id, supplier: getSupplier({ sessionId: owned.sessionId, userId: owned.userId }), by: 'guest', now, locale: requestLocale() });
   if (!result.ok) return errorResponse(result.error, STATUS[result.error]);
   return NextResponse.json({ booking: bookingView(result.booking, now) });
 });

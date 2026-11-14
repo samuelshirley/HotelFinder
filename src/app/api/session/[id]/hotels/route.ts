@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { clampPage, FULL_LIST_MAX_PAGE, FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
-import { errorResponse, handled, ownedSession, rateLimit } from '@/server/http';
+import { errorResponse, handled, ownedSession, rateLimit, requestLocale } from '@/server/http';
 import { audienceFor, listStays } from '@/server/repos/sessions';
 import { countFullList, listFullList } from '@/server/repos/shortlist';
 import { viewRow } from '@/server/view';
@@ -32,5 +32,5 @@ export const GET = handled(async (req: Request, ctx: { params: { id: string } })
   // Past the end (the list shrank since the page was asked for): the last page.
   const page = clampPage(parsed.data.page, more);
   const rows = await listFullList(session.id, stay.id, audience, page);
-  return NextResponse.json({ more, page, pageSize: FULL_LIST_PAGE_SIZE, rows: rows.map(viewRow) });
+  return NextResponse.json({ more, page, pageSize: FULL_LIST_PAGE_SIZE, rows: rows.map((r) => viewRow(r, requestLocale())) });
 });

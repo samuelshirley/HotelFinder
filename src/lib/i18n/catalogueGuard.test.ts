@@ -31,6 +31,11 @@ const SAME_ON_PURPOSE: Record<string, string> = {
   'words.deadline': 'a time and "UTC" only',
   'answers.stars': 'a name and the star words, which are translated in words.stars',
   'answers.acrossGroup': 'a heading and names, both translated where they are made',
+  'answers.facility.wifi': '"wifi" is the Spanish word too',
+  'detail.facility.wifi': '"WiFi" is how Spanish listings write it too',
+  'detail.facility.spa': '"spa" is the Spanish word too',
+  'detail.facility.bar': '"bar" is the Spanish word too',
+  'detail.facilityGroup.internet': '"Internet" is the Spanish word too',
 };
 
 describe('message catalogues', () => {

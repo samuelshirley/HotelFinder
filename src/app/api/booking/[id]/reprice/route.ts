@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { repriceCheckout } from '@/server/checkout';
-import { checkoutInMySearch, currentUser, errorResponse, handled, ownedSession, rateLimit } from '@/server/http';
+import { checkoutInMySearch, currentUser, errorResponse, handled, ownedSession, rateLimit, requestLocale } from '@/server/http';
 import { getSupplier } from '@/server/supplier';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   if (session instanceof NextResponse) return session;
   const limited = await rateLimit('checkout', 20);
   if (limited) return limited;
-  const result = await repriceCheckout({ session, booking, supplier: getSupplier({ sessionId: session.id, userId: session.userId }), now: new Date() });
+  const result = await repriceCheckout({ session, booking, supplier: getSupplier({ sessionId: session.id, userId: session.userId }), now: new Date(), locale: requestLocale() });
   if (!result.ok) return errorResponse(result.error, result.error === 'supplier_unavailable' ? 503 : result.error === 'property_not_found' ? 404 : 409);
   return NextResponse.json({ bookingId: result.booking.id });
 });

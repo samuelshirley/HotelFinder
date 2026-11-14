@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { SPECIAL_REQUEST_MAX } from '@/lib/checkout';
 import { errorCopy } from '@/lib/errors';
-import { formatGuests, formatMoney } from '@/lib/replies';
+import { copy, INTL, type Locale } from '@/lib/i18n';
+import { formatDeadline, formatGuests, formatInstant, formatMoney } from '@/lib/replies';
 import {
   ApiError,
   cancelBookingApi,
@@ -22,6 +23,7 @@ import {
   type Wallet,
 } from './api';
 import styles from './Checkout.module.css';
+import { useLocale } from './i18n';
 import { SignInModal, type SignInCopy } from './SignInModal';
 import { Spinner } from './Spinner';
 
@@ -39,42 +41,31 @@ import { Spinner } from './Spinner';
  * the page swaps to it in place, showing both prices if they differ.
  */
 
-const SIGN_IN: SignInCopy = {
-  title: 'Who is booking?',
-  note: 'Sign in with your email to book this room. It stays as it is: the same hotel and room, with the price checked again for you.',
-  email: 'Email. Your booking and a sign-in code go here; no password.',
-  sendCode: 'Send code',
-  sending: 'Sending…',
-  code: (email) => `The 6-digit code sent to ${email}. It works once, for 10 minutes.`,
-  newCode: 'Send a new code',
-  signIn: 'Sign in',
-  signingIn: 'Checking the price…',
-  devCode: 'No email service is set up here, so the code is shown instead:',
-  error: (code) => errorCopy(code),
-};
+/** The sign-in modal's words on the checkout, in the page's language. */
+const signInCopy = (locale: Locale): SignInCopy => ({ ...copy(locale).checkout.signIn, error: (code) => errorCopy(code, locale) });
 
+/** Brand names: the same in every language. */
 const WALLET_NAME: Record<Wallet, string> = { apple_pay: 'Apple Pay', google_pay: 'Google Pay' };
 
-const day = (iso: string, withMonth: boolean) =>
-  new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', ...(withMonth ? { month: 'short' } : {}), timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
+const day = (iso: string, withMonth: boolean, locale: Locale) =>
+  new Intl.DateTimeFormat(INTL[locale].date, { weekday: 'short', day: 'numeric', ...(withMonth ? { month: 'short' } : {}), timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 const nightsOf = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-function stayLine(b: BookingView): string {
+function stayLine(b: BookingView, locale: Locale): string {
   if (!b.checkIn || !b.checkOut) return '';
   const n = nightsOf(b.checkIn, b.checkOut);
   const sameMonth = b.checkIn.slice(0, 7) === b.checkOut.slice(0, 7);
-  const who = b.adults ? ` · ${formatGuests(b.adults, b.childrenAges, b.rooms ?? 1)}` : '';
-  return `${day(b.checkIn, !sameMonth)} – ${day(b.checkOut, true)} · ${n} night${n === 1 ? '' : 's'}${who}`;
+  const who = b.adults ? ` · ${formatGuests(b.adults, b.childrenAges, b.rooms ?? 1, locale)}` : '';
+  return `${day(b.checkIn, !sameMonth, locale)} – ${day(b.checkOut, true, locale)} · ${copy(locale).words.nights(n)}${who}`;
 }
-function cancellationText(b: BookingView): string {
-  if (b.refundable === false) return 'Non-refundable';
-  if (b.refundable === null) return 'Not given by the hotel';
-  if (!b.freeCancellationUntil) return 'Refundable; the hotel did not give the deadline';
-  const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(b.freeCancellationUntil));
-  return `Free until ${when} UTC`;
+/** When free cancellation ends, "12 Dec, 23:59 UTC"; null when it is not free or not given. */
+const freeUntil = (b: BookingView, locale: Locale) => (b.refundable && b.freeCancellationUntil ? formatDeadline(b.freeCancellationUntil, locale) : null);
+function cancellationText(b: BookingView, locale: Locale): string {
+  const c = copy(locale).checkout;
+  if (b.refundable === false) return c.nonRefundable;
+  if (b.refundable === null) return c.notGiven;
+  const until = freeUntil(b, locale);
+  return until ? c.freeUntil(until) : c.refundableNoDeadline;
 }
-/** An instant as the page shows it, always in UTC (the supplier's deadlines are). */
-const instant = (iso: string) =>
-  `${new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso))} UTC`;
 const codeOf = (err: unknown) => (err instanceof ApiError ? err.code : 'server_error');
 
 export function Checkout({ bookingId }: { bookingId: string }) {
@@ -84,6 +75,8 @@ export function Checkout({ bookingId }: { bookingId: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   /** Signed out on a checkout: the modal is up until someone signs in. */
   const [signedOut, setSignedOut] = useState(false);
+  const { locale, t } = useLocale();
+  const c = t.checkout;
 
   const moveTo = useCallback(async (next: string) => {
     window.history.replaceState(null, '', withBase(`/book/${next}`));
@@ -130,15 +123,15 @@ export function Checkout({ bookingId }: { bookingId: string }) {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <a href={withBase('/')}>← Back to the shortlist</a>
-        <span className={styles.brand}>Hotel finder</span>
+        <a href={withBase('/')}>← {c.backToShortlist}</a>
+        <span className={styles.brand}>{t.ui.brand}</span>
       </header>
       {loadError ? (
         <main className={styles.single}>
-          <p role="alert">{errorCopy(loadError)}</p>
+          <p role="alert">{errorCopy(loadError, locale)}</p>
         </main>
       ) : !page ? (
-        <main className={styles.single}>{!signedOut && <Spinner label="Opening the checkout…" />}</main>
+        <main className={styles.single}>{!signedOut && <Spinner label={c.opening} />}</main>
       ) : page.booking.status === 'prebooked' ? (
         <Pay
           page={page}
@@ -156,29 +149,31 @@ export function Checkout({ bookingId }: { bookingId: string }) {
       ) : (
         <Receipt page={page} onChange={setPage} onReload={reload} />
       )}
-      {signedOut && !loadError && <SignInModal key={id} copy={SIGN_IN} onSignedIn={afterSignIn} back={{ href: withBase('/'), label: 'Back to the shortlist' }} />}
+      {signedOut && !loadError && <SignInModal key={id} copy={signInCopy(locale)} onSignedIn={afterSignIn} back={{ href: withBase('/'), label: c.backToShortlist }} />}
     </div>
   );
 }
 
 function Stay({ b, children }: { b: BookingView; children?: React.ReactNode }) {
+  const { locale, t } = useLocale();
+  const c = t.checkout;
   return (
-    <section aria-label="Your stay" className={styles.stay}>
+    <section aria-label={c.yourStay} className={styles.stay}>
       <h2>{b.hotelName}</h2>
-      <span className={styles.muted}>{stayLine(b)}</span>
-      {(b.roomName || b.boardName) && <span className={styles.muted}>{[b.roomName, b.boardName ?? 'Room only'].filter(Boolean).join(' · ')}</span>}
+      <span className={styles.muted}>{stayLine(b, locale)}</span>
+      {(b.roomName || b.boardName) && <span className={styles.muted}>{[b.roomName, b.boardName ?? c.roomOnly].filter(Boolean).join(' · ')}</span>}
       <dl className={styles.money}>
         <div>
           {/* Every rate the sandbox has offered is paid in full now (docs/supplier.md, "Checkout extras"). */}
-          <dt>{b.status === 'prebooked' ? 'Pay now, taxes in' : 'Total, taxes in'}</dt>
+          <dt>{b.status === 'prebooked' ? c.payNowTaxesIn : c.totalTaxesIn}</dt>
           <dd>
-            <strong>{formatMoney(b.totalMinor, b.currency)}</strong>
+            <strong>{formatMoney(b.totalMinor, b.currency, locale)}</strong>
           </dd>
         </div>
         <AtHotel b={b} />
         <div className={styles.small}>
-          <dt>Cancellation</dt>
-          <dd>{cancellationText(b)}</dd>
+          <dt>{c.cancellation}</dt>
+          <dd>{cancellationText(b, locale)}</dd>
         </div>
       </dl>
       {children}
@@ -193,29 +188,31 @@ function Stay({ b, children }: { b: BookingView; children?: React.ReactNode }) {
  */
 function AtHotel({ b }: { b: BookingView }) {
   const charges = b.payAtPropertyFees;
+  const { locale, t } = useLocale();
+  const c = t.checkout;
   // A booking from before the charges were kept: only the sum is known.
   if (charges === null)
     return (
       <div className={styles.small}>
-        <dt>Pay at the hotel</dt>
-        <dd>{b.payAtPropertyMinor > 0 ? formatMoney(b.payAtPropertyMinor, b.currency) : 'Nothing listed'}</dd>
+        <dt>{c.payAtHotel}</dt>
+        <dd>{b.payAtPropertyMinor > 0 ? formatMoney(b.payAtPropertyMinor, b.currency, locale) : c.nothingListed}</dd>
       </div>
     );
   if (charges.length === 0)
     return (
       <div className={styles.small}>
-        <dt>Pay at the hotel</dt>
-        <dd>Nothing listed</dd>
+        <dt>{c.payAtHotel}</dt>
+        <dd>{c.nothingListed}</dd>
       </div>
     );
   return (
-    <div className={styles.atHotel} role="group" aria-label="Pay at the hotel">
-      <dt>Pay at the hotel, not in the total</dt>
+    <div className={styles.atHotel} role="group" aria-label={c.payAtHotel}>
+      <dt>{c.payAtHotelNotInTotal}</dt>
       <dd>
         <ul>
-          {charges.map((c, i) => (
+          {charges.map((fee, i) => (
             <li key={i}>
-              <span>{c.description}</span> <span>{formatMoney(c.amountMinor, c.currency)}</span>
+              <span>{fee.description}</span> <span>{formatMoney(fee.amountMinor, fee.currency, locale)}</span>
             </li>
           ))}
         </ul>
@@ -226,6 +223,9 @@ function AtHotel({ b }: { b: BookingView }) {
 
 function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: (p: BookingPage) => void; onReload: () => Promise<void>; onNotYou: () => Promise<void> }) {
   const b = page.booking;
+  const { locale, t } = useLocale();
+  const c = t.checkout;
+  const instant = (iso: string) => formatInstant(iso, locale);
   // Signed in always, by the time anything here can be pressed: signed out, the sign-in modal covers the page.
   const email = page.me?.email ?? '';
   const [leaving, setLeaving] = useState(false);
@@ -235,14 +235,14 @@ function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: 
   const [error, setError] = useState<{ code: string; field?: 'email' | 'code' | 'name' | 'request' | 'pay' | 'freeze' } | null>(null);
   const [sheet, setSheet] = useState<Wallet | null>(null);
   const [rechecking, setRechecking] = useState(false);
-  const fieldOf = (c: string): 'email' | 'code' | 'name' | 'request' | 'pay' =>
-    c === 'email_invalid' || c === 'too_many_codes' || c === 'email_unavailable'
+  const fieldOf = (code: string): 'email' | 'code' | 'name' | 'request' | 'pay' =>
+    code === 'email_invalid' || code === 'too_many_codes' || code === 'email_unavailable'
       ? 'email'
-      : c === 'code_wrong' || c === 'code_expired'
+      : code === 'code_wrong' || code === 'code_expired'
         ? 'code'
-        : c === 'name_missing'
+        : code === 'name_missing'
           ? 'name'
-          : c === 'request_too_long'
+          : code === 'request_too_long'
             ? 'request'
             : 'pay';
 
@@ -264,11 +264,11 @@ function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: 
       onDone({ ...page, booking: r.booking });
       return true;
     } catch (err) {
-      const c = codeOf(err);
+      const code = codeOf(err);
       setSheet(null);
-      setError({ code: c, field: fieldOf(c) });
+      setError({ code, field: fieldOf(code) });
       // A code accepted before the booking failed has signed this browser in; the page catches up.
-      if (c === 'booking_failed' || c === 'booking_unknown' || c === 'booking_not_payable') await onReload();
+      if (code === 'booking_failed' || code === 'booking_unknown' || code === 'booking_not_payable') await onReload();
       return false;
     }
   };
@@ -283,10 +283,10 @@ function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: 
       const r = await freezeBookingApi(b.id, { email, code: '', firstName: first, lastName: last, acceptedTotalMinor: b.totalMinor });
       onDone({ ...page, booking: r.booking });
     } catch (err) {
-      const c = codeOf(err);
-      setError({ code: c, field: fieldOf(c) === 'pay' ? 'freeze' : fieldOf(c) });
+      const code = codeOf(err);
+      setError({ code, field: fieldOf(code) === 'pay' ? 'freeze' : fieldOf(code) });
       setFreezing(false);
-      if (c === 'booking_failed' || c === 'booking_unknown' || c === 'booking_not_payable' || c === 'freeze_terms_changed') await onReload();
+      if (code === 'booking_failed' || code === 'booking_unknown' || code === 'booking_not_payable' || code === 'freeze_terms_changed') await onReload();
     }
   };
 
@@ -302,42 +302,39 @@ function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: 
     }
   };
 
-  const total = formatMoney(b.totalMinor, b.currency);
+  const total = formatMoney(b.totalMinor, b.currency, locale);
   const stale = b.priceCheckStale;
   return (
     <main className={styles.main}>
       <Stay b={b}>
         {b.priceChanged ? (
           <p className={styles.changed} role="status">
-            {b.quotedTotalMinor !== null
-              ? `The price changed: it was ${formatMoney(b.quotedTotalMinor, b.currency)} on the shortlist, it is ${total} now.`
-              : `The hotel now quotes ${total}, in another currency than the shortlist.`}{' '}
-            Paying below means paying {total}.
+            {b.quotedTotalMinor !== null ? c.priceChanged(formatMoney(b.quotedTotalMinor, b.currency, locale), total) : c.otherCurrency(total)} {c.payingMeans(total)}
           </p>
         ) : (
-          <p className={styles.note}>Price re-checked with the hotel just now. If it changes, you see both prices before paying.</p>
+          <p className={styles.note}>{c.rechecked}</p>
         )}
         {stale && (
           <div className={styles.note}>
-            <p>This price check is more than 20 minutes old.</p>
+            <p>{c.staleCheck}</p>
             <button type="button" className={styles.secondary} disabled={rechecking || !b.offerId} onClick={() => void checkAgain()}>
               {rechecking ? (
                 <>
-                  <Spinner size={14} /> Checking…
+                  <Spinner size={14} /> {c.checking}
                 </>
               ) : (
-                'Check the price again'
+                c.checkPriceAgain
               )}
             </button>
           </div>
         )}
       </Stay>
 
-      <section aria-label="Sign in and pay" className={styles.form}>
-        <h1>Book it</h1>
+      <section aria-label={c.signInAndPay} className={styles.form}>
+        <h1>{c.bookIt}</h1>
         {page.me && (
           <p className={styles.muted}>
-            Signed in as {page.me.email} ·{' '}
+            {c.signedInAs(page.me.email)} ·{' '}
             <button
               type="button"
               className={styles.link}
@@ -350,93 +347,87 @@ function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: 
                 });
               }}
             >
-              Not you?
+              {c.notYou}
             </button>
           </p>
         )}
 
         <div className={styles.names}>
           <label>
-            First name (as on the guest&apos;s ID)
+            {c.firstName}
             <input autoComplete="given-name" value={first} onChange={(e) => setFirst(e.target.value)} aria-invalid={error?.field === 'name'} />
           </label>
           <label>
-            Last name
+            {c.lastName}
             <input autoComplete="family-name" value={last} onChange={(e) => setLast(e.target.value)} aria-invalid={error?.field === 'name'} />
           </label>
         </div>
-        {error?.field === 'name' && <p className={styles.error}>{errorCopy(error.code)}</p>}
+        {error?.field === 'name' && <p className={styles.error}>{errorCopy(error.code, locale)}</p>}
 
         <div className={styles.field}>
-          <label htmlFor="special-request">Special requests (optional)</label>
+          <label htmlFor="special-request">{c.specialRequests}</label>
           <textarea
             id="special-request"
             className={styles.request}
             rows={3}
             maxLength={SPECIAL_REQUEST_MAX}
-            placeholder="A quiet room, a late arrival, a cot…"
+            placeholder={c.requestPlaceholder}
             value={request}
             onChange={(e) => setRequest(e.target.value)}
             aria-describedby="special-request-note"
             aria-invalid={error?.field === 'request'}
           />
           <p id="special-request-note" className={styles.muted}>
-            Sent to the hotel with your booking. Requests are not guaranteed. · {request.length}/{SPECIAL_REQUEST_MAX}
+            {c.requestNote} · {request.length}/{SPECIAL_REQUEST_MAX}
           </p>
-          {error?.field === 'request' && <p className={styles.error}>{errorCopy(error.code)}</p>}
+          {error?.field === 'request' && <p className={styles.error}>{errorCopy(error.code, locale)}</p>}
         </div>
 
         {page.payment === 'test' ? (
           <>
-            <p className={styles.testBadge}>Test payments: the wallets below are a stand-in and no money moves.</p>
+            <p className={styles.testBadge}>{c.testBadge}</p>
             <div className={styles.wallets}>
-              <button type="button" className={styles.applePay} disabled={stale || sheet !== null} onClick={() => press('apple_pay')} aria-label={`Pay ${total} with Apple Pay`}>
-                <AppleMark /> Pay · {total}
+              <button type="button" className={styles.applePay} disabled={stale || sheet !== null} onClick={() => press('apple_pay')} aria-label={c.payWith(total, WALLET_NAME.apple_pay)}>
+                <AppleMark /> {c.pay(total)}
               </button>
-              <button type="button" className={styles.googlePay} disabled={stale || sheet !== null} onClick={() => press('google_pay')} aria-label={`Pay ${total} with Google Pay`}>
-                <GoogleMark /> Pay · {total}
+              <button type="button" className={styles.googlePay} disabled={stale || sheet !== null} onClick={() => press('google_pay')} aria-label={c.payWith(total, WALLET_NAME.google_pay)}>
+                <GoogleMark /> {c.pay(total)}
               </button>
             </div>
-            <span className={styles.muted}>
-              One press: takes the payment and books.
-            </span>
+            <span className={styles.muted}>{c.onePress}</span>
           </>
         ) : (
-          <p className={styles.error}>{errorCopy('payment_unavailable')}</p>
+          <p className={styles.error}>{errorCopy('payment_unavailable', locale)}</p>
         )}
         {error?.field === 'pay' && (
           <p className={styles.error} role="alert">
-            {errorCopy(error.code)}
+            {errorCopy(error.code, locale)}
           </p>
         )}
 
         {page.payment === 'test' && b.freezeOffer && (
-          <div className={`${styles.confirmBox} ${styles.freeze}`} role="group" aria-label="Freeze this price">
-            <h2>Not sure yet? Freeze it, free</h2>
-            <p className={styles.muted}>
-              We book this free-cancellation rate now, in the names above, at {total}, and you pay nothing yet. Confirm and pay before{' '}
-              {instant(b.freezeOffer.until)}, or release it. If you do neither, we cancel it with the hotel then, before its free-cancellation deadline
-              {b.freeCancellationUntil ? ` (${instant(b.freeCancellationUntil)})` : ''}.
-            </p>
+          <div className={`${styles.confirmBox} ${styles.freeze}`} role="group" aria-label={c.freezeGroup}>
+            <h2>{c.freezeHead}</h2>
+            <p className={styles.muted}>{c.freezeBody(total, instant(b.freezeOffer.until), b.freeCancellationUntil ? instant(b.freeCancellationUntil) : '')}</p>
             <button type="button" className={styles.secondary} disabled={stale || freezing || sheet !== null} onClick={() => void freeze()}>
               {freezing ? (
                 <>
-                  <Spinner size={14} /> Booking with the hotel…
+                  <Spinner size={14} /> {c.bookingWithHotel}
                 </>
               ) : (
-                `Freeze until ${instant(b.freezeOffer.until)}`
+                c.freezeUntil(instant(b.freezeOffer.until))
               )}
             </button>
             {error?.field === 'freeze' && (
               <p className={styles.error} role="alert">
-                {errorCopy(error.code)}
+                {errorCopy(error.code, locale)}
               </p>
             )}
           </div>
         )}
       </section>
 
-      {sheet && <WalletSheet wallet={sheet} total={total} hotel={b.hotelName ?? 'Hotel'} onCancel={() => setSheet(null)} onAuthorize={() => authorize(sheet)} />}
+      {sheet && <WalletSheet wallet={sheet} total={total} hotel={b.hotelName ?? c.hotel} onCancel={() => setSheet(null)} onAuthorize={() => authorize(sheet)} />}
     </main>
   );
 }
@@ -449,6 +440,7 @@ function Pay({ page, onDone, onReload, onNotYou }: { page: BookingPage; onDone: 
 function WalletSheet({ wallet, total, hotel, onCancel, onAuthorize }: { wallet: Wallet; total: string; hotel: string; onCancel: () => void; onAuthorize: () => Promise<boolean> }) {
   const [state, setState] = useState<'ready' | 'paying' | 'done'>('ready');
   const payRef = useRef<HTMLButtonElement>(null);
+  const c = useLocale().t.checkout;
   useEffect(() => {
     payRef.current?.focus();
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && state === 'ready' && onCancel();
@@ -462,41 +454,41 @@ function WalletSheet({ wallet, total, hotel, onCancel, onAuthorize }: { wallet: 
   };
   return (
     <div className={styles.scrim}>
-      <div className={`${styles.sheet} ${wallet === 'apple_pay' ? styles.sheetApple : styles.sheetGoogle}`} role="dialog" aria-modal="true" aria-label={`${WALLET_NAME[wallet]} (test)`}>
+      <div className={`${styles.sheet} ${wallet === 'apple_pay' ? styles.sheetApple : styles.sheetGoogle}`} role="dialog" aria-modal="true" aria-label={c.walletTest(WALLET_NAME[wallet])}>
         <div className={styles.sheetTop}>
           <span className={styles.sheetBrand}>{wallet === 'apple_pay' ? <AppleMark /> : <GoogleMark />} {WALLET_NAME[wallet]}</span>
-          <span className={styles.sheetTest}>TEST · no money moves</span>
+          <span className={styles.sheetTest}>{c.testNoMoney}</span>
         </div>
         <dl className={styles.sheetRows}>
           <div>
-            <dt>Card</dt>
-            <dd>Test card •••• 4242</dd>
+            <dt>{c.card}</dt>
+            <dd>{c.testCard}</dd>
           </div>
           <div>
-            <dt>Pay</dt>
-            <dd>Hotel finder · {hotel}</dd>
+            <dt>{c.payTo}</dt>
+            <dd>{c.payee(hotel)}</dd>
           </div>
           <div className={styles.sheetTotal}>
-            <dt>Total</dt>
+            <dt>{c.total}</dt>
             <dd>{total}</dd>
           </div>
         </dl>
         {state === 'done' ? (
           <p className={styles.sheetDone} role="status">
-            ✓ Done
+            {c.done}
           </p>
         ) : (
           <div className={styles.sheetActions}>
             <button type="button" className={styles.secondary} disabled={state !== 'ready'} onClick={onCancel}>
-              Cancel
+              {c.cancel}
             </button>
             <button ref={payRef} type="button" className={styles.sheetPay} disabled={state !== 'ready'} onClick={() => void pay()}>
               {state === 'paying' ? (
                 <>
-                  <Spinner size={14} /> Booking with the hotel…
+                  <Spinner size={14} /> {c.bookingWithHotel}
                 </>
               ) : (
-                `Confirm ${total}`
+                c.confirmTotal(total)
               )}
             </button>
           </div>
@@ -512,7 +504,10 @@ function WalletSheet({ wallet, total, hotel, onCancel, onAuthorize }: { wallet: 
  */
 function Frozen({ page, onChange, onReload }: { page: BookingPage; onChange: (p: BookingPage) => void; onReload: () => Promise<void> }) {
   const b = page.booking;
-  const total = formatMoney(b.totalMinor, b.currency);
+  const { locale, t } = useLocale();
+  const c = t.checkout;
+  const instant = (iso: string) => formatInstant(iso, locale);
+  const total = formatMoney(b.totalMinor, b.currency, locale);
   const [sheet, setSheet] = useState<Wallet | null>(null);
   const [asking, setAsking] = useState(false);
   const [releasing, setReleasing] = useState(false);
@@ -544,80 +539,77 @@ function Frozen({ page, onChange, onReload }: { page: BookingPage; onChange: (p:
   };
 
   const reminder = b.freezeReminderSentAt
-    ? `Emailed ${instant(b.freezeReminderSentAt)}.`
+    ? c.reminderEmailed(instant(b.freezeReminderSentAt))
     : !b.freezeReminderDueAt
-      ? 'None.'
+      ? c.reminderNone
       : page.mail
-        ? `By email, ${instant(b.freezeReminderDueAt)}.`
-        : `Due ${instant(b.freezeReminderDueAt)}. No email service is set up here, so no email will be sent: this page is the reminder.`;
+        ? c.reminderByEmail(instant(b.freezeReminderDueAt))
+        : c.reminderOnPage(instant(b.freezeReminderDueAt));
   return (
     <main className={styles.main}>
       <Stay b={b} />
-      <section aria-label="Booking" className={styles.form}>
-        <h1>Frozen</h1>
-        <p className={styles.note}>
-          This room is booked with the hotel at {total} and nothing is paid. Confirm and pay before {b.frozenUntil ? instant(b.frozenUntil) : 'the hold ends'} to keep
-          it. If you do not, we cancel it with the hotel then, before its free-cancellation deadline.
-        </p>
+      <section aria-label={c.booking} className={styles.form}>
+        <h1>{c.frozen}</h1>
+        <p className={styles.note}>{c.frozenNote(total, b.frozenUntil ? instant(b.frozenUntil) : c.holdEnds)}</p>
         <dl className={styles.facts}>
           <div>
-            <dt>Booking reference</dt>
+            <dt>{c.reference}</dt>
             <dd>{b.reference}</dd>
           </div>
           <div>
-            <dt>Held until</dt>
+            <dt>{c.heldUntil}</dt>
             <dd>{b.frozenUntil ? instant(b.frozenUntil) : '—'}</dd>
           </div>
           {b.holder && (
             <div>
-              <dt>Guest</dt>
+              <dt>{c.guest}</dt>
               <dd>
                 {b.holder.firstName} {b.holder.lastName} · {b.holder.email}
               </dd>
             </div>
           )}
           <div>
-            <dt>Reminder</dt>
+            <dt>{c.reminder}</dt>
             <dd>{reminder}</dd>
           </div>
           <div>
-            <dt>Paid</dt>
-            <dd>Nothing yet</dd>
+            <dt>{c.paid}</dt>
+            <dd>{c.nothingYet}</dd>
           </div>
         </dl>
         {page.payment === 'test' ? (
           <>
-            <p className={styles.testBadge}>Test payments: the wallets below are a stand-in and no money moves.</p>
+            <p className={styles.testBadge}>{c.testBadge}</p>
             <div className={styles.wallets}>
-              <button type="button" className={styles.applePay} disabled={sheet !== null || releasing} onClick={() => setSheet('apple_pay')} aria-label={`Confirm and pay ${total} with Apple Pay`}>
-                <AppleMark /> Pay · {total}
+              <button type="button" className={styles.applePay} disabled={sheet !== null || releasing} onClick={() => setSheet('apple_pay')} aria-label={c.confirmPayWith(total, WALLET_NAME.apple_pay)}>
+                <AppleMark /> {c.pay(total)}
               </button>
-              <button type="button" className={styles.googlePay} disabled={sheet !== null || releasing} onClick={() => setSheet('google_pay')} aria-label={`Confirm and pay ${total} with Google Pay`}>
-                <GoogleMark /> Pay · {total}
+              <button type="button" className={styles.googlePay} disabled={sheet !== null || releasing} onClick={() => setSheet('google_pay')} aria-label={c.confirmPayWith(total, WALLET_NAME.google_pay)}>
+                <GoogleMark /> {c.pay(total)}
               </button>
             </div>
           </>
         ) : (
-          <p className={styles.error}>{errorCopy('payment_unavailable')}</p>
+          <p className={styles.error}>{errorCopy('payment_unavailable', locale)}</p>
         )}
         {!asking ? (
           <button type="button" className={styles.secondary} disabled={releasing} onClick={() => setAsking(true)}>
-            Release it
+            {c.releaseIt}
           </button>
         ) : (
-          <div className={styles.confirmBox} role="group" aria-label="Release this room?">
-            <p>Release this room? We cancel it with the hotel now and nothing is paid. This cannot be undone.</p>
+          <div className={styles.confirmBox} role="group" aria-label={c.releaseAsk}>
+            <p>{c.releaseBody}</p>
             <div className={styles.row}>
               <button type="button" className={styles.secondary} disabled={releasing} onClick={() => setAsking(false)}>
-                Keep holding it
+                {c.keepHolding}
               </button>
               <button type="button" className={styles.danger} disabled={releasing} onClick={() => void release()}>
                 {releasing ? (
                   <>
-                    <Spinner size={14} /> Releasing…
+                    <Spinner size={14} /> {c.releasing}
                   </>
                 ) : (
-                  'Yes, release it'
+                  c.yesRelease
                 )}
               </button>
             </div>
@@ -625,26 +617,23 @@ function Frozen({ page, onChange, onReload }: { page: BookingPage; onChange: (p:
         )}
         {error && (
           <p className={styles.error} role="alert">
-            {errorCopy(error)}
+            {errorCopy(error, locale)}
           </p>
         )}
         <a className={styles.backLink} href={withBase('/')}>
-          Back to the shortlist
+          {c.backToShortlist}
         </a>
       </section>
-      {sheet && <WalletSheet wallet={sheet} total={total} hotel={b.hotelName ?? 'Hotel'} onCancel={() => setSheet(null)} onAuthorize={() => keep(sheet)} />}
+      {sheet && <WalletSheet wallet={sheet} total={total} hotel={b.hotelName ?? c.hotel} onCancel={() => setSheet(null)} onAuthorize={() => keep(sheet)} />}
     </main>
   );
 }
 
-const RELEASED_BY: Record<string, string> = {
-  guest: 'Released by you',
-  expiry: 'Released when the hold ended',
-  terms: 'Released at once: the hotel booked it on terms that cannot be frozen',
-};
-
 function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p: BookingPage) => void; onReload: () => Promise<void> }) {
   const b = page.booking;
+  const { locale, t } = useLocale();
+  const c = t.checkout;
+  const money = (minor: number) => formatMoney(minor, b.currency, locale);
   const [asking, setAsking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -665,29 +654,30 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
   };
 
   const released = b.status === 'cancelled' && b.releasedBy !== null;
-  const heading =
-    b.status === 'confirmed' ? 'Booked' : released ? 'Released' : b.status === 'cancelled' ? 'Cancelled' : b.status === 'failed' ? 'Not booked' : 'Waiting for the hotel';
+  const h = c.heading;
+  const heading = b.status === 'confirmed' ? h.booked : released ? h.released : b.status === 'cancelled' ? h.cancelled : b.status === 'failed' ? h.failed : h.waiting;
+  const until = freeUntil(b, locale);
   return (
     <main className={styles.main}>
       <Stay b={b} />
-      <section aria-label="Booking" className={styles.form}>
+      <section aria-label={c.booking} className={styles.form}>
         <h1>{heading}</h1>
         {b.status === 'confirmed' && (
           <>
             <dl className={styles.facts}>
               <div>
-                <dt>Booking reference</dt>
+                <dt>{c.reference}</dt>
                 <dd>{b.reference}</dd>
               </div>
               {b.hotelConfirmationCode && (
                 <div>
-                  <dt>Hotel confirmation</dt>
+                  <dt>{c.hotelConfirmation}</dt>
                   <dd>{b.hotelConfirmationCode}</dd>
                 </div>
               )}
               {b.holder && (
                 <div>
-                  <dt>Guest</dt>
+                  <dt>{c.guest}</dt>
                   <dd>
                     {b.holder.firstName} {b.holder.lastName} · {b.holder.email}
                   </dd>
@@ -695,45 +685,45 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
               )}
               {b.specialRequest && (
                 <div>
-                  <dt>Your special request</dt>
+                  <dt>{c.yourRequest}</dt>
                   <dd className={styles.requestText}>{b.specialRequest}</dd>
-                  <dd className={styles.muted}>Sent to the hotel with the booking. Requests are not guaranteed: the hotel decides.</dd>
+                  <dd className={styles.muted}>{c.requestSent}</dd>
                 </div>
               )}
               <div>
-                <dt>Paid</dt>
+                <dt>{c.paid}</dt>
                 <dd>
-                  {formatMoney(b.totalMinor, b.currency)}
-                  {b.paidWith ? ` with ${WALLET_NAME[b.paidWith as Wallet] ?? b.paidWith}` : ''}
-                  {b.testPayment ? ' (test payment: no money moved)' : ''}
+                  {money(b.totalMinor)}
+                  {b.paidWith ? c.paidWith(WALLET_NAME[b.paidWith as Wallet] ?? b.paidWith) : ''}
+                  {b.testPayment ? c.testPaid : ''}
                 </dd>
               </div>
             </dl>
             {!asking ? (
               <button type="button" className={styles.secondary} onClick={() => setAsking(true)}>
-                Cancel this booking
+                {c.cancelBooking}
               </button>
             ) : (
-              <div className={styles.confirmBox} role="group" aria-label="Cancel this booking?">
+              <div className={styles.confirmBox} role="group" aria-label={c.cancelAsk}>
                 <p>
-                  Cancel this booking?{' '}
+                  {c.cancelAsk}{' '}
                   {b.refundable === false
-                    ? `It is non-refundable: the hotel keeps the full ${formatMoney(b.totalMinor, b.currency)}.`
-                    : b.freeCancellationUntil && Date.parse(b.freeCancellationUntil) > Date.now()
-                      ? `It is free until ${cancellationText(b).replace('Free until ', '')}.`
-                      : 'The hotel decides any fee; the refund is shown after.'}
+                    ? c.cancelNonRefundable(money(b.totalMinor))
+                    : until && b.freeCancellationUntil && Date.parse(b.freeCancellationUntil) > Date.now()
+                      ? c.cancelFreeUntil(until)
+                      : c.cancelHotelDecides}
                 </p>
                 <div className={styles.row}>
                   <button type="button" className={styles.secondary} disabled={cancelling} onClick={() => setAsking(false)}>
-                    Keep it
+                    {c.keepIt}
                   </button>
                   <button type="button" className={styles.danger} disabled={cancelling} onClick={() => void cancel()}>
                     {cancelling ? (
                       <>
-                        <Spinner size={14} /> Cancelling…
+                        <Spinner size={14} /> {c.cancelling}
                       </>
                     ) : (
-                      'Yes, cancel it'
+                      c.yesCancel
                     )}
                   </button>
                 </div>
@@ -744,18 +734,18 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
         {released && (
           <dl className={styles.facts}>
             <div>
-              <dt>Booking reference</dt>
+              <dt>{c.reference}</dt>
               <dd>{b.reference}</dd>
             </div>
             <div>
-              <dt>Freeze</dt>
-              <dd>{RELEASED_BY[b.releasedBy ?? ''] ?? 'Released'}</dd>
+              <dt>{c.freeze}</dt>
+              <dd>{c.releasedBy[b.releasedBy ?? ''] ?? c.released}</dd>
             </div>
             <div>
-              <dt>Paid</dt>
+              <dt>{c.paid}</dt>
               <dd>
-                Nothing
-                {b.cancelFeeMinor ? ` · the hotel charged ${formatMoney(b.cancelFeeMinor, b.currency)} to cancel` : ''}
+                {c.nothing}
+                {b.cancelFeeMinor ? c.hotelCharged(money(b.cancelFeeMinor)) : ''}
               </dd>
             </div>
           </dl>
@@ -763,23 +753,23 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
         {b.status === 'cancelled' && !released && (
           <dl className={styles.facts}>
             <div>
-              <dt>Booking reference</dt>
+              <dt>{c.reference}</dt>
               <dd>{b.reference}</dd>
             </div>
             <div>
-              <dt>Refund</dt>
+              <dt>{c.refund}</dt>
               <dd>
-                {b.refundMinor !== null ? formatMoney(b.refundMinor, b.currency) : 'As the hotel decides'}
-                {b.cancelFeeMinor ? ` (fee ${formatMoney(b.cancelFeeMinor, b.currency)})` : ''}
-                {b.testPayment ? ' · test payment, nothing to refund' : ''}
+                {b.refundMinor !== null ? money(b.refundMinor) : c.asHotelDecides}
+                {b.cancelFeeMinor ? c.fee(money(b.cancelFeeMinor)) : ''}
+                {b.testPayment ? c.testNothingToRefund : ''}
               </dd>
             </div>
           </dl>
         )}
-        {b.status === 'failed' && <p>{errorCopy(b.failureCode ?? 'booking_failed')}</p>}
+        {b.status === 'failed' && <p>{errorCopy(b.failureCode ?? 'booking_failed', locale)}</p>}
         {(b.status === 'booking' || b.status === 'paid' || b.status === 'payment_pending' || b.status === 'freezing' || b.status === 'keeping' || b.status === 'releasing') && (
           <>
-            <p>{errorCopy('booking_unknown')}</p>
+            <p>{errorCopy('booking_unknown', locale)}</p>
             <button
               type="button"
               className={styles.secondary}
@@ -791,21 +781,21 @@ function Receipt({ page, onChange, onReload }: { page: BookingPage; onChange: (p
             >
               {checking ? (
                 <>
-                  <Spinner size={14} /> Checking…
+                  <Spinner size={14} /> {c.checking}
                 </>
               ) : (
-                'Check again'
+                c.checkAgain
               )}
             </button>
           </>
         )}
         {error && (
           <p className={styles.error} role="alert">
-            {errorCopy(error)}
+            {errorCopy(error, locale)}
           </p>
         )}
         <a className={styles.backLink} href={withBase('/')}>
-          Back to the shortlist
+          {c.backToShortlist}
         </a>
       </section>
     </main>

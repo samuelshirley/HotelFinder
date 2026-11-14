@@ -3,9 +3,11 @@ import 'server-only';
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 import { bookedFreezeTerms, freezeTerms, holdEnded, MAX_ACTIVE_FREEZES } from '@/lib/freeze';
-import { formatDates, formatMoney } from '@/lib/replies';
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
+import { formatDates, formatDeadline, formatMoney } from '@/lib/replies';
 import { mailConfigured, sendEmail } from '@/server/auth/mailer';
-import { guestNames, PRICE_CHECK_TTL_MS, signInGuest } from '@/server/checkout';
+import { bookingLocale, guestNames, PRICE_CHECK_TTL_MS, signInGuest } from '@/server/checkout';
 import { paymentMode, takePayment, type Wallet } from '@/server/payments';
 import {
   claimReminder,
@@ -35,8 +37,6 @@ import type { SupplierAdapter } from '@/server/supplier';
  * Sandbox only: a live key would book on the business's own credit.
  */
 
-const when = (d: Date) =>
-  `${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(d)} UTC`;
 
 export type FreezeInput = {
   bookingId: string;
@@ -49,6 +49,8 @@ export type FreezeInput = {
   acceptedTotalMinor: number;
   supplier: SupplierAdapter;
   now: Date;
+  /** The language of the request: the chat line, and the reminder (kept on the booking). The booking's own when left out. */
+  locale?: Locale;
 };
 
 export type FreezeError =
@@ -119,6 +121,8 @@ export async function freezeBooking(input: FreezeInput): Promise<FreezeResult> {
     {
       supplierBookingId: result.value.supplierBookingId,
       hotelConfirmationCode: result.value.hotelConfirmationCode ?? undefined,
+      // Whoever froze it gets the reminder, and the sweep's lines, in their language.
+      ...(input.locale ? { locale: input.locale } : {}),
       ...(booked.ok ? { frozenUntil: booked.frozenUntil, freezeReminderDueAt: booked.reminderDueAt } : { frozenUntil: now, freezeReminderDueAt: null }),
     },
     'freezing',
@@ -130,11 +134,12 @@ export async function freezeBooking(input: FreezeInput): Promise<FreezeResult> {
     return { ok: false, error: 'freeze_terms_changed', signedInAs };
   }
   if (frozen.sessionId && frozen.checkIn && frozen.checkOut && frozen.frozenUntil) {
+    const locale = bookingLocale(frozen);
     await appendMessage({
       sessionId: frozen.sessionId,
       role: 'assistant',
       kind: 'line',
-      content: `Frozen: ${frozen.hotelName}, ${formatDates(frozen.checkIn, frozen.checkOut)}, held until ${when(frozen.frozenUntil)}. Reference ${frozen.supplierBookingId}. Confirm and pay before then, or it is released.`,
+      content: copy(locale).booking.frozenLine(frozen.hotelName ?? '', formatDates(frozen.checkIn, frozen.checkOut, locale), formatDeadline(frozen.frozenUntil, locale), frozen.supplierBookingId ?? ''),
       meta: { booking: frozen.id },
     });
   }
@@ -144,7 +149,7 @@ export async function freezeBooking(input: FreezeInput): Promise<FreezeResult> {
 export type KeepError = 'booking_not_found' | 'booking_not_payable' | 'freeze_expired' | 'price_changed' | 'payment_unavailable';
 
 /** Confirm a frozen booking: the guest pays the held price. The room is already booked. */
-export async function keepFrozen(input: { bookingId: string; userId: string; wallet: Wallet; acceptedTotalMinor: number; now: Date }): Promise<{ ok: true; booking: Booking } | { ok: false; error: KeepError }> {
+export async function keepFrozen(input: { bookingId: string; userId: string; wallet: Wallet; acceptedTotalMinor: number; now: Date; locale?: Locale }): Promise<{ ok: true; booking: Booking } | { ok: false; error: KeepError }> {
   const booking = await getBooking(input.bookingId);
   if (!booking) return { ok: false, error: 'booking_not_found' };
   // The route has already found it is this visitor's. Not frozen comes first: a prebooked row bought
@@ -166,11 +171,12 @@ export async function keepFrozen(input: { bookingId: string; userId: string; wal
   const confirmed = await transitionBooking(booking.id, 'confirmed', { testPayment: paid.test }, 'keeping');
   if (!confirmed) return { ok: false, error: 'booking_not_payable' };
   if (confirmed.sessionId && confirmed.checkIn && confirmed.checkOut) {
+    const locale = input.locale ?? bookingLocale(confirmed);
     await appendMessage({
       sessionId: confirmed.sessionId,
       role: 'assistant',
       kind: 'line',
-      content: `Booked: ${confirmed.hotelName}, ${formatDates(confirmed.checkIn, confirmed.checkOut)}. Reference ${confirmed.supplierBookingId}.`,
+      content: copy(locale).booking.bookedLine(confirmed.hotelName ?? '', formatDates(confirmed.checkIn, confirmed.checkOut, locale), confirmed.supplierBookingId ?? ''),
       meta: { booking: confirmed.id },
     });
   }
@@ -181,7 +187,7 @@ export type ReleaseBy = 'guest' | 'expiry' | 'terms';
 export type ReleaseError = 'booking_not_found' | 'not_cancellable' | 'cancel_failed' | 'release_unknown';
 
 /** Release a frozen booking: cancelled at the supplier. Whoever moves it frozen → releasing cancels, once. */
-export async function releaseFrozen(args: { bookingId: string; supplier: SupplierAdapter; by: ReleaseBy; now: Date }): Promise<{ ok: true; booking: Booking } | { ok: false; error: ReleaseError }> {
+export async function releaseFrozen(args: { bookingId: string; supplier: SupplierAdapter; by: ReleaseBy; now: Date; locale?: Locale }): Promise<{ ok: true; booking: Booking } | { ok: false; error: ReleaseError }> {
   const booking = await getBooking(args.bookingId);
   if (!booking) return { ok: false, error: 'booking_not_found' };
   if (booking.status !== 'frozen' || !booking.supplierBookingId) return { ok: false, error: 'not_cancellable' };
@@ -195,10 +201,11 @@ export async function releaseFrozen(args: { bookingId: string; supplier: Supplie
     return { ok: false, error: 'cancel_failed' };
   }
   if (result.value.status !== 'cancelled') return { ok: false, error: 'release_unknown' };
-  return { ok: true, booking: await markReleased(claimed, result.value.refund.amountMinor, result.value.fee.amountMinor) };
+  return { ok: true, booking: await markReleased(claimed, result.value.refund.amountMinor, result.value.fee.amountMinor, args.locale) };
 }
 
-async function markReleased(booking: Booking, refundMinor: number | null, feeMinor: number | null): Promise<Booking> {
+/** `locale`: the request's, when the guest released it; else the booking's own (a hold the sweep ended). */
+async function markReleased(booking: Booking, refundMinor: number | null, feeMinor: number | null, locale?: Locale): Promise<Booking> {
   // A fee on a release means the hold outlived the free-cancellation window: a cost to the business.
   if (feeMinor) console.error('[freeze] released with a cancellation fee', booking.id, feeMinor);
   const cancelled = await transitionBooking(booking.id, 'cancelled', { refundMinor, cancelFeeMinor: feeMinor }, 'releasing');
@@ -207,7 +214,7 @@ async function markReleased(booking: Booking, refundMinor: number | null, feeMin
       sessionId: cancelled.sessionId,
       role: 'assistant',
       kind: 'line',
-      content: `Released: ${cancelled.hotelName}. Reference ${cancelled.supplierBookingId}. Nothing was paid.`,
+      content: copy(locale ?? bookingLocale(cancelled)).booking.releasedLine(cancelled.hotelName ?? '', cancelled.supplierBookingId ?? ''),
       meta: { booking: cancelled.id },
     });
   }
@@ -238,17 +245,15 @@ export async function settleFreeze(booking: Booking, supplier: SupplierAdapter, 
   return booking;
 }
 
+/** The freeze reminder, in the language the room was frozen in (bookings.locale). */
 export function reminderEmail(b: Booking): { subject: string; text: string } {
-  const until = b.frozenUntil ? when(b.frozenUntil) : 'soon';
-  const dates = b.checkIn && b.checkOut ? `, ${formatDates(b.checkIn, b.checkOut)}` : '';
+  const locale = bookingLocale(b);
+  const t = copy(locale).booking;
+  const until = b.frozenUntil ? formatDeadline(b.frozenUntil, locale) : '';
+  const dates = b.checkIn && b.checkOut ? formatDates(b.checkIn, b.checkOut, locale) : '';
   return {
-    subject: `Your frozen room at ${b.hotelName} is released ${until}`,
-    text: [
-      `You froze ${b.hotelName}${dates}, at ${formatMoney(b.totalMinor, b.currency)}.`,
-      `It stays booked for you until ${until}. To keep it, open Hotel finder signed in with this email, find it under Your bookings, and confirm and pay before then.`,
-      `If you do nothing, we cancel it with the hotel at that time, before its free-cancellation deadline, and nothing is paid.`,
-      `Reference ${b.supplierBookingId}.`,
-    ].join('\n\n'),
+    subject: t.reminderSubject(b.hotelName ?? '', until),
+    text: [t.reminderFroze(b.hotelName ?? '', dates, formatMoney(b.totalMinor, b.currency, locale)), t.reminderKeep(until), t.reminderIfNothing, t.reminderReference(b.supplierBookingId ?? '')].join('\n\n'),
   };
 }
 

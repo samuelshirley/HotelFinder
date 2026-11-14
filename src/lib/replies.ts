@@ -1,4 +1,4 @@
-import type { MustHave } from '@/lib/amenities';
+import type { Amenity, MustHave } from '@/lib/amenities';
 import { chainsChip, eitherOf, hasFilters, typePlural, type StayFilters } from '@/lib/filters';
 import type { Answer, RankValue } from '@/lib/answers';
 import { nightsBetween } from '@/lib/finder/geo';
@@ -36,6 +36,8 @@ export const FIXED_LINES = en.replies.fixed;
 export type FixedLine = keyof typeof FIXED_LINES;
 
 export const mustHaveLabel = (m: MustHave, locale: Locale = 'en'): string => copy(locale).replies.mustHave[m];
+/** A facility as an answer names it (a noun phrase in every language). */
+const facilityName = (a: Amenity, locale: Locale): string => copy(locale).answers.facility[a];
 export const rejectionLine = (r: Rejection, locale: Locale = 'en'): string => copy(locale).replies.rejection[r];
 export const fixedLine = (key: FixedLine, locale: Locale = 'en'): string => copy(locale).replies.fixed[key];
 
@@ -261,7 +263,13 @@ function fromText(from: DistanceFrom, label: string | null, locale: Locale): str
   return from === 'search_centre' ? a.fromSearchCentre : (label ?? (from === 'place' ? a.fromPlace : a.fromDestination));
 }
 
-export function formatDeadline(iso: string, locale: Locale = 'en'): string {
+/** An instant with its weekday, always in UTC as the supplier's deadlines are: "Sat 12 Dec, 10:00 UTC", "sáb, 12 dic, 10:00 UTC". */
+export function formatInstant(iso: string | Date, locale: Locale = 'en'): string {
+  const when = new Intl.DateTimeFormat(INTL[locale].date, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso));
+  return copy(locale).words.deadline(when);
+}
+
+export function formatDeadline(iso: string | Date, locale: Locale = 'en'): string {
   const when = new Intl.DateTimeFormat(INTL[locale].date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso));
   return copy(locale).words.deadline(when);
 }
@@ -274,7 +282,7 @@ export function listNames(names: string[], locale: Locale = 'en'): string {
 /** What a row was silent about, in the user's terms. */
 function notHeldLine(name: string, ask: FactAsk, locale: Locale): string {
   const n = copy(locale).answers.notHeld;
-  return ask.fact === 'facility' ? n.facility(name, mustHaveLabel(ask.amenity, locale)) : n[ask.fact](name);
+  return ask.fact === 'facility' ? n.facility(name, facilityName(ask.amenity, locale)) : n[ask.fact](name);
 }
 
 function rankValueText(v: RankValue, currency: string, locale: Locale): string {
@@ -347,13 +355,13 @@ export function answerLine(a: Answer, currency: string, locale: Locale = 'en'): 
       return t.distance(a.name, km(a.km, locale), fromText(a.from, a.label, locale));
     case 'facility':
       // "Lists", not "has": this is the supplier's facility list, and its silence is not a no.
-      return a.listed ? t.facilityListed(a.name, mustHaveLabel(a.amenity, locale)) : t.facilityNotListed(a.name, mustHaveLabel(a.amenity, locale));
+      return a.listed ? t.facilityListed(a.name, facilityName(a.amenity, locale)) : t.facilityNotListed(a.name, facilityName(a.amenity, locale));
     case 'not_held':
       return notHeldLine(a.name, a.ask, locale);
     case 'across': {
       const [yes, no] =
         a.ask.fact === 'facility'
-          ? [t.acrossListing(mustHaveLabel(a.ask.amenity, locale)), t.acrossNotListing]
+          ? [t.acrossListing(facilityName(a.ask.amenity, locale)), t.acrossNotListing]
           : a.ask.fact === 'breakfast'
             ? [t.acrossBreakfast, t.acrossNoBreakfast]
             : [t.acrossRefundable, t.acrossNonRefundable];

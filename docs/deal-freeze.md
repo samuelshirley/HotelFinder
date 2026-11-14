@@ -101,7 +101,8 @@ because it is booked.
   (`freezeReminderDueAt`). Sent by email through Resend when
   `RESEND_API_KEY` is set, and marked sent only then. **Locally there is no
   Resend key, so the reminder is display-only**: the booking page shows when
-  it is due and says no email will be sent.
+  it is due and says no email will be sent. The email is in the language the
+  room was frozen in (`bookings.locale`, docs/i18n.md).
 - **Limit:** 3 frozen at a time per account (Vio: 5).
 - **Sandbox only.** In the sandbox nobody's money is at risk. In production
   the freeze would book on the business's own LiteAPI credit (the sandbox

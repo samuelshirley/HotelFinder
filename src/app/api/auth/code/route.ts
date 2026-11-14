@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { normalizeEmail, sendCode } from '@/server/auth/otp';
-import { errorResponse, handled, rateLimit } from '@/server/http';
+import { errorResponse, handled, rateLimit, requestLocale } from '@/server/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export const POST = handled(async (req: Request) => {
   if (!email) return errorResponse('email_invalid', 400);
   const limited = await rateLimit('auth-code', 10);
   if (limited) return limited;
-  const sent = await sendCode(email, new Date());
+  const sent = await sendCode(email, new Date(), requestLocale());
   if (!sent.ok) return errorResponse(sent.error, sent.error === 'too_many_codes' ? 429 : 503);
   return NextResponse.json(sent.delivery.via === 'dev_mailbox' ? { sent: true, devCode: sent.delivery.code } : { sent: true });
 });
