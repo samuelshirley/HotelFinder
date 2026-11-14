@@ -194,6 +194,7 @@ deployment with `E2E_BASE_URL`). Guards: `guards/controls.spec.ts` (every
 control is claimed by a test) and `api/coverage.spec.ts` (every route and
 method has a describe). Tests assert intended behaviour, never today's output.
 CI: `.github/workflows/ci.yml` on every PR, 3 shards merged into one report;
+`e2e-author.yml` (Claude writes a PR's missing e2e tests, pushes them, comments: `docs/testing.md`);
 `preview.yml` (a preview per PR); `deployed.yml` after every Vercel deploy:
 `docs/testing.md`, `docs/deploy.md`.
 

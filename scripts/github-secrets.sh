@@ -8,6 +8,7 @@
 #   NEON_PROJECT_ID  defaults to the hotel-finder project when .env has none
 #   LITE_API_KEY     must be the SANDBOX key (sand_…): previews and CI never get a live one
 #   VERCEL_TOKEN     (or VERCEL_API_TOKEN) vercel.com/account/settings/tokens (account settings, not the project's)
+#   ANTHROPIC_API_KEY  optional: .github/workflows/e2e-author.yml (Claude writes a PR's missing e2e tests)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -32,6 +33,9 @@ for k in NEON_API_KEY LITE_API_KEY VERCEL_TOKEN; do
 done
 pid="$(envval NEON_PROJECT_ID)"
 put NEON_PROJECT_ID "${pid:-$DEFAULT_NEON_PROJECT_ID}"
+# Optional: without it the e2e-author workflow skips with a notice.
+ak="$(envval ANTHROPIC_API_KEY)"
+if [ -n "$ak" ]; then put ANTHROPIC_API_KEY "$ak"; else echo "ANTHROPIC_API_KEY not in .env: e2e-author will skip" >&2; fi
 
 if [ ${#missing[@]} -gt 0 ]; then
   echo "not set (add to .env and re-run): ${missing[*]}" >&2

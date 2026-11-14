@@ -7,6 +7,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Started by e2e-author.yml after it pushes tests: a push made with
+  # GITHUB_TOKEN starts no workflow on its own.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

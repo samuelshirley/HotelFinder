@@ -1,0 +1,163 @@
+# On every PR push: Claude reads the PR's change, decides whether it needs new
+# end-to-end tests, writes them under e2e/ (and nothing else), checks them, and
+# pushes them to the PR's branch. Then one comment on the PR says, in plain
+# words, which tests it added and what each one checks, or why none were needed.
+# docs/testing.md, "Tests written by CI".
+#
+# Its push uses GITHUB_TOKEN, which starts no workflow by itself, so it starts
+# CI on the new commit with workflow_dispatch: the required checks run on the
+# commit that has the new tests. That push is not a pull_request event either,
+# so this workflow never runs on its own commits.
+name: E2E author
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: e2e-author-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  author:
+    name: Write the missing e2e tests
+    # A fork's PR gets no secrets and may not push here; a draft is not finished.
+    # The label `no-e2e-author` turns it off for one PR.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft &&
+      !contains(github.event.pull_request.labels.*.name, 'no-e2e-author')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # The SANDBOX key, as in ci.yml: test bookings only, cancelled by the specs.
+      LITE_API_KEY: ${{ secrets.LITE_API_KEY }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      BASE: ${{ github.event.pull_request.base.ref }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI: 'true'
+    steps:
+      - name: The Anthropic key is set
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::No ANTHROPIC_API_KEY repository secret (scripts/github-secrets.sh copies it from .env): no tests written."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/checkout@v4
+        if: env.SKIP != '1'
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Skip a push that says so
+        if: env.SKIP != '1'
+        run: |
+          if git log -1 --format=%B | grep -q '\[skip e2e-author\]'; then echo "SKIP=1" >> "$GITHUB_ENV"; fi
+
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with: { node-version: 22, cache: npm }
+      - if: env.SKIP != '1'
+        run: npm ci
+      - name: Cache the Playwright browser
+        if: env.SKIP != '1'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - if: env.SKIP != '1'
+        run: npx playwright install --with-deps chromium
+
+      - name: Claude reads the change and writes the tests
+        if: env.SKIP != '1'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 80
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(npm run typecheck),Bash(npx tsc:*),Bash(npx playwright test:*),Bash(ls:*),Bash(cat:*)"
+          prompt: |
+            You are adding end-to-end tests to pull request #${{ env.PR }} of this repository
+            (branch ${{ env.BRANCH }}, into ${{ env.BASE }}).
+
+            1. Read CLAUDE.md and docs/testing.md first. They say how this project's e2e
+               suite is laid out (e2e/ui, e2e/api, pages/, support/, guards/) and its
+               rules: every feature gets an e2e test at desktop and phone size; tests
+               assert intended behaviour, never today's output; every API route and
+               method has a describe in the spec e2e/api/catalog.ts names; every control
+               is claimed in e2e/guards/registry.ts.
+            2. Read the change: `git diff origin/${{ env.BASE }}...HEAD` and
+               `git log origin/${{ env.BASE }}..HEAD`. Work out what a user or an API
+               caller can now see or do differently.
+            3. Decide whether that behaviour is already covered by an e2e test (on this
+               branch, including tests the PR itself adds). Only add tests for behaviour
+               that is new or changed and not covered. Do not rewrite or delete existing
+               tests, and do not add tests for code the PR did not change.
+            4. If tests are needed, write them in e2e/ only, in the style of the specs
+               around them (fixtures/test, page objects in e2e/pages, schemas in
+               e2e/support/schemas.ts). Never edit anything outside e2e/.
+               Then run `npm run typecheck` and `npx playwright test <each spec you touched>`.
+               If a new test fails, decide from the PR's intent and the docs whether the
+               test or the app is wrong. Fix a wrong test. Keep a test that fails because
+               the app is wrong, and say so in the summary.
+            5. Write .e2e-author/summary.md, as simply as possible, for a reader who does
+               not read code. Exactly this shape:
+
+               If you added tests:
+                 **New end-to-end tests**
+                 - `<file>`: "<test title>": <one plain sentence on what it checks>
+                 (one line per test)
+                 then, only if any fail because the app is wrong:
+                 **Failing because the app is wrong**
+                 - "<test title>": <one plain sentence on what the app does instead>
+
+               If none were needed:
+                 **No new end-to-end tests needed.** <one sentence saying why>
+
+            Do not commit, push or comment: the workflow does that.
+
+      - name: Keep only e2e/ and push it
+        if: env.SKIP != '1'
+        id: push
+        run: |
+          # Anything outside e2e/ is not this job's to change.
+          git diff --name-only | grep -v '^e2e/' | xargs -r git checkout --
+          git ls-files --others --exclude-standard | grep -v '^e2e/' | grep -v '^\.e2e-author/' | xargs -r rm -f
+          if [ -z "$(git status --porcelain e2e/)" ]; then echo "pushed=0" >> "$GITHUB_OUTPUT"; exit 0; fi
+          npm run typecheck
+          git config user.name "e2e-author[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/
+          git commit -m "test(e2e): tests the change needed, written by CI (e2e-author)" -m "$(cat .e2e-author/summary.md 2>/dev/null || true)"
+          git push origin "HEAD:$BRANCH"
+          echo "pushed=1" >> "$GITHUB_OUTPUT"
+
+      - name: Run CI on the commit with the new tests
+        if: env.SKIP != '1' && steps.push.outputs.pushed == '1'
+        run: gh workflow run ci.yml --ref "$BRANCH"
+
+      - name: Say what was added
+        if: env.SKIP != '1'
+        run: |
+          body_file=$(mktemp)
+          {
+            echo '<!-- e2e-author -->'
+            if [ -s .e2e-author/summary.md ]; then cat .e2e-author/summary.md; else echo "**E2E author did not finish.** No tests were added; see the run log."; fi
+            echo
+            echo "From \`${HEAD_SHA::7}\` · [run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+          } > "$body_file"
+          # One comment per PR, edited on every push.
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- e2e-author -->")) | .id' | tail -1)
+          if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$body_file" >/dev/null
+          else gh pr comment "$PR" --body-file "$body_file"; fi

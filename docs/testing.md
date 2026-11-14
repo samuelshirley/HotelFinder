@@ -206,6 +206,27 @@ merged scans), `e2e/ui/onboarding.spec.ts`, `e2e/ui/results.spec.ts` (a phone,
 sign in to see price), `e2e/api/auth.spec.ts`, `e2e/ui/booking.spec.ts` (sign
 in first).
 
+## Tests written by CI
+
+`.github/workflows/e2e-author.yml` (Sam, 2026-11-14). On every push to a PR
+from this repository (not drafts, not forks), Claude (Sonnet 5.5, 80 turns at
+most) reads the change against the base branch, decides whether the new or
+changed behaviour already has an e2e test, and writes the missing ones under
+`e2e/` only, by the rules above. It runs `npm run typecheck` and each spec it
+touched against the sandbox; a test that fails because the app is wrong is
+kept and named. The workflow, not Claude, throws away anything outside
+`e2e/`, commits, pushes to the PR branch and starts `ci.yml` on that commit
+(`workflow_dispatch`: a push with GITHUB_TOKEN starts no workflow by itself,
+so this job also never runs on its own commits). One comment on the PR,
+edited on every push, lists each new test and what it checks in one plain
+sentence, or says why none were needed.
+
+- Needs the `ANTHROPIC_API_KEY` repository secret (`scripts/github-secrets.sh`
+  copies it from `.env`); without it the job skips with a notice.
+- Off for one PR: the label `no-e2e-author`. Off for one push: `[skip e2e-author]`
+  in the head commit's message.
+- **Not yet run on a real PR** (written 2026-11-14).
+
 ## Isolation and the sandbox's rate limit
 
 - **Each test is its own visitor**: its own cookies, and its own client IP
