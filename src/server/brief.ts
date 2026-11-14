@@ -17,6 +17,7 @@ import { appendMessage } from '@/server/repos/chat';
 import { updateSession, type SearchSession } from '@/server/repos/sessions';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * The first screen (docs/entry-ux.md): one box for the whole trip, three
@@ -33,7 +34,6 @@ import type { SupplierAdapter } from '@/server/supplier';
  * Then the existing onboarding steps run, so a search that has everything
  * goes straight to its first results.
  */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const briefSchema = z
   .object({

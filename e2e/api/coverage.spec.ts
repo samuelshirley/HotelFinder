@@ -87,4 +87,21 @@ test.describe('API coverage guard', { tag: ['@api', '@coverage'] }, () => {
     await req.dispose();
     expect(problems, 'invariant 1: every API route accepts exactly one Zod schema').toEqual([]);
   });
+
+  // Every GET is strict about its query (Sam, 2026-11-14): a parameter it does
+  // not take is 400 invalid_request, checked before who is asking. The sweep
+  // stays not found to anyone without the cron secret, whatever the query.
+  test('a GET with a query parameter it does not take is 400 invalid_request', async ({ ip }) => {
+    const req = await newRequest(ip);
+    const problems: string[] = [];
+    for (const r of ROUTES.filter((x) => x.methods.includes('GET'))) {
+      const url = `${r.sample}${r.sample.includes('?') ? '&' : '?'}surprise=1`;
+      const res = await req.get(url);
+      const text = await res.text();
+      const [status, body] = r.route === 'freeze/sweep' ? [404, '{"error":"not_allowed"}'] : [400, '{"error":"invalid_request"}'];
+      if (res.status() !== status || text !== body) problems.push(`GET ${url}: ${res.status()} ${text.slice(0, 120)}`);
+    }
+    await req.dispose();
+    expect(problems, 'every GET is strict about its query').toEqual([]);
+  });
 });

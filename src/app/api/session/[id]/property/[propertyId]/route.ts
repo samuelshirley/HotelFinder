@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { errorResponse, handled, ownedSession, rateLimit, requestLocale } from '@/server/http';
+import { errorResponse, handled, noQuery, ownedSession, rateLimit, requestLocale } from '@/server/http';
 import { readPropertyDetails } from '@/server/propertyDetails';
 import { audienceFor, listStays } from '@/server/repos/sessions';
 import { isListed } from '@/server/repos/shortlist';
@@ -10,7 +10,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Photos, description and facilities for one shortlisted hotel. Supplier text is data and is sent as plain text. */
-export const GET = handled(async (_req: Request, ctx: { params: { id: string; propertyId: string } }) => {
+export const GET = handled(async (req: Request, ctx: { params: { id: string; propertyId: string } }) => {
+  const badQuery = noQuery(req);
+  if (badQuery) return badQuery;
   const session = await ownedSession(ctx.params.id);
   if (session instanceof NextResponse) return session;
   const limited = await rateLimit('property', 60);

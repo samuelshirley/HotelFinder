@@ -10,6 +10,7 @@ import { copy } from '@/lib/i18n';
 import { errorResponse, handled, rateLimit, requestLocale, resolveToday, signInBrowser } from '@/server/http';
 import { getSupplier } from '@/server/supplier';
 import { buildSessionView } from '@/server/view';
+import { isoDate } from '@/lib/isoDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,7 @@ const payload = z
     code: z.string().max(12),
     /** Signed in from a search ("Sign in for member prices", a card's "Sign in for a lower price"): that search is re-run at member prices. */
     sessionId: z.string().uuid().optional(),
-    today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    today: isoDate.optional(),
   })
   .strict();
 

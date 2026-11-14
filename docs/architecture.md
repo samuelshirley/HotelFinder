@@ -337,7 +337,8 @@ and makes no supplier call.
 ## 13. UI
 
 Phones (≤900px): docs/design/mobile.md. Desktop, two panes. Left: the chat, composer always reachable, form rows
-(chips, OTP, payment) inline. Right: the shortlist (three to five cards: photo,
+(chips, OTP, payment) inline. Right: the shortlist (the best few cards, as many as the finder ranks; no
+number is promised in the copy: photo,
 name, rating from supplier data, total and per-night, cancellation line, the
 reason, one primary action), a detail view for one property, and a map toggle
 showing the shortlist and the user's POIs. No filter sidebar, no sort dropdown,

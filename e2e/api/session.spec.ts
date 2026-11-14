@@ -104,6 +104,8 @@ test.describe('POST /api/session/brief', { tag: '@api' }, () => {
       [{ brief: { place: porto }, today: addDays(today(), 3) }, 400, 'bad_date'],
       [{ brief: { place: porto } }, 400, 'invalid_request'],
       [{ brief: { place: porto, extra: 1 }, today: today() }, 400, 'invalid_request'],
+      // A date that does not exist is a typo, refused at the boundary (Sam, 2026-11-14).
+      [{ brief: { place: porto, dates: { checkIn: `${d.checkIn.slice(0, 7)}-40`, checkOut: addDays(d.checkIn, 2) } }, today: today() }, 400, 'invalid_request'],
       [{ brief: { place: porto, priorities: ['cheapest', 'cheapest'] }, today: today() }, 400, 'invalid_request'],
       [{ brief: { place: porto, priorities: ['fastest'] }, today: today() }, 400, 'invalid_request'],
       [{ brief: { place: porto, guests: { adults: 13, childrenAges: [], rooms: 1, pets: false } }, today: today() }, 400, 'invalid_request'],
@@ -211,6 +213,7 @@ test.describe('POST /api/session/[id]/form', { tag: '@api' }, () => {
     await expectError(await api.form(id, { answer: { field: 'dates', checkIn: d.checkIn, checkOut: d.checkIn }, today: today() }), 400, 'checkout_not_after_checkin');
     await expectError(await api.form(id, { answer: { field: 'dates', checkIn: d.checkIn, checkOut: addDays(d.checkIn, 31) }, today: today() }), 400, 'stay_too_long');
     await expectError(await api.form(id, { answer: { field: 'dates', ...d }, today: '2001-01-01' }), 400, 'bad_date');
+    await expectError(await api.form(id, { answer: { field: 'dates', checkIn: d.checkIn, checkOut: `${d.checkOut.slice(0, 7)}-40` }, today: today() }), 400, 'invalid_request');
   });
 
   test('a party with more rooms than adults is more_rooms_than_adults', async ({ api }) => {
@@ -269,6 +272,7 @@ test.describe('POST /api/session/[id]/edit', { tag: '@api' }, () => {
     const id = searched.sessionId;
     await expectError(await api.edit(id, { actions: [{ type: 'set_dates', checkIn: addDays(today(), -3), checkOut: today() }], today: today() }), 400, 'dates_in_past');
     await expectError(await api.edit(id, { actions: [{ type: 'set_dates', checkIn: d.checkOut, checkOut: d.checkIn }], today: today() }), 400, 'checkout_not_after_checkin');
+    await expectError(await api.edit(id, { actions: [{ type: 'set_dates', checkIn: d.checkIn, checkOut: `${d.checkOut.slice(0, 7)}-40` }], today: today() }), 400, 'invalid_request');
     await expectError(await api.edit(id, { actions: [{ type: 'set_dates', checkIn: d.checkIn, checkOut: addDays(d.checkIn, 31) }], today: today() }), 400, 'stay_too_long');
     await expectError(await api.edit(id, { actions: [{ type: 'set_guests', adults: 1, childrenAges: [], rooms: 2 }], today: today() }), 400, 'more_rooms_than_adults');
     await expectError(await api.edit(id, { actions: [{ type: 'set_nationality', code: 'XX' }], today: today() }), 400, 'unknown_country');

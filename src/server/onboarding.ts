@@ -20,6 +20,7 @@ import { SPONSORED_HOTELS } from '@/lib/sponsors';
 import { listShortlist } from '@/server/repos/shortlist';
 import { addStay, audienceFor, getSession, listStays, updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
 import type { SupplierAdapter } from '@/server/supplier';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * Onboarding is a deterministic form inside the chat. Questions are chat rows
@@ -39,7 +40,6 @@ import type { SupplierAdapter } from '@/server/supplier';
 export const FIELDS = ['destination', 'dates', 'guests', 'priorities'] as const;
 export type Field = (typeof FIELDS)[number];
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /** The ONE payload the form endpoint accepts. */
 export const formAnswerSchema = z.discriminatedUnion('field', [

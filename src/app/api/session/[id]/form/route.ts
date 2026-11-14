@@ -7,12 +7,13 @@ import { listMessages } from '@/server/repos/chat';
 import { getSession } from '@/server/repos/sessions';
 import { getSupplier } from '@/server/supplier';
 import { buildSessionView } from '@/server/view';
+import { isoDate } from '@/lib/isoDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const payload = z.object({ answer: formAnswerSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
+const payload = z.object({ answer: formAnswerSchema, today: isoDate }).strict();
 
 /** One answer to the onboarding question currently being asked. */
 export const POST = handled(async (req: Request, ctx: { params: { id: string } }) => {

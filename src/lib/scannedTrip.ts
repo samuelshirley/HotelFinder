@@ -4,6 +4,7 @@ import { MUST_HAVES, type MustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
 import { canonicalPriorities, PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
+import { isRealDate } from '@/lib/isoDate';
 
 /**
  * What a free-text first message said about the trip, after the server has
@@ -28,7 +29,6 @@ export type ScannedTrip = {
   datesHint?: { nights?: number; month?: string; checkIn?: string };
 };
 
-const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const rawScan = z
   .object({
     destination: z.string().nullish(),
@@ -52,8 +52,7 @@ function addDays(date: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
-const realDate = (s: string | null | undefined): s is string =>
-  !!s && iso.safeParse(s).success && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+const realDate = (s: string | null | undefined): s is string => !!s && isRealDate(s);
 
 export function validateScan(raw: unknown, today: string, currency: string): ScannedTrip {
   const parsed = rawScan.safeParse(raw);

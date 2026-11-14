@@ -123,12 +123,12 @@ signed anonymous cookie, both essential.
                                                                          
             Not 400 hotels. The right one, and why.                    (H1)
    Tell us the trip. We check every hotel with a room and show the      (sub)
-   best three, each with the reason it won.                             
+   best few, each with the reason it won.                               
                                                                          
  ┌───────────────────────────────────────────────────────────────────┐   
  │ Annecy, 1–6 Dec, just me, central and well rated▌                 │   (box)
  │───────────────────────────────────────────────────────────────────│   
- │ [⌖ Where: Add a place] [▦ When: Add dates] [☺ Who: 2 adults]      │   
+ │ [⌖ Where: Add a place] [▦ When: Tonight · 1 night][☺ Who: 2 adults]      │   
  │                                               [ Find my hotel ]   │   
  └───────────────────────────────────────────────────────────────────┘   
    What matters? (optional)                                              
@@ -148,12 +148,12 @@ signed anonymous cookie, both essential.
 | Element | Exact copy | Behaviour |
 |---|---|---|
 | H1 | `Not 400 hotels. The right one, and why.` | |
-| Sub | `Tell us the trip. We check every hotel with a room and show the best three, each with the reason it won.` | "Every hotel with a room" must stay true for the supplier we query. If not, use "every hotel we can book". |
+| Sub | `Tell us the trip. We check every hotel with a room and show the best few, each with the reason it won.` | "Every hotel with a room" must stay true for the supplier we query. If not, use "every hotel we can book". |
 | Box | placeholder cycles every 4 s, pauses on focus (and stops under `prefers-reduced-motion`): `Annecy, 1–6 Dec, just me, central and well rated` → `Lisbon with my wife and the dog, 3 nights in March, nice but not crazy expensive` → `Cheap hotel near Barcelona airport next Friday for 2` | Autofocus. Grows 1 → 3 lines. Enter submits; Shift+Enter is a new line. Max 1000 chars (as the composer). |
 | Place dropdown | rows `Annecy · Haute-Savoie, France · City`, `Barcelona–El Prat Airport · Spain · Airport` | Opens while the box text looks like a bare place (no digit, no month or weekday word, ≤ 4 words). Comes from `/api/places`, lodging dropped, **country and type on every row**. Picking a row fills the **Where** pill and clears the box. |
 | Full-text row | `Search for: "<the whole text>"  ⏎` | When the text has more than a place (digit, month/weekday, "for N", "with", "near", "cheap", ...), this row is **first and preselected**, and place rows go under it. This is the lesson from booking.com (Nice first, AI row sixth). |
 | Where pill | `Where: Add a place` → `Where: Annecy, France` | Popover: the same place search with a text box. |
-| When pill | `When: Add dates` → `When: Tue 1 – Sun 6 Dec · 5 nights` | Popover: a two-month range calendar, footer `Tue 1 Dec – Sun 6 Dec · 5 nights · Done`. Quick chips over it: `This weekend` · `Next weekend`. **No silent default** (vio tonight and hotels.com next weekend are guesses; dates are the one field we can't price without). |
+| When pill | `When: Tonight · 1 night` → `When: Tue 1 – Sun 6 Dec · 5 nights` | Popover: a two-month range calendar, footer `Tue 1 Dec – Sun 6 Dec · 5 nights · Done`. Quick chips over it: `Tonight` · `This weekend` · `Next weekend`. **Default: tonight, one night, shown in the pill** (Sam, 11 Nov 2026; confirmed 14 Nov 2026 over "Add dates"). The pill always says the dates the search will use, so the default is never silent. |
 | Who pill | `Who: 2 adults` (default shown), `Who: 1 adult · pet` | Popover: Adults stepper (2), Children stepper with an age select each, `[ ] Bringing a pet`, and `Rooms: 1 · change` (collapsed, like vio's "optimize rooms"). No competitor has the pet in the widget. Ours costs one checkbox and makes a promise the results keep. |
 | What matters | `Low price` · `Great reviews` · `Close to the centre` → after a place: `Close to Annecy centre` | Multi-select toggles, optional, max 3. None = Balanced. The near-target ✎ stays a results-header control (onboarding §3.4), not a first-screen one. |
 | Button | `Find my hotel` | Disabled only while submitting. Pressed with no place and an empty box → opens the Where popover. With no dates and nothing date-like in the text → opens the When popover. Never an error toast. |

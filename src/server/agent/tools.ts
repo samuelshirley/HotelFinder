@@ -9,6 +9,7 @@ import { minorUnitDigits } from '@/lib/money';
 import { SIGHT_KINDS } from '@/lib/sights';
 import type { Action } from '@/lib/store/actions';
 import type { ToolDef } from './anthropic';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * What the agent can do. Two lookups it may read, and a set of changes that
@@ -60,12 +61,11 @@ export const TOOL_DEFS: ToolDef[] = [
 ];
 
 const pos = z.number().int().min(1);
-const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const INPUT = {
   resolve_place: z.object({ query: z.string().trim().min(2).max(200) }).strict(),
   hotel_details: z.object({ position: pos }).strict(),
   set_destination: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
-  set_dates: z.object({ check_in: iso, check_out: iso }).strict(),
+  set_dates: z.object({ check_in: isoDate, check_out: isoDate }).strict(),
   set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6).nullable() }).strict(),
   set_price_cap: z.object({ per_night: z.number().positive().max(100_000).nullable() }).strict(),
   set_priorities: z.object({ priorities: z.array(z.enum(PRIORITY_KEYS)).max(PRIORITY_KEYS.length).refine((p) => new Set(p).size === p.length) }).strict(),

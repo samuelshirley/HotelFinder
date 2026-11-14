@@ -6,6 +6,7 @@ import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
 import { isCurrencyCode } from '@/lib/currencies';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 import { SIGHT_KINDS, type StaySights } from '@/lib/sights';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * Every change to a search is one of these. The Jev router and the Haiku
@@ -13,7 +14,6 @@ import { SIGHT_KINDS, type StaySights } from '@/lib/sights';
  * its own. Each action is validated here (shape) and again in the reducer
  * (against the current state).
  */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const actionSchema = z.discriminatedUnion('type', [
   /** What "best" means, as a set (order carries no meaning). [] = no preference: a balanced order. */

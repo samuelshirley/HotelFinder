@@ -17,6 +17,15 @@ import { adoptAnonymousSessions, assertSessionOwned, handOverSession, SessionNot
 
 /** Shared by every route: who is asking, error responses, the per-IP limit. */
 
+/**
+ * A GET that takes no query: any query parameter at all is invalid_request.
+ * Every GET is strict about its query (Sam, 2026-11-14); the three that take
+ * one parse it with their own `.strict()` schema.
+ */
+export function noQuery(req: Request): NextResponse | null {
+  return Array.from(new URL(req.url).searchParams.keys()).length > 0 ? errorResponse('invalid_request', 400) : null;
+}
+
 export function errorResponse(code: ErrorCode, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error: code, ...extra }, { status });
 }

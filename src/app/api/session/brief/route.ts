@@ -8,12 +8,13 @@ import { briefSchema, checkBrief, startFromBrief } from '@/server/brief';
 import { ensureOwner, errorResponse, handled, rateLimit, requestLocale, resolveToday } from '@/server/http';
 import { startSession } from '@/server/startSession';
 import { getSupplier } from '@/server/supplier';
+import { isoDate } from '@/lib/isoDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const payload = z.object({ brief: briefSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
+const payload = z.object({ brief: briefSchema, today: isoDate }).strict();
 
 /** The first screen's one submit: a new search from the trip box and its pills. */
 export const POST = handled(async (req: Request) => {
