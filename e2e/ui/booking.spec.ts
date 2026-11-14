@@ -190,23 +190,20 @@ test.describe('checkout', { tag: ['@ui', '@booking'] }, () => {
     expect((await (await page.request.get(`./api/booking/${prebooked.bookingId}`)).json()).booking.status).toBe('prebooked');
   });
 
-  test('sign in first: email, code, Sign in, and the checkout is signed in with the names kept', async ({ page, prebooked }) => {
-    // Sam, 2026-11-13: sign in on the payment screen with an email and a 6-digit code; the page refreshes signed in.
+  test('sign in first: email, code, and the checkout is signed in, ready to pay', async ({ page, prebooked }) => {
+    // Sam, 2026-11-13: sign in on the payment screen with an email and a 6-digit code; the page stays on the room, signed in.
     const co = new CheckoutPage(page);
     await co.goto(prebooked.bookingId);
-    const signIn = co.form().getByRole('button', { name: 'Sign in', exact: true });
-    await expect(signIn).toBeDisabled();
+    const modal = co.signIn();
+    await expect(modal.send()).toBeDisabled();
     const email = uniqueEmail('first');
-    await co.email().fill(email);
-    await co.first().fill('Ana');
-    await co.sendCode().click();
-    const code = await co.readCode();
-    await co.code().fill(code);
-    await signIn.click();
+    await modal.signIn(email.toUpperCase());
+    // The address as the account knows it, in lower case.
     await expect(co.form().getByText(`Signed in as ${email.toLowerCase()}`)).toBeVisible();
     await expect(co.email()).toHaveCount(0);
     await expect(co.code()).toHaveCount(0);
-    await expect(co.first()).toHaveValue('Ana');
+    await co.first().fill('Ana');
+    await co.last().fill('Silva');
     await expect(co.pay('Apple Pay')).toBeEnabled();
   });
 

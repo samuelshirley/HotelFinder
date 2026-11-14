@@ -65,9 +65,8 @@ export const CLAIMS: Claim[] = [
   { control: /^checkbox "Bringing a pet"$/, by: `${FIRST} › the Who pill: adults, children and their ages, rooms never more than adults, the pet` },
 
   // ── Sign in to see member prices ───────────────────────────────────────────
-  { control: /^button "(Sign in for member prices|Sign in to see price)"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
-  { control: /^textbox "6-digit code"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
-  { control: /^button "Change"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
+  // ("Sign in to see price" is gone: a hotel signed out is shown at its public price, never without one.)
+  { control: /^button "Sign in for member prices"$/, by: `${RESULTS} › sign in from the results with an emailed code: the same search comes back at member prices` },
 
   // ── Questions in the chat ──────────────────────────────────────────────────
   { control: /^button ".+ · .+"$/, by: `${ASK} › a place with several matches is asked as "Which …?", one chip each` },
