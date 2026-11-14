@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizePlaces } from '@/server/supplier/liteapi/normalize';
 import { fixture } from '@/server/supplier/liteapi/fixtures';
 import { placesResponse } from '@/server/supplier/liteapi/schemas';
-import { mentionsDates, pickPlace, isInsideTown, pickNearPlace } from './placePick';
+import { mentionsDates, pickPlace, isInsideTown, pickNearPlace, withEarlierPlace } from './placePick';
 
 const recorded = (name: string) => normalizePlaces(placesResponse.parse(fixture(name)));
 const pick = (q: string, name: string) => {
@@ -30,6 +30,41 @@ describe('which place a typed destination means, on recorded place searches', ()
   });
   it('only hotels found: nothing', () => {
     expect(pickPlace('old town, Annecy', recorded('places-old-town-annecy'))).toEqual({ kind: 'none' });
+  });
+});
+
+describe('a place with where it is: "Madrid, España" (2026-11-14, recorded in Spanish)', () => {
+  it('the city called Madrid that lies in España: not Plaza de España in Madrid, never the guesthouse', () => {
+    // Before: "¿Cuál?" between Madrid and Plaza de España.
+    expect(pick('Madrid, España', 'places-madrid-espana-es')).toBe('Madrid');
+    expect(pickPlace('Madrid, España', recorded('places-madrid-espana-es'))).toMatchObject({ kind: 'one', place: { address: 'España' } });
+  });
+  it('accents do not matter, and the bare name still asks', () => {
+    expect(pick('Madrid, Espana', 'places-madrid-espana-es')).toBe('Madrid');
+    expect(pick('Madrid', 'places-madrid-es')).toEqual(['Madrid', 'Madrid', 'Madridejos', 'Madrid']);
+  });
+  it('the name must be the whole word: Madridejos, España is not "Madrid, España"', () => {
+    expect(pickPlace('Madrid, España', recorded('places-madrid-es'))).toMatchObject({ kind: 'one', place: { name: 'Madrid', address: 'España' } });
+  });
+  it('a "where" that fits none, or several, still asks', () => {
+    expect(pick('Madrid, Francia', 'places-madrid-es')).toEqual(['Madrid', 'Madrid', 'Madridejos', 'Madrid']);
+    expect(pickPlace('Lisbon, USA', recorded('places-lisbon')).kind).toBe('ask');
+  });
+});
+
+describe('the place retyped at "Where to?" keeps where the first message said it was', () => {
+  it.each([
+    ['Madrid', 'Madrid, España', 'Madrid, España'],
+    ['madrid ', 'Madrid, España', 'madrid, España'],
+    ['Madrid', 'Madrid (España)', 'Madrid, España'],
+    // Not the same place, or nothing more was said, or the typed words say where themselves: as typed.
+    ['Barcelona', 'Madrid, España', 'Barcelona'],
+    ['Madrid', 'Madrid', 'Madrid'],
+    ['Madrid', undefined, 'Madrid'],
+    ['Madrid, Colombia', 'Madrid, España', 'Madrid, Colombia'],
+    ['Plaza de España', 'Madrid, España', 'Plaza de España'],
+  ])('%j after %j → %j', (typed, earlier, query) => {
+    expect(withEarlierPlace(typed, earlier)).toBe(query);
   });
 });
 

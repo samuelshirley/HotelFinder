@@ -87,6 +87,8 @@ floor while content calls are unpriced. All of it: `docs/usage.md`.
 
 ## Notes for whoever resumes
 
+- 2026-11-14: Spanish first message "Madrid, España, …": place lookups retry the supplier's 429; "Madrid, España" picks Madrid in España; a retyped place keeps the first message's country. `docs/i18n.md`, `docs/supplier.md` "Rate limits".
+
 - 2026-11-13 outage (migration 0005 never applied; typed searches 500): migrations now run on production builds, `/api/health`, refs on 500s, CI on PRs. `docs/deploy.md`.
 
 - Tests: `./node_modules/.bin/vitest run`, `./node_modules/.bin/tsc --noEmit`,

@@ -20,7 +20,7 @@ import { dispatchActions, toSearchState } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, answerPrioritiesInWords, askQuestion, guestsAnsweredIn, nextField } from '@/server/onboarding';
 import { readingFromJev } from '@/lib/priorityReading';
-import { placeKindWord, whichOne } from '@/lib/placePick';
+import { pickPlace, placeKindWord, whichOne, withEarlierPlace } from '@/lib/placePick';
 import { detailsAsText, readPropertyDetails } from '@/server/propertyDetails';
 import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from '@/server/repos/chat';
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
@@ -190,11 +190,32 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
     });
   }
 
-  // The place itself is always looked up at the supplier and always picked by the user.
-  const places = await deps.supplier.searchPlaces(destination ?? turn.userMessage);
+  // The place itself is always looked up at the supplier and picked by the user, with one
+  // exception: the first message already said where it is ("Madrid, España") and that settles
+  // which one, so "Which one?" is not asked again (2026-11-14, docs/i18n.md).
+  const typed = destination ?? turn.userMessage;
+  const query = withEarlierPlace(typed, session.draft.words?.destination);
+  const places = await deps.supplier.searchPlaces(query);
   if (!places.ok) return { text: copy(L).onboarding.placeSearchFailed, meta: { ...meta, error: places.error.kind } };
   if (places.value.length === 0) {
     return { text: destination || Object.keys(rest).length === 0 ? copy(L).onboarding.noPlaceByThatName : fixedLine('which_place', L), meta: { ...meta, places: 0 } };
+  }
+  const settled = query !== typed ? pickPlace(query, places.value) : null;
+  if (settled?.kind === 'one') {
+    const p = settled.place;
+    const label = p.address ? `${p.name}, ${p.address}` : p.name;
+    const result = await answerForm({
+      sessionId: session.id,
+      answer: { field: 'destination', placeId: p.placeId, label },
+      guestsAnswered: guestsAnsweredIn(session, await listMessages(session.id)),
+      supplier: deps.supplier,
+      now: deps.now(),
+      today: deps.today,
+      // The app's pick, so it says so and invites the correction, as the first screen does.
+      readBack: copy(L).replies.searchingPicked(label),
+      locale: L,
+    });
+    if (result.ok) return { text: '', meta: { ...meta, places: places.value.length, picked: 'earlier_words' } };
   }
   await askQuestion(session.id, 'destination', whichOne(places.value.filter((p) => placeKindWord(p.types) !== null).slice(0, 5), L), L);
   return { text: '', meta: { ...meta, places: places.value.length } };

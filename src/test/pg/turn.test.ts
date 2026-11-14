@@ -10,6 +10,8 @@ import type { Readings } from '@/lib/router/route';
 import type { CallModel } from '@/server/agent';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
+import { briefSchema, startFromBrief } from '@/server/brief';
+import { copy } from '@/lib/i18n';
 import { FIXED_LINES } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { createSession, getSession, listStays, updateSession } from '@/server/repos/sessions';
@@ -214,6 +216,65 @@ describe('onboarding: a form in the chat, no model', () => {
 
     await say((await getSession(session.id))!, 'nobody knows', deps(s.supplier, JEV_DOWN, scanReads({})));
     expect((unansweredQuestion(await listMessages(session.id))?.meta as { field?: string } | null)?.field).toBe('dates');
+  });
+});
+
+describe('"Madrid, España, del 8 al 10 de enero…" in Spanish (2026-11-14)', () => {
+  // Live: the first message's place lookup was refused (the sandbox allows ~5 a second per key and the
+  // trip box had just looked places up as it was typed), and the retyped "Madrid" was asked "¿Cuál?"
+  // as if España had never been said. The dates survived.
+  const MESSAGE = 'Madrid, España, del 8 al 10 de enero, 2 adultos, barato y bien valorado';
+  const MADRID = 'ChIJgTwKgJcpQg0RaSKMYcHeNsQ';
+  const es = copy('es');
+  const scanned = (input: Record<string, unknown>): CallModel => async (call) => ({
+    ok: true,
+    model: call.model,
+    stopReason: 'tool_use',
+    latencyMs: 300,
+    usage: { input: 250, cacheWrite: 0, cacheRead: 0, output: 30 },
+    content: [{ type: 'tool_use', id: 'tu_scan', name: 'record_trip', input: { destination: null, check_in: null, check_out: null, nights: null, month: null, adults: null, children_ages: null, rooms: null, max_per_night: null, must_haves: [], priorities: [], ...input } }],
+  });
+  const FIRST_SCAN = scanned({ destination: 'Madrid, España', check_in: '2027-01-08', check_out: '2027-01-10', adults: 2, priorities: ['cheapest', 'nicest'] });
+  const placesIn = (query: string) => (query === 'Madrid, España' ? 'places-madrid-espana-es' : 'places-madrid-es');
+  const brief = (supplier: ReturnType<typeof recordedSupplier>) =>
+    createSession({ anonId: 'a' }).then(async (session) => {
+      const r = await startFromBrief({ session, brief: briefSchema.parse({ text: MESSAGE }), supplier: supplier.supplier, callModel: FIRST_SCAN, model: 'claude-haiku-4-5-20251001', now: RECORDED_AT, today: TODAY, locale: 'es' });
+      expect(r).toEqual({ ok: true });
+      return session.id;
+    });
+  const askedWhichOne = async (sessionId: string) => (await listMessages(sessionId)).some((m) => (m.meta as { prompt?: string } | null)?.prompt === es.onboarding.whichOne);
+
+  it('the first message: Madrid in España is searched at once, never "¿Cuál?" against Plaza de España', async () => {
+    const s = recordedSupplier({}, placesIn);
+    const id = await brief(s);
+    expect(s.placeQueries).toEqual(['Madrid, España']);
+    expect(await askedWhichOne(id)).toBe(false);
+    expect((await getSession(id))!.draft.destination).toMatchObject({ placeId: MADRID, label: 'Madrid, España' });
+    expect((await listStays(id))[0]).toMatchObject({ checkIn: '2027-01-08', checkOut: '2027-01-10', adults: 2 });
+    expect((await listMessages(id)).map((m) => m.content)).toContain(es.replies.searchingPicked('Madrid, España'));
+  });
+
+  it('the lookup fails, "Madrid" is typed again: España from the first message settles it, and the dates are kept', async () => {
+    const id = await brief(recordedSupplier({ places: 'fail' }));
+    const before = await listMessages(id);
+    expect(before.map((m) => m.content)).toContain(es.onboarding.placeSearchFailed);
+    expect(before.at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination' } });
+
+    const s = recordedSupplier({}, placesIn);
+    await say((await getSession(id))!, 'Madrid', { ...deps(s.supplier, JEV_DOWN, scanned({ destination: 'Madrid' })), locale: 'es' });
+    expect(s.placeQueries).toEqual(['Madrid, España']);
+    expect(await askedWhichOne(id)).toBe(false);
+    expect((await getSession(id))!.draft.destination).toMatchObject({ placeId: MADRID, label: 'Madrid, España' });
+    expect((await listStays(id))[0]).toMatchObject({ checkIn: '2027-01-08', checkOut: '2027-01-10', adults: 2 });
+    expect((await listMessages(id)).map((m) => m.content)).toContain(es.replies.searchingPicked('Madrid, España'));
+  });
+
+  it('a different place typed at "¿Adónde vas?" is not given the first message\'s country, and is asked as before', async () => {
+    const id = await brief(recordedSupplier({ places: 'fail' }));
+    const s = recordedSupplier({}, () => 'places-lisbon');
+    await say((await getSession(id))!, 'Lisboa', { ...deps(s.supplier, JEV_DOWN, scanned({ destination: 'Lisboa' })), locale: 'es' });
+    expect(s.placeQueries).toEqual(['Lisboa']);
+    expect((await listMessages(id)).at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination', prompt: es.onboarding.whichOne } });
   });
 });
 

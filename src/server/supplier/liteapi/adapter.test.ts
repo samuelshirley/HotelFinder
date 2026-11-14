@@ -197,6 +197,67 @@ describe('transport failures', () => {
     expect(refused.events).toEqual([expect.objectContaining({ provider: 'liteapi:places', success: false, costMicrocents: 1_000_000, meta: expect.objectContaining({ pricing: 'per_call' }) })]);
   });
 
+  describe('a place lookup refused for too many requests (429) is asked again: 2026-11-14, "La búsqueda de lugares no ha respondido"', () => {
+    /** Answers each call with the next recording, at the status it was recorded with; the last one repeats. */
+    const inTurn = (...names: string[]) => {
+      const urls: string[] = [];
+      const fetchImpl: FetchLike = async (url, init) => {
+        const name = names[Math.min(urls.length, names.length - 1)];
+        urls.push(url);
+        return replay(name).fetchImpl(url, init);
+      };
+      return { fetchImpl, urls };
+    };
+    const waited: number[] = [];
+    const withWaits = (fetchImpl: FetchLike) => {
+      waited.length = 0;
+      const events: SupplierMeterEvent[] = [];
+      const supplier = createLiteApiAdapter({ apiKey: KEY, fetchImpl, now: () => NOW, language: 'es', meter: (e) => void events.push(e), sleep: async (ms) => void waited.push(ms) });
+      return { supplier, events };
+    };
+
+    it('the recorded refusal is a 429 with the supplier\'s own code', () => {
+      expect(manifest.files['places-rate-limited.json'].status).toBe(429);
+      expect(fixture('places-rate-limited').error.code).toBe(4290 as unknown as Loose);
+    });
+
+    it('refused once, then answered: the places come back, and both requests are metered', async () => {
+      const { fetchImpl, urls } = inTurn('places-rate-limited', 'places-madrid-espana-es');
+      const { supplier, events } = withWaits(fetchImpl);
+      const result = await supplier.searchPlaces('Madrid, España');
+      expect(result.ok && result.value[0]).toMatchObject({ name: 'Madrid', address: 'España' });
+      expect(urls).toEqual([
+        'https://api.liteapi.travel/v3.0/data/places?textQuery=Madrid%2C%20Espa%C3%B1a&language=es',
+        'https://api.liteapi.travel/v3.0/data/places?textQuery=Madrid%2C%20Espa%C3%B1a&language=es',
+      ]);
+      expect(waited).toEqual([500]);
+      expect(events.map((e) => [e.provider, e.success])).toEqual([['liteapi:places', false], ['liteapi:places', true]]);
+    });
+
+    it('still refused after two more tries: the failure is returned, retryable, after three requests', async () => {
+      const { fetchImpl, urls } = inTurn('places-rate-limited');
+      const { supplier } = withWaits(fetchImpl);
+      expect(await supplier.searchPlaces('Madrid, España')).toMatchObject({ ok: false, error: { kind: 'supplier', status: 429, code: 4290, retryable: true } });
+      expect(urls).toHaveLength(3);
+      expect(waited).toEqual([500, 1000]);
+    });
+
+    it("a place's details are asked again the same way", async () => {
+      const { fetchImpl, urls } = inTurn('places-rate-limited', 'place-madrid');
+      const { supplier } = withWaits(fetchImpl);
+      expect(await supplier.getPlace('ChIJgTwKgJcpQg0RaSKMYcHeNsQ')).toMatchObject({ ok: true, value: { name: 'Madrid', countryCode: 'ES' } });
+      expect(urls).toHaveLength(2);
+    });
+
+    it('any other failure is not asked again: one request, no wait', async () => {
+      let calls = 0;
+      const { supplier } = withWaits(async () => (calls++, new Response('<html>nope</html>', { status: 503 })));
+      expect(await supplier.searchPlaces('Madrid')).toMatchObject({ ok: false, error: { kind: 'http', status: 503 } });
+      expect(calls).toBe(1);
+      expect(waited).toEqual([]);
+    });
+  });
+
   it('a production key is marked as not sandbox', async () => {
     const events: SupplierMeterEvent[] = [];
     const prod = createLiteApiAdapter({ apiKey: 'prod_not-real', fetchImpl: replay('places-porto').fetchImpl, now: () => NOW, meter: (e) => void events.push(e) });

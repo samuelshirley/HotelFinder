@@ -173,9 +173,26 @@ on timeout; total from the first room only; schema error message carrying the
 value; fixture edited by hand; hand-written fixture added; outside file
 importing the adapter (alias and relative path).
 
+## Rate limits (2026-11-14, `--add-spanish-places`)
+
+The sandbox key allows about **5 place searches a second**, for every visitor
+and every test run at once (measured: 20 different lookups sent together, 14 answered
+`429 {"error":{"code":4290,…}}`; 12 sent 250 ms apart, 2 refused; 10 of one
+same query sent together, none refused). The trip box looks places
+up while the words are typed (a 250 ms pause is enough), so a first message
+could be refused at once: "La búsqueda de lugares no ha respondido" 1.8 s
+after "Madrid, España, del 8 al 10 de enero…" on the live site, 2026-11-14.
+
+So a place lookup (`searchPlaces`, `getPlace`) answered 429 is asked again
+after 500 ms, then after 1 s; the third refusal is returned as before. Each
+attempt is a request and is metered. Only 429, only these two read-only
+lookups: a timeout or a 5xx is not retried here, and book never is.
+`places-rate-limited.json` is a recorded refusal.
+
 ## Not done here
 
-- No retry policy. The finder owns retries for search; book is never retried.
+- No retry policy beyond the place lookups' 429 (above). The finder owns
+  retries for search; book is never retried.
 - No cache. Static content and rate caching arrive with the finder (step 4).
 - `getSupplier` builds only LiteAPI. A second supplier adds a branch there.
 
