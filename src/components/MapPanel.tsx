@@ -6,7 +6,7 @@ import type { Map as MlMap, Marker as MlMarker } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 
 import { layoutPins, fitKeyFor, fitPoints, framePadding, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
-import { MAP_STYLE_URL } from '@/lib/mapStyle';
+import { LANDMARK_LAYER_ID, MAP_STYLE_URL, tuneStyle } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
 import { sightMapsUrl, type Sight } from '@/lib/sights';
 import styles from './MapPanel.module.css';
@@ -102,17 +102,35 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
         lib.current = ml;
         const m = new ml.Map({
           container: box.current,
-          style: MAP_STYLE_URL,
           center: [0, 20],
           zoom: 1,
           attributionControl: { compact: true },
           dragRotate: false,
           pitchWithRotate: false,
         });
+        // The style is tuned before it is drawn: our landmarks layer on top, bus stops gone (lib/mapStyle.ts).
+        m.setStyle(MAP_STYLE_URL, { transformStyle: (_previous, next) => tuneStyle(next) });
         m.touchZoomRotate.disableRotation();
         m.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
         map.current = m;
         m.on('load', () => !dead && setReady(true));
+        // A landmark can be pressed (it offers "Measure from"): the pointer says so.
+        m.on('mouseenter', LANDMARK_LAYER_ID, () => (m.getCanvas().style.cursor = 'pointer'));
+        m.on('mouseleave', LANDMARK_LAYER_ID, () => (m.getCanvas().style.cursor = ''));
+        // What the map shows of the landmarks, once it is still: how many, and where the first few are
+        // (a name and a point on screen). Read by e2e/ui/map.spec.ts, which has no other way into the canvas.
+        m.on('idle', () => {
+          if (!box.current || !m.getLayer(LANDMARK_LAYER_ID)) return;
+          const shown = m.queryRenderedFeatures({ layers: [LANDMARK_LAYER_ID] }).filter((f) => f.geometry.type === 'Point');
+          box.current.dataset.landmarks = String(shown.length);
+          box.current.dataset.landmarkSpots = JSON.stringify(
+            shown.slice(0, 8).map((f) => {
+              const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+              const at = m.project([lng, lat]);
+              return { name: String(f.properties.name_en ?? f.properties['name:latin'] ?? f.properties.name), x: Math.round(at.x), y: Math.round(at.y) };
+            }),
+          );
+        });
         // The credits start folded to their (i) button: drawn open, the full line covered the bottom pins
         // (2026-11-13). MapLibre opens a compact control on first draw and folds it only on a drag.
         const foldCredits = () => box.current?.querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')?.classList.remove('maplibregl-compact-show');
@@ -142,11 +160,15 @@ export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, ho
         m.on('moveend', tookOver);
         m.on('click', (e) => {
           // A named place under the pointer: offer to measure from it.
-          const named = m.queryRenderedFeatures(e.point).find((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1);
+          // A landmark (a museum, a palace) first, should a street's name lie under the same spot.
+          const named = m
+            .queryRenderedFeatures(e.point)
+            .filter((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1)
+            .sort((a, b) => Number(b.layer.id === LANDMARK_LAYER_ID) - Number(a.layer.id === LANDMARK_LAYER_ID))[0];
           if (!named) return setPicked(null);
           // A point feature (a venue, a station) has its own spot; a label along a line or over an area is where it was pressed.
           const spot = named.geometry.type === 'Point' ? { latitude: named.geometry.coordinates[1], longitude: named.geometry.coordinates[0] } : { latitude: e.lngLat.lat, longitude: e.lngLat.lng };
-          setPicked({ x: e.point.x, y: e.point.y, name: String(named.properties['name:latin'] ?? named.properties.name).trim().slice(0, 80), point: spot });
+          setPicked({ x: e.point.x, y: e.point.y, name: String(named.properties.name_en ?? named.properties['name:latin'] ?? named.properties.name).trim().slice(0, 80), point: spot });
         });
         observer = new ResizeObserver(() => {
           // A resize moves the camera's frame, synchronously; it is not the user steering.

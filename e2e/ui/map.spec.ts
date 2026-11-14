@@ -252,6 +252,80 @@ test.describe('map', { tag: '@ui' }, () => {
     await expect(map.locator('[data-anchor]')).toContainText(place);
   });
 
+  /**
+   * The landmarks the map draws (MapPanel writes them when the map is still). Waits for a write after the
+   * camera framed the hotels: pressing Zoom in before that would make the camera the user's, and the frame
+   * would never come (seen on the phone run, 14 Nov 2026: the map stayed on West Africa).
+   */
+  async function landmarkSpots(page: Page, canvas: ReturnType<AppPage['results']['map']>) {
+    await settle(page);
+    let spots: { name: string; x: number; y: number }[] = [];
+    await expect
+      .poll(async () => {
+        const raw = await canvas.getAttribute('data-landmark-spots');
+        spots = raw ? JSON.parse(raw) : [];
+        return raw !== null;
+      }, { timeout: 30_000 })
+      .toBe(true);
+    return spots;
+  }
+
+  test('the map says where the museums and sights are, and pressing one measures from it', async ({ page, app }) => {
+    // Sam, 14 Nov 2026: the grey map "doesn't tell you where the important things are. I want to know
+    // how close I am to some museum." Landmarks are drawn from zoom 14, where the tiles start carrying them.
+    await openMap(page, app, session());
+    const map = app.results.map();
+    const canvas = map.locator('div[role="region"]'); // MapLibre's own <canvas> carries the same name
+    let spots = await landmarkSpots(page, canvas);
+    // A frame wider than zoom 14 shows none yet: close in, as a person would.
+    for (let i = 0; i < 3 && spots.length === 0; i++) {
+      await map.getByRole('button', { name: 'Zoom in' }).click();
+      await canvas.evaluate((el) => el.removeAttribute('data-landmark-spots'));
+      spots = await landmarkSpots(page, canvas);
+    }
+    expect(spots.length, 'landmarks drawn near the hotels').toBeGreaterThan(0);
+    expect(Number(await canvas.getAttribute('data-landmarks'))).toBeGreaterThan(0);
+
+    // Press one that has no pin or control on top of it.
+    const box = (await canvas.boundingBox())!;
+    let pressed: string | null = null;
+    for (const spot of spots) {
+      // Drawn just past the edge (a label overhangs it): not one a person could press.
+      if (spot.x < 24 || spot.y < 24 || spot.x > box.width - 24 || spot.y > box.height - 24) continue;
+      const x = box.x + spot.x;
+      const y = box.y + spot.y;
+      const covered = await page.evaluate(([px, py]) => Boolean(document.elementFromPoint(px, py)?.closest('button, a, [data-anchor]')), [x, y]);
+      if (covered) continue;
+      await page.mouse.click(x, y);
+      pressed = spot.name;
+      break;
+    }
+    expect(pressed, 'a landmark clear of the pins').not.toBeNull();
+    const measure = map.getByRole('button', { name: `Measure from ${pressed!.slice(0, 80)}`, exact: true });
+    await expect(measure).toBeVisible();
+    // The offer is above every pin, so it can be pressed wherever it opens (it once opened under two).
+    await measure.click();
+    await expect(app.chat.region().getByText(`Close to ${pressed}.`, { exact: false })).toBeVisible({ timeout: 60_000 });
+    await expect(map.locator('[data-anchor]')).toContainText(pressed!);
+  });
+
+  test('a phone: the Map tab shows the landmarks too', async ({ page, app }) => {
+    await openSession(page, session());
+    await app.results.waitForCards();
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.getByRole('tab', { name: 'Map' }).click();
+    const map = app.results.map();
+    await expect(map).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
+    const canvas = map.locator('div[role="region"]');
+    let spots = await landmarkSpots(page, canvas);
+    for (let i = 0; i < 3 && spots.length === 0; i++) {
+      await map.getByRole('button', { name: 'Zoom in' }).click();
+      await canvas.evaluate((el) => el.removeAttribute('data-landmark-spots'));
+      spots = await landmarkSpots(page, canvas);
+    }
+    expect(spots.length, 'landmarks drawn on the phone map').toBeGreaterThan(0);
+  });
+
   test('Hide map folds it away, and it stays away over a reload until Show map', async ({ page, app }) => {
     await openMap(page, app, session());
     await app.results.mapToggle().click();
