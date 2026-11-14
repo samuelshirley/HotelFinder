@@ -22,6 +22,7 @@ import { SightsPlan, type PlanHotel } from './SightsPlan';
 import { Heart, type SaveLink } from './Heart';
 import type { SessionView } from '@/server/view';
 import type { FullList } from './useFullList';
+import { useKeepPlace } from './useKeepPlace';
 import styles from './App.module.css';
 import { useLocale } from './i18n';
 import { INTL, type Locale } from '@/lib/i18n/locale';
@@ -266,6 +267,8 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
  */
 function FullListSection({ full, card }: { full: FullList; card: (row: Row) => React.ReactNode }) {
   const { t } = useLocale();
+  // A change that searches again (the currency) reads the page again: the reader's place is kept meanwhile.
+  const place = useKeepPlace(full.rows, full.open, full.loading, full.error !== null);
   const top = () => requestAnimationFrame(() => document.getElementById('full-list')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   const go = (page: number) => {
     full.goTo(page);
@@ -281,7 +284,7 @@ function FullListSection({ full, card }: { full: FullList; card: (row: Row) => R
     );
   }
   return (
-    <section id="full-list" className={styles.fullList} aria-label={t.ui.fullList} aria-busy={full.loading}>
+    <section ref={place} id="full-list" className={styles.fullList} aria-label={t.ui.fullList} aria-busy={full.loading}>
       <div className={styles.fullListHead}>
         <h3>{t.ui.allThatFit(full.total)}</h3>
         <button className={styles.ghost} onClick={full.hide}>

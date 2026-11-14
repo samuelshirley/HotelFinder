@@ -180,6 +180,16 @@ cap, set-asides and public-price rule), in the finder's own order.
   rows are compact cards (no photo, no reason line) that open and book like the
   others. Any new ranking writes new rows, so the top picks' ids change and the
   page is read again.
+- **Keeping the place over a new search** (2026-11-14). Scrolled down the full
+  list, a change that searches again (the currency) came back at about hotel
+  10: the new ranking's page holds no rows until it is read, the scroller
+  clamped to the top picks, and only Chromium's scroll anchoring sometimes put
+  it back (Safari has none). `components/useKeepPlace.ts` holds the section's
+  height while the page loads, then puts the hotel that was at the top of the
+  view back at the same height, or keeps the scroll position when this page no
+  longer holds it (`lib/keepPlace.ts`). Paging is untouched: Previous / Next
+  still go to the top of the list. Test: `e2e/ui/full-list.spec.ts`, with
+  `overflow-anchor: none` so Chromium cannot repair it.
 - **Chat**: Jev's `more` intent now also covers "the whole list of every hotel
   found"; code then reads `wantsWholeList` (as `map` reads `wantsMapHidden`):
   "show me all of them" opens the list, "show me some other options" still sets
