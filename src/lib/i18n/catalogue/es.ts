@@ -360,6 +360,7 @@ export const es: Messages = {
     bestRated: (rating: unknown, reviews: string | null) => `El mejor valorado: ${dec(rating)}${reviews === null ? '' : ` en ${reviews} opiniones`}`,
     cheapestWellReviewed: (rating: unknown, by: string | null) => `El más barato valorado con ${dec(rating)} o más por ${by ?? 'muchos'} huéspedes`,
     bestBalance: 'El mejor equilibrio entre precio, valoración y distancia',
+    inFullList: (n: number) => `El número ${n} de la lista completa, no uno de los destacados`,
     samePrice: 'mismo precio',
     more: (money: string) => `${money} más`,
     less: (money: string) => `${money} menos`,

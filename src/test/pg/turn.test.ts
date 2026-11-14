@@ -15,7 +15,7 @@ import { copy } from '@/lib/i18n';
 import { FIXED_LINES } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { createSession, getSession, listStays, updateSession } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { listFullListNames, listShortlist } from '@/server/repos/shortlist';
 import { listTurns } from '@/server/repos/turns';
 import { dispatchActions } from '@/server/dispatch';
 import { runTurn, type TurnDeps, type TurnEvent } from '@/server/turn';
@@ -376,6 +376,41 @@ describe('a chat turn on a running search', () => {
     // "Show me others" still sets these aside and shows the next five.
     await say(session, 'show me some other options', deps(supplier.supplier, jevSays('more')));
     expect(await shortlistNames(session.id)).not.toContain(names[0]);
+  });
+
+  it('a hotel further down the full list is found by its card number or its name, opened with its card, and never set aside with the top picks', async () => {
+    // Sam, 2026-11-14: hotels only in the full list were invisible to Penny.
+    const { session, supplier } = await onboarded();
+    const stay = (await listStays(session.id))[0];
+    const names = await shortlistNames(session.id);
+    const full = await listFullListNames(session.id, stay.id, 'public');
+    const twelve = full.find((r) => r.rank === 12)!;
+    expect(twelve).toBeDefined();
+    const searches = supplier.searches.length;
+
+    const open = await say(session, 'open number 12', deps(supplier.supplier, jevSays('open')));
+    expect(open.turn.finalText).toBe(`${twelve.name} is open.`);
+    expect(open.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', model_calls: 0 });
+    // The card number rides with the hint: the app pages the full list to it before opening it.
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { open: { propertyId: expect.any(String), listedAs: 12 } } });
+
+    // By a word of its name no other hotel here shares.
+    const words = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 5);
+    const others = [...names, ...full.filter((r) => r.rank !== twelve.rank).map((r) => r.name)].flatMap(words);
+    const word = words(twelve.name).find((w) => !others.includes(w) && w !== 'porto' && w !== 'hotel');
+    expect(word, `a word only ${twelve.name} has`).toBeDefined();
+    const book = await say(session, `book the ${word}`, deps(supplier.supplier, jevSays('book')));
+    expect(book.turn.finalText).toBe(`${twelve.name} is open: press Book there to check the price and pay.`);
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { open: { listedAs: 12 } } });
+
+    // A top pick is opened as before, with no card number to page to.
+    const first = await say(session, 'open the first one', deps(supplier.supplier, jevSays('open')));
+    expect(first.turn.finalText).toBe(`${names[0]} is open.`);
+    expect(((await lastLine(session.id)).meta as { ui: { open: Record<string, unknown> } }).ui.open).not.toHaveProperty('listedAs');
+
+    expect(supplier.searches).toHaveLength(searches);
+    expect(await shortlistNames(session.id)).toEqual(names);
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
   });
 
   it('"show me all of them" with nothing after the picks says so and opens nothing', async () => {

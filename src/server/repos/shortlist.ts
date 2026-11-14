@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, count, eq, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 
 import { FULL_LIST_KIND, FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
 import { db } from '@/server/db/client';
@@ -58,7 +58,8 @@ export async function listShortlist(sessionId: string, stayId: string, audience:
     .innerJoin(properties, eq(properties.id, shortlistEntries.propertyId))
     .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
     // The full list's rows are not on the shortlist: the chat, the answers and
-    // the agent see only what is shown without asking (lib/fullList.ts).
+    // the agent see only what is shown without asking, plus a full-list hotel
+    // the message names (server/turn.ts, lib/fullList.ts).
     .where(and(visibleRows(sessionId, stayId, audience), or(isNull(shortlistEntries.reason), ne(reasonKind, FULL_LIST_KIND))))
     .orderBy(asc(shortlistEntries.source), asc(shortlistEntries.rank), asc(shortlistEntries.id));
 }
@@ -95,6 +96,33 @@ export async function listFullList(sessionId: string, stayId: string, audience: 
     .orderBy(asc(shortlistEntries.rank), asc(shortlistEntries.id))
     .limit(size)
     .offset((Math.max(1, page) - 1) * size);
+}
+
+/**
+ * Every full-list hotel's name and card number (its rank), and nothing else: what a
+ * chat message is checked against for a hotel it names past the top picks
+ * (`fullListMentions`). Light on purpose: no listing content, no offer columns.
+ */
+export async function listFullListNames(sessionId: string, stayId: string, audience: Audience): Promise<Array<{ name: string; rank: number }>> {
+  return db
+    .select({ name: properties.name, rank: shortlistEntries.rank })
+    .from(shortlistEntries)
+    .innerJoin(properties, eq(properties.id, shortlistEntries.propertyId))
+    .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
+    .where(fullListRows(sessionId, stayId, audience))
+    .orderBy(asc(shortlistEntries.rank), asc(shortlistEntries.id));
+}
+
+/** The full-list rows with these card numbers, in rank order: the ones a message named. */
+export async function listFullListRanks(sessionId: string, stayId: string, audience: Audience, ranks: number[]) {
+  if (ranks.length === 0) return [];
+  return db
+    .select({ entry: shortlistEntries, property: properties, offer: offers })
+    .from(shortlistEntries)
+    .innerJoin(properties, eq(properties.id, shortlistEntries.propertyId))
+    .leftJoin(offers, eq(offers.id, shortlistEntries.offerId))
+    .where(and(fullListRows(sessionId, stayId, audience), inArray(shortlistEntries.rank, ranks)))
+    .orderBy(asc(shortlistEntries.rank), asc(shortlistEntries.id));
 }
 
 /** One row this session lists for the hotel (a top pick or a full-list row), or null: what the detail and rates routes open. */

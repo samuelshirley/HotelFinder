@@ -140,6 +140,20 @@ describe('settled messages become typed actions', () => {
     expect(route('show me all the other hotels', readings('more'))).toMatchObject({ kind: 'actions', actions: [{ type: 'more_options' }] });
   });
 
+  it('a full-list hotel the message named: found by its card number or name, never set aside as one of "the ones shown"', () => {
+    // server/turn.ts adds it after the top picks, with the number on its card.
+    const withTwelve = [...shortlist, { propertyId: 'p-12', offerId: 'o-12', name: 'Pestana Vintage Porto', listedAs: 12 }];
+    const go = (message: string, r: Readings) => routeMessage({ message, readings: r, state, currency: 'EUR', shortlist: withTwelve });
+    expect(go('open number 12', readings('open'))).toEqual({ kind: 'ui', intent: 'open', hint: { open: { propertyId: 'p-12', offerId: 'o-12' } } });
+    expect(go('book the pestana', readings('book'))).toMatchObject({ hint: { book: { propertyId: 'p-12' } } });
+    expect(go('drop the 12th one', readings('exclude'))).toMatchObject({ actions: [{ type: 'exclude_property', propertyId: 'p-12' }] });
+    // Its position in this turn's list (4) is not a card number: "#4" finds nothing.
+    expect(go('open #4', readings('open'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    // "The last one" is still the last top pick.
+    expect(go('open the last one', readings('open'))).toMatchObject({ hint: { open: { propertyId: P(3) } } });
+    expect(go('show me others', readings('more'))).toMatchObject({ actions: [{ type: 'more_options', propertyIds: [P(1), P(2), P(3)] }] });
+  });
+
   it('"show me all of them" opens the full list and sets nothing aside', () => {
     expect(route('show me all of them', readings('more'))).toEqual({ kind: 'ui', intent: 'more', hint: { all: 'show' } });
     expect(route('can I see the full list?', readings('more'))).toEqual({ kind: 'ui', intent: 'more', hint: { all: 'show' } });

@@ -123,3 +123,16 @@ and the reply carries `ui.all`. With nothing after the picks the line says so an
 `show_others` is unchanged: it still sets the shown hotels aside. Tested with a scripted model
 (`test/pg/agent.test.ts`); exercised live once in `e2e/full-list.spec.ts` (Jev off, so the agent
 answered "show me all of them").
+
+**A full-list hotel by name or number** (Sam, 2026-11-14: "hotels only in the full list are
+invisible to Penny"). A message that names a hotel further down ("is number 12 refundable?",
+"open #27", "the 12th one", "el número 12", or a word of its name no other listed hotel shares)
+brings that row into the turn after the top picks, with the number on its card
+(`fullListMentions`, `lib/router/slots.ts`; at most three, and a word of the destination never
+counts). The router finds it by that number, the answers read its row, and the agent gets it with
+the reason "Number 12 in the full list, not one of the top picks". It is never one of "the ones
+shown": "show me others" still sets aside only the top picks. A reply that opens or marks it
+carries `listedAs`, and the app opens the full list on that page before opening the hotel
+(`components/App.tsx`). Only names and ranks are read for the match; the named rows alone are
+read in full. Tests: `lib/router/slots.test.ts`, `lib/router/route.test.ts`,
+`test/pg/turn.test.ts`, `e2e/ui/full-list-chat.spec.ts` (`@ai`, desktop and phone).

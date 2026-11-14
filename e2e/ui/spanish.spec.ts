@@ -112,8 +112,9 @@ for (const phone of [false, true]) {
 
     // A phone opens on its Hotels tab once the hotels are in: Penny's lines are under Chat.
     if (phone) {
-      // The tab bar's own name is not translated yet ("View"): found by its tabs instead.
-      const tabs = page.getByRole('tablist');
+      // The tab bar is named in Spanish too: a screen reader says "Vista", never "View".
+      const tabs = page.getByRole('tablist', { name: 'Vista' });
+      await expect(page.getByRole('tablist', { name: 'View' })).toHaveCount(0);
       await expect(tabs.getByRole('tab', { name: /^Hoteles \(\d+\)$/ })).toHaveAttribute('aria-selected', 'true', { timeout: 60_000 });
       await tabs.getByRole('tab', { name: 'Chat' }).click();
     }

@@ -373,6 +373,8 @@ export const en = {
     bestRated: (rating: unknown, reviews: string | null) => `Best rated: ${rating}${reviews === null ? '' : ` from ${reviews} reviews`}`,
     cheapestWellReviewed: (rating: unknown, by: string | null) => `Cheapest rated ${rating} or better by ${by ?? 'many'} guests`,
     bestBalance: 'Best balance of price, rating and distance',
+    /** For the agent only: a full-list hotel the message named, by the number on its card. */
+    inFullList: (n: number) => `Number ${n} in the full list, not one of the top picks`,
     samePrice: 'same price',
     more: (money: string) => `${money} more`,
     less: (money: string) => `${money} less`,

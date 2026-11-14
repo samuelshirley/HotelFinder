@@ -22,6 +22,7 @@ import { SignInModal } from './SignInModal';
 import { CardSkeleton, Spinner } from './Spinner';
 import { TripBox } from './TripBox';
 import { useFullList } from './useFullList';
+import { FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
 import type { Brief } from '@/server/brief';
 
 const STORAGE_KEY = 'hf_session';
@@ -108,6 +109,8 @@ export function App() {
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   /** "Show all N hotels": open or not, and the page of it on screen. */
   const full = useFullList(view);
+  /** A full-list hotel Penny opened or marked, waiting for its page to load. */
+  const [pendingCard, setPendingCard] = useState<{ propertyId: string; kind: 'open' | 'focus' } | null>(null);
   const booted = useRef(false);
   const resultsRef = useRef<HTMLElement>(null);
   const viewRef = useRef<SessionView | null>(null);
@@ -349,6 +352,13 @@ export function App() {
     [variant],
   );
   const closeHotel = useCallback(() => setOpenProperty(null), []);
+  // The page holding the hotel Penny named is in: open it, or mark it, as she said.
+  useEffect(() => {
+    if (!pendingCard || !full.rows.some((r) => r.property.id === pendingCard.propertyId)) return;
+    setPendingCard(null);
+    if (pendingCard.kind === 'open') openHotel(pendingCard.propertyId);
+    else markHotel(pendingCard.propertyId);
+  }, [pendingCard, full.rows, openHotel, markHotel]);
 
   /** "Book": the hotel re-checks the price, then the checkout page opens on that check. */
   const onBook = async (offerId: string) => {
@@ -522,11 +532,24 @@ export function App() {
       const next = await loadSession(id);
       setView(next);
       const last = [...next.messages].reverse().find((m) => m.role === 'assistant');
-      const ui = last?.meta && (last.meta as { ui?: { open?: { propertyId?: string }; focus?: { propertyId?: string }; map?: 'show' | 'hide'; all?: 'show'; saved?: 'show' } }).ui;
+      type Hint = { propertyId?: string; listedAs?: number };
+      const ui = last?.meta && (last.meta as { ui?: { open?: Hint; focus?: Hint; map?: 'show' | 'hide'; all?: 'show'; saved?: 'show' } }).ui;
+      // A hotel further down the full list ("open number 27"): its page is opened first, and the
+      // hotel is opened or marked once that page is in (the effect on `pendingCard` below).
+      const toCard = (hint: Hint | undefined, kind: 'open' | 'focus') => {
+        if (!hint?.propertyId || typeof hint.listedAs !== 'number') return false;
+        const before = next.fullList.total - next.fullList.more;
+        full.show();
+        full.goTo(Math.ceil((hint.listedAs - before) / FULL_LIST_PAGE_SIZE));
+        setTab(kind === 'focus' && narrow ? 'map' : 'hotels');
+        if (kind === 'focus') showMap(true);
+        setPendingCard({ propertyId: hint.propertyId, kind });
+        return true;
+      };
       // Penny saved a hotel or was asked for the saved ones: the list is read again and shown.
       void refreshSaved();
       if (ui?.saved === 'show') showSaved();
-      if (ui?.open?.propertyId) openHotel(ui.open.propertyId);
+      if (ui?.open?.propertyId && !toCard(ui.open, 'open')) openHotel(ui.open.propertyId);
       // "Show me all of them": the full list opens under the top picks and comes into view.
       if (ui?.all === 'show' && next.fullList.more > 0) {
         full.show();
@@ -535,7 +558,7 @@ export function App() {
       }
       // Penny can fold the map away, bring it back, or point at one hotel on it.
       if (ui?.map) showMap(ui.map === 'show');
-      if (ui?.focus?.propertyId) {
+      if (ui?.focus?.propertyId && !toCard(ui.focus, 'focus')) {
         showMap(true);
         setTab(narrow ? 'map' : 'hotels');
         markHotel(ui.focus.propertyId);
@@ -745,7 +768,7 @@ export function App() {
       {view && tab === 'map' && view.shortlist.length > 0 && (
         <MapCard view={view} selected={selected} onSelect={markHotel} onOpen={openHotel} />
       )}
-      <nav className={styles.tabbar} role="tablist" aria-label="View">
+      <nav className={styles.tabbar} role="tablist" aria-label={t.ui.view}>
         {(
           [
             ['chat', t.ui.chat, ICONS.chat, true],

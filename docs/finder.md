@@ -166,7 +166,9 @@ cap, set-asides and public-price rule), in the finder's own order.
   fit, so the two never share a rank.
 - **They are not on the shortlist.** `listShortlist` leaves them out, so the
   chat, Jev's `hotels_on_screen`, the answers, the agent's positions and
-  Penny's pick see exactly what they saw before. They are read a page at a
+  Penny's pick see exactly what they saw before, except a full-list hotel a
+  message names by its card number or name, which joins that one turn
+  (2026-11-14, `docs/agent.md`, "The full list"). They are read a page at a
   time (`listFullList`, 20 rows) by `GET api/session/[id]/hotels?page=n`, and
   counted for the view (`fullList: { total, more, pageSize }`).
 - **Member prices**: the rows come from `ordered`, which never holds a member

@@ -194,7 +194,12 @@ export type RouteDecision =
   | { kind: 'near'; intent: Intent }
   | { kind: 'defer'; reason: DeferReason };
 
-export type ShortlistRow = { propertyId: string; offerId: string | null; name: string };
+/**
+ * A hotel the message may be about. `listedAs` is the number on its card when that is
+ * not its position: a full-list hotel the message named, added after the top picks
+ * (server/turn.ts). Such a row is never one of "the ones shown".
+ */
+export type ShortlistRow = { propertyId: string; offerId: string | null; name: string; listedAs?: number };
 
 /** A `fact` label → what to read off the row; null for `none`. A facility needs a settled amenity. */
 function factAsk(fact: string, readings: Readings, min: number): FactAsk | null | 'ambiguous' | 'missing' {
@@ -277,10 +282,13 @@ export function routeMessage(input: {
 
   const intent = readings.intent.choice;
   const names = shortlist.map((r) => r.name);
+  const listed = shortlist.map((r, i) => r.listedAs ?? i + 1);
   const target = () => {
-    const n = extractTarget(message, names);
+    const n = extractTarget(message, names, listed);
     return n === null ? null : shortlist[n - 1];
   };
+  // The top picks: what "show me others" sets aside. A full-list hotel the message named is not one.
+  const shown = shortlist.filter((r) => r.listedAs === undefined);
 
   switch (intent) {
     case 'greeting_or_thanks':
@@ -389,10 +397,10 @@ export function routeMessage(input: {
     }
 
     case 'more':
-      if (shortlist.length === 0) return defer('slot_missing');
+      if (shown.length === 0) return defer('slot_missing');
       // "Show me all of them" opens the full list; it sets nothing aside.
       if (wantsWholeList(message)) return { kind: 'ui', intent, hint: { all: 'show' } };
-      return { kind: 'actions', intent, actions: [{ type: 'more_options', propertyIds: shortlist.map((r) => r.propertyId) }] };
+      return { kind: 'actions', intent, actions: [{ type: 'more_options', propertyIds: shown.map((r) => r.propertyId) }] };
 
     case 'open': {
       const row = target();
