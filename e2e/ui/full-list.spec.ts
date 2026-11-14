@@ -138,6 +138,9 @@ test.describe('the full list', { tag: '@ui' }, () => {
     await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled();
     await pager.getByRole('button', { name: 'Previous' }).click();
     await expect(pager).toContainText('Page 2 of 3');
+    // The label moves at once; wait for the page's rows too, or the test ends while the route above is
+    // still fetching them and the closing context disposes its response ("Response has been disposed").
+    await expect(app.results.fullList()).toContainText(`Hotels ${s.picks + 21}–${s.picks + 40} of`);
   });
 
   test('a page that does not load says so, and Try again loads it', async ({ page, app, diagnostics }) => {
