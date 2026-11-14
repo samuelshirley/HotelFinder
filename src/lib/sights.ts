@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { haversineKm, medianPoint, type LatLng } from '@/lib/finder/geo';
+import { copy } from '@/lib/i18n';
 
 /**
  * Sights: "I want to tour some museums" (docs/sights.md). Pure.
@@ -39,8 +40,17 @@ export type Sight = {
   reviewCount: number;
 };
 
-/** What a stay holds: the kind asked for and the places found, most popular first. */
-export type StaySights = { kind: SightKind; places: Sight[] };
+/**
+ * What a stay holds: the kind asked for and the places found, most popular
+ * first, and when Google gave them. Names, points and ratings may be kept 30
+ * days at most (SIGHTS_KEEP_DAYS); the purge removes them after that
+ * (repos/sessions.ts purgeExpiredSights, docs/sights.md). A row with no
+ * `fetchedAt` is treated as expired.
+ */
+export type StaySights = { kind: SightKind; places: Sight[]; fetchedAt?: string };
+
+/** Google's terms: place content other than the id is cached for 30 days at most. */
+export const SIGHTS_KEEP_DAYS = 30;
 
 const placeSchema = z.object({
   id: z.string().min(1),
@@ -235,6 +245,7 @@ export function routeUrl(hotel: LatLng, stops: ReadonlyArray<Pick<Sight, 'placeI
 /** The stored value, checked on the way out of the database: anything else is "no sights". */
 const staySightsSchema = z.object({
   kind: z.enum(SIGHT_KINDS),
+  fetchedAt: z.string().datetime().optional(),
   places: z
     .array(z.object({ placeId: z.string().min(1), name: z.string().min(1), latitude: z.number(), longitude: z.number(), rating: z.number(), reviewCount: z.number() }))
     .min(1)
@@ -243,4 +254,14 @@ const staySightsSchema = z.object({
 export function readStaySights(value: unknown): StaySights | null {
   const parsed = staySightsSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+/**
+ * What a chat line that named sights says once the purge has removed them:
+ * in the language the line was written in (a session stores no locale).
+ */
+export function expiredSightsLine(kind: SightKind, oldLine: string): string {
+  const es = copy('es').sights;
+  const t = oldLine.includes(es.popular[kind]) ? es : copy('en').sights;
+  return t.expired(t.plural[kind]);
 }

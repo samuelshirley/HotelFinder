@@ -99,9 +99,17 @@ lost one. It gates nobody (only AI spend does).
 
 Google's terms let a place id be kept indefinitely; names, coordinates and
 ratings are meant to be cached for no more than 30 days. They live on the stay
-row, and nothing removes or refreshes them after 30 days yet (the 30-day purge
-of anonymous sessions in `architecture.md` §15 is a working default, not
-code). **Open:** refresh on read when older than 30 days, or keep only the ids.
+row, stamped `fetchedAt` when Google answers. **After 30 days they are
+deleted** (Sam, 2026-11-14): `purgeExpiredSights` (repos/sessions.ts) clears
+the places and the "close to the museums" point between them, and replaces
+every assistant line and agent reply in that search that named one with "This
+list of museums was more than 30 days old, so it was removed. Ask again for
+today's." The kind, the search and its ranking stay; nothing is fetched again
+until the user asks. It runs from `GET /api/sights/purge` (Vercel Cron, daily
+at 04:00 UTC, `vercel.json`; needs `CRON_SECRET`, 404 without it) and at the
+start of every new search, so it happens even when the cron does not. A row
+with no `fetchedAt` counts as expired. Tests: `src/test/pg/sights.test.ts`
+("the 30-day purge", 4 mutations caught), `e2e/api/sights.spec.ts`.
 
 ## Measured
 

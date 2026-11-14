@@ -287,6 +287,8 @@ export const en = {
     popular: { museums: 'The most popular museums', galleries: 'The most popular art galleries' } as Record<SightKind, string>,
     line: (popular: string, town: string, names: string, more: number) =>
       `${popular} in ${town}, by Google reviews: ${names}${more > 0 ? `, and ${more} more` : ''}. A plan for each day is above the hotels.`,
+    /** What a line that named sights says once the purge has removed Google's names (after 30 days). */
+    expired: (plural: string) => `This list of ${plural} was more than 30 days old, so it was removed. Ask again for today's.`,
     planTitle: (plural: string, town: string) => `${plural.charAt(0).toUpperCase()}${plural.slice(1)} in ${town}, day by day`,
     planFrom: (hotel: string) => `Starting from ${hotel}`,
     planNote: 'The most reviewed on Google Maps, all rated 4.0 or higher. Distances are straight lines; each route opens the walk in Google Maps.',

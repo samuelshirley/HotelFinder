@@ -367,6 +367,9 @@ export const savedBody = z
   .strict();
 
 /** The Deal Freeze sweep's report (GET api/freeze/sweep). */
+/** GET /api/sights/purge: how many stays lost their sights, and how many chat lines were replaced. */
+export const purgeBody = z.object({ stays: z.number().int().nonnegative(), lines: z.number().int().nonnegative() }).strict();
+
 export const sweepBody = z
   .object({ released: z.number().int().nonnegative(), releaseFailed: z.number().int().nonnegative(), resolved: z.number().int().nonnegative(), remindersSent: z.number().int().nonnegative(), remindersDisplayOnly: z.number().int().nonnegative() })
   .strict();

@@ -2,7 +2,11 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { expect, newRequest, test } from '../fixtures/test';
+import { E2E_CRON_SECRET } from '../support/env';
 import { ROUTES, titleOf, type Method } from './catalog';
+
+/** Routes only the scheduler may call (CRON_SECRET bearer): 404 to everyone else. */
+const CRON_ROUTES = ['freeze/sweep', 'sights/purge'];
 
 /**
  * The API test guard. Every route file under src/app/api is in the catalog
@@ -89,17 +93,24 @@ test.describe('API coverage guard', { tag: ['@api', '@coverage'] }, () => {
   });
 
   // Every GET is strict about its query (Sam, 2026-11-14): a parameter it does
-  // not take is 400 invalid_request, checked before who is asking. The sweep
-  // stays not found to anyone without the cron secret, whatever the query.
+  // not take is 400 invalid_request, checked before who is asking. The cron
+  // routes stay not found to anyone without the cron secret, whatever the query.
   test('a GET with a query parameter it does not take is 400 invalid_request', async ({ ip }) => {
     const req = await newRequest(ip);
     const problems: string[] = [];
     for (const r of ROUTES.filter((x) => x.methods.includes('GET'))) {
       const url = `${r.sample}${r.sample.includes('?') ? '&' : '?'}surprise=1`;
+      const cron = CRON_ROUTES.includes(r.route);
       const res = await req.get(url);
       const text = await res.text();
-      const [status, body] = r.route === 'freeze/sweep' ? [404, '{"error":"not_allowed"}'] : [400, '{"error":"invalid_request"}'];
+      const [status, body] = cron ? [404, '{"error":"not_allowed"}'] : [400, '{"error":"invalid_request"}'];
       if (res.status() !== status || text !== body) problems.push(`GET ${url}: ${res.status()} ${text.slice(0, 120)}`);
+      if (cron) {
+        // With the secret the query is checked like any other GET's, and nothing runs.
+        const signed = await req.get(url, { headers: { authorization: `Bearer ${E2E_CRON_SECRET}` } });
+        const signedText = await signed.text();
+        if (signed.status() !== 400 || signedText !== '{"error":"invalid_request"}') problems.push(`GET ${url} with the cron secret: ${signed.status()} ${signedText.slice(0, 120)}`);
+      }
     }
     await req.dispose();
     expect(problems, 'every GET is strict about its query').toEqual([]);

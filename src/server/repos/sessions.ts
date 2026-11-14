@@ -1,8 +1,9 @@
 import 'server-only';
-import { and, asc, eq, isNull, sql, desc } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, sql, desc } from 'drizzle-orm';
 
+import { SIGHTS_KEEP_DAYS, type SightKind } from '@/lib/sights';
 import { db } from '@/server/db/client';
-import { searchSessions, stays, type Audience, PRIORITIES } from '@/server/db/schema';
+import { agentTurns, chatHistory, searchSessions, stays, type Audience, PRIORITIES } from '@/server/db/schema';
 
 export type SearchSession = typeof searchSessions.$inferSelect;
 export type Stay = typeof stays.$inferSelect;
@@ -179,4 +180,50 @@ export async function listTrips(owner: Owner, limit = 30) {
     .where(mine)
     .orderBy(desc(searchSessions.createdAt))
     .limit(limit);
+}
+
+/**
+ * Google's terms keep a place's name, point and rating for 30 days at most
+ * (docs/sights.md). Every stay whose sights are older than that loses them:
+ * the places, and the "close to the museums" point that was the middle of
+ * them. Each assistant line or agent reply in that search that named one of
+ * them is replaced by `expiredLine`. The kind asked for is not Google's and
+ * the shortlist is not touched; a new lookup happens only when the user asks
+ * again. Run by GET /api/sights/purge (daily Vercel Cron) and at every new
+ * search. Returns what it changed.
+ */
+export async function purgeExpiredSights(now: Date, expiredLine: (kind: SightKind, oldLine: string) => string): Promise<{ stays: number; lines: number }> {
+  const cutoff = new Date(now.getTime() - SIGHTS_KEEP_DAYS * 86_400_000).toISOString();
+  return db.transaction(async (tx) => {
+    // fetchedAt is always toISOString() (UTC, same width), so text order is time order; none at all is expired.
+    const expired = await tx
+      .select({ id: stays.id, sessionId: stays.sessionId, sights: stays.sights, nearPlaceId: stays.nearPlaceId })
+      .from(stays)
+      .where(and(isNotNull(stays.sights), sql`coalesce(${stays.sights}->>'fetchedAt', '') < ${cutoff}`));
+    let lines = 0;
+    for (const stay of expired) {
+      const nearWasSights = stay.nearPlaceId?.startsWith('sights:') ?? false;
+      await tx
+        .update(stays)
+        .set({ sights: null, ...(nearWasSights ? { nearPlaceId: null, nearLabel: null, latitude: null, longitude: null } : {}) })
+        .where(eq(stays.id, stay.id));
+      const kind = stay.sights?.kind as SightKind | undefined;
+      const names = (stay.sights?.places ?? []).map((p) => p.name).filter((n) => n.length > 0);
+      if (!kind || names.length === 0) continue;
+      const named = (text: string | null) => !!text && names.some((n) => text.includes(n));
+      const said = await tx.select({ id: chatHistory.id, content: chatHistory.content }).from(chatHistory).where(and(eq(chatHistory.sessionId, stay.sessionId), eq(chatHistory.role, 'assistant')));
+      for (const m of said.filter((x) => named(x.content))) {
+        await tx
+          .update(chatHistory)
+          .set({ content: expiredLine(kind, m.content), meta: sql`coalesce(${chatHistory.meta}, '{}'::jsonb) || '{"sightsExpired": true}'::jsonb` })
+          .where(eq(chatHistory.id, m.id));
+        lines += 1;
+      }
+      const replies = await tx.select({ id: agentTurns.id, finalText: agentTurns.finalText }).from(agentTurns).where(eq(agentTurns.sessionId, stay.sessionId));
+      for (const r of replies.filter((x) => named(x.finalText))) {
+        await tx.update(agentTurns).set({ finalText: expiredLine(kind, r.finalText!) }).where(eq(agentTurns.id, r.id));
+      }
+    }
+    return { stays: expired.length, lines };
+  });
 }

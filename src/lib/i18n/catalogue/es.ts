@@ -277,6 +277,7 @@ export const es: Messages = {
     popular: { museums: 'Los museos más populares', galleries: 'Las galerías de arte más populares' } as Record<SightKind, string>,
     line: (popular: string, town: string, names: string, more: number) =>
       `${popular} de ${town}, según las reseñas de Google: ${names}${more > 0 ? `, y ${more} más` : ''}. Encima de los hoteles tienes un plan para cada día.`,
+    expired: (plural: string) => `Esta lista de ${plural} tenía más de 30 días, así que se ha borrado. Pídela otra vez para ver la de hoy.`,
     planTitle: (plural: string, town: string) => `${plural.charAt(0).toUpperCase()}${plural.slice(1)} de ${town}, día a día`,
     planFrom: (hotel: string) => `Saliendo de ${hotel}`,
     planNote: 'Los que más reseñas tienen en Google Maps, todos con 4,0 o más. Las distancias son en línea recta; cada ruta abre el paseo en Google Maps.',

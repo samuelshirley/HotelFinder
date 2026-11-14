@@ -8,13 +8,13 @@ import { recordedSupplier, RECORDED_AT } from './recordedSupplier';
 import { haversineKm } from '@/lib/finder/geo';
 import type { Locale } from '@/lib/i18n/locale';
 import type { Readings } from '@/lib/router/route';
-import { pickSights, parsePlaces, sightsCentre } from '@/lib/sights';
+import { expiredSightsLine, pickSights, parsePlaces, sightsCentre } from '@/lib/sights';
 import type { CallModel } from '@/server/agent';
 import { dispatchActions } from '@/server/dispatch';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
 import { listMessages } from '@/server/repos/chat';
-import { createSession, getSession, listStays } from '@/server/repos/sessions';
+import { createSession, getSession, listStays, purgeExpiredSights } from '@/server/repos/sessions';
 import { getSightsFinder, type FindSights } from '@/server/sights';
 import { fixture, replay } from '@/server/sights/fixtures';
 import { runTurn, type TurnDeps } from '@/server/turn';
@@ -104,7 +104,8 @@ describe('"I want to tour some museums": settled by the router, looked up in cod
 
     // The stay holds the eight most popular; "close" is the middle of the four in play.
     const stay = await stayOf(session.id);
-    expect(stay.sights).toEqual({ kind: 'museums', places: POPULAR });
+    // Stamped when Google answered: the purge removes them 30 days later (Google's terms).
+    expect(stay.sights).toEqual({ kind: 'museums', places: POPULAR, fetchedAt: RECORDED_AT.toISOString() });
     const centre = sightsCentre({ kind: 'museums', places: POPULAR }, 2)!;
     expect(stay).toMatchObject({ nearPlaceId: 'sights:museums', nearLabel: 'the museums', latitude: centre.latitude, longitude: centre.longitude });
     expect((await fresh(session.id)).priorities).toEqual(['cheapest', 'closest']);
@@ -270,5 +271,70 @@ describe('the plan\'s own controls', () => {
     const centre = sightsCentre({ kind: 'museums', places: POPULAR }, 3)!;
     expect(await stayOf(session.id)).toMatchObject({ latitude: centre.latitude, longitude: centre.longitude });
     expect((await buildSessionView(await fresh(session.id), 'en', RECORDED_AT)).stay!.sights!.places).toEqual(POPULAR.slice(0, 6));
+  });
+});
+
+/** Google's terms: names, points and ratings 30 days at most (docs/sights.md). Sam, 2026-11-14: a tool deletes them. */
+describe('the 30-day purge', () => {
+  const DAY = 86_400_000;
+  async function toured() {
+    const { session, supplier } = await onboarded();
+    const sights = recordedSights(session.id);
+    const turn = await say(session, 'I want to tour some museums', deps(supplier.supplier, sights.find));
+    expect(turn.status).toBe('done');
+    return session;
+  }
+
+  it('keeps them for 30 days, then removes the places, the point between them and every line that named one', async () => {
+    const session = await toured();
+    const before = await stayOf(session.id);
+    const lineBefore = (await listMessages(session.id)).filter((m) => m.role === 'assistant').at(-1)!.content;
+    expect(lineBefore).toContain('FC Porto Museum');
+
+    // 30 days to the millisecond: still kept.
+    expect(await purgeExpiredSights(new Date(RECORDED_AT.getTime() + 30 * DAY), expiredSightsLine)).toEqual({ stays: 0, lines: 0 });
+    expect((await stayOf(session.id)).sights).toEqual(before.sights);
+
+    const result = await purgeExpiredSights(new Date(RECORDED_AT.getTime() + 30 * DAY + 1), expiredSightsLine);
+    expect(result).toEqual({ stays: 1, lines: 1 });
+    const after = await stayOf(session.id);
+    expect(after).toMatchObject({ sights: null, nearPlaceId: null, nearLabel: null, latitude: null, longitude: null });
+    // What is not Google's stays: the search, its dates and what "best" means.
+    expect(after).toMatchObject({ placeId: before.placeId, checkIn: before.checkIn, checkOut: before.checkOut });
+    expect((await fresh(session.id)).priorities).toEqual(['cheapest', 'closest']);
+
+    // No name, point or rating from Google is left anywhere in the search.
+    const names = POPULAR.map((p) => p.name);
+    const said = await rawQuery<{ content: string; meta: unknown }>('select content, meta from chat_history where session_id = $1 and role = $2 order by seq', [session.id, 'assistant']);
+    const replies = await rawQuery<{ final_text: string | null }>('select final_text from agent_turns where session_id = $1 order by created_at', [session.id]);
+    for (const text of [...said.map((m) => m.content), ...replies.map((r) => r.final_text ?? '')]) for (const n of names) expect(text).not.toContain(n);
+    expect(said.at(-1)).toEqual({ content: 'This list of museums was more than 30 days old, so it was removed. Ask again for today\'s.', meta: expect.objectContaining({ sightsExpired: true }) });
+    expect(replies.at(-1)?.final_text).toBe('This list of museums was more than 30 days old, so it was removed. Ask again for today\'s.');
+
+    // The screen has no plan and no "close to the museums" any more.
+    const view = await buildSessionView(await fresh(session.id), 'en');
+    expect(view.stay?.sights).toBeNull();
+
+    // A second run finds nothing left to do.
+    expect(await purgeExpiredSights(new Date(RECORDED_AT.getTime() + 60 * DAY), expiredSightsLine)).toEqual({ stays: 0, lines: 0 });
+  });
+
+  it('a stay with no fetchedAt (written before the stamp) is treated as expired', async () => {
+    const session = await toured();
+    await rawQuery("update stays set sights = sights - 'fetchedAt' where session_id = $1", [session.id]);
+    expect(await purgeExpiredSights(RECORDED_AT, expiredSightsLine)).toMatchObject({ stays: 1 });
+    expect((await stayOf(session.id)).sights).toBeNull();
+  });
+
+  it('a "close to" that is not the sights is kept', async () => {
+    const session = await toured();
+    await rawQuery("update stays set near_place_id = 'place-ribeira', near_label = 'Ribeira', latitude = 41.14, longitude = -8.61 where session_id = $1", [session.id]);
+    await purgeExpiredSights(new Date(RECORDED_AT.getTime() + 31 * DAY), expiredSightsLine);
+    expect(await stayOf(session.id)).toMatchObject({ sights: null, nearPlaceId: 'place-ribeira', nearLabel: 'Ribeira', latitude: 41.14, longitude: -8.61 });
+  });
+
+  it('the expired line is in the language the old line was in', () => {
+    expect(expiredSightsLine('museums', 'Los museos más populares de Oporto, según las reseñas de Google: …')).toBe('Esta lista de museos tenía más de 30 días, así que se ha borrado. Pídela otra vez para ver la de hoy.');
+    expect(expiredSightsLine('galleries', 'The most popular art galleries in Porto, by Google reviews: …')).toBe('This list of art galleries was more than 30 days old, so it was removed. Ask again for today\'s.');
   });
 });

@@ -104,7 +104,7 @@ export async function dispatchActions(args: {
         unresolved.push({ action: { type: 'clear_sights' }, ok: false, rejection: 'sights_none' });
         continue;
       }
-      resolved.push({ type: 'set_sights', sights: { kind: action.kind, places } });
+      resolved.push({ type: 'set_sights', sights: { kind: action.kind, places, fetchedAt: now.toISOString() } });
       // Sights are somewhere to be close to, so closeness joins what "best" means, next to what was picked
       // before. Added here, once the places are in hand: a lookup that failed must change nothing at all.
       const wanted = before.priorities ?? [];

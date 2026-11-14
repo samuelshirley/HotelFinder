@@ -38,6 +38,7 @@ export const ROUTES: RouteEntry[] = [
   { route: 'me', methods: ['GET'], spec: 'auth.spec.ts', sample: 'api/me' },
   { route: 'places', methods: ['GET'], spec: 'public.spec.ts', sample: 'api/places?q=porto' },
   { route: 'saved', methods: ['GET', 'POST'], spec: 'saved.spec.ts', sample: 'api/saved' },
+  { route: 'sights/purge', methods: ['GET'], spec: 'sights.spec.ts', sample: 'api/sights/purge' },
   { route: 'session', methods: ['GET', 'POST'], spec: 'session.spec.ts', sample: 'api/session' },
   { route: 'session/brief', methods: ['POST'], spec: 'session.spec.ts', sample: 'api/session/brief' },
   { route: 'session/[id]', methods: ['GET'], spec: 'session.spec.ts', sample: `api/session/${Z}` },

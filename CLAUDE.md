@@ -111,6 +111,7 @@ api/session/[id]/turns  api/session/[id]/hotels (a page of the full list)  api/a
 api/saved (POST the heart, GET this visitor's saved hotels: `docs/saved.md`)
 api/session/[id]/reprice  api/booking/[id]/not-you  api/booking/[id]/reprice (re-price for whoever is looking now)
 api/health (live DB vs schema.ts and drizzle/; 503 names what is missing)
+api/sights/purge (daily cron: Google place data deleted after 30 days, `docs/sights.md`)
 ```
 
 Pages (all under `/hotels`): `/` (the app), `/book/[id]`, `/admin` + `/admin/search/[id]` (cost per

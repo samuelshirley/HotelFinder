@@ -58,6 +58,7 @@ export class Api {
   keep = (id: string, body: unknown) => this.request.post(`api/booking/${id}/keep`, { data: body });
   release = (id: string, body: unknown = {}) => this.request.post(`api/booking/${id}/release`, { data: body });
   sweep = (authorization?: string) => this.request.get('api/freeze/sweep', authorization ? { headers: { authorization } } : undefined);
+  purgeSights = (authorization?: string) => this.request.get('api/sights/purge', authorization ? { headers: { authorization } } : undefined);
 
   // ── Steps many tests share ──────────────────────────────────────────────────
   async porto(): Promise<{ placeId: string; label: string }> {
