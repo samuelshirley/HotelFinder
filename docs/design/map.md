@@ -100,6 +100,13 @@ not start, the camera is the user's: later changes offer **Recentre** instead of
 anchor still moves it, and so does a hotel Penny marks. The app flags its own moves; telling them
 apart by the event's input was wrong (measured: a wheel zoom's events carry none).
 
+**A phone builds the map hidden** (the Map tab, `display: none`), so its first frame is made at zero
+size and frames nothing: in CI the tab opened on West Africa for a Porto search (14 Nov 2026). When
+the box goes from zero size to shown, the hotels are framed again with no animation, unless the user
+has moved the map. Every move of ours first stops the one in flight: its end clears the "ours" flag,
+and the refit was otherwise taken for the user's and offered Recentre at once. `e2e/ui/map.spec.ts`
+starts at phone size so the map is built hidden every run; it failed without each of the two fixes.
+
 ## Gestures that change the search
 
 Both go through the edit route as `set_near_point` (the path the header chips use): one Penny line,

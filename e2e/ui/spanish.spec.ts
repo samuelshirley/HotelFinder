@@ -71,7 +71,8 @@ test('switch to Spanish and search Oporto', { tag: ['@ui'] }, async ({ page }) =
   await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.getByRole('button', { name: 'Cambiar quién' })).toHaveText(/3 adultos/, { timeout: 60_000 });
   const convo = page.getByRole('region', { name: 'Conversación' });
-  await expect(convo.getByText(/^3 adultos\. /).last()).toBeVisible();
+  // The line says what changed; the count of hotels that fit is not repeated (the list shows them: Sam, 2026-11-13).
+  await expect(convo.getByText(/^3 adultos\.$/).last()).toBeVisible();
 
   // The choice is remembered: a reload is still in Spanish.
   await page.reload();
@@ -85,7 +86,7 @@ test('switch to Spanish and search Oporto', { tag: ['@ui'] }, async ({ page }) =
   await expect(page.getByRole('button', { name: 'New search' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Change who' })).toHaveText(/3 adults/);
   await expect(page.getByRole('region', { name: 'Hotels' })).toContainText(/Cheapest available|Nothing fits everything|Close, but/);
-  await expect(page.getByRole('region', { name: 'Conversation' }).getByText(/^3 adultos\. /).last()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Conversation' }).getByText(/^3 adultos\.$/).last()).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
   expect(errors).toEqual([]);

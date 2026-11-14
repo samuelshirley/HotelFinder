@@ -309,13 +309,27 @@ test.describe('map', { tag: '@ui' }, () => {
     await expect(map.locator('[data-anchor]')).toContainText(pressed!);
   });
 
-  test('a phone: the Map tab shows the landmarks too', async ({ page, app }) => {
-    await openSession(page, session());
-    await app.results.waitForCards();
+  test('a phone: the Map tab, built while hidden, opens on the hotels and shows the landmarks', async ({ page, app }) => {
+    // Phone-sized from the start, so the map is built (and frames the hotels) while its tab is hidden at
+    // zero size: in CI that opened the tab on West Africa for a Porto search (2026-11-14).
     await page.setViewportSize({ width: 390, height: 780 });
-    await page.getByRole('tab', { name: 'Map' }).click();
+    await openSession(page, session());
     const map = app.results.map();
+    await expect(map).toBeHidden();
     await expect(map).toHaveAttribute('data-ready', 'true', { timeout: 60_000 });
+    await page.getByRole('tab', { name: 'Map' }).click();
+    await expect(map).toBeVisible();
+    await settle(page);
+    // Framed on the hotels: every pin inside the map, and no Recentre (the camera is still the app's).
+    const area = (await map.boundingBox())!;
+    for (const pin of await app.results.pins().all()) {
+      const at = (await pin.boundingBox())!;
+      expect(at.x + at.width / 2).toBeGreaterThan(area.x);
+      expect(at.x + at.width / 2).toBeLessThan(area.x + area.width);
+      expect(at.y + at.height / 2).toBeGreaterThan(area.y);
+      expect(at.y + at.height / 2).toBeLessThan(area.y + area.height);
+    }
+    await expect(map.getByRole('button', { name: 'Recentre' })).toHaveCount(0);
     const canvas = map.locator('div[role="region"]');
     let spots = await landmarkSpots(page, canvas);
     for (let i = 0; i < 3 && spots.length === 0; i++) {
