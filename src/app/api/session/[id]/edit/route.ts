@@ -9,6 +9,7 @@ import { errorResponse, handled, ownedSession, rateLimit, resolveToday, requestL
 import { getSession, listStays } from '@/server/repos/sessions';
 import { getSupplier } from '@/server/supplier';
 import { buildSessionView } from '@/server/view';
+import { isoDate } from '@/lib/isoDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export const maxDuration = 60;
 const EDITABLE = ['set_destination', 'set_dates', 'set_guests', 'add_must_have', 'remove_must_have', 'set_nationality', 'set_currency', 'set_priorities', 'set_near', 'set_near_point', 'clear_near', 'set_min_stars', 'set_min_rating', 'set_property_types', 'set_chains'] as const;
 const editAction = actionSchema.refine((a) => (EDITABLE as readonly string[]).includes(a.type), 'not editable here');
 /** One chip's change: at most a few actions (Who = the party plus the pet). */
-const payload = z.object({ actions: z.array(editAction).min(1).max(3), today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
+const payload = z.object({ actions: z.array(editAction).min(1).max(3), today: isoDate }).strict();
 
 export const POST = handled(async (req: Request, ctx: { params: { id: string } }) => {
   const body = await req.json().catch(() => null);

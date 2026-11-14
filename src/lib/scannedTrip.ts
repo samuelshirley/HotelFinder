@@ -4,6 +4,7 @@ import { MUST_HAVES, type MustHave } from '@/lib/amenities';
 import { nightsBetween } from '@/lib/finder/geo';
 import { canonicalPriorities, PRIORITY_KEYS, type PriorityKey } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
+import { isRealDate } from '@/lib/isoDate';
 
 /**
  * What a free-text first message said about the trip, after the server has
@@ -25,10 +26,9 @@ export type ScannedTrip = {
    * Prefill only, never a stay: what the words said about when without
    * giving two dates ("3 nights in March"). It opens the nights card there.
    */
-  datesHint?: { nights?: number; month?: string };
+  datesHint?: { nights?: number; month?: string; checkIn?: string };
 };
 
-const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const rawScan = z
   .object({
     destination: z.string().nullish(),
@@ -52,8 +52,7 @@ function addDays(date: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
-const realDate = (s: string | null | undefined): s is string =>
-  !!s && iso.safeParse(s).success && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+const realDate = (s: string | null | undefined): s is string => !!s && isRealDate(s);
 
 export function validateScan(raw: unknown, today: string, currency: string): ScannedTrip {
   const parsed = rawScan.safeParse(raw);
@@ -93,6 +92,12 @@ export function validateScan(raw: unknown, today: string, currency: string): Sca
 
   const musts = [...new Set((r.must_haves ?? []).filter((m): m is MustHave => (MUST_HAVES as readonly string[]).includes(m)))];
   if (musts.length) out.mustHaves = musts;
+
+  // A start with no end ("from next Monday"): kept as where the nights card opens, never as a stay.
+  // 2026-11-13: dropping it opened the card on tonight after "a week from next Monday".
+  if (!out.checkIn && realDate(r.check_in) && r.check_in >= today && r.check_out == null && r.nights == null) {
+    out.datesHint = { checkIn: r.check_in };
+  }
 
   // A hint only when no date was written at all: a date that failed its checks means the length is a guess too.
   if (!out.checkIn && r.check_in == null && r.check_out == null) {

@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined, set: () => {} }), headers: () => new Headers() }));
 vi.mock('@/server/db/client', () => ({ db: {}, schema: {} }));
 
-import { handled, resolveToday } from './http';
+import { handled, noQuery, resolveToday } from './http';
 
 describe('the user\'s date', () => {
   const now = new Date('2026-11-11T23:30:00Z');
@@ -53,5 +53,18 @@ describe('handled', () => {
     expect(new Set(refs).size).toBe(2);
     const fine = await handled(async () => new Response('ok'))();
     expect(await fine.text()).toBe('ok');
+  });
+});
+
+/** Every GET is strict about its query (Sam, 2026-11-14). */
+describe('noQuery', () => {
+  it('passes a GET with no query, and refuses any parameter with 400 invalid_request', async () => {
+    expect(noQuery(new Request('http://x/hotels/api/me'))).toBeNull();
+    expect(noQuery(new Request('http://x/hotels/api/me?'))).toBeNull();
+    for (const q of ['?a=1', '?a', '?a=', '?=1']) {
+      const res = noQuery(new Request(`http://x/hotels/api/me${q}`));
+      expect(res?.status, q).toBe(400);
+      expect(await res!.json()).toEqual({ error: 'invalid_request' });
+    }
   });
 });

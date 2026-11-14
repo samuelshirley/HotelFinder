@@ -16,3 +16,7 @@ next-env.d.ts
 .vercel
 .env*
 !.env.example
+blob-report/
+
+# e2e-author.yml writes its PR comment here (never committed)
+.e2e-author/

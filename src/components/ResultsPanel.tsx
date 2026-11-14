@@ -6,7 +6,7 @@ import { roomCounts } from '@/lib/finder/rooms';
 import { pinsFor, ringKmFor } from '@/lib/mapView';
 import { reasonText, formatKm, type ReasonLike } from '@/lib/reasonText';
 import dynamic from 'next/dynamic';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import { chainsChip, RATING_STEPS, ratingChip, STAR_STEPS, starsChip, typePlural, typesChip, type FilterOptions, type PropertyType, type StayFilters } from '@/lib/filters';
@@ -18,6 +18,7 @@ import { searchPlaces, todayLocal, type PlaceSuggestion } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import { CardSkeleton, Spinner } from './Spinner';
 import { HotelDetail } from './HotelDetail';
+import { SightsPlan, type PlanHotel } from './SightsPlan';
 import { Heart, type SaveLink } from './Heart';
 import type { SessionView } from '@/server/view';
 import type { FullList } from './useFullList';
@@ -59,7 +60,7 @@ const isNearMiss = (row: Row) => row.source === 'finder' && (row.reason as { kin
 type Edit = EditAction;
 type OnEdit = (action: Edit | Edit[]) => void;
 
-export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, booking, onEdit, busy, map, full, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList; save: SaveLink }) {
+export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook, onSignIn, booking, onEdit, busy, map, full, save }: { view: SessionView; working: string | null; expanded: string | null; onOpen: (propertyId: string) => void; onClose: () => void; onBook: (offerId: string) => void; onSignIn: () => void; booking: string | null; onEdit: OnEdit; busy: boolean; map: MapLink; full: FullList; save: SaveLink }) {
   const { stay, session, shortlist } = view;
   const { locale, t } = useLocale();
   const hasMusts = (stay?.mustHaves.filter(isMustHave).length ?? 0) > 0;
@@ -79,6 +80,16 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
   const ringKm = useMemo(
     () => ringKmFor(shortlist, { hasAnchor: anchor !== null, closenessMatters: session.priorities?.includes('closest') ?? false }),
     [shortlist, anchor, session.priorities],
+  );
+  // The hotels a day plan can start from: the ones that fit, best first (components/SightsPlan.tsx).
+  const planHotels = useMemo(
+    () =>
+      shortlist.flatMap((r): PlanHotel[] =>
+        r.source === 'finder' && !isNearMiss(r) && r.property.latitude !== null && r.property.longitude !== null
+          ? [{ id: r.property.id, name: r.property.name, latitude: r.property.latitude, longitude: r.property.longitude }]
+          : [],
+      ),
+    [shortlist],
   );
   if (!stay) {
     const p = view.pending;
@@ -125,7 +136,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           <span className={styles.summaryRight}>
             {session.guestNationality && <NationalityChip code={session.guestNationality} busy={busy} onEdit={onEdit} />}
             {canMap && (
-              <button className={styles.ghost} aria-pressed={map.open} onClick={map.onToggle}>
+              <button className={`${styles.ghost} ${styles.mapToggle}`} aria-pressed={map.open} onClick={map.onToggle}>
                 {map.open ? t.ui.hideMap : t.ui.showMap}
               </button>
             )}
@@ -153,7 +164,14 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           <CurrencyChip code={session.currency} capSet={stay.priceCapMinor !== null} busy={busy} onEdit={onEdit} />
         </div>
         <FilterChips filters={stay.filters} options={stay.filterOptions} busy={busy} onEdit={onEdit} />
-        {!session.signedIn && shortlist.length > 0 && <p className={styles.note}>{t.ui.publicPrices}</p>}
+        {!session.signedIn && shortlist.length > 0 && (
+          <p className={styles.note}>
+            {t.ui.publicPricesLead}{' '}
+            <button type="button" className={styles.inlineLink} onClick={onSignIn}>
+              {t.ui.signInForMemberPrices}
+            </button>
+          </p>
+        )}
         {working && (
           <p className={styles.working}>
             <Spinner label={working} />
@@ -165,6 +183,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
           <MapPanel
             pins={pins}
             anchor={anchor}
+            sights={stay.sights?.places ?? null}
             ringKm={ringKm}
             frame={frame}
             hovered={map.hovered}
@@ -179,6 +198,9 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
         </div>
       )}
       <div className={styles.listScroll}>
+      {stay.sights && planHotels.length > 0 && (
+        <SightsPlan kind={stay.sights.kind} places={stay.sights.places} hotels={planHotels} nights={nights} town={stay.destination.split(',')[0].trim()} busy={busy} onRemove={() => onEdit({ type: 'clear_near' })} />
+      )}
       {shortlist.length === 0 ? (
         <p className={styles.empty}>{session.status === 'onboarding' ? t.ui.answerToSearch : t.ui.nothingShortlisted}</p>
       ) : (
@@ -199,6 +221,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onOpen={onOpen}
               onClose={onClose}
               onBook={onBook}
+              onSignIn={onSignIn}
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
@@ -222,6 +245,7 @@ export function ResultsPanel({ view, working, expanded, onOpen, onClose, onBook,
               onOpen={onOpen}
               onClose={onClose}
               onBook={onBook}
+              onSignIn={onSignIn}
               booking={booking}
               marked={map.selected === row.property.id ? 'selected' : map.hovered === row.property.id ? 'hover' : null}
               onHover={map.onHover}
@@ -298,12 +322,22 @@ function FullListSection({ full, card }: { full: FullList; card: (row: Row) => R
 }
 
 /** A header chip that opens an editor in place and applies with one button. */
-function Editable({ label, name, busy, children, onApply }: { label: string; name: string; busy: boolean; children: React.ReactNode; onApply: (() => void) | null }) {
+function Editable({ label, name, busy, children, onApply, onOpen }: { label: string; name: string; busy: boolean; children: React.ReactNode; onApply: (() => void) | null; onOpen?: () => void }) {
   const [open, setOpen] = useState(false);
   const { t } = useLocale();
+  const chip = useRef<HTMLButtonElement>(null);
+  // Escape closes without applying, like Cancel, and hands focus back to the chip:
+  // from inside the editor or from the chip that opened it (focus stays there on a click).
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Escape' || !open) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(false);
+    chip.current?.focus();
+  };
   return (
-    <span className={styles.editable}>
-      <button className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={t.ui.change(name)} onClick={() => setOpen(!open)}>
+    <span className={styles.editable} onKeyDown={onKeyDown}>
+      <button ref={chip} className={styles.chipButton} disabled={busy} aria-expanded={open} aria-label={t.ui.change(name)} onClick={() => { if (!open) onOpen?.(); setOpen(!open); }}>
         {label} ✎
       </button>
       {open && (
@@ -394,7 +428,8 @@ function StepChip({ name, label, value, steps, stepLabel, anyLabel, note, busy, 
   const [picked, setPicked] = useState<number | null>(value);
   useEffect(() => setPicked(value), [value]);
   return (
-    <Editable label={label} name={name} busy={busy} onApply={() => onApply(picked)}>
+    // Each opening starts from the search as it is, so Cancel and Esc discard (as Who and When do).
+    <Editable label={label} name={name} busy={busy} onOpen={() => setPicked(value)} onApply={() => onApply(picked)}>
       {[null, ...steps].map((step) => (
         <label key={step ?? 'any'} className={styles.check}>
           <input type="radio" name={name} checked={picked === step} onChange={() => setPicked(step)} />
@@ -411,7 +446,7 @@ function PickChip({ name, label, choices, picked, silent, noneTicked, silentNote
   const [sel, setSel] = useState<string[]>(picked);
   useEffect(() => setSel(picked), [picked]);
   return (
-    <Editable label={label} name={name} busy={busy} onApply={() => onApply(sel)}>
+    <Editable label={label} name={name} busy={busy} onOpen={() => setSel(picked)} onApply={() => onApply(sel)}>
       {choices.map((c) => (
         <label key={c.value} className={styles.check}>
           <input type="checkbox" checked={sel.includes(c.value)} onChange={(e) => setSel(e.target.checked ? [...sel, c.value] : sel.filter((v) => v !== c.value))} />
@@ -464,7 +499,8 @@ function WhenChip({ checkIn, checkOut, busy, onEdit }: { checkIn: string; checkO
   const [range, setRange] = useState({ checkIn, checkOut });
   const { locale, t } = useLocale();
   return (
-    <Editable label={formatDates(checkIn, checkOut, locale)} name={t.ui.chipName.when} busy={busy} onApply={() => onEdit({ type: 'set_dates', ...range })}>
+    // Each opening starts from the search as it is: Cancel or Esc then discards what was picked (e2e, 2026-11-13).
+    <Editable label={formatDates(checkIn, checkOut, locale)} name={t.ui.chipName.when} busy={busy} onOpen={() => setRange({ checkIn, checkOut })} onApply={() => onEdit({ type: 'set_dates', ...range })}>
       <RangeCalendar value={range} min={todayLocal()} maxNights={30} onChange={setRange} />
       <span className={styles.muted}>{formatDates(range.checkIn, range.checkOut, locale)}</span>
     </Editable>
@@ -496,7 +532,7 @@ function WhoChip({ adults, childrenAges, rooms, pets, busy, onEdit }: { adults: 
     if (actions.length) onEdit(actions);
   };
   return (
-    <Editable label={`${formatGuests(adults, childrenAges, rooms, locale)}${pets ? t.words.pet : ''}`} name={t.ui.chipName.who} busy={busy} onApply={apply}>
+    <Editable label={`${formatGuests(adults, childrenAges, rooms, locale)}${pets ? t.words.pet : ''}`} name={t.ui.chipName.who} busy={busy} onOpen={() => setG({ adults, childrenAges, rooms, pets })} onApply={apply}>
       {step(t.ui.adults, g.adults, 1, 12, (n) => setG({ ...g, adults: n, rooms: g.rooms === null ? null : Math.min(g.rooms, n) }))}
       {step(t.ui.children, g.childrenAges.length, 0, 8, (n) => setG({ ...g, childrenAges: n > g.childrenAges.length ? [...g.childrenAges, 8] : g.childrenAges.slice(0, n) }))}
       {g.childrenAges.map((age, i) => (
@@ -539,18 +575,24 @@ function PrioritiesChip({ priorities, near, busy, onEdit }: { priorities: Priori
     );
   }
   return (
-    <span className={styles.chips} role="group" aria-label={t.ui.whatMattersMost}>
+    <span className={styles.chips} role="group" aria-label={t.ui.whatMattersMost} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
       {keys.map(([k, label]) => (
         <button key={k} className={styles.chip} aria-pressed={picked.includes(k)} disabled={busy} onClick={() => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]))}>
           {label}
         </button>
       ))}
+      <button className={styles.secondary} onClick={() => setOpen(false)}>
+        {t.ui.cancel}
+      </button>
       <button className={styles.primary} disabled={busy} onClick={() => { setOpen(false); onEdit({ type: 'set_priorities', priorities: picked }); }}>
         {t.ui.apply}
       </button>
     </span>
   );
 }
+
+/** Listed by name, as people look for them; COUNTRIES itself is in ISO code order (e2e, 2026-11-13). */
+const COUNTRIES_BY_NAME = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name, 'en'));
 
 /** The nationality the rates are for: inferred, never asked, changeable here. */
 function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; onEdit: OnEdit }) {
@@ -564,7 +606,7 @@ function NationalityChip({ code, busy, onEdit }: { code: string; busy: boolean; 
         disabled={busy}
         onChange={(e) => isCountryCode(e.target.value) && onEdit({ type: 'set_nationality', code: e.target.value })}
       >
-        {COUNTRIES.map((c) => (
+        {COUNTRIES_BY_NAME.map((c) => (
           <option key={c.code} value={c.code}>
             {c.name}
           </option>
@@ -600,7 +642,7 @@ function CurrencyChip({ code, capSet, busy, onEdit }: { code: string; capSet: bo
     </option>
   );
   return (
-    <Editable label={t.ui.currencyChip(code)} name={t.ui.currencyName} busy={busy} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
+    <Editable label={t.ui.currencyChip(code)} name={t.ui.currencyName} busy={busy} onOpen={() => setPicked(code)} onApply={() => picked !== code && isCurrencyCode(picked) && onEdit({ type: 'set_currency', code: picked })}>
       <select className={styles.editorInput} aria-label={t.ui.currency} value={picked} onChange={(e) => setPicked(e.target.value)}>
         {COMMON_CURRENCIES.map((c) => option(CURRENCIES.find((x) => x.code === c)!))}
         <option disabled>──────────</option>
@@ -628,6 +670,7 @@ function Card({
   onOpen,
   onClose,
   onBook,
+  onSignIn,
   booking,
   marked,
   onHover,
@@ -642,6 +685,8 @@ function Card({
   onOpen: (id: string) => void;
   onClose: () => void;
   onBook: (offerId: string) => void;
+  /** Signed out, on a hotel where members pay less: the sign-in modal. */
+  onSignIn: () => void;
   booking: string | null;
   /** Its pin is hovered or pressed on the map: the card wears a border so it can be found. */
   marked: 'hover' | 'selected' | null;
@@ -656,9 +701,18 @@ function Card({
   const stay = view.stay;
   const showRooms = offer !== null && offer.roomName !== null && (offer.rooms > 1 || (stay !== null && stay.rooms === null && roomCounts(stay.adults, stay.childrenAges).length > 1));
   const reason = row.reason as (ReasonLike & { distance_km?: number | null }) | null;
+  const memberOnly = Boolean((reason as { misses?: Array<{ kind: string }> } | null)?.misses?.some((m) => m.kind === 'member_price'));
   const why = reason
     ? reasonText(reason, { currency: offer?.currency ?? view.session.currency, hasMustHaves, locale })
     : t.ui.askedAboutNoPrice;
+  // Open, Esc folds it as Collapse does (docs/design/hotel-detail.md). The photo viewer and the
+  // header editors take their own Esc first and stop it.
+  useEffect(() => {
+    if (!open) return;
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && onClose();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [open, onClose]);
   // The card body opens the hotel too; its own buttons keep their own jobs.
   const onCard = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, a, details')) return;
@@ -712,6 +766,12 @@ function Card({
         {!offer && (
           <div className={styles.priceCol}>
             <div className={styles.cardActions}>
+              {memberOnly && !view.session.signedIn && (
+                // Sam, 2026-11-13: show these, and let the price be one sign-in away.
+                <button className={styles.book} onClick={onSignIn}>
+                  {t.ui.signInToSeePrice}
+                </button>
+              )}
               <button className={styles.secondary} aria-expanded={open} onClick={() => (open ? onClose() : onOpen(property.id))}>
                 {open ? t.ui.collapse : t.ui.details}
               </button>
@@ -725,6 +785,15 @@ function Card({
               {t.ui.totalFor(t.words.nights(nights), formatMoney(Math.ceil(offer.totalMinor / nights), offer.currency, locale))}
             </p>
             {offer.payAtPropertyMinor > 0 && <p className={styles.muted}>{t.ui.paidAtHotel(formatMoney(offer.payAtPropertyMinor, offer.currency, locale))}</p>}
+            {/* Never by how much: that would publish the member rate (lib/pricing.ts). */}
+            {offer.lowerForMembers &&
+              (view.session.signedIn ? (
+                <p className={styles.member}>{t.ui.memberPrice}</p>
+              ) : (
+                <button type="button" className={styles.memberLink} onClick={onSignIn}>
+                  {t.ui.signInLower}
+                </button>
+              ))}
             <div className={styles.cardActions}>
               <button className={styles.book} disabled={booking !== null} onClick={() => onBook(offer.id)}>
                 {booking === offer.id ? (

@@ -1140,6 +1140,236 @@
       "bytes": 131,
       "redactedFields": [],
       "sha256": "e2fa9b2d54f9c571bc817e4b8af54c20d6f28260cd2d17b3cca0b2061d39036c"
+    },
+    "hotel-details-lpadfd9.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lpadfd9",
+      "request": null,
+      "status": 200,
+      "latencyMs": 302,
+      "bytes": 151869,
+      "redactedFields": [],
+      "sha256": "3624a849be61977b693883294503dfe68c91891043520713a734249fbd5de090"
+    },
+    "hotel-details-lp1f67a6.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp1f67a6",
+      "request": null,
+      "status": 200,
+      "latencyMs": 371,
+      "bytes": 59755,
+      "redactedFields": [],
+      "sha256": "661bf19bbcacf1084f7b201b2e24faf71e8bd0e6cef6a43e27dcd67d82905997"
+    },
+    "hotel-details-lp6556ee72.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp6556ee72",
+      "request": null,
+      "status": 200,
+      "latencyMs": 218,
+      "bytes": 174070,
+      "redactedFields": [],
+      "sha256": "f6b3e6ac3217db60feb0567f402147b4c1960c9f6d39e1c8b009ed82726b80fb"
+    },
+    "hotel-details-lp655855eb.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp655855eb",
+      "request": null,
+      "status": 200,
+      "latencyMs": 156,
+      "bytes": 66257,
+      "redactedFields": [],
+      "sha256": "0ba92eb5d554e18830b8cf7603c46e08c14aac7b7f5058bc3795f5fdb36ad6a4"
+    },
+    "hotel-details-lp6557699a.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp6557699a",
+      "request": null,
+      "status": 200,
+      "latencyMs": 373,
+      "bytes": 75222,
+      "redactedFields": [],
+      "sha256": "ef5a0f4cbfa9016bdbcb490645b824f0e10f3416f8804b6e9199c4b4d7e85c54"
+    },
+    "hotel-details-lp2563c.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp2563c",
+      "request": null,
+      "status": 200,
+      "latencyMs": 44,
+      "bytes": 136646,
+      "redactedFields": [],
+      "sha256": "4e13470a4de948fdd4cb97c50a1dc19f7e3fde75d1896c1390f845e1cfd9876c"
+    },
+    "hotel-details-lp76a2a.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp76a2a",
+      "request": null,
+      "status": 200,
+      "latencyMs": 165,
+      "bytes": 204797,
+      "redactedFields": [],
+      "sha256": "2104599fa631c671ee90262f5b555925533ab455d59db676bb6f93e1b62c8639"
+    },
+    "hotel-details-lp5ead4.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp5ead4",
+      "request": null,
+      "status": 200,
+      "latencyMs": 45,
+      "bytes": 167631,
+      "redactedFields": [],
+      "sha256": "7673b9a4cf92538837287bae657b6b631d0bea3a78d3dadc685066f0551d475b"
+    },
+    "hotel-details-lp90400.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp90400",
+      "request": null,
+      "status": 200,
+      "latencyMs": 33,
+      "bytes": 105092,
+      "redactedFields": [],
+      "sha256": "9eed89c236b2338fc59e9650b72ee706346dd524673e00efbf921c1e9f20f716"
+    },
+    "hotel-details-lp6554c343.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp6554c343",
+      "request": null,
+      "status": 200,
+      "latencyMs": 38,
+      "bytes": 135519,
+      "redactedFields": [],
+      "sha256": "28d36b41088e33e194242f37bdf480e2fb17223e6712af4c7703940cbf89a6a2"
+    },
+    "hotel-details-lp37469a.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp37469a",
+      "request": null,
+      "status": 200,
+      "latencyMs": 159,
+      "bytes": 108429,
+      "redactedFields": [],
+      "sha256": "af2f2d94c2dbb40328a733c1e830b0bfc77ab0d568ff4df260ff5a5439700a2d"
+    },
+    "hotel-details-lp6556bad0.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp6556bad0",
+      "request": null,
+      "status": 200,
+      "latencyMs": 160,
+      "bytes": 87472,
+      "redactedFields": [],
+      "sha256": "f6a7f6ecc5411be6ccc32c8218d64c527783b3bfb53f124cb233c2bc1193f69c"
+    },
+    "hotel-details-lp6557454d.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp6557454d",
+      "request": null,
+      "status": 200,
+      "latencyMs": 174,
+      "bytes": 129103,
+      "redactedFields": [],
+      "sha256": "26c3b1701f4658625c94519d5e127e02e185ffc5a5ef04d9aa09de4d06e19296"
+    },
+    "hotel-details-lp6554f833.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp6554f833",
+      "request": null,
+      "status": 200,
+      "latencyMs": 401,
+      "bytes": 113990,
+      "redactedFields": [],
+      "sha256": "f8a9bfb201bb675d080473d926c219b6d87f6a988c340c1babe105478203ee58"
+    },
+    "hotel-details-lp34e59.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp34e59",
+      "request": null,
+      "status": 200,
+      "latencyMs": 163,
+      "bytes": 70177,
+      "redactedFields": [],
+      "sha256": "c9032da3cb6f35c59df1012d1fc84f7e4f8acc7152d82e8e1551d45b5dd9f1fa"
+    },
+    "hotel-details-lp20ecc8.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp20ecc8",
+      "request": null,
+      "status": 200,
+      "latencyMs": 154,
+      "bytes": 96115,
+      "redactedFields": [],
+      "sha256": "c8ce597c81f702a0b275beac391b01acbf8d8387157c18f7c33b7125490c7d9c"
+    },
+    "hotel-details-lp1b51f.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp1b51f",
+      "request": null,
+      "status": 200,
+      "latencyMs": 181,
+      "bytes": 121269,
+      "redactedFields": [],
+      "sha256": "c25991e51cc5e174fc098b7475706e13a92f4832bcf43367de81ed2a456239ce"
+    },
+    "hotel-details-lp55362.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp55362",
+      "request": null,
+      "status": 200,
+      "latencyMs": 152,
+      "bytes": 39775,
+      "redactedFields": [],
+      "sha256": "8ba94b1fe11dd5c6253c99f41912cb007be8382bc7ecffd94268dcf5d2afd5aa"
+    },
+    "hotel-details-lpb0c3b.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lpb0c3b",
+      "request": null,
+      "status": 200,
+      "latencyMs": 146,
+      "bytes": 30083,
+      "redactedFields": [],
+      "sha256": "fefe62b466534e093f65c45ba18e406bbb1b61a5634733c5753315496323f5fc"
+    },
+    "hotel-details-lpa0fef.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lpa0fef",
+      "request": null,
+      "status": 200,
+      "latencyMs": 153,
+      "bytes": 83583,
+      "redactedFields": [],
+      "sha256": "dbf85863b2dcfe7ce6a04d2542c0388610277df6ca987f885b2e39fef44658a2"
+    },
+    "hotel-details-lp42f1e.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp42f1e",
+      "request": null,
+      "status": 200,
+      "latencyMs": 30,
+      "bytes": 89627,
+      "redactedFields": [],
+      "sha256": "b540efccf195be6e0f67b4c8da453175284ec35651d9f7f81594ae55ed418470"
+    },
+    "hotel-details-lp2c368.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lp2c368",
+      "request": null,
+      "status": 200,
+      "latencyMs": 29,
+      "bytes": 51841,
+      "redactedFields": [],
+      "sha256": "96aca2ea640fabb12cbd63f59f02279b827b4b9fde20f010f5d1071c33197aef"
+    },
+    "hotel-details-lpd1449.json": {
+      "method": "GET",
+      "url": "https://api.liteapi.travel/v3.0/data/hotel?hotelId=lpd1449",
+      "request": null,
+      "status": 200,
+      "latencyMs": 30,
+      "bytes": 55338,
+      "redactedFields": [],
+      "sha256": "2a429adfa2d908c5d01eb33851c44da653054da78894b8552af735d005c6fa58"
     }
   }
 }

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/ids';
 import { BASE_PATH } from '@/lib/basePath';
 import 'server-only';
 import { randomUUID } from 'node:crypto';
@@ -12,9 +13,18 @@ import { createUserSession, endUserSession, USER_COOKIE, userForToken, type Sign
 import { getBooking, type Booking } from '@/server/repos/bookings';
 import { countRequest } from '@/server/repos/rateLimit';
 import { adoptAnonymousSaved } from '@/server/repos/saved';
-import { adoptAnonymousSessions, assertSessionOwned, SessionNotOwnedError, type Owner, type SearchSession } from '@/server/repos/sessions';
+import { adoptAnonymousSessions, assertSessionOwned, handOverSession, SessionNotOwnedError, type Owner, type SearchSession } from '@/server/repos/sessions';
 
 /** Shared by every route: who is asking, error responses, the per-IP limit. */
+
+/**
+ * A GET that takes no query: any query parameter at all is invalid_request.
+ * Every GET is strict about its query (Sam, 2026-11-14); the three that take
+ * one parse it with their own `.strict()` schema.
+ */
+export function noQuery(req: Request): NextResponse | null {
+  return Array.from(new URL(req.url).searchParams.keys()).length > 0 ? errorResponse('invalid_request', 400) : null;
+}
 
 export function errorResponse(code: ErrorCode, status: number, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error: code, ...extra }, { status });
@@ -83,7 +93,7 @@ export async function signOutBrowser(): Promise<void> {
 /** The session if this visitor owns it; otherwise a 404 that does not say whether it exists. */
 export async function ownedSession(id: string): Promise<SearchSession | NextResponse> {
   const owner = await currentOwner();
-  if (!owner || !/^[0-9a-f-]{36}$/i.test(id)) return errorResponse('session_not_found', 404);
+  if (!owner || !isUuid(id)) return errorResponse('session_not_found', 404);
   try {
     return await assertSessionOwned(id, owner);
   } catch (err) {
@@ -151,4 +161,37 @@ export async function ownedBooking(id: string): Promise<Booking | NextResponse> 
     if (!(session instanceof NextResponse)) return booking;
   }
   return errorResponse('booking_not_found', 404);
+}
+
+/**
+ * A prebooked checkout in a search this visitor owns, whoever it was priced
+ * for: after "Not you?" the search is this browser's, and then the account
+ * that signs in, while the checkout still holds the last account's price.
+ * Used only to price the same room again for whoever is looking now; nothing
+ * of the booking is shown through it.
+ */
+export async function checkoutInMySearch(id: string): Promise<Booking | NextResponse> {
+  const booking = await getBooking(id);
+  if (!booking || !booking.sessionId || booking.status !== 'prebooked') return errorResponse('booking_not_found', 404);
+  const session = await ownedSession(booking.sessionId);
+  if (session instanceof NextResponse) return errorResponse('booking_not_found', 404);
+  return booking;
+}
+
+/**
+ * "Not you?": the search, with its checkout, becomes this browser's again
+ * (its anonymous cookie, minted if it has none) and the browser is signed
+ * out. The account keeps nothing of it. Only a signed-in owner of the search
+ * may do this, and only before anything is paid.
+ */
+export async function handOverToBrowser(sessionId: string, userId: string): Promise<boolean> {
+  let anonId = currentAnonId();
+  if (!anonId) {
+    const minted = mintAnonCookie();
+    anonId = minted.anonId;
+    cookies().set(ANON_COOKIE, minted.value, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: BASE_PATH, maxAge: 60 * 60 * 24 * 30 });
+  }
+  const moved = await handOverSession(sessionId, userId, anonId);
+  await signOutBrowser();
+  return moved;
 }

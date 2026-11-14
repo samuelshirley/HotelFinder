@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { currentOwner, ensureOwner, errorResponse, handled, rateLimit, requestLocale } from '@/server/http';
+import { currentOwner, ensureOwner, errorResponse, handled, noQuery, rateLimit, requestLocale } from '@/server/http';
 import { askQuestion } from '@/server/onboarding';
 import { listTrips } from '@/server/repos/sessions';
 import { startSession } from '@/server/startSession';
@@ -25,7 +25,9 @@ export const POST = handled(async (req: Request) => {
 });
 
 /** This visitor's trips, newest first. A visitor with no cookie has none. */
-export const GET = handled(async () => {
+export const GET = handled(async (req: Request) => {
+  const badQuery = noQuery(req);
+  if (badQuery) return badQuery;
   const owner = await currentOwner();
   const trips = owner ? await listTrips(owner) : [];
   return NextResponse.json({

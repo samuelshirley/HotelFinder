@@ -20,6 +20,7 @@ import { SPONSORED_HOTELS } from '@/lib/sponsors';
 import { listShortlist } from '@/server/repos/shortlist';
 import { addStay, audienceFor, getSession, listStays, updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
 import type { SupplierAdapter } from '@/server/supplier';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * Onboarding is a deterministic form inside the chat. Questions are chat rows
@@ -39,7 +40,6 @@ import type { SupplierAdapter } from '@/server/supplier';
 export const FIELDS = ['destination', 'dates', 'guests', 'priorities'] as const;
 export type Field = (typeof FIELDS)[number];
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /** The ONE payload the form endpoint accepts. */
 export const formAnswerSchema = z.discriminatedUnion('field', [
@@ -104,7 +104,12 @@ function scannedStayFields(scanned: ScannedTrip) {
 }
 
 /** "3 nights in March", "2 nights", "some nights in March": what the words said about when, short of two dates. */
-export function hintText(hint: { nights?: number; month?: string }, locale: Locale = 'en'): string {
+export function hintText(hint: { nights?: number; month?: string; checkIn?: string }, locale: Locale = 'en'): string {
+  if (hint.checkIn) {
+    // "From next Monday": the day the words gave, with no length (2026-11-13).
+    const from = new Intl.DateTimeFormat(INTL[locale].date, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${hint.checkIn}T00:00:00Z`));
+    return copy(locale).onboarding.hintFrom(hint.nights, from);
+  }
   const month = hint.month ? new Intl.DateTimeFormat(INTL[locale].date, { month: 'long', timeZone: 'UTC' }).format(new Date(`${hint.month}-01T00:00:00Z`)) : null;
   return copy(locale).onboarding.hint(hint.nights, month);
 }
@@ -164,6 +169,12 @@ export async function answerForm(args: {
   quiet?: boolean;
   /** The language of every line this writes. English when absent. */
   locale?: Locale;
+  /**
+   * What the words alone said, for the "From your message" line. The draft's
+   * scanned trip also holds the pills and the 2-adult default, which the line
+   * then claimed the message said (e2e, 2026-11-13).
+   */
+  words?: ScannedTrip;
 }): Promise<FormResult> {
   const { sessionId, answer, supplier, now, today } = args;
   const L = args.locale ?? 'en';
@@ -197,7 +208,8 @@ export async function answerForm(args: {
       if (scanned.checkIn && scanned.checkOut && scanned.checkIn >= today) {
         stay = await addStay(sessionId, { destinationText: answer.label, placeId: answer.placeId, ...destFields(current), checkIn: scanned.checkIn, checkOut: scanned.checkOut, ...scannedStayFields(scanned) });
       }
-      understood = understoodLine(scanned, stay !== null, session.currency, L);
+      // Only what the words said: the draft also holds the pills and the 2-adult default (2026-11-13).
+      understood = understoodLine(args.words ?? session.draft.words ?? {}, stay !== null, session.currency, L);
       break;
     }
     case 'dates': {
@@ -264,7 +276,8 @@ export function questionExtra(field: Field, stay: Stay | null, session?: SearchS
     const hint = session?.draft.scanned?.datesHint;
     if (!hint) return {};
     // With a length one tap sets the stay; without one the card takes two taps.
-    return { ...hint, prompt: copy(locale).onboarding.whichHint(hintText(hint, locale), Boolean(hint.nights)) };
+    const prompt = hint.checkIn ? copy(locale).onboarding.whichHintFrom(hintText(hint, locale)) : copy(locale).onboarding.whichHint(hintText(hint, locale), Boolean(hint.nights));
+    return { ...hint, prompt };
   }
   if (field !== 'priorities' || !stay) return {};
   return { near: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }, locale) };

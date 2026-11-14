@@ -9,10 +9,11 @@
 .shell[data-panel='open'] .results { grid-column: 2; grid-row: 1; }
 .shell[data-panel='open'] .resizer { grid-column: 3; grid-row: 1; }
 .shell[data-panel='open'] .chat { grid-column: 4; grid-row: 1; border-left: 0; }
-.sidebar { display: flex; flex-direction: column; gap: 4px; padding: 12px 10px; background: var(--tp-surface-muted); border-right: 1px solid var(--tp-neutral-900); min-width: 0; overflow: hidden auto; }
+.sidebar { display: flex; flex-direction: column; gap: 4px; padding: 0 10px 12px; background: var(--tp-surface-muted); border-right: 1px solid var(--tp-neutral-900); min-width: 0; overflow: hidden auto; }
 /* Folded, not removed: it keeps its (zero-width) grid column, or the chat would slide into it. */
 .shell[data-sidebar='closed'] .sidebar { visibility: hidden; padding: 0; border: 0; }
-.brand { font-weight: 600; font-size: 15px; padding: 6px 8px 10px; white-space: nowrap; }
+/* The brand sits on the shared top bar: its line is centred on the chat title and the hotels heading. */
+.brand { font-weight: 600; font-size: 15px; min-height: var(--bar-h); display: flex; align-items: center; padding: 0 8px; white-space: nowrap; flex: none; }
 .language { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--tp-subtle); padding: 0 8px 10px; }
 .language select { font: inherit; color: var(--tp-text, inherit); background: transparent; border: 1px solid var(--tp-border, currentColor); border-radius: 6px; padding: 2px 4px; }
 .newTrip { text-align: left; background: transparent; border: 1px solid var(--tp-border); border-radius: 8px; padding: 8px 10px; color: var(--tp-text); }
@@ -30,7 +31,7 @@
 .results { overflow-y: auto; padding: 18px 20px 40px; min-width: 0; min-height: 0; background: var(--tp-surface-muted); container-type: inline-size; }
 .resizer { cursor: col-resize; background: var(--tp-surface-muted); border-right: 1px solid var(--tp-neutral-900); touch-action: none; }
 .resizer:hover, .resizer:focus-visible, .resizer:active { background: var(--tp-accent-700); outline: none; }
-.header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; min-height: 48px; }
+.header { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: var(--bar-h); flex: none; }
 .header h1 { font-size: 14px; font-weight: 500; color: var(--tp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .icon { display: grid; place-items: center; width: 30px; height: 30px; background: transparent; border: 0; border-radius: 8px; color: var(--tp-muted); flex: none; }
 .icon:hover { background: var(--tp-surface); color: var(--tp-text); }
@@ -42,6 +43,12 @@
 .bubble { max-width: 85%; padding: 9px 12px; border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; }
 .assistant { align-self: flex-start; background: var(--tp-surface); border: 1px solid var(--tp-neutral-900); }
 .user { align-self: flex-end; background: var(--tp-primary-muted); border: 1px solid var(--tp-accent-700); color: var(--tp-accent-300); }
+/* A message the server does not hold yet: waiting its turn, or not sent (with Retry). */
+.outgoing { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.outgoing .user[data-state='waiting'] { opacity: 0.7; }
+.outgoing .user[data-state='failed'] { border-style: dashed; }
+.notSent { margin: 0; font-size: 13px; color: var(--tp-danger-text); }
+.retry { background: transparent; border: 0; padding: 4px 2px; color: var(--tp-accent-300); text-decoration: underline; font: inherit; cursor: pointer; }
 .errorBubble { border-color: var(--tp-border-strong); color: var(--tp-muted); }
 .composer { padding: 0 20px 18px; }
 .composerBox { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; background: var(--tp-surface); border: 1px solid var(--tp-border); border-radius: 16px; }
@@ -70,16 +77,18 @@
 .secondary:hover:not(:disabled) { border-color: var(--tp-primary); }
 .chipButton { background: transparent; border: 1px solid var(--tp-accent-700); color: var(--tp-accent-300); border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
 .chipButton:hover:not(:disabled) { border-color: var(--tp-primary); }
-.stepper { display: grid; grid-template-columns: 1fr 32px 28px 32px; align-items: center; gap: 6px; }
-.stepper button { background: transparent; border: 1px solid var(--tp-border); border-radius: 8px; height: 30px; }
+.stepper { display: grid; grid-template-columns: 1fr var(--control-sm) 28px var(--control-sm); align-items: center; gap: 6px; max-width: 280px; }
+.stepper button { background: transparent; border: 1px solid var(--tp-border); border-radius: var(--radius-sm); height: var(--control-sm); }
 .stepper output { text-align: center; font-variant-numeric: tabular-nums; }
 .column { max-width: 960px; margin-inline: auto; padding-inline: 4px; }
 .summary { position: sticky; top: -18px; z-index: 4; background: var(--tp-surface-muted); margin: -18px 0 16px; padding: 18px 0 12px; border-bottom: 1px solid var(--tp-neutral-900); display: flex; flex-direction: column; gap: 8px; }
 .summaryTop { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .summary h2 { font-size: 20px; font-weight: 600; }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The header editors drop from the chip row, aligned to its left edge and never wider than it. */
+.tags { position: relative; display: flex; flex-wrap: wrap; gap: 6px; }
 .tag { border: 1px solid var(--tp-accent-700); color: var(--tp-accent-300); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
 .note { color: var(--tp-subtle); font-size: 12px; }
+.inlineLink { background: transparent; border: 0; padding: 4px 0; color: var(--tp-accent-300); text-decoration: underline; font: inherit; cursor: pointer; }
 .empty { color: var(--tp-muted); padding: 40px 0; max-width: 46ch; }
 .cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .cardItem { background: var(--tp-surface); border: 1px solid var(--tp-neutral-900); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 150px; }
@@ -90,6 +99,8 @@
 .card { display: grid; grid-template-columns: 160px minmax(0, 1fr) 200px; cursor: pointer; }
 .card:hover .cardBody h3 { color: var(--tp-accent-300); }
 .priceCol { padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 2px; border-left: 1px solid var(--tp-neutral-900); }
+/* A phrase that wraps as one piece: the per-night price left "night" alone on a line. */
+.keep { white-space: nowrap; }
 .priceCol .cardActions { margin-top: auto; padding-top: 10px; width: 100%; }
 .expandArea { border-top: 1px solid var(--tp-border); background: var(--tp-surface); animation: grow 220ms ease-out; }
 @keyframes grow { from { opacity: 0; transform: translateY(-6px); } }
@@ -114,24 +125,41 @@
   .card { grid-template-columns: 220px minmax(0, 1fr) 200px; }
   .photo { width: 220px; }
 }
-/* Narrow window: the trips list is a drawer, and the chat and the hotels take turns. */
+/* The bottom tab bar, the map tab's card and the first screen's scroll: phones only (below). */
+.tabbar, .mapCard { display: none; }
+/* The first screen scrolls on its own, so nothing on it is ever out of reach (2026-11-13: 379px were). */
+.hero { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+/*
+ * Phones (docs/design/mobile.md): one pane at a time over a bottom tab bar,
+ * Chat · Hotels · Map · Trips. Each pane is ONE scrolling surface; nothing
+ * scrolls inside it. The app is sized to the visible screen (--app-h and
+ * --app-top from useVisualViewport), so the iOS keyboard pushes the composer
+ * up instead of covering it; the tab bar hides while the keyboard is open.
+ */
 @media (max-width: 900px) {
-  .shell, .shell[data-panel='open'] { grid-template-columns: minmax(0, 1fr); }
-  .shell[data-panel='open'] .results, .shell[data-panel='open'] .chat { grid-column: 1; grid-row: 1; }
-  .sidebar, .shell[data-sidebar='closed'] .sidebar { display: none; position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); z-index: 30; box-shadow: 8px 0 30px rgba(0, 0, 0, 0.4); }
-  .shell[data-drawer='open'] .sidebar { display: flex; visibility: visible; padding: 12px 10px; }
-  .shell[data-drawer='open'] .scrim { display: block; position: fixed; inset: 0; z-index: 20; background: var(--tp-overlay); border: 0; }
-  .resizer { display: none; }
-  .tabs { display: flex; }
-  .results { display: none; grid-row: 1; grid-column: 1; margin-top: 48px; padding: 12px 14px 32px; }
-  .shell[data-tab='hotels'] .results { display: block; }
-  .shell[data-tab='hotels'] .chat { grid-row: 1; grid-column: 1; align-self: start; height: 48px; overflow: hidden; z-index: 1; }
-  .messages { padding: 8px 12px 12px; }
-  .composer { padding: 0 12px 12px; }
+  .shell, .shell[data-panel='open'] {
+    position: fixed; left: 0; top: 0; width: 100%;
+    height: var(--app-h, 100dvh); transform: translateY(var(--app-top, 0px));
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .chat, .results, .sidebar, .shell[data-panel='open'] .results, .shell[data-panel='open'] .chat { grid-column: 1; grid-row: 1; }
+  .sidebar, .shell[data-sidebar='closed'] .sidebar { display: none; }
+  .scrim, .resizer, .header .icon { display: none; }
+  .shell[data-tab='trips'] .sidebar { display: flex; visibility: visible; position: static; width: auto; box-shadow: none; border-right: 0; padding: 0 var(--gutter) 24px; overflow-y: auto; overscroll-behavior: contain; }
+  .shell[data-tab='trips'] .chat, .shell[data-tab='hotels'] .chat, .shell[data-tab='map'] .chat { display: none; }
+  .results, .shell[data-panel='open'] .results { display: none; margin-top: 0; padding: 0; }
+  .shell[data-tab='hotels'] .results, .shell[data-tab='map'] .results { display: block; }
   .bubble { max-width: 92%; }
+
+  .tabbar { display: grid; grid-row: 2; grid-column: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 2px 4px env(safe-area-inset-bottom); background: var(--tp-surface-muted); border-top: 1px solid var(--tp-neutral-900); }
+  .tabbar button { min-height: var(--tabbar-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: transparent; border: 0; color: var(--tp-muted); font-size: 11px; font-weight: 500; }
+  .tabbar button[aria-selected='true'] { color: var(--tp-primary-hover); font-weight: 600; }
+  .tabbar button[aria-selected='true'] svg { fill: var(--tp-primary-muted); }
+  .shell[data-keyboard='open'] .tabbar { display: none; }
 }
-.editable { position: relative; display: inline-flex; }
-.editor { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; width: min(560px, 90vw); background: var(--tp-surface); border: 1px solid var(--tp-border-strong); border-radius: 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.editable { display: inline-flex; }
+.editor { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; width: min(560px, 100%); background: var(--tp-surface); border: 1px solid var(--tp-border-strong); border-radius: 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .editorActions { display: flex; justify-content: flex-end; gap: 8px; }
 .editorInput { min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--tp-border); background: var(--tp-surface-muted); }
 .placeRow { display: flex; gap: 12px; align-items: baseline; padding: 8px 6px; background: transparent; border: 0; border-radius: 8px; text-align: left; }
@@ -177,13 +205,18 @@
  */
 .results[data-layout='map'] { overflow: hidden; padding: 0; }
 .resultsLayout { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
-.resultsLayout .summary { position: static; margin: 0; padding: 16px 20px 12px; }
+/* 12px on top centres the 32px first row on the 56px top bar, level with the chat title and the brand. */
+.resultsLayout .summary { position: static; margin: 0; padding: 12px var(--gutter) 12px; }
 .resultsLayout[data-map='closed'] { grid-template-rows: auto minmax(0, 1fr); }
 .resultsLayout[data-map='closed'] .summary > * { width: 100%; max-width: 960px; margin-inline: auto; }
 .summaryRight { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.summaryRight label { display: inline-flex; align-items: center; gap: 6px; }
+/* Sized to its value, not to the longest country name (it was 303px wide for "Portugal"). */
+.shell .summaryRight select { max-width: 11rem; height: var(--control-sm); padding-block: 0; }
+.summaryRight .ghost { height: var(--control-sm); padding-block: 0; }
 .mapBand { height: clamp(200px, 32vh, 320px); min-height: 0; border-bottom: 1px solid var(--tp-neutral-900); }
 .mapLoading { height: 100%; display: grid; place-items: center; color: var(--tp-muted); font-size: 13px; }
-.listScroll { overflow-y: auto; min-height: 0; padding: 14px 20px 40px; container-type: inline-size; }
+.listScroll { overflow-y: auto; min-height: 0; padding: 14px var(--gutter) 40px; container-type: inline-size; }
 .listScroll > .cards, .listScroll > .empty { max-width: 960px; margin-inline: auto; }
 .resultsLayout .cardItem { scroll-margin-top: 8px; }
 /* "Show all N hotels" (lib/fullList.ts): under the top picks, compact cards a page at a time. */
@@ -209,8 +242,30 @@
   .resultsLayout[data-map='open'] .mapBand { grid-column: 2; grid-row: 2; height: auto; border-bottom: 0; border-left: 1px solid var(--tp-neutral-900); }
 }
 @media (max-width: 900px) {
-  .results[data-layout='map'] { margin-top: 48px; height: calc(100dvh - 48px); }
-  .listScroll { padding: 12px 14px 32px; }
+  /* Hotels tab: the list only, and the whole pane scrolls (it was a 168px box under the map). */
+  .shell[data-tab='hotels'] .results[data-layout='map'] { overflow-y: auto; overscroll-behavior: contain; height: 100%; }
+  .shell[data-tab='hotels'] .resultsLayout { display: block; height: auto; }
+  .shell[data-tab='hotels'] .mapBand { display: none; }
+  .shell[data-tab='hotels'] .listScroll { overflow: visible; padding: 12px var(--gutter) 32px; }
+  .mapToggle { display: none; }
+  /* Map tab: the map fills the pane; one hotel at a time in the card over it. */
+  .shell[data-tab='map'] .results[data-layout='map'] { overflow: hidden; height: 100%; }
+  .shell[data-tab='map'] .resultsLayout, .shell[data-tab='map'] .resultsLayout[data-map='closed'] { height: 100%; grid-template-rows: minmax(0, 1fr); }
+  .shell[data-tab='map'] .summary, .shell[data-tab='map'] .listScroll { display: none; }
+  .shell[data-tab='map'] .mapBand { height: 100%; border-bottom: 0; }
+  .mapCard { position: fixed; z-index: 15; left: 12px; right: 12px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px); display: flex; align-items: stretch; gap: 4px; padding: 6px; border-radius: 16px; background: var(--tp-surface); border: 1px solid var(--tp-border-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55); }
+  .mapCardMain { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; background: transparent; border: 0; border-radius: 12px; text-align: left; color: var(--tp-text); }
+  .mapCardRank { font-size: 12px; font-weight: 600; color: var(--tp-primary-hover); }
+  .mapCardName { font-size: 16px; font-weight: 500; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mapCardPrice { font-size: 14px; color: var(--tp-muted); }
+  .mapCardNav { display: flex; gap: 4px; }
+  .mapCardNav button { width: 44px; min-height: 44px; border-radius: 12px; border: 1px solid var(--tp-border); background: transparent; color: var(--tp-text); font-size: 20px; }
+}
+/* Narrow window: one gutter for the bar, the thread and the composer (they were 14 / 12 / 12). */
+@media (max-width: 900px) {
+  .header { padding: 0 var(--gutter); }
+  .messages, .shell[data-panel='open'] .messages { padding: 8px var(--gutter) 12px; }
+  .composer, .shell[data-panel='open'] .composer { padding: 0 var(--gutter) 12px; }
 }
 
 /* Saved hotels (the heart): docs/saved.md */
@@ -222,3 +277,6 @@
 .savedItem { display: flex; align-items: flex-start; gap: 2px; }
 .savedItem > :first-child { flex: 1; min-width: 0; }
 .savedPrice { font-size: 12px; color: var(--tp-subtle); }
+/* A hotel where members pay less: signed in, a label; signed out, the way to sign in. Never an amount. */
+.member { font-size: 12px; font-weight: 600; color: var(--tp-accent-300); }
+.memberLink { background: none; border: 0; padding: 0; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--tp-accent-300); text-decoration: underline; text-align: right; cursor: pointer; }

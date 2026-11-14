@@ -132,6 +132,22 @@ export const COMPACT_PX = 28;
 export const STACK_OFFSETS = [32, -32, 64, -64] as const;
 /** A rank alone that still covers another steps aside: past another rank alone, then past a full label, left before right. */
 const sideOffsets = (labelWidth: number) => [-(COMPACT_PX + 4), COMPACT_PX + 4, -(labelWidth / 2 + COMPACT_PX / 2 + 4), labelWidth / 2 + COMPACT_PX / 2 + 4];
+/** Half a pin label's height, its 2 px ring included (MapPanel.module.css `.pin`). */
+export const PIN_HALF_PX = 15;
+
+/**
+ * How far the camera keeps the hotels from the map's edges. A label can sit the
+ * furthest stack offset below or above its hotel, so the top and bottom keep
+ * that much plus half a label and a margin; seen in the browser (2026-11-13),
+ * a uniform 72 px left rank 5's label 6 px below the map, under the credits.
+ * Never more than a third of a side: MapLibre does not move at all when the
+ * padding leaves no room.
+ */
+export function framePadding(width: number, height: number): { top: number; bottom: number; left: number; right: number } {
+  const v = Math.floor(Math.min(Math.max(...STACK_OFFSETS.map(Math.abs)) + PIN_HALF_PX + 9, height / 3));
+  const h = Math.floor(Math.min(72, width / 3));
+  return { top: v, bottom: v, left: h, right: h };
+}
 
 /**
  * Where each label goes so that no two cover each other. Seen in the browser

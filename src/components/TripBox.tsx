@@ -172,7 +172,9 @@ export function TripBox({ busy, onSubmit }: Props) {
         </form>
 
         {(showFullRow || (query && suggestions.length > 0) || open !== null || lookup === 'failed') && (
-          <div className={styles.pop} role={open === 'when' || open === 'who' ? 'dialog' : 'listbox'} aria-label={open === 'when' ? t.ui.chooseNights : open === 'who' ? t.ui.whoIsGoing : open === 'where' ? t.ui.choosePlace : t.ui.suggestions}>
+          // With a sentence typed the list sits in the page, not over it: the What matters chips and the
+          // hint pointing at them are shown at that same moment and must stay in reach (e2e, 2026-11-13).
+          <div className={styles.pop} data-inline={showFullRow ? 'true' : undefined} role={open === 'when' || open === 'who' ? 'dialog' : 'listbox'} aria-label={open === 'when' ? t.ui.chooseNights : open === 'who' ? t.ui.whoIsGoing : open === 'where' ? t.ui.choosePlace : t.ui.suggestions}>
             {open === null && showFullRow && (
               <button type="button" className={styles.fullRow} onClick={submit}>
                 <span>

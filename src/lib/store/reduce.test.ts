@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { actionSchema, type ResolvedAction } from './actions';
-import { fingerprint, NEAR_MAX_KM, reduce, reduceAll, type SearchState } from './reduce';
+import { fingerprint, NEAR_MAX_KM, previewReduce as preview, reduce, reduceAll, type SearchState } from './reduce';
 import { NO_FILTERS } from '@/lib/filters';
 
 const TODAY = '2026-11-11';
@@ -20,6 +20,7 @@ const state = (over: Partial<SearchState['stay']> = {}, top: Partial<SearchState
     destKind: 'area',
     destCountry: 'PT',
     near: null,
+    sights: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,
@@ -264,5 +265,76 @@ describe('a point picked on the map ("Search around here")', () => {
     const { previewReduce } = await import('./reduce');
     const r = previewReduce(state(), { type: 'set_near_point', latitude: 41.1, longitude: -8.6, label: 'Campanhã' }, TODAY);
     expect(r.ok && r.state.stay.near?.label).toBe('Campanhã');
+  });
+});
+
+describe('sights: "tour some museums" (lib/sights.ts)', () => {
+  const place = (id: string, latitude: number, longitude: number, reviewCount: number) => ({ placeId: id, name: `Museum ${id}`, latitude, longitude, rating: 4.5, reviewCount });
+  // Eight points around Porto, most reviewed first; the first four sit in the centre, the rest further west.
+  const MUSEUMS = {
+    kind: 'museums' as const,
+    places: [place('a', 41.146, -8.614, 900), place('b', 41.148, -8.616, 800), place('c', 41.15, -8.612, 700), place('d', 41.144, -8.61, 600), place('e', 41.16, -8.66, 500), place('f', 41.161, -8.661, 400), place('g', 41.162, -8.662, 300), place('h', 41.163, -8.663, 200)],
+  };
+
+  it('the kind only is what a producer may send; the places never', () => {
+    expect(actionSchema.safeParse({ type: 'set_sights', kind: 'museums' }).success).toBe(true);
+    expect(actionSchema.safeParse({ type: 'set_sights', kind: 'beaches' }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_sights', kind: 'museums', places: MUSEUMS.places }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'set_sights', sights: MUSEUMS }).success).toBe(false);
+    expect(actionSchema.safeParse({ type: 'clear_sights' }).success).toBe(true);
+  });
+
+  it('setting them stores them, measures "close" from the middle of the ones the nights have time for, and searches again', () => {
+    const r = ok(state(), { type: 'set_sights', sights: MUSEUMS });
+    expect(r.effect).toBe('refetch');
+    expect(r.state.stay.sights).toEqual(MUSEUMS);
+    // Two nights: four sights in play, a to d. The median of their latitudes and longitudes.
+    expect(r.state.stay.near).toMatchObject({ placeId: 'sights:museums', label: 'the museums' });
+    expect(r.state.stay.near!.latitude).toBeCloseTo(41.147, 6);
+    expect(r.state.stay.near!.longitude).toBeCloseTo(-8.613, 6);
+  });
+
+  it('the same sights again change nothing; another set of places does', () => {
+    const s = ok(state(), { type: 'set_sights', sights: MUSEUMS }).state;
+    expect(reduce(s, { type: 'set_sights', sights: MUSEUMS }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    expect(ok(s, { type: 'set_sights', sights: { ...MUSEUMS, places: MUSEUMS.places.slice(1) } }).effect).toBe('refetch');
+  });
+
+  it('more nights have time for more sights, so the middle moves with the dates', () => {
+    const s = ok(state(), { type: 'set_sights', sights: MUSEUMS }).state;
+    const longer = ok(s, { type: 'set_dates', checkIn: '2026-12-11', checkOut: '2026-12-15' }).state;
+    expect(longer.stay.sights).toEqual(MUSEUMS);
+    expect(longer.stay.near).toMatchObject({ placeId: 'sights:museums' });
+    expect(longer.stay.near).not.toEqual(s.stay.near);
+    // Eight in play: the median sits between the two groups.
+    expect(longer.stay.near!.longitude).toBeLessThan(-8.616);
+  });
+
+  it('naming another place to be close to, or clearing it, drops the sights', () => {
+    const s = ok(state(), { type: 'set_sights', sights: MUSEUMS }).state;
+    expect(ok(s, { type: 'set_near', near: RIBEIRA }).state.stay).toMatchObject({ near: RIBEIRA, sights: null });
+    expect(ok(s, { type: 'clear_near' }).state.stay).toMatchObject({ near: null, sights: null });
+    const cleared = ok(s, { type: 'clear_sights' });
+    expect(cleared.state.stay).toMatchObject({ near: null, sights: null });
+    expect(cleared.effect).toBe('refetch');
+    expect(reduce(state(), { type: 'clear_sights' }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+  });
+
+  it('a new destination drops them: they were that town\'s', () => {
+    const s = ok(state(), { type: 'set_sights', sights: MUSEUMS }).state;
+    expect(ok(s, { type: 'set_destination', placeId: 'place-lisbon', destinationText: 'Lisbon', point: null }).state.stay.sights).toBeNull();
+  });
+
+  it('a staged change does not survive the sights changing', () => {
+    const s = ok(state(), { type: 'set_sights', sights: MUSEUMS }).state;
+    expect(fingerprint(s)).not.toBe(fingerprint(state()));
+    expect(fingerprint(ok(s, { type: 'set_sights', sights: { ...MUSEUMS, places: MUSEUMS.places.slice(1) } }).state)).not.toBe(fingerprint(s));
+  });
+
+  it('before the lookup, all a producer can be told is whether that kind is already set', () => {
+    expect(preview(state(), { type: 'set_sights', kind: 'museums' }, TODAY)).toMatchObject({ ok: true, effect: 'refetch' });
+    const s = ok(state(), { type: 'set_sights', sights: MUSEUMS }).state;
+    expect(preview(s, { type: 'set_sights', kind: 'museums' }, TODAY)).toEqual({ ok: false, rejection: 'no_change' });
+    expect(preview(s, { type: 'set_sights', kind: 'galleries' }, TODAY)).toMatchObject({ ok: true });
   });
 });

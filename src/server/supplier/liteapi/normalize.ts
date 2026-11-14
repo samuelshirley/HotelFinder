@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 
 import { sumMoney, toMoney, type Money } from '@/lib/money';
-import { amenitiesFromFacilityIds } from './amenities';
+import { amenitiesFromFacilityIds, petsFromListing } from './amenities';
 import { chainName, propertyTypeFromId } from './propertyTypes';
 import type {
   CancellationPolicy,
@@ -190,7 +190,7 @@ export function normalizeDetails(body: z.infer<typeof hotelDetailsResponse>): Pr
     reviewCount: d.reviewCount ?? null,
     mainPhoto: d.main_photo ?? null,
     address: d.address ?? null,
-    petsAllowed: d.petsAllowed ?? null,
+    petsAllowed: petsFromListing({ flag: d.petsAllowed, facilities: d.hotelFacilities ?? [], policies: d.policies ?? [] }),
     parking: d.parking ?? null,
     childrenAllowed: d.childAllowed ?? null,
     facilities: d.hotelFacilities ?? [],

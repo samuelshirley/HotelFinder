@@ -1,4 +1,5 @@
-import { fixture, manifest, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
+import { searchMarginPct } from '@/lib/pricing';
+import { fixture, manifest, recordedHotelDetailIds, recordedPlaceIds } from '@/server/supplier/liteapi/fixtures';
 import { normalizeDetails, normalizePlaceDetails, normalizePlaces, normalizeRates, normalizeStaticFacts } from '@/server/supplier/liteapi/normalize';
 import { hotelDetailsResponse, hotelListResponse, placeDetailsResponse, placesResponse, ratesResponse } from '@/server/supplier/liteapi/schemas';
 import type { SearchRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
@@ -9,6 +10,8 @@ export const DOWN: SupplierError = { kind: 'timeout', status: null, code: null, 
 /** A supplier that answers from the recorded sandbox responses and counts what it was asked. */
 /** Recorded place details by the real place id they were recorded for. An id with no recording is an error. */
 const RECORDED_PLACES = recordedPlaceIds();
+/** Recorded hotel details by supplier hotel id; any other id gets the one older generic recording. */
+const RECORDED_DETAILS = recordedHotelDetailIds();
 export const PLACE_IDS = {
   porto: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY',
   annecy: 'ChIJu_5hWOWPi0cRK4mrtTKskGo',
@@ -33,18 +36,21 @@ for (const [file, entry] of Object.entries(manifest.files)) {
   if (k !== COUPLE && !RECORDED_PARTIES.has(k)) RECORDED_PARTIES.set(k, file.replace(/\.json$/, ''));
 }
 
-export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place', 'fail' | 'empty'>> = {}, placesFor: (query: string) => string = () => 'places-porto-ribeira') {
+export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'places' | 'place' | 'content', 'fail' | 'empty'>> = {}, placesFor: (query: string) => string = () => 'places-porto-ribeira') {
   const searches: SearchRequest[] = [];
   const placeQueries: string[] = [];
   const placeLookups: string[] = [];
   let factCalls = 0;
+  const contentCalls: string[] = [];
   const unused = async () => {
     throw new Error('not used here');
   };
   const supplier: SupplierAdapter = {
     name: 'liteapi',
-    async getStaticContent() {
-      return { ok: true, value: normalizeDetails(hotelDetailsResponse.parse(fixture('hotel-details'))) };
+    async getStaticContent(supplierHotelId) {
+      contentCalls.push(supplierHotelId);
+      if (over.content === 'fail') return { ok: false, error: DOWN };
+      return { ok: true, value: normalizeDetails(hotelDetailsResponse.parse(fixture(RECORDED_DETAILS.get(supplierHotelId) ?? 'hotel-details'))) };
     },
     recheckRate: unused,
     book: unused,
@@ -67,18 +73,21 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       searches.push(request);
       if (over.search === 'fail') return { ok: false, error: DOWN };
       if (over.search === 'empty') return { ok: true, value: { properties: [], offers: [] } };
-      // The recording that matches the currency and margin asked for: net for members, +15% for the public.
-      // A party with its own recording is answered with it (recorded in EUR at the public 15% margin).
+      // The recording that matches the currency and margin asked for. Every search is made at the
+      // search margin (answered with the net recording); a margin above it is the checkout lifting a
+      // signed-out visitor's room to the hotel's public price (server/checkout.ts `roomFor`), answered
+      // with the recording at 15%, the nearest one above it. Nothing here invents a price.
+      // A party with its own recording is answered with it (recorded in EUR at 15%).
       // Only EUR and member-margin USD are recorded; anything else is a test asking for a payload nobody captured.
       const party = 'radiusM' in request.where ? undefined : RECORDED_PARTIES.get(key(request.occupancies));
-      if (party ? request.currency !== 'EUR' : request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct < 15 && !('radiusM' in request.where))) {
+      if (party ? request.currency !== 'EUR' : request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct <= searchMarginPct() && !('radiusM' in request.where))) {
         throw new Error(`no recording for ${request.currency} at a ${request.marginPct}% margin`);
       }
       const name =
         party ??
         (request.currency === 'USD'
           ? 'rates-city-porto-usd'
-          : 'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct >= 15 ? 'rates-city-porto-margin-15' : 'rates-city-porto');
+          : 'radiusM' in request.where ? 'rates-radius-porto-airport' : request.marginPct > searchMarginPct() ? 'rates-city-porto-margin-15' : 'rates-city-porto');
       return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(name)), request.marginPct, RECORDED_AT) };
     },
     async getStaticFacts() {
@@ -87,5 +96,5 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       return { ok: true, value: normalizeStaticFacts(hotelListResponse.parse(fixture('hotels-static-porto'))) };
     },
   };
-  return { supplier, searches, placeQueries, placeLookups, facts: () => factCalls };
+  return { supplier, searches, placeQueries, placeLookups, facts: () => factCalls, contentCalls };
 }

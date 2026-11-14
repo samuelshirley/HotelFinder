@@ -155,6 +155,11 @@ export const hotelDetailsResponse = z
         childAllowed: z.boolean().nullish(),
         parking: z.string().nullish(),
         hotelFacilities: z.array(z.string()).nullish(),
+        // Read for pets only (petsFromListing). A malformed list is treated as absent, never as a failure.
+        policies: z
+          .array(z.object({ policy_type: z.string().nullish(), name: z.string().nullish(), description: z.string().nullish() }).passthrough())
+          .nullish()
+          .catch(null),
         hotelImages: z.array(z.object({ url: z.string() }).passthrough()).nullish(),
         checkinCheckoutTimes: z.object({ checkin_start: z.string().nullish(), checkout: z.string().nullish() }).passthrough().nullish(),
         // The supplier's own review summary: data, shown verbatim, never interpreted.

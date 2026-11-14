@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutPins, fitKeyFor, fitPoints, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
+import { layoutPins, fitKeyFor, fitPoints, framePadding, PIN_HALF_PX, STACK_OFFSETS, COMPACT_PX, pinsFor, ringKmFor, ringPolygon, type MapPin } from './mapView';
 
 const row = (id: string, rank: number, lat: number | null, lng: number | null, over: Record<string, unknown> = {}) => ({
   rank,
@@ -179,5 +179,43 @@ describe('labels never cover each other', () => {
     const places = layoutPins([box('m', null, 100, 100), box('a', 1, 100, 100)]);
     expect(places.has('m')).toBe(false);
     expect(places.get('a')).toEqual({ dx: 0, dy: 0, compact: false });
+  });
+});
+
+describe('framePadding', () => {
+  it('keeps a label stacked furthest below or above its hotel inside the map', () => {
+    const p = framePadding(700, 600);
+    const reach = Math.max(...STACK_OFFSETS.map(Math.abs)) + PIN_HALF_PX;
+    expect(p.top).toBeGreaterThan(reach);
+    expect(p.bottom).toBeGreaterThan(reach);
+    expect(p.left).toBe(72);
+  });
+  it('never takes more than a third of a side, so MapLibre can still fit', () => {
+    const p = framePadding(150, 200);
+    expect(p.top + p.bottom).toBeLessThan(200);
+    expect(p.left + p.right).toBeLessThan(150);
+  });
+});
+
+describe('layoutPins in a crowd', () => {
+  // The five central Porto hotels seen on CI (2026-11-13): no slot above or below was free for rank 5.
+  const box = (id: string, rank: number, x: number, y: number, width = 100) => ({ id, rank, x, y, width, height: 28 });
+  const boxes = [box('1', 1, 581, 330), box('2', 2, 552, 361), box('3', 3, 589, 300), box('4', 4, 591, 232), box('5', 5, 573, 279)];
+  it('sets a rank alone beside the stack rather than on another label', () => {
+    const places = layoutPins(boxes);
+    const rects = boxes.map((b) => {
+      const p = places.get(b.id)!;
+      const w = p.compact ? COMPACT_PX : b.width;
+      return { x: b.x + p.dx - w / 2, y: b.y + p.dy - 14, w, h: 28 };
+    });
+    for (let i = 0; i < rects.length; i++)
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i];
+        const b = rects[j];
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+        expect(overlap, `${i + 1} and ${j + 1}`).toBe(false);
+      }
+    expect(places.get('5')!.compact).toBe(true);
+    expect(places.get('5')!.dx).not.toBe(0);
   });
 });

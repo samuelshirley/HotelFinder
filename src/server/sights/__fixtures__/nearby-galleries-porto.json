@@ -1,0 +1,304 @@
+{
+  "places": [
+    {
+      "id": "ChIJQ9XIPgNlJA0RGijH6m9MdQI",
+      "location": {
+        "latitude": 41.1500421,
+        "longitude": -8.6176484
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 587,
+      "displayName": {
+        "text": "Ó! Galería",
+        "languageCode": "pt"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJXe7OMxtlJA0Rb1vQezfm3oc",
+      "location": {
+        "latitude": 41.1481615,
+        "longitude": -8.6264077
+      },
+      "rating": 4.6,
+      "businessStatus": "CLOSED_TEMPORARILY",
+      "userRatingCount": 229,
+      "displayName": {
+        "text": "Galeria Municipal do Porto",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJuViLUWZlJA0RVw7LGLvSsZg",
+      "location": {
+        "latitude": 41.148789199999996,
+        "longitude": -8.6228909
+      },
+      "rating": 4.9,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 195,
+      "displayName": {
+        "text": "Ó! Cerâmica",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJ96omB91lJA0RG4L9AgUbQE4",
+      "location": {
+        "latitude": 41.1442687,
+        "longitude": -8.6155584999999988
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 93,
+      "displayName": {
+        "text": "Padaria Aguasfurtadas",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJf9a8MQBlJA0Rk05stwwcGAI",
+      "location": {
+        "latitude": 41.149151499999995,
+        "longitude": -8.6229347
+      },
+      "rating": 4.4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 43,
+      "displayName": {
+        "text": "Talho",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJT4oSyR1lJA0RkY_SFGA6ZY4",
+      "location": {
+        "latitude": 41.1448021,
+        "longitude": -8.6184081
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 288,
+      "displayName": {
+        "text": "Cooperativa Artística Árvore",
+        "languageCode": "pt"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJKTSqn5FkJA0RhXECbsdjl7E",
+      "location": {
+        "latitude": 41.1486229,
+        "longitude": -8.5873668
+      },
+      "rating": 4.6,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 324,
+      "displayName": {
+        "text": "MIRA Galerias | MIRA FORUM & Espaço MIRA",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJEUpNDwRlJA0Rtkids-rqJNU",
+      "location": {
+        "latitude": 41.159080499999995,
+        "longitude": -8.6013115
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 46,
+      "displayName": {
+        "text": "AL859 Art Space",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJpQTxwARlJA0RQ_7A11fhDBo",
+      "location": {
+        "latitude": 41.149414799999995,
+        "longitude": -8.62324
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 269,
+      "displayName": {
+        "text": "GALLERY FERNANDO SANTOS",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJm6suiOJlJA0RWF7HyL1tB74",
+      "location": {
+        "latitude": 41.1449001,
+        "longitude": -8.6097290000000015
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 58,
+      "displayName": {
+        "text": "Squid Ink Works",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJEbzWGPllJA0RawKO8bpD3jw",
+      "location": {
+        "latitude": 41.1557564,
+        "longitude": -8.6018137
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 63,
+      "displayName": {
+        "text": "Galeria Nuno Centeno",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJgcaPsxxlJA0RVrivayrzT8M",
+      "location": {
+        "latitude": 41.148287499999995,
+        "longitude": -8.6205252999999988
+      },
+      "rating": 4.5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 98,
+      "displayName": {
+        "text": "Circus Network",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJJaKrQgxlJA0RSE_CAKf4jEk",
+      "location": {
+        "latitude": 41.1467212,
+        "longitude": -8.603364899999999
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 43,
+      "displayName": {
+        "text": "Galeria Geraldes da Silva",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJN3KLPs5lJA0RymyA68FOy_k",
+      "location": {
+        "latitude": 41.149844699999996,
+        "longitude": -8.618974399999999
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 94,
+      "displayName": {
+        "text": "TILSITT GALLERY",
+        "languageCode": "fr"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJraq6LABlJA0RFFKZl2tYatA",
+      "location": {
+        "latitude": 41.147432699999996,
+        "longitude": -8.615247
+      },
+      "rating": 4,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 7,
+      "displayName": {
+        "text": "Porto street art",
+        "languageCode": "fr"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJ87E7vQRlJA0RE7myMSzyIdY",
+      "location": {
+        "latitude": 41.1494974,
+        "longitude": -8.6223073
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 104,
+      "displayName": {
+        "text": "Cruzes Canhoto – Arte Bruta, Primitiva, Popular",
+        "languageCode": "en"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJW2AV3ARlJA0RfwTbWgGMB6Y",
+      "location": {
+        "latitude": 41.149302999999996,
+        "longitude": -8.623712
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 29,
+      "displayName": {
+        "text": "Galeria Presença",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJkzthPQNlJA0RyT4erEzZY40",
+      "location": {
+        "latitude": 41.1497805,
+        "longitude": -8.6196015
+      },
+      "rating": 4.7,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 66,
+      "displayName": {
+        "text": "Ap'arte Galeria de Arte",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJ-UVnfX1lJA0RhKRnlFz_uhk",
+      "location": {
+        "latitude": 41.1610419,
+        "longitude": -8.6040169999999989
+      },
+      "rating": 4.8,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 6,
+      "displayName": {
+        "text": "Centro de Cultura Universidade Técnica do Porto",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    },
+    {
+      "id": "ChIJLaIaRABlJA0RyXHTcABAWno",
+      "location": {
+        "latitude": 41.1535193,
+        "longitude": -8.5992303
+      },
+      "rating": 5,
+      "businessStatus": "OPERATIONAL",
+      "userRatingCount": 182,
+      "displayName": {
+        "text": "GALERIA PAPOILA",
+        "languageCode": "pt-PT"
+      },
+      "primaryType": "art_gallery"
+    }
+  ]
+}

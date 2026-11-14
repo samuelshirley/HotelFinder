@@ -6,8 +6,10 @@ import { MUST_HAVES } from '@/lib/amenities';
 import { MAX_CHAINS, PROPERTY_TYPES } from '@/lib/filters';
 import { PRIORITY_KEYS } from '@/lib/finder/rank';
 import { minorUnitDigits } from '@/lib/money';
+import { SIGHT_KINDS } from '@/lib/sights';
 import type { Action } from '@/lib/store/actions';
 import type { ToolDef } from './anthropic';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * What the agent can do. Two lookups it may read, and a set of changes that
@@ -37,6 +39,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: 'set_priorities', description: 'What "best" means, as the WHOLE set (it replaces the current one): cheapest (low price), nicest (great reviews), closest (close to the place in <search>). Several at once balance each other, e.g. ["cheapest","closest"]. [] = no preference.', input_schema: obj({ priorities: { type: 'array', items: { type: 'string', enum: [...PRIORITY_KEYS] }, uniqueItems: true, maxItems: PRIORITY_KEYS.length } }) },
   { name: 'set_near', description: 'Measure "close" from a place the user named (the old town, a venue, the airport) instead of the destination. The ref must come from resolve_place in this turn. Does not change what "best" means: add closest with set_priorities if they want to be close.', input_schema: obj({ place_ref: { type: 'string', description: 'A ref returned by resolve_place, e.g. P1.' } }) },
   { name: 'clear_near', description: 'Measure "close" from the destination again.', input_schema: obj({}) },
+  { name: 'plan_sights', description: 'The user wants to visit a kind of sight during the stay ("tour some museums", "see the galleries"). The app finds the most popular ones of that kind, ranks the hotels by how close they are to them and shows a day-by-day plan. You give only the kind; never name a sight yourself.', input_schema: obj({ kind: { type: 'string', enum: [...SIGHT_KINDS] } }) },
+  { name: 'clear_sights', description: 'Drop the sights and the day-by-day plan; "close" is measured from the destination again.', input_schema: obj({}) },
   { name: 'require', description: 'Only show hotels that have this.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
   { name: 'stop_requiring', description: 'Drop a requirement added earlier.', input_schema: obj({ must_have: { type: 'string', enum: [...MUST_HAVES] } }) },
   { name: 'set_min_stars', description: 'Only show hotels of at least this star class ("4 star or better" is 4, "five-star" is 5). null removes it. A hotel whose listing gives no star class is shown under the others, saying so.', input_schema: obj({ stars: { type: ['integer', 'null'], minimum: 1, maximum: 5 } }) },
@@ -57,17 +61,18 @@ export const TOOL_DEFS: ToolDef[] = [
 ];
 
 const pos = z.number().int().min(1);
-const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const INPUT = {
   resolve_place: z.object({ query: z.string().trim().min(2).max(200) }).strict(),
   hotel_details: z.object({ position: pos }).strict(),
   set_destination: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
-  set_dates: z.object({ check_in: iso, check_out: iso }).strict(),
+  set_dates: z.object({ check_in: isoDate, check_out: isoDate }).strict(),
   set_guests: z.object({ adults: z.number().int().min(1).max(12), children_ages: z.array(z.number().int().min(0).max(17)).max(8), rooms: z.number().int().min(1).max(6).nullable() }).strict(),
   set_price_cap: z.object({ per_night: z.number().positive().max(100_000).nullable() }).strict(),
   set_priorities: z.object({ priorities: z.array(z.enum(PRIORITY_KEYS)).max(PRIORITY_KEYS.length).refine((p) => new Set(p).size === p.length) }).strict(),
   set_near: z.object({ place_ref: z.string().min(1).max(8) }).strict(),
   clear_near: z.object({}).strict(),
+  plan_sights: z.object({ kind: z.enum(SIGHT_KINDS) }).strict(),
+  clear_sights: z.object({}).strict(),
   require: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
   stop_requiring: z.object({ must_have: z.enum(MUST_HAVES) }).strict(),
   set_min_stars: z.object({ stars: z.number().int().min(1).max(5).nullable() }).strict(),
@@ -207,6 +212,10 @@ export function parseToolCall(name: string, input: unknown, ctx: ToolContext): P
     }
     case 'clear_near':
       return { kind: 'actions', actions: [{ type: 'clear_near' }] };
+    case 'plan_sights':
+      return { kind: 'actions', actions: [{ type: 'set_sights', kind: (parsed.data as { kind: (typeof SIGHT_KINDS)[number] }).kind }] };
+    case 'clear_sights':
+      return { kind: 'actions', actions: [{ type: 'clear_sights' }] };
     case 'require':
       return { kind: 'actions', actions: [{ type: 'add_must_have', mustHave: (parsed.data as { must_have: (typeof MUST_HAVES)[number] }).must_have }] };
     case 'stop_requiring':

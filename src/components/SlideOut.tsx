@@ -17,7 +17,11 @@ export function SlideOut({ title, onClose, children }: { title: string; onClose:
 
   useEffect(() => {
     opener.current = document.activeElement;
-    panel.current?.querySelector<HTMLElement>('[data-detail-heading]')?.focus() ?? panel.current?.focus();
+    // The hotel's name when there is one, else the panel. (Written as `heading?.focus() ?? panel.focus()`,
+    // focus() returns undefined, so the panel always took focus back from the name: e2e, 2026-11-13.)
+    const heading = panel.current?.querySelector<HTMLElement>('[data-detail-heading]');
+    if (heading) heading.focus();
+    else panel.current?.focus();
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key !== 'Tab' || !panel.current) return;

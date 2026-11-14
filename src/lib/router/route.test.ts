@@ -17,7 +17,7 @@ const state: SearchState = {
   currency: 'EUR',
   stay: {
     destinationText: 'Porto',
-    placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
+    placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null, sights: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,
@@ -390,5 +390,46 @@ describe('filters: Jev picks the kind, code reads the value (lib/filters.ts)', (
     expect(route('only 4 stars', readings('filter', { filterKind: { choice: 'stars', top: 0.6, margin: 0.3 } }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
     expect(route('only 4 stars', readings('filter', { filterKind: null }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
     expect(route('only 4 stars', filter('none'))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+  });
+});
+
+describe('sights: "I want to tour some museums"', () => {
+  const museums = { sightKind: sure('museums') };
+
+  it('the kind becomes one typed action; no place, no name, no coordinates', () => {
+    expect(route('I want to tour some museums', readings('sights', museums))).toEqual({ kind: 'actions', intent: 'sights', actions: [{ type: 'set_sights', kind: 'museums' }] });
+    expect(route('we love art galleries', readings('sights', { sightKind: sure('galleries') }))).toEqual({ kind: 'actions', intent: 'sights', actions: [{ type: 'set_sights', kind: 'galleries' }] });
+  });
+
+  it('"put me near the galleries" is a kind, not a place to look up', () => {
+    expect(route('I love art galleries, put me near them', readings('sights', { sightKind: sure('galleries'), wantsLocation: 0.83, namesPlace: 0.27 }))).toMatchObject({ kind: 'actions', actions: [{ type: 'set_sights', kind: 'galleries' }] });
+  });
+
+  it('read as naming a place as well, it is never looked up as one and never turned into every museum: the agent tells which', () => {
+    // As Jev read "somewhere close to the museums" live: sights 0.66, names_place 0.85.
+    expect(route('somewhere close to the museums', { ...readings('sights', { ...museums, wantsLocation: 0.93, namesPlace: 0.85 }), intent: { choice: 'sights', top: 0.66, margin: 0.34 } })).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+    expect(route('the Serralves museum', readings('sights', { ...museums, namesPlace: 0.95 }))).toEqual({ kind: 'defer', reason: 'intent_for_agent' });
+  });
+
+  it('one museum named by name, read as Jev reads it (not as sights), is a place to be close to', () => {
+    // "near the Serralves museum", live: priority 0.39, wants_location 0.91, names_place 0.98, sight_kind museums 1.0.
+    expect(route('near the Serralves museum', { ...readings('priority', { ...museums, wantsLocation: 0.91, namesPlace: 0.98 }), intent: { choice: 'priority', top: 0.39, margin: 0.03 } })).toEqual({ kind: 'near', intent: 'priority' });
+  });
+
+  it('an unsure kind, no kind, or a kind we do not have goes to the agent', () => {
+    expect(route('museums maybe', readings('sights', { sightKind: { choice: 'museums', top: 0.6, margin: 0.3 } }))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+    expect(route('see the sights', readings('sights', { sightKind: sure('none') }))).toEqual({ kind: 'defer', reason: 'slot_missing' });
+    expect(route('see the sights', readings('sights'))).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+  });
+
+  it('an intent under the bar still settles when the kind question agrees at the full bar', () => {
+    const weak = { choice: 'sights' as const, top: 0.7, margin: 0.4 };
+    expect(route('museums please', { ...readings('sights', museums), intent: weak })).toMatchObject({ kind: 'actions', actions: [{ type: 'set_sights', kind: 'museums' }] });
+    expect(route('museums please', { ...readings('sights', { sightKind: sure('none') }), intent: weak })).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+    expect(route('museums please', { ...readings('sights', museums), intent: { ...weak, top: 0.5 } })).toEqual({ kind: 'defer', reason: 'intent_unsettled' });
+  });
+
+  it('with another request in the same message it is the agent\'s: "4 nights and tour some museums"', () => {
+    expect(route('actually I want to go 4 nights and tour some museums', readings('sights', { ...museums, multiIntent: 0.9 }))).toEqual({ kind: 'defer', reason: 'multi_intent' });
   });
 });

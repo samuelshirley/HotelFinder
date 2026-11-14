@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { settleFreeze } from '@/server/freeze';
-import { currentUser, handled } from '@/server/http';
+import { currentUser, handled, noQuery } from '@/server/http';
 import { listBookingsForUser } from '@/server/repos/bookings';
 import { getSupplier } from '@/server/supplier';
 
@@ -12,7 +12,9 @@ export const maxDuration = 60;
 const LISTED = new Set(['confirmed', 'cancelled', 'booking', 'frozen', 'keeping', 'releasing', 'freezing']);
 
 /** The signed-in account's bookings that went through, frozen ones included, newest first. Ended holds are released first. */
-export const GET = handled(async () => {
+export const GET = handled(async (req: Request) => {
+  const badQuery = noQuery(req);
+  if (badQuery) return badQuery;
   const user = await currentUser();
   if (!user) return NextResponse.json({ bookings: [] });
   const now = new Date();

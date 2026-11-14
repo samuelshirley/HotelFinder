@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/ids';
 import 'server-only';
 import { and, count, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
@@ -18,7 +19,7 @@ export async function createPrebooked(input: Omit<typeof bookings.$inferInsert, 
 }
 
 export async function getBooking(id: string): Promise<Booking | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  if (!isUuid(id)) return null;
   const [row] = await db.select().from(bookings).where(eq(bookings.id, id));
   return row ?? null;
 }

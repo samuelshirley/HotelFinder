@@ -7,7 +7,7 @@ import { errorCopy, withRef } from '@/lib/errors';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import { formatDates, formatGuests, formatMoney } from '@/lib/replies';
-import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSaved, loadSession, loadTrips, logEvent, sendTurn, setSaved, signOut, startBrief, startCheckout, type BookingSummary, type Me, type SavedHotel, type Trip } from './api';
+import { answerForm, ApiError, editSearch, loadBookings, loadMe, loadSaved, loadSession, loadTrips, logEvent, repriceSearch, sendTurn, verifySignInCode, setSaved, signOut, startBrief, startCheckout, type BookingSummary, type Me, type SavedHotel, type Trip } from './api';
 import { Heart, type SaveLink } from './Heart';
 import styles from './App.module.css';
 import { ChatPanel, Penny } from './ChatPanel';
@@ -18,6 +18,7 @@ import { HotelDetail } from './HotelDetail';
 import { detailVariant, type DetailVariant } from './flags';
 import { SlideOut } from './SlideOut';
 import { ResultsPanel } from './ResultsPanel';
+import { SignInModal } from './SignInModal';
 import { CardSkeleton, Spinner } from './Spinner';
 import { TripBox } from './TripBox';
 import { useFullList } from './useFullList';
@@ -58,6 +59,11 @@ const halfWindow = () => Math.max(PANEL_MIN, Math.min(Math.round(window.innerWid
 
 /** What the first press showed, until the server's answer replaces it. */
 type PendingBrief = { bubble: string; place: string | null };
+/** A message the user sent that the server has not confirmed yet: waiting its turn, or not sent. */
+export type Outgoing = { key: string; message: string; state: 'waiting' | 'failed' };
+/** crypto.randomUUID is missing on older iOS Safari; the key only has to be unique per message. */
+const newKey = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 /** The whole app: your trips on the left, the conversation in the middle, the shortlist on the right. */
 export function App() {
@@ -69,10 +75,16 @@ export function App() {
   /** Will the form answer being sent run the first search? Then the hotels panel says so while it waits. */
   const [searching, setSearching] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
+  // Sent messages stay on screen until the server holds them: never dropped, never silently ignored.
+  const [outbox, setOutbox] = useState<Outgoing[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openProperty, setOpenProperty] = useState<string | null>(null);
   /** The offer whose price is being re-checked for checkout. */
   const [booking, setBooking] = useState<string | null>(null);
+  /** The sign-in modal: for member prices, or to book this offer. */
+  const [signIn, setSignIn] = useState<null | { for: 'prices' } | { for: 'book'; offerId: string }>(null);
+  /** The search's prices are being fetched again for whoever is looking now. */
+  const [repricing, setRepricing] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -84,7 +96,9 @@ export function App() {
   const [drawer, setDrawer] = useState(false);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
   /** On a narrow window only one of the two is on screen. */
-  const [tab, setTab] = useState<'chat' | 'hotels'>('chat');
+  // Phones show one of these at a time, chosen in the bottom tab bar (docs/design/mobile.md).
+  const [tab, setTab] = useState<Tab>('chat');
+  const narrow = useNarrow();
   /** The map over the list: open unless the user (or Penny, asked to) folded it away. */
   const [mapOpen, setMapOpen] = useState(true);
   /** The hotel under the pointer, on the map or in the list, and the one last pressed. */
@@ -98,6 +112,7 @@ export function App() {
   const resultsRef = useRef<HTMLElement>(null);
   const viewRef = useRef<SessionView | null>(null);
   const shell = useRef<HTMLDivElement>(null);
+  useVisualViewport(shell);
 
   useEffect(() => {
     const w = Number(stored(PANEL_KEY));
@@ -179,7 +194,7 @@ export function App() {
   };
   const toggleSidebar = () => {
     // One button, two layouts: the drawer on a narrow window, the column on a wide one.
-    if (window.matchMedia('(max-width: 900px)').matches) return setDrawer((d) => !d);
+    if (window.matchMedia('(max-width: 900px)').matches) return setTab('trips');
     setSidebar((open) => {
       store(SIDEBAR_KEY, open ? 'closed' : 'open');
       return !open;
@@ -235,6 +250,7 @@ export function App() {
   const start = useCallback(async (fresh: boolean) => {
     setBusy('boot');
     setError(null);
+    setOutbox([]);
     setOpenProperty(null);
     try {
       if (fresh) store(STORAGE_KEY, '');
@@ -271,18 +287,25 @@ export function App() {
     shownLocale.current = locale;
     const id = viewRef.current?.session.id;
     if (id) loadSession(id).then(setView, fail);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
 
   const openTrip = async (id: string) => {
-    if (busy !== null || id === view?.session.id) return setDrawer(false);
+    if (busy !== null) return setDrawer(false);
+    // The trip already open: back to it (on a phone the Trips tab covered it).
+    if (id === view?.session.id) {
+      setDrawer(false);
+      return setTab(view.shortlist.length > 0 ? 'hotels' : 'chat');
+    }
     setBusy('boot');
     setError(null);
+    setOutbox([]);
     setOpenProperty(null);
     setSelected(null);
     setDrawer(false);
     try {
-      setView(await loadSession(id));
+      const next = await loadSession(id);
+      setView(next);
+      setTab(next.shortlist.length > 0 ? 'hotels' : 'chat');
       store(STORAGE_KEY, id);
     } catch (err) {
       fail(err);
@@ -297,19 +320,24 @@ export function App() {
     if (pricesKey) void refreshSaved();
   }, [pricesKey, refreshSaved]);
 
-  // The list changes when a search gets its place or dates, or when another one is opened.
+  // The list changes when a search gets its place or dates, or when another one is opened. It is also
+  // read on the first screen with no search open: a visitor with trips and no remembered search (another
+  // tab, cleared storage, back from a checkout link) would otherwise have no way back to them (e2e, 2026-11-13).
   const tripKey = view ? `${view.session.id}|${view.stay?.destination ?? ''}|${view.stay?.checkIn ?? ''}|${view.stay?.checkOut ?? ''}` : '';
   useEffect(() => {
-    if (tripKey) void refreshTrips();
+    void refreshTrips();
   }, [tripKey, refreshTrips]);
 
   /** How a hotel opens: the `detail` flag (components/flags.ts), read once on the client. */
-  const [variant, setVariant] = useState<DetailVariant>('slideout');
+  const [flagged, setVariant] = useState<DetailVariant>('slideout');
   useEffect(() => setVariant(detailVariant()), []);
+  // A phone always gets the full-screen page: the inline variant opened inside a 168px box (2026-11-13).
+  const variant: DetailVariant = narrow ? 'slideout' : flagged;
   const openHotel = useCallback(
     (propertyId: string) => {
       setOpenProperty((current) => (current === propertyId && variant === 'expand' ? null : propertyId));
-      setTab('hotels');
+      // On the map tab the hotel opens over the map, and closing it returns there.
+      setTab((t) => (t === 'map' ? t : 'hotels'));
       setSelected(propertyId);
       setFocus((f) => ({ id: propertyId, n: (f?.n ?? 0) + 1 }));
       if (viewRef.current) void logEvent('detail_open', { variant, sessionId: viewRef.current.session.id });
@@ -325,6 +353,11 @@ export function App() {
   /** "Book": the hotel re-checks the price, then the checkout page opens on that check. */
   const onBook = async (offerId: string) => {
     if (!view || booking) return;
+    // Booking needs an account, and an account is priced as a member: sign in first, then check.
+    if (!view.session.signedIn) {
+      setSignIn({ for: 'book', offerId });
+      return;
+    }
     if (openProperty) void logEvent('detail_book', { variant, sessionId: view.session.id });
     setBooking(offerId);
     setError(null);
@@ -336,6 +369,67 @@ export function App() {
       fail(err);
       setBooking(null);
       setOpenProperty(null);
+    }
+  };
+
+  /**
+   * The search's latest prices were fetched for someone else (a sign-in, or
+   * "Not you?" at a checkout): they are fetched again for whoever is looking
+   * now, once per search.
+   */
+  const repriced = useRef<string | null>(null);
+  const reprice = useCallback(
+    async (sessionId: string) => {
+      repriced.current = sessionId;
+      setRepricing(true);
+      try {
+        setView(await repriceSearch(sessionId));
+      } catch (err) {
+        fail(err);
+      } finally {
+        setRepricing(false);
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    if (view?.session.repriceNeeded && repriced.current !== view.session.id) void reprice(view.session.id);
+  }, [view?.session.repriceNeeded, view?.session.id, reprice]);
+
+  /** Signed in from the modal: the account line, then member prices, or straight on to the checkout. */
+  const afterSignIn = async () => {
+    const next = signIn;
+    if (!view || !next) return;
+    void refreshAccount();
+    void refreshTrips();
+    if (next.for === 'book') {
+      setSignIn(null);
+      setView({ ...view, session: { ...view.session, signedIn: true, audience: 'member' } });
+      setBooking(next.offerId);
+      setError(null);
+      try {
+        const { bookingId } = await startCheckout(view.session.id, next.offerId);
+        store(STORAGE_KEY, view.session.id);
+        window.location.assign(withBase(`/book/${bookingId}`));
+      } catch (err) {
+        fail(err);
+        setBooking(null);
+      }
+      return;
+    }
+    // The sign-in itself ranked this search again at member prices (/api/auth/verify with the search).
+    if (!rankedAtSignIn.current) await reprice(view.session.id);
+    rankedAtSignIn.current = false;
+    setSignIn(null);
+  };
+  const rankedAtSignIn = useRef(false);
+  const verifyForSearch = async (email: string, code: string) => {
+    const sessionId = viewRef.current?.session.id;
+    const r = await verifySignInCode(email, code, sessionId);
+    if (r.view) {
+      rankedAtSignIn.current = true;
+      repriced.current = r.view.session.id;
+      setView(r.view);
     }
   };
 
@@ -389,26 +483,39 @@ export function App() {
     }
   };
 
-  const onSend = async (message: string) => {
+  /** Queue a message. It is sent as soon as nothing else is running; the server queues turns too. */
+  const onSend = (message: string) => {
+    if (!view) return;
+    setOutbox((o) => [...o, { key: newKey(), message, state: 'waiting' }]);
+  };
+  const onRetry = (key: string) => setOutbox((o) => o.map((m) => (m.key === key ? { ...m, state: 'waiting' } : m)));
+
+  useEffect(() => {
+    if (busy !== null || !view) return;
+    const next = outbox.find((m) => m.state === 'waiting');
+    if (next) void deliver(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, outbox, view]);
+
+  const deliver = async (item: Outgoing) => {
     if (!view) return;
     const id = view.session.id;
-    const key = crypto.randomUUID();
     setBusy('turn');
     setError(null);
     setProgress(t.ui.reading);
-    // Show the message at once; the server's copy replaces it on refresh.
-    setView({
-      ...view,
-      messages: [...view.messages, { id: `pending-${key}`, role: 'user', kind: 'user', content: message, meta: null, createdAt: new Date().toISOString() }],
-    });
+    let sent = false;
     try {
-      await sendTurn(id, message, key, (type) => {
+      // The same key on a retry: if the first try did reach the server, it is not run twice.
+      await sendTurn(id, item.message, item.key, (type) => {
         if (type === 'working') setProgress(t.ui.working);
         if (type === 'queued') setProgress(t.ui.queued);
       });
+      sent = true;
     } catch (err) {
       fail(err);
     }
+    // A send that failed stays on screen as "Not sent", with Retry.
+    setOutbox((o) => (sent ? o.filter((m) => m.key !== item.key) : o.map((m) => (m.key === item.key ? { ...m, state: 'failed' } : m))));
     // Whatever the stream did, the session is the truth: a turn that finished
     // after the connection dropped still shows up here.
     try {
@@ -430,7 +537,7 @@ export function App() {
       if (ui?.map) showMap(ui.map === 'show');
       if (ui?.focus?.propertyId) {
         showMap(true);
-        setTab('hotels');
+        setTab(narrow ? 'map' : 'hotels');
         markHotel(ui.focus.propertyId);
       }
     } catch (err) {
@@ -450,7 +557,7 @@ export function App() {
   const openRow = openProperty ? (view?.shortlist.find((r) => r.property.id === openProperty) ?? full.rows.find((r) => r.property.id === openProperty) ?? null) : null;
   const hasPanel =
     Boolean(view?.stay && view.session.status !== 'onboarding') || Boolean(pendingBrief?.place) || (busy === 'form' && searching);
-  const working = pendingBrief ? t.ui.findingHotels : busy === 'form' && searching ? t.ui.findingHotels : busy === 'edit' ? t.ui.updatingShortlist : null;
+  const working = pendingBrief ? t.ui.findingHotels : busy === 'form' && searching ? t.ui.findingHotels : busy === 'edit' ? t.ui.updatingShortlist : repricing ? t.ui.updatingPrices : null;
   const count = view?.shortlist.length ?? 0;
   return (
     <div
@@ -465,7 +572,7 @@ export function App() {
       <nav className={styles.sidebar} aria-label={t.ui.yourTrips}>
         <div className={styles.brand}>{t.ui.brand}</div>
         <LanguagePicker className={styles.language} />
-        <button className={styles.newTrip} onClick={() => { setDrawer(false); void start(true); }} disabled={busy !== null}>
+        <button className={styles.newTrip} onClick={() => { setDrawer(false); setTab('chat'); void start(true); }} disabled={busy !== null}>
           {t.ui.newSearch}
         </button>
         <h2 className={styles.sideHeading}>{t.ui.yourTrips}</h2>
@@ -560,16 +667,6 @@ export function App() {
             </svg>
           </button>
           <h1>{view?.stay?.destination ?? t.ui.newSearch}</h1>
-          {hasPanel && (
-            <div className={styles.tabs} role="tablist" aria-label={t.ui.view}>
-              <button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>
-                {t.ui.chat}
-              </button>
-              <button role="tab" aria-selected={tab === 'hotels'} onClick={() => setTab('hotels')}>
-                {t.ui.hotelsTab(count)}
-              </button>
-            </div>
-          )}
         </header>
         {error && (
           <p className={styles.error} role="alert">
@@ -577,7 +674,7 @@ export function App() {
           </p>
         )}
         {view ? (
-          <ChatPanel view={view} busy={busy} progress={progress} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} onEdit={(a) => void onEdit(a)} />
+          <ChatPanel view={view} busy={busy} progress={progress} outbox={outbox} onRetry={onRetry} onAnswer={onAnswer} onSend={onSend} onOpenHotel={openHotel} onEdit={(a) => void onEdit(a)} />
         ) : pendingBrief ? (
           <PendingChat bubble={pendingBrief.bubble} reading={pendingBrief.place === null} />
         ) : busy === 'boot' ? (
@@ -585,7 +682,9 @@ export function App() {
             <Spinner label={t.ui.starting} />
           </p>
         ) : (
-          <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
+          <div className={styles.hero}>
+            <TripBox busy={busy !== null} onSubmit={(b) => void onBrief(b)} />
+          </div>
         )}
       </section>
 
@@ -612,6 +711,7 @@ export function App() {
                 onOpen={openHotel}
                 onClose={closeHotel}
                 onBook={(id) => void onBook(id)}
+                onSignIn={() => setSignIn({ for: 'prices' })}
                 booking={booking}
                 onEdit={onEdit}
                 busy={busy !== null}
@@ -641,6 +741,43 @@ export function App() {
         <SlideOut title={openRow.property.name} onClose={closeHotel}>
           <HotelDetail view={view} row={openRow} mode="slideout" booking={booking} onBook={(id) => void onBook(id)} onClose={closeHotel} save={saveLink} />
         </SlideOut>
+      )}
+      {view && tab === 'map' && view.shortlist.length > 0 && (
+        <MapCard view={view} selected={selected} onSelect={markHotel} onOpen={openHotel} />
+      )}
+      <nav className={styles.tabbar} role="tablist" aria-label="View">
+        {(
+          [
+            ['chat', t.ui.chat, ICONS.chat, true],
+            ['hotels', t.ui.hotelsTab(count), ICONS.list, hasPanel],
+            ['map', t.ui.map, ICONS.map, hasPanel && Boolean(view?.stay)],
+            ['trips', t.ui.trips, ICONS.trips, true],
+          ] as const
+        ).map(([key, label, icon, enabled]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            aria-label={label}
+            data-tab={key}
+            disabled={!enabled}
+            onClick={() => {
+              if (key === 'map') showMap(true);
+              setTab(key);
+            }}
+          >
+            {icon}
+            <span aria-hidden="true">{label.replace(/ \(\d+\)$/, '')}</span>
+          </button>
+        ))}
+      </nav>
+      {signIn && (
+        <SignInModal
+          copy={{ ...t.ui.signIn, title: signIn.for === 'book' ? t.ui.signIn.titleBook : t.ui.signIn.titlePrice, error: (code: string) => errorCopy(code, locale) }}
+          onSignedIn={afterSignIn}
+          onCancel={() => setSignIn(null)}
+          {...(signIn.for === 'prices' ? { verify: verifyForSearch } : {})}
+        />
       )}
     </div>
   );
@@ -707,3 +844,108 @@ function FirstSearch({ place }: { place: string | null }) {
     </div>
   );
 }
+
+type Tab = 'chat' | 'hotels' | 'map' | 'trips';
+
+/** True on a phone-sized window: the layout with the bottom tab bar. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia('(max-width: 900px)');
+    const on = () => setNarrow(m.matches);
+    on();
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
+
+/**
+ * Size the app to the part of the screen the user can see. iOS Safari does
+ * not shrink the page for the keyboard (it ignores interactive-widget), so
+ * without this the composer sat under the keyboard (2026-11-13 recording).
+ * Sets --app-h and --app-top on the shell, and data-keyboard while the
+ * keyboard takes the bottom of the screen (the tab bar hides then).
+ */
+function useVisualViewport(ref: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const el = ref.current;
+    if (!vv || !el) return;
+    let frame = 0;
+    const apply = () => {
+      cancelAnimationFrame(frame);
+      // Two frames: iOS reports the new size late (WebKit 237851).
+      frame = requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          el.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
+          el.style.setProperty('--app-top', `${Math.round(vv.offsetTop)}px`);
+          el.dataset.keyboard = window.innerHeight - vv.height > 150 ? 'open' : 'closed';
+        }),
+      );
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    // iOS 26 can keep stale numbers after the keyboard closes: check again on blur.
+    window.addEventListener('focusout', apply);
+    return () => {
+      cancelAnimationFrame(frame);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      window.removeEventListener('focusout', apply);
+    };
+  }, [ref]);
+}
+
+/** The map tab's one hotel at a time: tap to open it, arrows for the next pin. */
+function MapCard({ view, selected, onSelect, onOpen }: { view: SessionView; selected: string | null; onSelect: (id: string) => void; onOpen: (id: string) => void }) {
+  const { locale, t } = useLocale();
+  const rows = view.shortlist;
+  const at = Math.max(0, rows.findIndex((r) => r.property.id === selected));
+  const row = rows[at];
+  const go = (step: number) => onSelect(rows[(at + step + rows.length) % rows.length].property.id);
+  return (
+    <div className={styles.mapCard} role="group" aria-label={t.ui.mapCardGroup}>
+      <button type="button" className={styles.mapCardMain} onClick={() => onOpen(row.property.id)}>
+        <span className={styles.mapCardRank}>
+          {t.ui.mapCardOf(at + 1, rows.length)}
+        </span>
+        <span className={styles.mapCardName}>{row.property.name}</span>
+        <span className={styles.mapCardPrice}>{row.offer ? t.ui.mapCardTotal(formatMoney(row.offer.totalMinor, row.offer.currency, locale)) : t.ui.priceAfterSignIn}</span>
+      </button>
+      {rows.length > 1 && (
+        <div className={styles.mapCardNav}>
+          <button type="button" aria-label={t.ui.previousHotel} onClick={() => go(-1)}>
+            ‹
+          </button>
+          <button type="button" aria-label={t.ui.nextHotel} onClick={() => go(1)}>
+            ›
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const icon = (path: React.ReactNode) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {path}
+  </svg>
+);
+const ICONS = {
+  chat: icon(<path d="M4 5h16v11H9l-5 4z" />),
+  list: icon(<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />),
+  map: icon(
+    <>
+      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" />
+      <path d="M9 4v14M15 6v14" />
+    </>,
+  ),
+  trips: icon(
+    <>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </>,
+  ),
+};

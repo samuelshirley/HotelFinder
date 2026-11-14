@@ -3,9 +3,11 @@ import 'server-only';
 import type { Locale } from '@/lib/i18n/locale';
 import { filterOptions, readChain, readPropertyType, stayFilters } from '@/lib/filters';
 import { roomsOf } from '@/lib/finder/rooms';
+import { nightsBetween } from '@/lib/finder/geo';
 import { nearLabel } from '@/lib/replies';
+import { readStaySights, sightsInPlay } from '@/lib/sights';
 import { listMessages } from '@/server/repos/chat';
-import { listLiveOffersForRanking } from '@/server/repos/offers';
+import { latestSearch, listLiveOffersForRanking } from '@/server/repos/offers';
 import { audienceFor, listStays, type SearchSession } from '@/server/repos/sessions';
 import { FULL_LIST_PAGE_SIZE } from '@/lib/fullList';
 import { countFullList, listShortlist } from '@/server/repos/shortlist';
@@ -18,14 +20,16 @@ import { countFullList, listShortlist } from '@/server/repos/shortlist';
 export async function buildSessionView(session: SearchSession, locale: Locale = 'en', now: Date = new Date()) {
   const audience = audienceFor(session);
   const stay = (await listStays(session.id))[0] ?? null;
-  const [messages, shortlist, held, fullCount] = await Promise.all([
+  const [messages, shortlist, held, fullCount, latest] = await Promise.all([
     listMessages(session.id),
     stay ? listShortlist(session.id, stay.id, audience) : Promise.resolve([]),
     // What the type and brand editors may offer: the hotels the finder ranks over.
     stay ? listLiveOffersForRanking(session.id, stay.id, audience, now) : Promise.resolve([]),
     stay ? countFullList(session.id, stay.id, audience) : Promise.resolve(0),
+    stay ? latestSearch(session.id, stay.id) : Promise.resolve(null),
   ]);
   const heldHotels = new Map(held.map((r) => [r.property.id, r.property]));
+  const sights = stay ? readStaySights(stay.sights) : null;
 
   return {
     session: {
@@ -37,6 +41,12 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
       currency: session.currency,
       signedIn: session.userId !== null,
       audience,
+      /**
+       * The latest prices were fetched for someone else: signed out before a
+       * sign-in, or for the account before "Not you?". The page asks for them
+       * again for whoever is looking now (POST /api/session/[id]/reprice).
+       */
+      repriceNeeded: latest !== null && latest.audience !== audience,
     },
     /** What is known before there is a stay: the place picked and the party and priorities read from the first message. */
     pending: stay
@@ -64,8 +74,14 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
       filterOptions: filterOptions([...heldHotels.values()].map((p) => ({ propertyType: readPropertyType(p.content), chain: readChain(p.content) }))),
       excludedCount: stay.excludedPropertyIds.length,
       /** Where "close" is measured from, in words. */
-      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null }, locale),
+      nearLabel: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: stay.nearLabel ? { label: stay.nearLabel } : null, sights }, locale),
       nearIsNamed: stay.nearLabel !== null,
+      /**
+       * The sights the user asked to see, the ones this stay has time for, most
+       * popular first: Google's rows (lib/sights.ts). The client lays the days
+       * out from each hotel with the same pure function the tests use.
+       */
+      sights: sights && { kind: sights.kind, places: sightsInPlay(sights, nightsBetween(stay.checkIn, stay.checkOut)) },
       /**
        * The point distances are measured from, for the map: the place the user
        * named, else a point destination. null for an area with nothing named:
@@ -73,7 +89,7 @@ export async function buildSessionView(session: SearchSession, locale: Locale = 
        */
       anchor:
         stay.nearLabel !== null && stay.latitude !== null && stay.longitude !== null
-          ? { latitude: stay.latitude, longitude: stay.longitude, label: stay.nearLabel }
+          ? { latitude: stay.latitude, longitude: stay.longitude, label: sights ? nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null, sights }, locale) : stay.nearLabel }
           : stay.destKind === 'point' && stay.destLatitude !== null && stay.destLongitude !== null
             ? { latitude: stay.destLatitude, longitude: stay.destLongitude, label: nearLabel({ destinationText: stay.destinationText, destKind: stay.destKind, near: null }, locale) }
             : null,
@@ -122,6 +138,12 @@ export function viewRow({ entry, property, offer }: ListedRow) {
       payAtPropertyMinor: offer.payAtPropertyMinor,
       suggestedSellingMinor: offer.suggestedSellingMinor,
       audience: offer.audience,
+      /**
+       * A member's price for this room is under the hotel's public price.
+       * Signed out: the card offers sign-in, never says by how much. Signed
+       * in: the price shown is that member price.
+       */
+      lowerForMembers: offer.audience === 'public' ? offer.lowerForMembers : offer.suggestedSellingMinor !== null && offer.totalMinor < offer.suggestedSellingMinor,
       /** What the price is for: one room's name, or "2 rooms: Double + Twin". */
       roomName: offer.roomName,
       /** How many rooms the price is for. */

@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 
-import { handled, ownedSession } from '@/server/http';
+import { handled, noQuery, ownedSession } from '@/server/http';
 import { listTurns } from '@/server/repos/turns';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** For a client that dropped mid-turn: what each of its sends became. */
-export const GET = handled(async (_req: Request, ctx: { params: { id: string } }) => {
+export const GET = handled(async (req: Request, ctx: { params: { id: string } }) => {
+  const badQuery = noQuery(req);
+  if (badQuery) return badQuery;
   const session = await ownedSession(ctx.params.id);
   if (session instanceof NextResponse) return session;
   const turns = await listTurns(session.id);

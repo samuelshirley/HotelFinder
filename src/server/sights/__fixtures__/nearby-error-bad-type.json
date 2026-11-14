@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 400,
+    "message": "Unsupported types: not_a_place_type.",
+    "status": "INVALID_ARGUMENT"
+  }
+}

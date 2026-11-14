@@ -4,6 +4,7 @@ import { withBase } from '@/lib/basePath';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { errorCopy } from '@/lib/errors';
+import { unansweredQuestion } from '@/lib/openQuestion';
 import type { FormAnswer } from '@/server/onboarding';
 import type { SessionView } from '@/server/view';
 import styles from './App.module.css';
@@ -11,37 +12,44 @@ import { Spinner } from './Spinner';
 import { FormControl } from './FormControl';
 import { useLocale } from './i18n';
 import type { EditAction } from './api';
+import type { Outgoing } from './App';
 import type { PriorityKey } from '@/lib/finder/rank';
 
 type Props = {
   view: SessionView;
   busy: null | 'form' | 'edit' | 'turn' | 'boot';
   progress: string | null;
+  /** Messages not yet held by the server: shown as sent, or as "Not sent" with Retry. */
+  outbox: Outgoing[];
+  onRetry: (key: string) => void;
   onAnswer: (answer: FormAnswer) => void;
   onSend: (message: string) => void;
   onOpenHotel: (propertyId: string) => void;
   onEdit: (actions: EditAction | EditAction[]) => void;
 };
 
-export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel, onEdit }: Props) {
+export function ChatPanel({ view, busy, progress, outbox, onRetry, onAnswer, onSend, onOpenHotel, onEdit }: Props) {
   const { locale, t } = useLocale();
   const [draft, setDraft] = useState('');
   const end = useRef<HTMLDivElement>(null);
   const messages = view.messages;
   const last = messages[messages.length - 1];
-  // The open question is the last row, while the search is still being set up.
-  const openQuestion = view.session.status === 'onboarding' && last?.kind === 'form_question' ? last : null;
+  // The open question: the latest one asked while the search is being set up, until it is
+  // answered. A reply that did not work ("That did not give two dates") does not close it,
+  // so its control stays on screen: a question is never left with nothing to answer it.
+  const openQuestion = view.session.status === 'onboarding' ? unansweredQuestion(messages) : null;
   const field = (openQuestion?.meta as { field?: string } | null)?.field;
   const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, busy]);
+  }, [messages.length, busy, outbox.length]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || busy) return;
+    // Sent even while something is running: it waits in the outbox, on screen, and goes next.
+    if (!text || busy === 'boot') return;
     setDraft('');
     onSend(text);
   };
@@ -54,7 +62,9 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel,
           ? t.ui.placeholderDates
           : field === 'priorities'
           ? t.ui.placeholderPriorities
-          : t.ui.placeholderAnswerAbove
+          : field === 'guests'
+          ? t.ui.placeholderGuests
+          : t.ui.placeholderAsk
       : t.ui.placeholderChat;
 
   return (
@@ -132,6 +142,22 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel,
             </Penny>
           );
         })}
+        {outbox.map((m) => (
+          <div key={m.key} className={styles.outgoing}>
+            <p className={`${styles.bubble} ${styles.user}`} data-state={m.state}>
+              {m.message}
+            </p>
+            {m.state === 'failed' && (
+              // Plain text, not an alert: the error that made it fail is already announced once.
+              <p className={styles.notSent}>
+                {t.ui.notSent}{' '}
+                <button type="button" className={styles.retry} onClick={() => onRetry(m.key)}>
+                  {t.ui.retrySend}
+                </button>
+              </p>
+            )}
+          </div>
+        ))}
         {busy === 'turn' && progress && (
           <Penny first={last?.role !== 'assistant'}>
             <p className={`${styles.bubble} ${styles.assistant}`}>
@@ -157,9 +183,11 @@ export function ChatPanel({ view, busy, progress, onAnswer, onSend, onOpenHotel,
           placeholder={placeholder}
           aria-label={t.ui.message}
           maxLength={1000}
-          disabled={busy === 'boot' || (view.session.status === 'onboarding' && field !== 'destination' && field !== 'dates' && field !== 'priorities')}
+          // Never locked once loaded: every question also takes a typed answer, and a
+          // disabled field drops the phone keyboard (docs/testing.md, "dead ends").
+          disabled={busy === 'boot'}
         />
-        <button type="submit" className={styles.primary} disabled={!draft.trim() || busy !== null}>
+        <button type="submit" className={styles.primary} disabled={!draft.trim() || busy === 'boot'}>
           {t.ui.send}
         </button>
         </div>

@@ -1,10 +1,12 @@
-.cal { display: flex; flex-direction: column; gap: 6px; }
-.nav { display: flex; justify-content: space-between; }
-.nav button { width: 36px; height: 32px; border-radius: 8px; border: 1px solid var(--tp-border); background: transparent; font-size: 18px; line-height: 1; }
+/* The arrows sit on the month-title row (they had a 38px row of their own above it). */
+.cal { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.nav { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; pointer-events: none; }
+.nav button:hover:not(:disabled) { border-color: var(--tp-border-strong); }
+.nav button { pointer-events: auto; width: var(--control-md); height: var(--control-md); border-radius: var(--radius-sm); border: 1px solid var(--tp-border); background: transparent; font-size: 18px; line-height: 1; }
 .months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .months[data-months='1'] { grid-template-columns: minmax(0, 1fr); }
 .month { display: flex; flex-direction: column; gap: 6px; }
-.name { font-weight: 600; text-align: center; }
+.name { font-weight: 600; text-align: center; line-height: var(--control-md); }
 .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .dow { font-size: 12px; color: var(--tp-subtle); text-align: center; }
 .day { height: 34px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; }

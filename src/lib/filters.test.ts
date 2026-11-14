@@ -26,7 +26,7 @@ const state = (filters: Partial<StayFilters> = {}): SearchState => ({
     destPoint: null,
     destKind: null,
     destCountry: null,
-    near: null,
+    near: null, sights: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,

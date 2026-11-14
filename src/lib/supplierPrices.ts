@@ -43,3 +43,12 @@ export function supplierCall(op: SupplierOp): { costMicrocents: number; pricing:
 
 /** Resend: sign-in code emails. Billed by plan, not per message: recorded, never priced. */
 export const RESEND_PRICING = 'unpriced' as const;
+
+/**
+ * Google Places (New) Nearby Search, Enterprise SKU (the field mask asks for
+ * rating and review count): $35.00 per 1,000 requests after 1,000 free a
+ * month (developers.google.com/maps/billing-and-pricing/pricing, read
+ * 2026-11-13). The ledger records the list price, 3.5 cents, for every
+ * answered request; the free allowance is not subtracted (docs/sights.md).
+ */
+export const GOOGLE_NEARBY_MICROCENTS = 3.5 * CENT;

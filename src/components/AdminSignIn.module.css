@@ -1,7 +1,9 @@
 .box { max-width: 340px; margin: 80px auto; display: flex; flex-direction: column; gap: 12px; padding: 24px; background: var(--tp-surface); border: 1px solid var(--tp-border); border-radius: var(--radius); }
 .box h1 { font-size: 18px; }
 .box label { display: flex; flex-direction: column; gap: 6px; color: var(--tp-muted); }
-.box input { padding: 8px 10px; background: var(--tp-bg); border: 1px solid var(--tp-border); border-radius: 8px; }
-.box button { padding: 9px 12px; background: var(--tp-primary); border: 0; border-radius: 8px; color: var(--tp-on-primary); }
+.box input { height: 40px; padding: 0 10px; background: var(--tp-bg); border: 1px solid var(--tp-border); border-radius: var(--radius-sm); }
+/* Dark text on the violet, as on every other filled button (light text was 2.9:1). */
+.box button { height: 40px; padding: 0 12px; background: var(--tp-primary); border: 0; border-radius: var(--radius-sm); color: var(--tp-bg); font-weight: 600; }
+.box button:hover:not(:disabled) { background: var(--tp-primary-hover); }
 .note { color: var(--tp-subtle); }
 .error { color: #f2a7a7; }

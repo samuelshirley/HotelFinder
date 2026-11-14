@@ -9,12 +9,13 @@ import { en } from '@/lib/i18n/catalogue/en';
 import { INTL, type Locale } from '@/lib/i18n/locale';
 import type { SearchField } from '@/lib/router/catalogue';
 import type { FactAsk } from '@/lib/router/route';
+import { sightsInPlay, type SightKind } from '@/lib/sights';
 import type { ResolvedAction } from '@/lib/store/actions';
 import type { Applied, Rejection, SearchState } from '@/lib/store/reduce';
 
 /**
  * What the app says after a change it made WITHOUT a model: fixed templates
- * over typed values. A line states what changed and how many hotels fit;
+ * over typed values. A line states what changed (and what misses, when too few fit);
  * prices and terms stay on the cards, which render them from offer rows.
  * Copy rule: every line tells the user something they cannot already see.
  *
@@ -22,6 +23,9 @@ import type { Applied, Rejection, SearchState } from '@/lib/store/reduce';
  * come from the catalogues (lib/i18n/catalogue); which words make a line is
  * decided here, once, for every language.
  */
+
+/** How many sights a line names; the rest are counted. */
+export const SIGHTS_NAMED = 4;
 
 /** English tables, for callers and tests that only ever speak English. */
 export const MUST_HAVE_LABEL: Record<MustHave, string> = en.replies.mustHave;
@@ -36,7 +40,12 @@ export const rejectionLine = (r: Rejection, locale: Locale = 'en'): string => co
 export const fixedLine = (key: FixedLine, locale: Locale = 'en'): string => copy(locale).replies.fixed[key];
 
 /** Where "close" is measured from, in words: the place named, else the destination's centre (or the point itself). */
-export function nearLabel(stay: { destinationText: string; destKind: 'area' | 'point' | null; near: { label: string } | null }, locale: Locale = 'en'): string {
+export function nearLabel(
+  stay: { destinationText: string; destKind: 'area' | 'point' | null; near: { label: string } | null; sights?: { kind: SightKind } | null },
+  locale: Locale = 'en',
+): string {
+  // The sights' own label is stored in English; the kind says it in any language.
+  if (stay.sights) return copy(locale).sights.near[stay.sights.kind];
   if (stay.near) return stay.near.label;
   return stay.destKind === 'point' ? placeName(stay.destinationText) : copy(locale).words.centre(placeName(stay.destinationText));
 }
@@ -104,7 +113,16 @@ function actionLine(action: ResolvedAction, state: SearchState, currency: string
     case 'set_near':
       return c.closeToLine(action.near.label);
     case 'clear_near':
+    case 'clear_sights':
       return c.closeAgain(nearLabel(state.stay, locale));
+    case 'set_sights': {
+      // The names are Google's rows, the ones this stay has time for (lib/sights.ts).
+      const t = copy(locale).sights;
+      const names = sightsInPlay(action.sights, nightsBetween(state.stay.checkIn, state.stay.checkOut)).map((p) => p.name);
+      // The four best known by name; the plan lists every one.
+      const said = names.slice(0, SIGHTS_NAMED);
+      return t.line(t.popular[action.sights.kind], placeName(state.stay.destinationText), joinList(said, locale), names.length - said.length);
+    }
     case 'set_price_cap':
       return action.perNightMinor === null ? c.capRemoved : c.cappedAt(formatMoney(action.perNightMinor, currency, locale));
     case 'add_must_have':
@@ -150,7 +168,8 @@ export function outcomeLine(outcome: OutcomeForReply | null, locale: Locale = 'e
     case 'ok': {
       const considered = outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0);
       const near = nearMissLine(outcome.nearMisses ?? 0, outcome.eligible, locale);
-      if (outcome.eligible > 0) return `${c.fit(outcome.eligible, considered)}${near}`;
+      // Hotels fit: the list shows them, so the line adds nothing but the misses under them (Sam, 2026-11-13).
+      if (outcome.eligible > 0) return near.trim();
       const why: string[] = [];
       if (outcome.rejected.over_price_cap) why.push(c.whyOverCap(outcome.rejected.over_price_cap));
       if (outcome.rejected.missing_must_have) {
@@ -200,7 +219,10 @@ export function describeChange(results: Applied[], state: SearchState, currency:
   const lines: string[] = [];
   for (const r of results) lines.push(r.ok ? actionLine(r.action, state, currency, locale) : rejectionLine(r.rejection, locale));
   if (results.some((r) => r.ok)) lines.push(outcomeLine(outcome, locale));
-  return lines.filter(Boolean).join(' ');
+  const said = lines.filter(Boolean).join(' ');
+  if (said || !results.some((r) => r.ok) || outcome?.kind !== 'ok' || outcome.eligible === 0) return said;
+  // A change with no words of its own (the nationality): never silent, so the count is said after all.
+  return copy(locale).replies.fit(outcome.eligible, outcome.eligible + Object.values(outcome.rejected).reduce((a, b) => a + b, 0));
 }
 
 /**

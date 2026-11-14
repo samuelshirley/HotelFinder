@@ -5,9 +5,10 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Map as MlMap, Marker as MlMarker } from 'maplibre-gl';
 import { useEffect, useRef, useState } from 'react';
 
-import { layoutPins, fitKeyFor, fitPoints, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
-import { MAP_STYLE_URL } from '@/lib/mapStyle';
+import { layoutPins, fitKeyFor, fitPoints, framePadding, ringPolygon, type MapPin, type MapPoint } from '@/lib/mapView';
+import { LANDMARK_LAYER_ID, MAP_STYLE_URL, tuneStyle } from '@/lib/mapStyle';
 import { formatKm } from '@/lib/reasonText';
+import { sightMapsUrl, type Sight } from '@/lib/sights';
 import styles from './MapPanel.module.css';
 import { useLocale } from './i18n';
 
@@ -15,6 +16,8 @@ type Props = {
   pins: MapPin[];
   /** Where distance is measured from, when it is a real place. */
   anchor: (MapPoint & { label: string }) | null;
+  /** The sights on the day plan (lib/sights.ts): marked, each a link to it on Google Maps. */
+  sights?: Sight[] | null;
   /** Drawn only when closeness is part of the ranking: every ranked hotel is within this of the anchor. */
   ringKm: number | null;
   /** With the full list open: the hotels on its page, which the camera frames instead (lib/mapView.ts fitPoints). */
@@ -44,7 +47,7 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
  * or zooms it is theirs, and a later change offers "Recentre" instead of
  * moving it; a new anchor or a marked hotel still moves it.
  */
-export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
+export function MapPanel({ pins, anchor, sights = null, ringKm, frame = null, hovered, selected, focus, busy, onHover, onSelect, onMeasureFrom, onSearchHere }: Props) {
   const { locale, t } = useLocale();
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
@@ -52,7 +55,12 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
   const markers = useRef(new Map<string, { marker: MlMarker; el: HTMLButtonElement; rank: number | null; point: MapPoint; fullWidth: number }>());
   const extras = useRef<MlMarker[]>([]);
   const userMoved = useRef(false);
-  /** True while a camera move of our own is under way: every other move is the user's. */
+  /**
+   * True while a camera move of our own is under way: every other move is the user's. Every move of ours
+   * calls stop() before setting it: starting a move ends the one in flight, and that end (moveend) clears
+   * the flag, so the new move's start would be taken for the user's. Seen 14 Nov 2026 on a phone: the
+   * refit when the Map tab was shown ended the zero-size frame's move and offered Recentre at once.
+   */
   const ours = useRef(false);
   const lastFit = useRef<{ key: string; anchorKey: string; centre: MapPoint | null }>({ key: '', anchorKey: '', centre: null });
   const handlers = useRef({ onHover, onSelect });
@@ -99,17 +107,40 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
         lib.current = ml;
         const m = new ml.Map({
           container: box.current,
-          style: MAP_STYLE_URL,
           center: [0, 20],
           zoom: 1,
           attributionControl: { compact: true },
           dragRotate: false,
           pitchWithRotate: false,
         });
+        // The style is tuned before it is drawn: our landmarks layer on top, bus stops gone (lib/mapStyle.ts).
+        m.setStyle(MAP_STYLE_URL, { transformStyle: (_previous, next) => tuneStyle(next) });
         m.touchZoomRotate.disableRotation();
         m.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
         map.current = m;
         m.on('load', () => !dead && setReady(true));
+        // A landmark can be pressed (it offers "Measure from"): the pointer says so.
+        m.on('mouseenter', LANDMARK_LAYER_ID, () => (m.getCanvas().style.cursor = 'pointer'));
+        m.on('mouseleave', LANDMARK_LAYER_ID, () => (m.getCanvas().style.cursor = ''));
+        // What the map shows of the landmarks, once it is still: how many, and where the first few are
+        // (a name and a point on screen). Read by e2e/ui/map.spec.ts, which has no other way into the canvas.
+        m.on('idle', () => {
+          if (!box.current || !m.getLayer(LANDMARK_LAYER_ID)) return;
+          const shown = m.queryRenderedFeatures({ layers: [LANDMARK_LAYER_ID] }).filter((f) => f.geometry.type === 'Point');
+          box.current.dataset.landmarks = String(shown.length);
+          box.current.dataset.landmarkSpots = JSON.stringify(
+            shown.slice(0, 8).map((f) => {
+              const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+              const at = m.project([lng, lat]);
+              return { name: String(f.properties.name_en ?? f.properties['name:latin'] ?? f.properties.name), x: Math.round(at.x), y: Math.round(at.y) };
+            }),
+          );
+        });
+        // The credits start folded to their (i) button: drawn open, the full line covered the bottom pins
+        // (2026-11-13). MapLibre opens a compact control on first draw and folds it only on a drag.
+        const foldCredits = () => box.current?.querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')?.classList.remove('maplibregl-compact-show');
+        m.once('load', foldCredits);
+        m.once('idle', foldCredits);
         // Any move we did not start is the user's: a drag, the wheel, a pinch, the zoom buttons.
         // (Not told apart by the event's input: measured in the browser, a wheel zoom's events carry none.)
         m.on('movestart', () => {
@@ -134,18 +165,28 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
         m.on('moveend', tookOver);
         m.on('click', (e) => {
           // A named place under the pointer: offer to measure from it.
-          const named = m.queryRenderedFeatures(e.point).find((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1);
+          // A landmark (a museum, a palace) first, should a street's name lie under the same spot.
+          const named = m
+            .queryRenderedFeatures(e.point)
+            .filter((f) => f.layer.type === 'symbol' && typeof f.properties?.name === 'string' && f.properties.name.trim().length > 1)
+            .sort((a, b) => Number(b.layer.id === LANDMARK_LAYER_ID) - Number(a.layer.id === LANDMARK_LAYER_ID))[0];
           if (!named) return setPicked(null);
           // A point feature (a venue, a station) has its own spot; a label along a line or over an area is where it was pressed.
           const spot = named.geometry.type === 'Point' ? { latitude: named.geometry.coordinates[1], longitude: named.geometry.coordinates[0] } : { latitude: e.lngLat.lat, longitude: e.lngLat.lng };
-          setPicked({ x: e.point.x, y: e.point.y, name: String(named.properties['name:latin'] ?? named.properties.name).trim().slice(0, 80), point: spot });
+          setPicked({ x: e.point.x, y: e.point.y, name: String(named.properties.name_en ?? named.properties['name:latin'] ?? named.properties.name).trim().slice(0, 80), point: spot });
         });
+        let shown = box.current!.clientWidth > 0 && box.current!.clientHeight > 0;
         observer = new ResizeObserver(() => {
           // A resize moves the camera's frame, synchronously; it is not the user steering.
           const was = ours.current;
           ours.current = true;
           m.resize();
           ours.current = was;
+          // Hidden, then shown (a phone's Map tab): the frame made at zero size framed nothing
+          // (it showed West Africa for Porto, 2026-11-14). Frame the hotels again, unless the user moved it.
+          const nowShown = box.current !== null && box.current.clientWidth > 0 && box.current.clientHeight > 0;
+          if (nowShown && !shown && !userMoved.current) refitRef.current();
+          shown = nowShown;
         });
         observer.observe(box.current);
       })
@@ -210,6 +251,9 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
       const el = document.createElement('div');
       el.className = styles.anchor;
       el.dataset.anchor = 'true';
+      // A mark, not a control: without its own role and name MapLibre makes it a "Map marker" button (e2e, 2026-11-13).
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', t.ui.anchorMark(anchor.label));
       // The diamond is a child: the map positions the marker with a transform on the element itself,
       // and a rotation on that same element moved it 145 px off its point (seen in the browser).
       const diamond = document.createElement('span');
@@ -220,6 +264,23 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
       label.textContent = anchor.label;
       el.appendChild(label);
       extras.current.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([anchor.longitude, anchor.latitude]).addTo(m));
+    }
+
+    for (const sight of sights ?? []) {
+      // A link, square and unfilled: never read as a hotel (round, violet) or as the anchor (a diamond).
+      const el = document.createElement('a');
+      el.className = styles.sight;
+      el.dataset.sight = sight.placeId;
+      el.href = sightMapsUrl(sight);
+      el.target = '_blank';
+      el.rel = 'noopener noreferrer';
+      el.setAttribute('aria-label', t.sights.pin(sight.name));
+      el.addEventListener('click', (e) => e.stopPropagation());
+      const tip = document.createElement('span');
+      tip.className = styles.sightTip;
+      tip.textContent = sight.name;
+      el.appendChild(tip);
+      extras.current.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([sight.longitude, sight.latitude]).addTo(m));
     }
 
     // The ring: a plain distance, labelled as one. Cards quote the same straight-line figure.
@@ -236,6 +297,8 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
       const el = document.createElement('div');
       el.className = styles.ringLabel;
       el.textContent = formatKm(ringKm, locale);
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', t.ui.ringMark(formatKm(ringKm, locale), anchor.label));
       extras.current.push(new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat(ring[0] as [number, number]).addTo(m));
     }
 
@@ -253,13 +316,14 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
         userMoved.current = false;
         setMoved(false);
         setAway(false);
+        m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
         ours.current = true;
-        m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+        m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
         if (!m.isMoving()) ours.current = false; // already framed: no move, so no end to wait for
       }
     }
     declutterRef.current();
-  }, [ready, pins, anchor, ringKm, frame]);
+  }, [ready, pins, anchor, sights, ringKm, frame]);
 
   // Hover and selection are styles on pins that already exist.
   useEffect(() => {
@@ -279,12 +343,28 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
     const at = m.project([pin.longitude, pin.latitude]);
     const { clientWidth: w, clientHeight: h } = m.getContainer();
     if (at.x < 48 || at.y < 48 || at.x > w - 48 || at.y > h - 48) {
+      m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
       ours.current = true;
       m.easeTo({ center: [pin.longitude, pin.latitude], duration: reducedMotion() ? 0 : 400 });
       if (!m.isMoving()) ours.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.n, ready]);
+
+  // The hotels framed again with no animation: after the map was hidden at zero size (the observer above).
+  const refitRef = useRef<() => void>(() => undefined);
+  refitRef.current = () => {
+    const m = map.current;
+    const ml = lib.current;
+    const points = fitPoints(pins, anchor, frame);
+    if (!m || !ml || points.length === 0) return;
+    const bounds = new ml.LngLatBounds();
+    for (const p of points) bounds.extend([p.longitude, p.latitude]);
+    m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
+    ours.current = true;
+    m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: 0 });
+    if (!m.isMoving()) ours.current = false;
+  };
 
   const recentre = () => {
     const m = map.current;
@@ -297,8 +377,9 @@ export function MapPanel({ pins, anchor, ringKm, frame = null, hovered, selected
     setMoved(false);
     setAway(false);
     setPicked(null);
+    m.stop(); // a move still in flight ends first: its end would clear the flag set for this one
     ours.current = true;
-    m.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
+    m.fitBounds(bounds, { padding: framePadding(m.getContainer().clientWidth, m.getContainer().clientHeight), maxZoom: 16, duration: reducedMotion() ? 0 : 600 });
     if (!m.isMoving()) ours.current = false;
   };
 

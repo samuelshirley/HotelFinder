@@ -26,17 +26,21 @@ import { appendMessage, listMessages, listModelVisibleTail, type ChatKind } from
 import { audienceFor, getSession, listStays, updateSession, type SearchSession, type Stay } from '@/server/repos/sessions';
 import { listLiveOffersForRanking } from '@/server/repos/offers';
 import { countFullList, listShortlist } from '@/server/repos/shortlist';
-import { enqueueTurn, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
+import { enqueueTurn, failLostTurns, failTurn, finishTurn, nextQueuedTurn, promoteToRunning, turnBefore, type AgentTurn } from '@/server/repos/turns';
 import { logUsage } from '@/server/repos/usage';
 import { logModelCalls } from '@/server/modelLedger';
 import { nearInWords } from '@/server/nearInWords';
 import { checkStage, isPlainNo, isPlainYes, makeStage, readStage } from '@/lib/stagedPlan';
 import { fingerprint } from '@/lib/store/reduce';
-import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS } from '@/lib/turnBudget';
+import { DISPATCH_MAX_MS, hasTimeFor, MODEL_CALL_MAX_MS, TURN_BUDGET_MS } from '@/lib/turnBudget';
+
+/** How far past the turn budget a running turn must be before it is called lost. */
+const LOST_TURN_GRACE_MS = 60_000;
 import { insertIdea } from '@/server/repos/ideas';
 import { listSaved } from '@/server/repos/saved';
 import { ownerOf, saveFromSearch } from '@/server/saved';
 import { aiBudget } from '@/server/spend';
+import type { FindSights } from '@/server/sights';
 import type { SupplierAdapter } from '@/server/supplier';
 
 /**
@@ -73,6 +77,8 @@ export type TurnDeps = {
   deadline?: number;
   /** The wall clock in ms; tests move it. */
   clock?: () => number;
+  /** The sights lookup (server/sights/). Absent = the configured one, in English. */
+  findSights?: FindSights;
   /** The language every line of this turn is written in (server/http.ts requestLocale). English when absent. */
   locale?: Locale;
 };
@@ -100,6 +106,13 @@ export async function runTurn(args: {
   if (!created) return turn; // a retried send: the first one is doing, or did, the work
 
   await appendMessage({ sessionId: session.id, turnId: turn.id, role: 'user', kind: 'user', content: args.message });
+
+  // A turn the platform killed mid-way must not hold the session's running slot for ever.
+  // startedAt is the database's clock, so this compares with real time, not deps.clock.
+  const lost = await failLostTurns(session.id, new Date(Date.now() - TURN_BUDGET_MS - LOST_TURN_GRACE_MS));
+  for (const t of lost) {
+    await appendMessage({ sessionId: session.id, turnId: t.id, role: 'assistant', kind: 'error', content: '', meta: { code: 'turn_lost' } });
+  }
 
   let running = await promoteToRunning(turn.id);
   if (!running) {
@@ -159,6 +172,7 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
 
   if (field === 'priorities' && stay) return prioritiesInWords(session, stay, turn, deps);
   if (field === 'dates') return datesInWords(session, turn, deps);
+  if (field === 'guests' && stay) return guestsInWords(session, stay, turn, deps);
   if (field !== 'destination') return { text: fixedLine('use_the_form', L), meta: { by: 'form', field } };
 
   // The first message may say more than the place ("Porto, 12 to 15 March, two of
@@ -169,7 +183,12 @@ async function onboardingTurn(session: SearchSession, turn: AgentTurn, deps: Tur
   const spent = scan ? await logModelCalls(session, 'scan', [scan.reply]) : { model_calls: 0, cost_microcents: 0 };
   const { destination, ...rest } = scan?.trip ?? {};
   const meta = { by: 'form' as const, field, scan: scan ? { ok: scan.reply.ok, fields: Object.keys(scan.trip) } : { skipped: budget.ok ? 'none' : 'budget' }, ...spent };
-  if (Object.keys(rest).length > 0) await updateSession(session.id, { draft: { ...session.draft, scanned: rest } });
+  // Merged, not replaced: a typed place must not wipe the dates, party or pets read earlier.
+  if (Object.keys(rest).length > 0) {
+    await updateSession(session.id, {
+      draft: { ...session.draft, scanned: { ...session.draft.scanned, ...rest }, words: { ...session.draft.words, ...rest } },
+    });
+  }
 
   // The place itself is always looked up at the supplier and always picked by the user.
   const places = await deps.supplier.searchPlaces(destination ?? turn.userMessage);
@@ -208,6 +227,33 @@ async function datesInWords(session: SearchSession, turn: AgentTurn, deps: TurnD
     locale: L,
   });
   return { text: '', meta: { by: 'agent', field: 'dates', read: { checkIn, checkOut }, ok: result.ok, ...spent } };
+}
+
+/**
+ * "Who is travelling?" answered in words ("two of us and the dog"). The same
+ * scan reads it; a pet already asked for is kept unless the words say who
+ * without one, which is not a "no" (only the toggle removes it).
+ */
+async function guestsInWords(session: SearchSession, stay: Stay, turn: AgentTurn, deps: TurnDeps): Promise<TurnResult> {
+  const L = loc(deps);
+  const budget = await aiBudget(session.id, deps.now());
+  if (!budget.ok) return { text: fixedLine('say_who', L), meta: { by: 'form', field: 'guests', skipped: 'budget' } };
+  const scan = await scanIntent({ message: `Who is travelling: ${turn.userMessage}`, today: deps.today, currency: session.currency, callModel: deps.callModel, model: deps.model });
+  const spent = await logModelCalls(session, 'scan', [scan.reply]);
+  const guests = scan.trip.guests;
+  const pets = (scan.trip.mustHaves ?? []).includes('pets_allowed') || stay.mustHaves.includes('pets_allowed');
+  if (!guests) return { text: fixedLine('say_who', L), meta: { by: 'agent', field: 'guests', read: null, ...spent } };
+  const messages = await listMessages(session.id);
+  const result = await answerForm({
+    sessionId: session.id,
+    answer: { field: 'guests', adults: guests.adults, childrenAges: guests.childrenAges, rooms: guests.rooms, pets },
+    guestsAnswered: guestsAnsweredIn(session, messages),
+    supplier: deps.supplier,
+    now: deps.now(),
+    today: deps.today,
+    locale: L,
+  });
+  return { text: '', meta: { by: 'agent', field: 'guests', read: { adults: guests.adults, children: guests.childrenAges.length, pets }, ok: result.ok, ...spent } };
 }
 
 /**
@@ -328,6 +374,7 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
         fact: jev.readings?.fact ?? null,
         superlative: jev.readings?.superlative ?? null,
         search_field: jev.readings?.searchField ?? null,
+        sight_kind: jev.readings?.sightKind ?? null,
         decision: decision.kind,
         deferred: decision.kind === 'defer' ? decision.reason : null,
         turn_id: turn.id,
@@ -343,13 +390,14 @@ async function searchTurn(session: SearchSession, turn: AgentTurn, deps: TurnDep
 
   switch (decision.kind) {
     case 'actions': {
-      const dispatched = await dispatchActions({ session, stay, actions: decision.actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+      const actions = decision.actions;
+      const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today, findSights: deps.findSights });
       return {
         text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
         meta: {
           ...trace,
           intent: decision.intent,
-          actions: decision.actions,
+          actions,
           applied: dispatched.results.filter((r) => r.ok).length,
           rejected: dispatched.results.flatMap((r) => (r.ok ? [] : [r.rejection])),
           effect: dispatched.effect,
@@ -528,7 +576,7 @@ async function agentTurn(args: {
   if (agent.actions.length > 0) {
     if (!hasTimeFor(deps.deadline, clock(), DISPATCH_MAX_MS)) return { text: fixedLine('out_of_time', L), meta: { ...meta, timed_out: 'dispatch', dropped_actions: agent.actions.length } };
     const actions = withCloseness(agent.actions, toSearchState(session, stay).priorities);
-    const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+    const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today, findSights: deps.findSights });
     return {
       text: [describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L), savedText].filter(Boolean).join(' '),
       meta: {
@@ -586,7 +634,7 @@ async function stagedAnswer(session: SearchSession, stay: Stay, state: SearchSta
   const check = checkStage(stage, fingerprint(state), deps.now());
   if (check !== 'live') return { text: fixedLine('stage_lapsed', L), meta: { ...trace, answer: 'yes', stage: check } };
   const actions = withCloseness(stage.actions, state.priorities);
-  const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today });
+  const dispatched = await dispatchActions({ session, stay, actions, supplier: deps.supplier, now: deps.now(), today: deps.today, findSights: deps.findSights });
   return {
     text: describeChange(dispatched.results, dispatched.state, session.currency, dispatched.finder, L),
     meta: {

@@ -1,0 +1,2 @@
+ALTER TABLE "agent_turns" DROP CONSTRAINT "agent_turns_idempotency_key_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "agent_turns_session_key_idx" ON "agent_turns" USING btree ("session_id","idempotency_key");

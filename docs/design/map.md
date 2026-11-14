@@ -20,11 +20,36 @@ Trips | hotels | chat is unchanged. Inside the hotels column:
 
 ## Tiles
 
-MapLibre GL JS drawing OpenFreeMap's `positron` style (`lib/mapStyle.ts`), light grey; `dark` until
-13 Nov 2026, when Sam found it too dark to read. No key, no account, no bill. The distance ring's
-dashed line is the accent purple so it shows on the light map.
+MapLibre GL JS drawing OpenFreeMap's `liberty` style (`lib/mapStyle.ts`): parks green, water blue,
+roads by kind, buildings drawn. No key, no account, no bill. `positron` (light grey) from 13 Nov,
+`dark` before that; on 14 Nov Sam found positron a whitewash that "doesn't tell you where the
+important things are. I want to know how close I am to some museum." He asked for Google Maps; the
+free style with our own landmarks layer was built first (Google would mean a billed browser key and
+a rewrite of the pins, the label layout and the camera code), and Sam agreed to it.
 OpenFreeMap's terms offer the public instance as-is; that URL is the one thing to change if it goes.
 The library is loaded on the client only, and only while the map is open.
+
+### Landmarks (`tuneStyle`, `landmarkLayer`; unit-tested against MapLibre's own filter code)
+
+The style is changed before it is drawn (MapLibre's `transformStyle`):
+
+- **A landmarks layer on top**: museums, attractions (Torre dos Clérigos, the viewpoints), palaces
+  (OpenMapTiles' `castle`), monuments, theatres, zoos and aquariums, art galleries and arts centres.
+  A bold brown name under the style's own icon, the better-known (lower OpenMapTiles rank) placed
+  first; the name gives way where it does not fit, the icon stays.
+- **Left out, measured on Porto's tiles**: `art_gallery/artwork` (835 statues and murals in the
+  centre against about 40 galleries) and `art_gallery/art` (shops); churches (282 in the centre
+  would bury the museums; the famous ones are attractions as well).
+- **Bus stops are gone** (983 in central Porto); stations and airports stay.
+- The style's own poi layers no longer draw landmarks, so none is drawn twice.
+- **From zoom 14 only**: OpenFreeMap's tiles carry points of interest from 14 (at 13 the poi layer
+  held only stations and ferry terminals). A frame wider than that shows none until the user zooms in.
+
+Pressing a landmark offers "Measure from <name>" (below); a landmark wins over a street name under
+the same spot, and the pointer turns to a hand over one. The map writes what it shows of them to
+`data-landmarks` (a count) and `data-landmark-spots` (the first eight, name and screen point) on
+the canvas when it is still, for `e2e/ui/map.spec.ts`. The Google sights of a day plan
+(`docs/sights.md`) are drawn as their own square marks, over this layer.
 
 ## What is on it (`lib/mapView.ts`, unit-tested)
 
@@ -74,6 +99,13 @@ the frame by under 30%). A re-rank of the same hotels does not move it. After an
 not start, the camera is the user's: later changes offer **Recentre** instead of moving it. A new
 anchor still moves it, and so does a hotel Penny marks. The app flags its own moves; telling them
 apart by the event's input was wrong (measured: a wheel zoom's events carry none).
+
+**A phone builds the map hidden** (the Map tab, `display: none`), so its first frame is made at zero
+size and frames nothing: in CI the tab opened on West Africa for a Porto search (14 Nov 2026). When
+the box goes from zero size to shown, the hotels are framed again with no animation, unless the user
+has moved the map. Every move of ours first stops the one in flight: its end clears the "ours" flag,
+and the refit was otherwise taken for the user's and offered Recentre at once. `e2e/ui/map.spec.ts`
+starts at phone size so the map is built hidden every run; it failed without each of the two fixes.
 
 ## Gestures that change the search
 

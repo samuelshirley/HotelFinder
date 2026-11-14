@@ -2,6 +2,7 @@ import type { MustHave } from '@/lib/amenities';
 import type { ListedPropertyType, PropertyType } from '@/lib/filters';
 import type { PriorityKey } from '@/lib/finder/rank';
 import type { Superlative } from '@/lib/router/catalogue';
+import type { SightKind } from '@/lib/sights';
 import type { Rejection } from '@/lib/store/reduce';
 
 /**
@@ -40,6 +41,8 @@ const rejection: Record<Rejection, string> = {
   more_rooms_than_adults: 'Each room needs at least one adult.',
   near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
   place_unavailable: 'The place lookup did not answer. Try again in a moment.',
+  sights_unavailable: 'The lookup for places to visit did not answer, so nothing was changed. Try again in a moment.',
+  sights_none: 'I could not find enough well-rated places of that kind near where you are searching, so nothing was changed.',
   no_change: 'That is already how the search is set.',
 };
 
@@ -120,6 +123,8 @@ export const en = {
     unknown_country: 'That country is not in the list. Pick it from the menu.',
     unknown_currency: 'That currency is not in the list. Pick it from the menu.',
     place_unavailable: 'The place lookup did not answer. Try again in a moment.',
+  sights_unavailable: 'The lookup for places to visit did not answer, so nothing was changed. Try again in a moment.',
+  sights_none: 'I could not find enough well-rated places of that kind near where you are searching, so nothing was changed.',
     near_too_far: 'That place is too far from where you are searching. Start a new search there instead.',
     empty_brief: 'Type where you are going, or pick a place, then search.',
     not_active: 'Finish the questions in the chat first.',
@@ -128,6 +133,7 @@ export const en = {
     property_not_found: 'That hotel is no longer in this search.',
     circuit_open: 'The chat is paused for the moment. The filters above the hotels still work. Try the chat again in a few minutes.',
     turn_timeout: 'That took too long, so it was stopped before anything was changed. Send it again.',
+    turn_lost: 'A message before this one was never answered: the server stopped part way. Send it again if it still matters.',
     turn_failed: 'Something broke while handling that message. Nothing was changed. Send it again.',
     server_error: 'Something broke on our side. Nothing was changed. Try again.',
     email_invalid: 'That email address does not look complete. Check it and try again.',
@@ -142,6 +148,7 @@ export const en = {
     price_stale: 'That price check is more than 20 minutes old. Check the price again before paying.',
     price_changed: 'The price changed. Check the new price, then pay.',
     booking_not_found: 'That booking is not on this account.',
+    reprice_needed: 'This checkout was priced for someone else. Checking the price for you now.',
     booking_not_payable: 'This booking was already paid or has ended. Reload to see where it stands.',
     booking_failed: 'The hotel did not confirm the booking. No money was taken. Try again or pick another hotel.',
     booking_unknown: 'The hotel has not answered yet. Do not book again: reload this page in a minute to see the result.',
@@ -198,6 +205,10 @@ export const en = {
     mustHaveLine: (label: string) => `Must have ${label}.`,
     noLongerRequiring: (label: string) => `No longer requiring ${label}.`,
     searching: (place: string) => `Searching ${place}.`,
+    /** The app picked the place from the words: say so, and invite the correction (2026-11-13). */
+    searchingPicked: (place: string) => `Searching ${place}. Not where you meant? Tell me where you want to stay and I will search there instead.`,
+    signedInMemberPrices: 'Signed in. These are member prices now.',
+    signedInPricesLater: 'Signed in. The member prices did not load: the hotel service did not answer. Change anything in the search to try again.',
     setAside: 'Set aside.',
     thoseSetAside: 'Those are set aside.',
     everythingBack: 'Everything is back in.',
@@ -218,6 +229,7 @@ export const en = {
     saved: (name: string) => `${name} is saved. Your saved hotels are listed beside your trips.`,
     savedList: (n: number, names: string, more: number) =>
       `You have saved ${n === 1 ? 'one hotel' : `${n} hotels`}: ${names}${more > 0 ? ` and ${more} more` : ''}. They are listed beside your trips.`,
+    /** The first search's line (server/onboarding.ts). A change's line no longer counts the fits: the list shows them. */
     fit: (eligible: number, considered: number) => `${eligible} of ${considered} hotels fit.`,
     noneFit: (considered: number, why: string) => `None of ${considered} hotels fit${why ? `: ${why}` : ''}.`,
     whyOverCap: (n: number) => `${n} are over the price cap`,
@@ -247,6 +259,7 @@ export const en = {
       router_not_configured: 'Messages are handled by Jev, and JEV_API_KEY is not set on this server, so nothing was changed.',
       use_the_form: 'Pick one of the options above to continue.',
       tap_the_nights: 'That did not give two dates. Tap the first night above, or say it another way: 12 to 15 March.',
+      say_who: 'That did not say who is travelling. Set it above, or say it another way: two adults and a dog.',
       agent_unavailable: 'The assistant did not answer, so nothing was changed. Send that again.',
       agent_misconfigured: 'The assistant is set up wrongly on this server (its API key was refused), so nothing was changed. Sending again will not help.',
       agent_not_configured: 'That needs the assistant, and ANTHROPIC_API_KEY is not set on this server, so nothing was changed.',
@@ -262,6 +275,34 @@ export const en = {
       saved_none: 'You have not saved any hotels yet. Press the heart on one to keep it.',
       save_failed: 'That hotel is no longer in this search, so it was not saved.',
     },
+  },
+
+  /** Sights and the day-by-day plan (lib/sights.ts): every name, rating and distance is a Google row or geometry on one. */
+  sights: {
+    /** Where "close" is measured from: "Close to the museums". */
+    near: { museums: 'the museums', galleries: 'the galleries' } as Record<SightKind, string>,
+    plural: { museums: 'museums', galleries: 'art galleries' } as Record<SightKind, string>,
+    /** `more`: how many others are on the plan beyond the ones named. */
+    /** The opening of the line, whole: Spanish needs the article to agree with the kind. */
+    popular: { museums: 'The most popular museums', galleries: 'The most popular art galleries' } as Record<SightKind, string>,
+    line: (popular: string, town: string, names: string, more: number) =>
+      `${popular} in ${town}, by Google reviews: ${names}${more > 0 ? `, and ${more} more` : ''}. A plan for each day is above the hotels.`,
+    /** What a line that named sights says once the purge has removed Google's names (after 30 days). */
+    expired: (plural: string) => `This list of ${plural} was more than 30 days old, so it was removed. Ask again for today's.`,
+    planTitle: (plural: string, town: string) => `${plural.charAt(0).toUpperCase()}${plural.slice(1)} in ${town}, day by day`,
+    planFrom: (hotel: string) => `Starting from ${hotel}`,
+    planNote: 'The most reviewed on Google Maps, all rated 4.0 or higher. Distances are straight lines; each route opens the walk in Google Maps.',
+    day: (n: number) => `Day ${n}`,
+    dayKm: (km: string) => `${km} in a straight line`,
+    route: 'Walking route',
+    routeLabel: (n: number) => `Open the walking route for day ${n} in Google Maps`,
+    onMaps: (name: string) => `${name} on Google Maps`,
+    rated: (rating: string, reviews: string) => `${rating} from ${reviews} Google reviews`,
+    fromHotel: (km: string) => `${km} from the hotel`,
+    fromPrevious: (km: string) => `then ${km}`,
+    remove: 'Remove the plan',
+    pin: (name: string) => `${name}, on your plan`,
+    planFromLabel: 'Starting from',
   },
 
   /** Answers about what is on screen (lib/answers.ts): templates over row values. */
@@ -367,7 +408,9 @@ export const en = {
       priorities: 'What matters most? Pick any, or say it in your own words.',
     },
     hint: (nights: number | undefined, month: string | null) => `${nights ? `${nights} ${s(nights, 'night', 'nights')}` : 'nights'}${month ? ` in ${month}` : ''}`,
+    hintFrom: (nights: number | undefined, day: string) => `${nights ? `${nights} ${s(nights, 'night', 'nights')}` : 'nights'} from ${day}`,
     whichHint: (hint: string, hasNights: boolean) => `Which ${hint}? ${hasNights ? 'Tap the first night.' : 'Tap the first night, then the last.'}`,
+    whichHintFrom: (hint: string) => `Which ${hint}? Tap the last night.`,
     fromYourMessage: (parts: string) => `From your message: ${parts}.`,
     upToANight: (money: string) => `up to ${money} a night`,
     noPreference: 'No preference',
@@ -445,6 +488,8 @@ export const en = {
     placeholderDestination: 'Type a city or neighbourhood',
     placeholderDates: 'Or type it: the second weekend',
     placeholderPriorities: 'Or say it: near the old town, not too pricey',
+    placeholderGuests: 'Or type it: two adults and a dog',
+    placeholderAsk: 'Ask Penny',
     placeholderAnswerAbove: 'Answer above to continue',
     placeholderChat: 'Ask Penny, or change the search',
     sponsored: 'Sponsored',
@@ -522,7 +567,23 @@ export const en = {
     nearChip: (label: string) => `Near ${label} ✕`,
     upToANight: (money: string) => `Up to ${money} a night`,
     setAsideCount: (n: number) => `${n} set aside`,
-    publicPrices: 'These are public prices. Sign in when you book, and your next searches show member prices.',
+    signInLower: 'Sign in for a lower price',
+    memberPrice: 'Member price',
+    updatingPrices: 'Checking the prices for you…',
+    signIn: {
+      titlePrice: 'Sign in for member prices',
+      titleBook: 'Sign in to book',
+      note: 'Members see lower prices at many hotels. We email you a 6-digit code; there is no password. Your search stays as it is.',
+      email: 'Email. A sign-in code goes here; no password.',
+      sendCode: 'Send code',
+      sending: 'Sending…',
+      code: (email: string) => `The 6-digit code sent to ${email}`,
+      newCode: 'Send a new code',
+      signIn: 'Sign in',
+      signingIn: 'Checking the prices…',
+      devCode: 'No email service is set up here, so the code is shown instead:',
+      cancel: 'Not now',
+    },
     answerToSearch: 'Answer the questions in the chat to search.',
     nothingShortlisted: 'Nothing on the shortlist. The last message in the chat says why.',
     missDivider: 'Hotels that miss something you asked for',
@@ -552,6 +613,9 @@ export const en = {
     searchAroundHere: 'Search around here',
     recentre: 'Recentre',
     measureFrom: (name: string) => `Measure from ${name}`,
+    /** The map's mark for where distances are measured from, and its ring's label: names, not controls. */
+    anchorMark: (place: string) => `Distances are measured from ${place}`,
+    ringMark: (km: string, place: string) => `${km} from ${place}`,
     missesSomething: 'Misses something you asked for',
     // Saved hotels, the heart, bookings (App, Heart)
     savedHotels: 'Saved hotels',
@@ -603,6 +667,19 @@ export const en = {
     currencyRemovesCap: (code: string) => `Changing it removes the price cap, which is in ${code}.`,
     // SlideOut
     close: 'Close',
+    // Phones (docs/design/mobile.md), the outbox and "Sign in to see price" (2026-11-13).
+    trips: 'Trips',
+    mapCardGroup: 'Hotel on the map',
+    mapCardOf: (at: number, of: number) => `${at} of ${of}`,
+    mapCardTotal: (money: string) => `${money} total`,
+    priceAfterSignIn: 'Price after sign-in',
+    previousHotel: 'Previous hotel',
+    nextHotel: 'Next hotel',
+    notSent: 'Not sent.',
+    retrySend: 'Retry',
+    publicPricesLead: 'Signed out, each hotel shows its own public price.',
+    signInForMemberPrices: 'Sign in for member prices',
+    signInToSeePrice: 'Sign in to see price',
   },
 };
 

@@ -25,7 +25,7 @@ const state: SearchState = {
   currency: 'EUR',
   stay: {
     destinationText: 'Oporto',
-    placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null,
+    placeId: 'place-porto', destPoint: null, destKind: null, destCountry: null, near: null, sights: null,
     checkIn: '2026-12-11',
     checkOut: '2026-12-13',
     adults: 2,

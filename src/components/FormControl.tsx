@@ -7,7 +7,7 @@ import type { SessionView } from '@/server/view';
 import { copy, type Messages } from '@/lib/i18n';
 import { formatDates, roomsShown } from '@/lib/replies';
 import { useLocale } from './i18n';
-import { searchPlaces, todayLocal } from './api';
+import { todayLocal } from './api';
 import { RangeCalendar } from './RangeCalendar';
 import styles from './App.module.css';
 
@@ -29,12 +29,12 @@ const PRIORITY_CHIPS: Array<{ key: 'cheapest' | 'nicest' | 'closest'; label: (ne
 /** The control for the onboarding question currently being asked. */
 export function FormControl({ question, disabled, onAnswer }: Props) {
   const { locale } = useLocale();
-  const meta = (question.meta ?? {}) as { field?: string; suggestions?: Array<{ placeId: string; label: string; display?: string }>; near?: string; nights?: number; month?: string };
+  const meta = (question.meta ?? {}) as { field?: string; suggestions?: Array<{ placeId: string; label: string; display?: string }>; near?: string; nights?: number; month?: string; checkIn?: string };
   switch (meta.field) {
     case 'destination':
       return <Destination suggestions={meta.suggestions} disabled={disabled} onAnswer={onAnswer} />;
     case 'dates':
-      return <Dates hint={{ nights: meta.nights, month: meta.month }} disabled={disabled} onAnswer={onAnswer} />;
+      return <Dates hint={{ nights: meta.nights, month: meta.month, checkIn: meta.checkIn }} disabled={disabled} onAnswer={onAnswer} />;
     case 'guests':
       return <Guests disabled={disabled} onAnswer={onAnswer} />;
     case 'priorities':
@@ -44,42 +44,19 @@ export function FormControl({ question, disabled, onAnswer }: Props) {
   }
 }
 
+/**
+ * "Where are you going?" is answered in the chat box: one question, one text
+ * input (2026-11-13: a second box inside the question took Enter and did
+ * nothing with it). A typed place comes back as "Which one?" with a button per
+ * real place; those buttons are this control.
+ */
 function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<{ placeId: string; label: string; display?: string }>; disabled: boolean; onAnswer: Props['onAnswer'] }) {
-  const [query, setQuery] = useState('');
-  const [places, setPlaces] = useState(suggestions ?? []);
-  const [state, setState] = useState<'idle' | 'loading' | 'failed' | 'none'>('idle');
-  const { t } = useLocale();
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) return;
-    let stale = false;
-    setState('loading');
-    const timer = setTimeout(() => {
-      searchPlaces(q)
-        .then((r) => {
-          if (stale) return;
-          setPlaces(r.places);
-          setState(r.places.length ? 'idle' : 'none');
-        })
-        .catch(() => !stale && setState('failed'));
-    }, 300);
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
+  if (!suggestions?.length) return null;
   return (
     <div className={styles.control}>
-      {!suggestions && (
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.ui.destinationPlaceholder} aria-label={t.ui.destination} disabled={disabled} autoFocus />
-      )}
-      {state === 'failed' && <p className={styles.errorText}>{t.ui.placeSearchFailed}</p>}
-      {state === 'none' && <p className={styles.muted}>{t.ui.noPlaceByThatName}</p>}
       <div className={styles.chips}>
-        {places.map((p) => (
-          <button key={p.placeId} className={styles.chip} disabled={disabled} onClick={() => onAnswer({ field: 'destination', placeId: p.placeId, label: p.label })}>
+        {suggestions.map((p) => (
+          <button key={p.placeId} type="button" className={styles.chip} disabled={disabled} onClick={() => onAnswer({ field: 'destination', placeId: p.placeId, label: p.label })}>
             {p.display ?? p.label}
           </button>
         ))}
@@ -93,11 +70,12 @@ function Destination({ suggestions, disabled, onAnswer }: { suggestions?: Array<
  * two dates. "3 nights in March" opens on March with a 3-night stay: one tap
  * on the first night sets both dates.
  */
-function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: string }; disabled: boolean; onAnswer: Props['onAnswer'] }) {
+function Dates({ hint, disabled, onAnswer }: { hint: { nights?: number; month?: string; checkIn?: string }; disabled: boolean; onAnswer: Props['onAnswer'] }) {
   const { locale, t } = useLocale();
   const today = todayLocal();
   const nights = hint.nights ?? null;
-  const firstDay = hint.month && `${hint.month}-01` > today ? `${hint.month}-01` : today;
+  // "From next Monday": the card opens on that day, never on tonight.
+  const firstDay = hint.checkIn && hint.checkIn >= today ? hint.checkIn : hint.month && `${hint.month}-01` > today ? `${hint.month}-01` : today;
   const [range, setRange] = useState({ checkIn: firstDay, checkOut: addDays(firstDay, nights ?? 1) });
   const valid = range.checkIn >= today && range.checkOut > range.checkIn;
   const n = Math.round((Date.parse(range.checkOut) - Date.parse(range.checkIn)) / 86_400_000);

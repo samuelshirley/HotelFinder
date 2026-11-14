@@ -17,6 +17,7 @@ import { appendMessage } from '@/server/repos/chat';
 import { updateSession, type SearchSession } from '@/server/repos/sessions';
 import { aiBudget } from '@/server/spend';
 import type { SupplierAdapter } from '@/server/supplier';
+import { isoDate } from '@/lib/isoDate';
 
 /**
  * The first screen (docs/entry-ux.md): one box for the whole trip, three
@@ -33,7 +34,6 @@ import type { SupplierAdapter } from '@/server/supplier';
  * Then the existing onboarding steps run, so a search that has everything
  * goes straight to its first results.
  */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const briefSchema = z
   .object({
@@ -140,7 +140,7 @@ export async function startFromBrief(args: {
     }
   }
   const { trip, priorities, askDates } = mergeBrief(brief, scanned, today);
-  await updateSession(session.id, { draft: { ...session.draft, scanned: trip }, priorities });
+  await updateSession(session.id, { draft: { ...session.draft, scanned: trip, words: scanned }, priorities });
 
   const place = brief.place ?? (await findPlace(supplier, scanned.destination ?? text, L));
   if (place === 'unavailable') {
@@ -164,8 +164,11 @@ export async function startFromBrief(args: {
     today,
     // Pills only: the user's bubble already says it all. Words: say which place they were read as.
     quiet: !text,
-    readBack: text ? copy(L).replies.searching(place.label) : undefined,
+    // A place read from the words was the app's pick, not the user's: say so, and invite the
+    // correction in the chat (Sam, 2026-11-13: "Annex" silently became Annex, Toronto).
+    readBack: text ? (brief.place ? copy(L).replies.searching(place.label) : copy(L).replies.searchingPicked(place.label)) : undefined,
     locale: L,
+    words: scanned,
   });
   // When the nights are missing (askDates), answerForm has just asked for them.
   if (!result.ok) throw new Error(`brief: destination step refused (${result.error})`);

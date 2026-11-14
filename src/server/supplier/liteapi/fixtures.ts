@@ -33,6 +33,16 @@ export function recordedPlaceIds(): Map<string, string> {
   return out;
 }
 
+/** Hotel ids that have recorded details (`/data/hotel?hotelId=`): id → fixture name. */
+export function recordedHotelDetailIds(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [file, entry] of Object.entries(manifest.files)) {
+    const m = /\/data\/hotel\?hotelId=([^&]+)$/.exec(entry.url);
+    if (m && file.startsWith('hotel-details-')) out.set(decodeURIComponent(m[1]), file.replace(/\.json$/, ''));
+  }
+  return out;
+}
+
 export type RecordedCall = { url: string; method: string; headers: Record<string, string>; body: unknown };
 
 /**

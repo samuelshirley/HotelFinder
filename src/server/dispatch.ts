@@ -4,10 +4,12 @@ import { isMustHave, type MustHave } from '@/lib/amenities';
 import { stayFilters } from '@/lib/filters';
 import { canonicalPriorities } from '@/lib/finder/rank';
 import { destinationKind } from '@/lib/finder/searchPlan';
+import { MIN_SIGHTS, pickSights, readStaySights } from '@/lib/sights';
 import { mapPointNear, type Action, type ResolvedAction } from '@/lib/store/actions';
 import { reduceAll, type Applied, type Effect, type SearchState } from '@/lib/store/reduce';
 import { runFinder, type FinderOutcome } from '@/server/finder';
 import { updateSession, updateStay, type SearchSession, type Stay } from '@/server/repos/sessions';
+import { getSightsFinder, type FindSights } from '@/server/sights';
 import type { SupplierAdapter } from '@/server/supplier';
 
 /**
@@ -32,6 +34,7 @@ export function toSearchState(session: SearchSession, stay: Stay): SearchState {
         stay.nearPlaceId && stay.nearLabel && stay.latitude !== null && stay.longitude !== null
           ? { placeId: stay.nearPlaceId, label: stay.nearLabel, latitude: stay.latitude, longitude: stay.longitude }
           : null,
+      sights: readStaySights(stay.sights),
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
       adults: stay.adults,
@@ -63,9 +66,12 @@ export async function dispatchActions(args: {
   today: string;
   /** Run the finder even if no action changed anything (first search after onboarding). */
   alwaysRun?: boolean;
+  /** The sights lookup. Left out: the configured one (Google), metered to this session. */
+  findSights?: FindSights;
 }): Promise<DispatchResult> {
   const { session, stay, supplier, now } = args;
   const before = toSearchState(session, stay);
+  const findSights = args.findSights ?? getSightsFinder({ sessionId: session.id, userId: session.userId });
 
   // Every place id becomes the supplier's point for it, here and only here.
   const resolved: ResolvedAction[] = [];
@@ -84,6 +90,27 @@ export async function dispatchActions(args: {
       resolved.push({ type: 'set_near', near: mapPointNear(action) });
     } else if (action.type === 'set_destination') {
       resolved.push({ ...action, point: await resolveDestination(supplier, action.placeId, action.destinationText) });
+    } else if (action.type === 'set_sights') {
+      // The kind becomes Google's most popular places of that kind around the destination, here and only here.
+      // Looked up around the destination this stay has NOW: a destination changed in the same message is not a case built for.
+      const centre = before.stay.destPoint;
+      const found = centre ? await findSights(action.kind, centre) : null;
+      if (!found?.ok) {
+        unresolved.push({ action: { type: 'clear_sights' }, ok: false, rejection: 'sights_unavailable' });
+        continue;
+      }
+      const places = pickSights(found.places, centre);
+      if (places.length < MIN_SIGHTS) {
+        unresolved.push({ action: { type: 'clear_sights' }, ok: false, rejection: 'sights_none' });
+        continue;
+      }
+      resolved.push({ type: 'set_sights', sights: { kind: action.kind, places, fetchedAt: now.toISOString() } });
+      // Sights are somewhere to be close to, so closeness joins what "best" means, next to what was picked
+      // before. Added here, once the places are in hand: a lookup that failed must change nothing at all.
+      const wanted = before.priorities ?? [];
+      if (!wanted.includes('closest') && !args.actions.some((a) => a.type === 'set_priorities')) {
+        resolved.push({ type: 'set_priorities', priorities: canonicalPriorities([...wanted, 'closest']) });
+      }
     } else {
       resolved.push(action);
     }
@@ -115,6 +142,7 @@ export async function dispatchActions(args: {
       longitude: state.stay.near?.longitude ?? null,
       nearPlaceId: state.stay.near?.placeId ?? null,
       nearLabel: state.stay.near?.label ?? null,
+      sights: state.stay.sights,
       checkIn: state.stay.checkIn,
       checkOut: state.stay.checkOut,
       adults: state.stay.adults,

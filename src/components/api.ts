@@ -109,12 +109,21 @@ export type BookingPage = Me & { booking: BookingView; me: { email: string } | n
 
 export const loadMe = () => request<Me>('/api/me');
 export const sendSignInCode = (email: string) => request<{ sent: true; devCode?: string }>('/api/auth/code', { method: 'POST', body: JSON.stringify({ email }) });
-export const verifySignInCode = (email: string, code: string) =>
-  request<{ signedIn: true }>('/api/auth/verify', { method: 'POST', body: JSON.stringify({ email, code }) });
+export const verifySignInCode = (email: string, code: string, sessionId?: string) =>
+  request<{ signedIn: true; view?: SessionView }>('/api/auth/verify', {
+    method: 'POST',
+    body: JSON.stringify(sessionId ? { email, code, sessionId, today: todayLocal() } : { email, code }),
+  });
 export const signOut = () => request<{ signedIn: false }>('/api/auth/sign-out', { method: 'POST', body: '{}' });
 export const startCheckout = (sessionId: string, offerId: string) =>
   request<{ bookingId: string }>(`/api/session/${sessionId}/checkout`, { method: 'POST', body: JSON.stringify({ offerId }) });
 export const loadBooking = (id: string) => request<BookingPage>(`/api/booking/${id}`);
+/** "Not you?" on a checkout: signs out and hands the search back to this browser. */
+export const notYou = (bookingId: string) => request<{ signedIn: false }>(`/api/booking/${bookingId}/not-you`, { method: 'POST', body: '{}' });
+/** After a sign-in on a checkout: the same room priced for this account, as a new checkout. */
+export const repriceBooking = (bookingId: string) => request<{ bookingId: string }>(`/api/booking/${bookingId}/reprice`, { method: 'POST', body: '{}' });
+/** The search's prices fetched again for whoever is looking now (after a sign-in or "Not you?"). */
+export const repriceSearch = (sessionId: string) => request<SessionView>(`/api/session/${sessionId}/reprice`, { method: 'POST', body: '{}' });
 export const confirmBooking = (
   id: string,
   body: { email: string; code: string; firstName: string; lastName: string; wallet: Wallet; acceptedTotalMinor: number; specialRequest?: string },

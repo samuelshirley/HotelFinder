@@ -2,7 +2,8 @@ import 'server-only';
 
 import { listSaved, saveHotel } from '@/server/repos/saved';
 import { audienceFor, listStays, type Owner, type SearchSession } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { getProperty } from '@/server/repos/properties';
+import { isListed } from '@/server/repos/shortlist';
 
 /**
  * Saved hotels (the heart): docs/saved.md. One path for the heart on a card
@@ -21,11 +22,14 @@ export function ownerOf(session: Pick<SearchSession, 'userId' | 'anonId'>): Owne
  * search's list can be saved, so an id from anywhere else saves nothing.
  */
 export async function saveFromSearch(session: SearchSession, propertyId: string): Promise<{ ok: true; name: string } | { ok: false; error: 'property_not_found' }> {
+  // Any row this visitor may see, as the detail and rates routes ask: the top picks, "Show all", or a
+  // hotel they named. Checked against the top picks alone, a heart in "Show all" saved nothing (e2e, 2026-11-13).
   const stay = (await listStays(session.id))[0];
-  const row = stay ? (await listShortlist(session.id, stay.id, audienceFor(session))).find((r) => r.property.id === propertyId) : undefined;
-  if (!row) return { ok: false, error: 'property_not_found' };
+  if (!stay || !(await isListed(session.id, stay.id, propertyId, audienceFor(session)))) return { ok: false, error: 'property_not_found' };
+  const property = await getProperty(propertyId);
+  if (!property) return { ok: false, error: 'property_not_found' };
   await saveHotel(ownerOf(session), { propertyId, sessionId: session.id });
-  return { ok: true, name: row.property.name };
+  return { ok: true, name: property.name };
 }
 
 /**

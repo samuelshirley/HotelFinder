@@ -19,10 +19,13 @@ export async function enqueueTurn(input: {
   const inserted = await db
     .insert(agentTurns)
     .values(input)
-    .onConflictDoNothing({ target: agentTurns.idempotencyKey })
+    .onConflictDoNothing({ target: [agentTurns.sessionId, agentTurns.idempotencyKey] })
     .returning();
   if (inserted[0]) return { turn: inserted[0], created: true };
-  const [existing] = await db.select().from(agentTurns).where(eq(agentTurns.idempotencyKey, input.idempotencyKey));
+  const [existing] = await db
+    .select()
+    .from(agentTurns)
+    .where(and(eq(agentTurns.sessionId, input.sessionId), eq(agentTurns.idempotencyKey, input.idempotencyKey)));
   return { turn: existing, created: false };
 }
 
@@ -55,6 +58,20 @@ export async function finishTurn(
     .where(and(eq(agentTurns.id, turnId), eq(agentTurns.status, 'running')))
     .returning();
   return row ?? null;
+}
+
+/**
+ * A turn still marked running long after any turn can last (the platform
+ * killed it, or froze it after the client left) would hold the session's one
+ * running slot for ever, and every later message would queue for nobody.
+ * Marks such turns failed and returns them, so the caller can say so.
+ */
+export async function failLostTurns(sessionId: string, olderThan: Date): Promise<AgentTurn[]> {
+  return db
+    .update(agentTurns)
+    .set({ status: 'error', errorCode: 'turn_lost', finishedAt: sql`now()` })
+    .where(and(eq(agentTurns.sessionId, sessionId), eq(agentTurns.status, 'running'), lt(agentTurns.startedAt, olderThan)))
+    .returning();
 }
 
 export async function failTurn(

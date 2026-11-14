@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { currentOwner, errorResponse, handled, ownedSession, rateLimit } from '@/server/http';
+import { currentOwner, errorResponse, handled, noQuery, ownedSession, rateLimit } from '@/server/http';
 import { unsaveHotel } from '@/server/repos/saved';
 import { saveFromSearch, savedView } from '@/server/saved';
 
@@ -38,7 +38,9 @@ export const POST = handled(async (req: Request) => {
 });
 
 /** This visitor's saved hotels, newest first. A visitor with no cookie has none. */
-export const GET = handled(async () => {
+export const GET = handled(async (req: Request) => {
+  const badQuery = noQuery(req);
+  if (badQuery) return badQuery;
   const owner = await currentOwner();
   return NextResponse.json({ saved: owner ? await savedView(owner) : [] });
 });

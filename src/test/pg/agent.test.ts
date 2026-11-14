@@ -106,7 +106,7 @@ describe('staged confirmation: a yes that costs no model call (lib/stagedPlan.ts
     await say(session, 'the weekend after maybe', deps(supplier.supplier, scripted(ASK).callModel));
     const yes = await say((await getSession(session.id))!, 'yup', noJev(supplier.supplier, NEVER));
     expect(yes.status).toBe('done');
-    expect(yes.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(yes.finalText).toBe('18–20 Dec, 2 nights.');
     expect(yes.resultMeta).toMatchObject({ by: 'staged', answer: 'yes', applied: 1, effect: 'refetch', model_calls: 0 });
     expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-18', checkOut: '2026-12-20' });
     expect(await rawQuery("select count(*)::int as n from usage_events where provider = 'anthropic'")).toEqual([{ n: 1 }]); // the question, not the yes
@@ -242,7 +242,7 @@ describe('the turn stops itself before the platform does (lib/turnBudget.ts)', (
     const m = scripted([{ tool: 'set_dates', input: { check_in: '2026-12-18', check_out: '2026-12-20' } }]);
     const t = timed(m, 3_000);
     const turn = await say(session, 'the weekend after', { ...deps(supplier.supplier, t.callModel), clock: t.clock, deadline: t.deadline });
-    expect(turn.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(turn.finalText).toBe('18–20 Dec, 2 nights.');
   });
 });
 
@@ -270,7 +270,7 @@ describe('the agent: what the router did not settle', () => {
     const all = scripted([{ tool: 'show_all_hotels', input: {} }]);
     const turn = await say(session, 'can you just list everything you found', deps(supplier.supplier, all.callModel));
     expect(all.calls).toHaveLength(1);
-    expect(turn.finalText).toBe('All 18 hotels that fit are listed under the top picks, in the same order.');
+    expect(turn.finalText).toBe('All 20 hotels that fit are listed under the top picks, in the same order.');
     expect((await last(session.id)).meta).toEqual({ ui: { all: 'show' } });
     expect((await last(session.id)).kind).toBe('line');
     expect(await names(session.id)).toEqual(before);
@@ -318,7 +318,7 @@ describe('the agent: what the router did not settle', () => {
     expect(m.calls).toHaveLength(1); // only changes were asked for: no second call to write a reply
     expect(await stayOf(session.id)).toMatchObject({ checkIn: '2026-12-18', checkOut: '2026-12-20' });
     expect(supplier.searches).toHaveLength(2); // the dates changed, so rates were fetched again
-    expect(turn.finalText).toBe('18–20 Dec, 2 nights. 18 of 20 hotels fit.');
+    expect(turn.finalText).toBe('18–20 Dec, 2 nights.');
     expect((await last(session.id)).kind).toBe('line'); // not the model's words
     expect(turn.resultMeta).toMatchObject({ by: 'agent', deferred: 'no_reading', model_calls: 1, applied: 1, effect: 'refetch' });
     expect(await rawQuery("select model, input_tokens, output_tokens, cost_microcents::int as cost, success, meta from usage_events where provider = 'anthropic'")).toEqual([
@@ -383,7 +383,7 @@ describe('the agent: what the router did not settle', () => {
     const turn = await say((await getSession(session.id))!, 'I stayed at the second one before and hated it', deps(supplier.supplier, m.callModel));
     expect(await names(session.id)).not.toContain(before[1]);
     expect((await stayOf(session.id)).excludedPropertyIds).toHaveLength(1);
-    expect(turn.finalText).toBe('Set aside. 17 of 20 hotels fit.');
+    expect(turn.finalText).toBe('Set aside.');
   });
 
   it('a question about a hotel is answered from its own listing, in the model\'s words, marked as such', async () => {
@@ -523,6 +523,16 @@ describe('the first message: one forced extraction, then the form asks only for 
     }
   });
 
+  it('a second message adds to what the first said: a typed place with a party keeps the dates and the dog', async () => {
+    const supplier = recordedSupplier();
+    const session = await createSession({ anonId: 'a' });
+    await askQuestion(session.id, 'destination');
+    await say(session, 'a week from next Monday with my dog', deps(supplier.supplier, scan({ check_in: '2026-11-16', nights: 7, must_haves: ['pets_allowed'] }).callModel));
+    await say((await getSession(session.id))!, 'porto, two of us', deps(supplier.supplier, scan({ destination: 'Porto', adults: 2 }).callModel));
+    const draft = (await getSession(session.id))!.draft;
+    expect(draft.scanned).toMatchObject({ checkIn: '2026-11-16', checkOut: '2026-11-23', mustHaves: ['pets_allowed'], guests: { adults: 2 } });
+  });
+
   it('with no key, or with the model down, the message is still looked up as a place', async () => {
     const { sessionId, supplier } = await start('ribeira porto', scripted('fail'));
     expect(supplier.placeQueries).toEqual(['ribeira porto']);
@@ -659,7 +669,7 @@ describe('the first screen: one box, three pills', () => {
       ['user', 'user', 'Porto, Portugal'],
       ['assistant', 'line', expect.stringMatching(/^\d+ of \d+ hotels fit\./)],
       // A lot fit, so Penny names one: her own pick (no hotel is sponsored), with real numbers.
-      ['assistant', 'line', '18 hotels fit, so here is a nudge: I like Mercure Porto Centro Aliados, rated 9.2, the cheapest of the top three. Which of these appeals to you?'],
+      ['assistant', 'line', '20 hotels fit, so here is a nudge: I like Mercure Porto Centro Aliados, rated 9.2, the cheapest of the top three. Which of these appeals to you?'],
     ]);
   });
 
@@ -670,7 +680,24 @@ describe('the first screen: one box, three pills', () => {
     expect(supplier.placeQueries).toEqual(['Annecy, France']);
     expect(await getSession(sessionId)).toMatchObject({ status: 'active', priorities: ['nicest', 'closest'] });
     expect(await stayOf(sessionId)).toMatchObject({ destinationText: 'Annecy, France', checkIn: '2026-11-11', checkOut: '2026-11-12', adults: 1, destKind: 'area' });
-    expect((await listMessages(sessionId)).map((x) => x.content)).toContain('Searching Annecy, France.');
+    // The app picked the place, so Penny says so and invites a correction (Sam's decision, 2026-11-13).
+    expect((await listMessages(sessionId)).map((x) => x.content)).toContain(
+      'Searching Annecy, France. Not where you meant? Tell me where you want to stay and I will search there instead.',
+    );
+  });
+
+  it('a start day with no length, and a place to pick: the nights card opens on that day, not tonight', async () => {
+    // Sam, 2026-11-13: "Annex for a week with dogs let's say next week Monday" lost its dates on the place question.
+    const m = scanOf({ destination: 'Lisbon', check_in: '2026-11-16', must_haves: ['pets_allowed'] });
+    const { sessionId, supplier } = await submit(brief({ text: 'Lisbon from next Monday with my dog' }), m, () => 'places-lisbon');
+    expect((await listMessages(sessionId)).at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination' } });
+    // Picked through the form route, which passes no words: the read-back must still be the words only.
+    await answerForm({ sessionId, answer: { field: 'destination', placeId: 'ChIJwVPhxKtlJA0RvBSxQFbZSKY', label: 'Lisbon, Portugal' }, guestsAnswered: false, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
+    const rows = await listMessages(sessionId);
+    const line = rows.find((r) => r.content.startsWith('From your message'))!;
+    expect(line.content).toBe('From your message: nights from Mon 16 Nov · pets allowed.');
+    expect(line.content).not.toMatch(/2 adults/); // the default was never in the words
+    expect(rows.at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'dates', checkIn: '2026-11-16', prompt: 'Which nights from Mon 16 Nov? Tap the last night.' } });
   });
 
   it('four towns called Lisbon, and "3 nights in March": asks which, then the nights; never tonight', async () => {

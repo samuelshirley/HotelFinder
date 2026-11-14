@@ -5,5 +5,11 @@
       "main": true,
       "**": false
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/hotels/api/sights/purge",
+      "schedule": "0 4 * * *"
+    }
+  ]
 }

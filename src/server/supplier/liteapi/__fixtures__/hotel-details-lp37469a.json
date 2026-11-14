@@ -1,0 +1,4959 @@
+{
+  "data": {
+    "id": "lp37469a",
+    "name": "YOTEL Porto",
+    "hotelDescription": "<p><strong>Modern Accommodation in Porto</strong></p><p><strong>Convenient Facilities</strong>: YOTEL Porto offers a fitness centre, private parking, a garden, and a terrace for guests to enjoy during their stay. With a restaurant, room service, and a 24-hour front desk, your needs are always catered to effortlessly.</p><p><strong>Comfortable Rooms</strong>: The air-conditioned rooms are equipped with essential amenities such as a desk, kettle, fridge, safety deposit box, flat-screen TV, and a private bathroom with a shower. The property also ensures a cozy stay with bed linen and towels provided in all rooms.</p><p><strong>Prime Location</strong>: Situated just 1.1 km from Sao Bento Metro Station, the hotel is conveniently close to popular landmarks like Sao Bento Train Station, Oporto Coliseum, and Clerigos Tower, offering easy access to explore the city.</p><p>Book your stay at YOTEL Porto for a memorable experience in Porto!</p>",
+    "hotelImportantInformation": "Please note that when booking 7 rooms or more, different policies and additional supplements may apply.\n\nLocated 15 km from Francisco Sá Carneiro AirportGuests are required to show a photo ID and credit card upon check-in. Please note that all Special Requests are subject to availability and additional charges may apply.\nA deposit may be required at the property.",
+    "checkinCheckoutTimes": {
+      "checkin_start": "03:00 PM",
+      "checkin_end": "12:00 AM",
+      "checkout": "12:00 PM",
+      "instructions": [],
+      "special_instructions": ""
+    },
+    "hotelImages": [
+      {
+        "url": "https://static.cupid.travel/hotels/365886509.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365886509.jpg",
+        "caption": "building",
+        "order": 0,
+        "defaultImage": true
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445429853.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445429853.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445432969.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445432969.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361401227.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361401227.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427865.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427865.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427868.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427868.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/517966831.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/517966831.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477592.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477592.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361402103.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361402103.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/365886697.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365886697.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445430412.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445430412.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917271.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917271.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/517966191.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/517966191.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445430557.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445430557.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427871.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427871.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/504924881.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/504924881.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/517966816.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/517966816.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917287.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917287.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361400961.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361400961.jpg",
+        "caption": "activities & amenities",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361815624.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361815624.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477600.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477600.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477616.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477616.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445432978.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445432978.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917283.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917283.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445431737.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445431737.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361402125.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361402125.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427872.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427872.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917281.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917281.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361401225.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361401225.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361402135.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361402135.jpg",
+        "caption": "hotel room",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445428903.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445428903.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477604.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477604.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361402098.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361402098.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361426527.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361426527.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445431729.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445431729.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/426816684.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/426816684.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917274.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917274.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/408374465.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/408374465.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/365885354.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365885354.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361816068.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361816068.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445432452.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445432452.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361402092.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361402092.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361816579.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361816579.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/471477465.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/471477465.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477608.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477608.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477588.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477588.jpg",
+        "caption": "dining",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361425717.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361425717.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917279.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917279.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/365889010.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365889010.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445434685.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445434685.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/507477576.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/507477576.jpg",
+        "caption": "dining",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361426538.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361426538.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427149.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427149.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427268.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427268.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917270.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917270.jpg",
+        "caption": "dining",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427876.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427876.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361402606.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361402606.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/365884941.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365884941.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/408373850.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/408373850.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917275.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917275.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/365888935.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365888935.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445427548.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445427548.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/506917276.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/506917276.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361816577.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361816577.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445429784.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445429784.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361400960.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361400960.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/441711564.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/441711564.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/365884304.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/365884304.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/361816580.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/361816580.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      },
+      {
+        "url": "https://static.cupid.travel/hotels/445431728.jpg",
+        "urlHd": "https://static.cupid.travel/hotels/445431728.jpg",
+        "caption": "",
+        "order": 0,
+        "defaultImage": false
+      }
+    ],
+    "main_photo": "https://static.cupid.travel/hotels/365886509.jpg",
+    "thumbnail": "https://static.cupid.travel/hotels/thumbnail/365886509.jpg",
+    "currency": "EUR",
+    "country": "PT",
+    "city": "Porto",
+    "starRating": 4,
+    "location": {
+      "latitude": 41.153684,
+      "longitude": -8.608972
+    },
+    "address": "Rua Gonçalo Cristóvão, 216",
+    "hotelFacilities": [
+      "Fitness facilities",
+      "WiFi available",
+      "Free WiFi",
+      "Parking",
+      "Non-smoking rooms",
+      "Air conditioning",
+      "Fitness center",
+      "24-hour front desk",
+      "Restaurant",
+      "Room service",
+      "Heating",
+      "Terrace",
+      "Family rooms",
+      "Garden",
+      "Lift / Elevator",
+      "Laundry",
+      "Luggage storage",
+      "Express check-in/check-out",
+      "Safety deposit box",
+      "Bar",
+      "Soundproof rooms",
+      "Facilities for disabled guests",
+      "Ironing service",
+      "Meeting/banquet facilities",
+      "Dry cleaning",
+      "Breakfast in the room",
+      "Packed lunches",
+      "Non-smoking throughout",
+      "Private parking",
+      "Daily housekeeping",
+      "Designated smoking area",
+      "Accessible parking",
+      "Parking garage",
+      "Minimarket on site",
+      "Concierge service",
+      "Special diet menus - on request",
+      "Wheelchair accessible",
+      "Kid meals",
+      "Snack bar",
+      "Electric vehicle charging station",
+      "Vending machine - drinks",
+      "Vending machine - snacks",
+      "Kid-friendly buffet",
+      "Evening entertainment",
+      "Emergency cord in bathroom",
+      "Outdoor furniture",
+      "Wine/champagne",
+      "Coffee Shop on site",
+      "Fruits",
+      "Fitness/spa locker rooms",
+      "Staff adhere to local safety protocols",
+      "Laundry washed per local authority guidelines",
+      "Guest rooms disinfected between stays",
+      "Cleaning standards that are effective against Coronavirus",
+      "Physical distancing rules followed",
+      "Hand sanitizer in guest room and key areas",
+      "Cashless payment available",
+      "Fire extinguishers",
+      "First aid kit available",
+      "Sanitized tableware & silverware",
+      "Contactless check-in/check-out",
+      "Guests can opt-out any cleaning services during stay",
+      "Smoke alarms",
+      "Shared stationery like menus, pens are removed",
+      "Guest room sealed after cleaning",
+      "Property cleaned by professional cleaning companies",
+      "Physical distancing in dining areas",
+      "Key access",
+      "Food delivered to guest room",
+      "CCTV in common areas",
+      "Process in place to check health of guests",
+      "Screens / Barriers between staff and guests for safety",
+      "24-hour security",
+      "Delivered food - securely covered",
+      "Security alarm",
+      "Thermometers for guests provided by property",
+      "Key card access",
+      "Mobile app for room service"
+    ],
+    "zip": "4000-265",
+    "chainId": 2776,
+    "chain": "YOTEL",
+    "facilities": [
+      {
+        "facilityId": 492,
+        "name": "Fitness facilities"
+      },
+      {
+        "facilityId": 47,
+        "name": "WiFi available"
+      },
+      {
+        "facilityId": 107,
+        "name": "Free WiFi"
+      },
+      {
+        "facilityId": 2,
+        "name": "Parking"
+      },
+      {
+        "facilityId": 16,
+        "name": "Non-smoking rooms"
+      },
+      {
+        "facilityId": 109,
+        "name": "Air conditioning"
+      },
+      {
+        "facilityId": 11,
+        "name": "Fitness center"
+      },
+      {
+        "facilityId": 8,
+        "name": "24-hour front desk"
+      },
+      {
+        "facilityId": 3,
+        "name": "Restaurant"
+      },
+      {
+        "facilityId": 5,
+        "name": "Room service"
+      },
+      {
+        "facilityId": 80,
+        "name": "Heating"
+      },
+      {
+        "facilityId": 15,
+        "name": "Terrace"
+      },
+      {
+        "facilityId": 28,
+        "name": "Family rooms"
+      },
+      {
+        "facilityId": 14,
+        "name": "Garden"
+      },
+      {
+        "facilityId": 48,
+        "name": "Lift / Elevator"
+      },
+      {
+        "facilityId": 22,
+        "name": "Laundry"
+      },
+      {
+        "facilityId": 91,
+        "name": "Luggage storage"
+      },
+      {
+        "facilityId": 49,
+        "name": "Express check-in/check-out"
+      },
+      {
+        "facilityId": 51,
+        "name": "Safety deposit box"
+      },
+      {
+        "facilityId": 7,
+        "name": "Bar"
+      },
+      {
+        "facilityId": 64,
+        "name": "Soundproof rooms"
+      },
+      {
+        "facilityId": 25,
+        "name": "Facilities for disabled guests"
+      },
+      {
+        "facilityId": 44,
+        "name": "Ironing service"
+      },
+      {
+        "facilityId": 6,
+        "name": "Meeting/banquet facilities"
+      },
+      {
+        "facilityId": 23,
+        "name": "Dry cleaning"
+      },
+      {
+        "facilityId": 43,
+        "name": "Breakfast in the room"
+      },
+      {
+        "facilityId": 73,
+        "name": "Packed lunches"
+      },
+      {
+        "facilityId": 108,
+        "name": "Non-smoking throughout"
+      },
+      {
+        "facilityId": 161,
+        "name": "Private parking"
+      },
+      {
+        "facilityId": 158,
+        "name": "Daily housekeeping"
+      },
+      {
+        "facilityId": 110,
+        "name": "Designated smoking area"
+      },
+      {
+        "facilityId": 184,
+        "name": "Accessible parking"
+      },
+      {
+        "facilityId": 181,
+        "name": "Parking garage"
+      },
+      {
+        "facilityId": 145,
+        "name": "Minimarket on site"
+      },
+      {
+        "facilityId": 124,
+        "name": "Concierge service"
+      },
+      {
+        "facilityId": 133,
+        "name": "Special diet menus - on request"
+      },
+      {
+        "facilityId": 185,
+        "name": "Wheelchair accessible"
+      },
+      {
+        "facilityId": 176,
+        "name": "Kid meals"
+      },
+      {
+        "facilityId": 117,
+        "name": "Snack bar"
+      },
+      {
+        "facilityId": 182,
+        "name": "Electric vehicle charging station"
+      },
+      {
+        "facilityId": 135,
+        "name": "Vending machine - drinks"
+      },
+      {
+        "facilityId": 136,
+        "name": "Vending machine - snacks"
+      },
+      {
+        "facilityId": 177,
+        "name": "Kid-friendly buffet"
+      },
+      {
+        "facilityId": 147,
+        "name": "Evening entertainment"
+      },
+      {
+        "facilityId": 189,
+        "name": "Emergency cord in bathroom"
+      },
+      {
+        "facilityId": 222,
+        "name": "Outdoor furniture"
+      },
+      {
+        "facilityId": 203,
+        "name": "Wine/champagne"
+      },
+      {
+        "facilityId": 219,
+        "name": "Coffee Shop on site"
+      },
+      {
+        "facilityId": 205,
+        "name": "Fruits"
+      },
+      {
+        "facilityId": 257,
+        "name": "Fitness/spa locker rooms"
+      },
+      {
+        "facilityId": 455,
+        "name": "Staff adhere to local safety protocols"
+      },
+      {
+        "facilityId": 450,
+        "name": "Laundry washed per local authority guidelines"
+      },
+      {
+        "facilityId": 451,
+        "name": "Guest rooms disinfected between stays"
+      },
+      {
+        "facilityId": 449,
+        "name": "Cleaning standards that are effective against Coronavirus"
+      },
+      {
+        "facilityId": 462,
+        "name": "Physical distancing rules followed"
+      },
+      {
+        "facilityId": 457,
+        "name": "Hand sanitizer in guest room and key areas"
+      },
+      {
+        "facilityId": 461,
+        "name": "Cashless payment available"
+      },
+      {
+        "facilityId": 425,
+        "name": "Fire extinguishers"
+      },
+      {
+        "facilityId": 459,
+        "name": "First aid kit available"
+      },
+      {
+        "facilityId": 467,
+        "name": "Sanitized tableware & silverware"
+      },
+      {
+        "facilityId": 460,
+        "name": "Contactless check-in/check-out"
+      },
+      {
+        "facilityId": 468,
+        "name": "Guests can opt-out any cleaning services during stay"
+      },
+      {
+        "facilityId": 422,
+        "name": "Smoke alarms"
+      },
+      {
+        "facilityId": 456,
+        "name": "Shared stationery like menus, pens are removed"
+      },
+      {
+        "facilityId": 452,
+        "name": "Guest room sealed after cleaning"
+      },
+      {
+        "facilityId": 466,
+        "name": "Property cleaned by professional cleaning companies"
+      },
+      {
+        "facilityId": 453,
+        "name": "Physical distancing in dining areas"
+      },
+      {
+        "facilityId": 419,
+        "name": "Key access"
+      },
+      {
+        "facilityId": 454,
+        "name": "Food delivered to guest room"
+      },
+      {
+        "facilityId": 423,
+        "name": "CCTV in common areas"
+      },
+      {
+        "facilityId": 458,
+        "name": "Process in place to check health of guests"
+      },
+      {
+        "facilityId": 464,
+        "name": "Screens / Barriers between staff and guests for safety"
+      },
+      {
+        "facilityId": 418,
+        "name": "24-hour security"
+      },
+      {
+        "facilityId": 485,
+        "name": "Delivered food - securely covered"
+      },
+      {
+        "facilityId": 421,
+        "name": "Security alarm"
+      },
+      {
+        "facilityId": 487,
+        "name": "Thermometers for guests provided by property"
+      },
+      {
+        "facilityId": 420,
+        "name": "Key card access"
+      },
+      {
+        "facilityId": 463,
+        "name": "Mobile app for room service"
+      }
+    ],
+    "rooms": [
+      {
+        "id": 2056006,
+        "roomName": "Premium Twin Room",
+        "roomTitle": "Premium Twin Room",
+        "description": "<p>Featuring free toiletries, this twin room includes a private bathroom with a walk-in shower and a hairdryer. The twin room features air conditioning, soundproof walls, Smartphone, a tea and coffee maker and a flat-screen TV with satellite channels. The unit has 2 beds.</p>",
+        "markdownDescription": "Featuring free toiletries, this twin room includes a private bathroom with a walk-in shower and a hairdryer. The twin room features air conditioning, soundproof walls, Smartphone, a tea and coffee maker and a flat-screen TV with satellite channels. The unit has 2 beds.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 18,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 2,
+        "maxOccupancy": 2,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 2,
+            "bedType": "Twin bed",
+            "bedSize": "90-130 cm wide",
+            "id": 166
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 98,
+            "name": "Emergency cord in bathroom",
+            "sort": 164
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          },
+          {
+            "amenitiesId": 123,
+            "name": "Free gym access",
+            "sort": 194
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361402606.jpg",
+            "imageDescription": "Hotel room with two single beds, a wall-mounted TV, and a window with a green view.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361402606.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445432969.jpg",
+            "imageDescription": "Hotel room with two single beds, white linens, and purple accent lighting.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445432969.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816068.jpg",
+            "imageDescription": "Hotel room with two single beds, white linens, and a purple wardrobe.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816068.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "A wall-mounted ironing board and iron bag are visible next to a door handle.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside area with a purple headboard, charging phone, and wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "A black digital safe with a keypad is mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet against a purple wall.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445432978.jpg",
+            "imageDescription": "Hotel room with a white sink, purple lighting, and a bed near a window.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445432978.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg",
+            "imageDescription": "Modern bathroom with a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg",
+            "imageDescription": "Modern bathroom vanity with a white sink, black countertop, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "A black electric kettle, tea bags, and a water bottle sit on a wooden tray.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          }
+        ],
+        "views": [],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 2057292,
+        "roomName": "Family Suite with Balcony",
+        "roomTitle": "Family Suite with Balcony",
+        "description": "<p>The air-conditioned suite has 1 bedroom and 1 bathroom with a walk-in shower and a hairdryer. Boasting a terrace with city views, this suite also features soundproof walls and a flat-screen TV with satellite channels. The unit has 1 bed.</p>",
+        "markdownDescription": "The air-conditioned suite has 1 bedroom and 1 bathroom with a walk-in shower and a hairdryer. Boasting a terrace with city views, this suite also features soundproof walls and a flat-screen TV with satellite channels. The unit has 1 bed.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 26,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 4,
+        "maxOccupancy": 3,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Extra-large double bed (Super-king size)",
+            "bedSize": "181-210 cm wide",
+            "id": 39
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 22,
+            "name": "Bathrobe",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 328,
+            "name": "Sofa",
+            "sort": 65
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 63,
+            "name": "Coffee machine",
+            "sort": 46
+          },
+          {
+            "amenitiesId": 345,
+            "name": "Terrace",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 329,
+            "name": "Sofa bed",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 98,
+            "name": "Emergency cord in bathroom",
+            "sort": 164
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          },
+          {
+            "amenitiesId": 123,
+            "name": "Free gym access",
+            "sort": 194
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361402103.jpg",
+            "imageDescription": "Hotel room with a bed, desk, and large windows overlooking a city.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361402103.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/517966191.jpg",
+            "imageDescription": "Hotel room with a white bed, desk, and large windows overlooking a city.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/517966191.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "A black electric kettle, tea bags, and a water bottle sit on a wooden tray.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside area with a purple headboard, charging phone, and wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/517966816.jpg",
+            "imageDescription": "Balcony with a small table, two chairs, and a glass railing overlooking a city view.",
+            "imageClass1": "balcony",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 12,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/517966816.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/517966831.jpg",
+            "imageDescription": "Bathroom with white robes, a sink, and a large window with a city view.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/517966831.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361402098.jpg",
+            "imageDescription": "Hotel room with a bed, gray sofa, and small white table.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361402098.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361402092.jpg",
+            "imageDescription": "Bathroom with a shower, sink, and a large window overlooking a city.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361402092.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "A black electronic safe with a keypad is mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "A wall-mounted ironing board and a bag labeled 'Pump Some Iron' sit on a shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet unit.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          }
+        ],
+        "views": [
+          {
+            "view": "City View",
+            "id": 4
+          }
+        ],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 2057293,
+        "roomName": "Premium Queen High Floor",
+        "roomTitle": "Premium Queen High Floor",
+        "description": "<p>Providing free toiletries, this double room includes a private bathroom with a walk-in shower and a hairdryer. The air-conditioned double room provides a flat-screen TV with satellite channels, soundproof walls, Smartphone, a tea and coffee maker as well as an inner courtyard view. The unit offers 1 bed.</p>",
+        "markdownDescription": "Providing free toiletries, this double room includes a private bathroom with a walk-in shower and a hairdryer. The air-conditioned double room provides a flat-screen TV with satellite channels, soundproof walls, Smartphone, a tea and coffee maker as well as an inner courtyard view. The unit offers 1 bed.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 19,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 2,
+        "maxOccupancy": 2,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen bed",
+            "bedSize": "151-180 cm wide",
+            "id": 167
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 98,
+            "name": "Emergency cord in bathroom",
+            "sort": 164
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361425717.jpg",
+            "imageDescription": "Hotel room with a white bed, a gray armchair, and a large window with a city view.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361425717.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/471477465.jpg",
+            "imageDescription": "Hotel room with a white bed, purple headboard, and a wall-mounted screen with purple lighting.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/471477465.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet unit.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "Black digital safe with keypad mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "Wall-mounted ironing board and iron in a white cloth bag on a black shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside area with a purple headboard, charging phone, and wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg",
+            "imageDescription": "White bathroom featuring a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "Hotel room beverage station with black kettle, water bottle, and glasses on a wooden counter.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg",
+            "imageDescription": "Modern bathroom with a white vessel sink, black floating vanity, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg"
+          }
+        ],
+        "views": [
+          {
+            "view": "Courtyard View",
+            "id": 23
+          }
+        ],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 2057294,
+        "roomName": "Triple Room",
+        "roomTitle": "Triple Room",
+        "description": "<p>Offering free toiletries, this double room includes a private bathroom with a shower and a hairdryer. The air-conditioned double room offers a flat-screen TV with satellite channels, soundproof walls, Smartphone, a tea and coffee maker as well as an inner courtyard view. The unit has 2 beds.</p>",
+        "markdownDescription": "Offering free toiletries, this double room includes a private bathroom with a shower and a hairdryer. The air-conditioned double room offers a flat-screen TV with satellite channels, soundproof walls, Smartphone, a tea and coffee maker as well as an inner courtyard view. The unit has 2 beds.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 20,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 3,
+        "maxChildren": 4,
+        "maxOccupancy": 3,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Twin bed",
+            "bedSize": "90-130 cm wide",
+            "id": 166
+          },
+          {
+            "quantity": 1,
+            "bedType": "Queen bed",
+            "bedSize": "151-180 cm wide",
+            "id": 167
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427149.jpg",
+            "imageDescription": "Hotel room with a double bed, single daybed, and a wall-mounted screen with purple lighting.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427149.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427548.jpg",
+            "imageDescription": "Hotel room interior featuring a desk, frosted glass partitions, and a storage cabinet.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427548.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside area with a purple headboard, charging phone, and wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "Black electric kettle, tea packets, water bottle, and two glasses on a wooden table.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "Wall-mounted ironing board and iron in a white cloth bag on a black shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg",
+            "imageDescription": "White bathroom featuring a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "Black digital safe with keypad mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg",
+            "imageDescription": "Modern bathroom with a white vessel sink, black floating vanity, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet unit.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          }
+        ],
+        "views": [
+          {
+            "view": "Courtyard View",
+            "id": 23
+          }
+        ],
+        "bedRelation": "AND",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 2057295,
+        "roomName": "Family Room",
+        "roomTitle": "Family Room",
+        "description": "<p>Providing free toiletries, this family room includes a private bathroom with a walk-in shower and a hairdryer. The family room provides air conditioning, soundproof walls, Smartphone, a tea and coffee maker, as well as a flat-screen TV with satellite channels. The unit offers 2 beds.</p>",
+        "markdownDescription": "Providing free toiletries, this family room includes a private bathroom with a walk-in shower and a hairdryer. The family room provides air conditioning, soundproof walls, Smartphone, a tea and coffee maker, as well as a flat-screen TV with satellite channels. The unit offers 2 beds.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 38,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 4,
+        "maxChildren": 6,
+        "maxOccupancy": 4,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 2,
+            "bedType": "Queen bed",
+            "bedSize": "151-180 cm wide",
+            "id": 167
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427872.jpg",
+            "imageDescription": "Hotel corridor with white doors, purple geometric carpet, and illuminated room number 639.",
+            "imageClass1": "corridor",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 49,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427872.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427868.jpg",
+            "imageDescription": "Hotel room with a white bed, wall-mounted screen, and window overlooking buildings.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427868.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg",
+            "imageDescription": "Modern bathroom with a white vessel sink, black floating vanity, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427865.jpg",
+            "imageDescription": "Hotel room with a white bed, purple headboard, and a wall-mounted control panel.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427865.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427876.jpg",
+            "imageDescription": "Hotel corridor with white walls, purple patterned carpet, and illuminated room number signs.",
+            "imageClass1": "corridor",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 49,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427876.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427871.jpg",
+            "imageDescription": "Hotel corridor with white walls, purple patterned carpet, and a glass door with towels.",
+            "imageClass1": "corridor",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 49,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427871.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "Wall-mounted ironing board and iron in a white cloth bag on a black shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg",
+            "imageDescription": "White bathroom featuring a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "Black digital safe with keypad mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside with a purple headboard, charging port, and a wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet against a purple wall.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "Black electric kettle, tea packets, water bottle, and two glasses on a wooden table.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          }
+        ],
+        "views": [],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 1459367702,
+        "roomName": "First Class Suite With Balcony",
+        "roomTitle": "First Class Suite With Balcony",
+        "description": "<p><strong>1 Queen Bed and 1 Large Twin Sofa Bed</strong></p><p>269-sq-foot soundproofed room, balcony/patio with city views </p><br/><p><b>Layout</b> - Bedroom and living room</p><p><b>Internet</b> - Free WiFi </p><p><b>Entertainment</b> - 108-cm flat-screen TV with premium channels and pay movies</p><p><b>Food & Drink</b> - Espresso maker, electric kettle,  room service (limited hours), and free bottled water</p><p><b>Sleep</b> - Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets </p><p><b>Bathroom</b> - Private bathroom, bathrobes, and a shower with a rainfall showerhead</p><p><b>Practical</b> - Laptop-compatible safe, iron/ironing board, and desk; free cribs/infant beds available on request</p><p><b>Comfort</b> - Climate-controlled air conditioning, daily housekeeping, and heating</p><p><b>Accessibility</b> - Bathroom emergency pull cord</p><p><b>Eco-friendly</b> - Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches</p><p><b>Need to Know</b> - No rollaway/extra beds available</p><p>Non-Smoking</p><p>Connecting/adjoining rooms can be requested, subject to availability </p>",
+        "markdownDescription": "**1 Queen Bed and 1 Large Twin Sofa Bed**\n\n269-sq-foot soundproofed room, balcony/patio with city views\n\n**Layout** \\- Bedroom and living room\n\n**Internet** \\- Free WiFi\n\n**Entertainment** \\- 108-cm flat-screen TV with premium channels and pay movies\n\n**Food & Drink** \\- Espresso maker, electric kettle, room service (limited hours), and free bottled water\n\n**Sleep** \\- Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets\n\n**Bathroom** \\- Private bathroom, bathrobes, and a shower with a rainfall showerhead\n\n**Practical** \\- Laptop-compatible safe, iron/ironing board, and desk; free cribs/infant beds available on request\n\n**Comfort** \\- Climate-controlled air conditioning, daily housekeeping, and heating\n\n**Accessibility** \\- Bathroom emergency pull cord\n\n**Eco-friendly** \\- Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches\n\n**Need to Know** \\- No rollaway/extra beds available\n\nNon-Smoking\n\nConnecting/adjoining rooms can be requested, subject to availability",
+        "normalizedDescription": "",
+        "roomSizeSquare": 25,
+        "roomSizeUnit": "m2",
+        "hotelId": "lp37469a",
+        "maxAdults": 3,
+        "maxChildren": 2,
+        "maxOccupancy": 3,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen Bed",
+            "bedSize": "150-160 cm wide",
+            "id": 18
+          },
+          {
+            "quantity": 1,
+            "bedType": "Sofa bed",
+            "bedSize": "90-99 cm wide",
+            "id": 25
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 22,
+            "name": "Bathrobe",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 176,
+            "name": "Interconnected room(s) available",
+            "sort": 63
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 291,
+            "name": "Room service (limited hours)",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 77,
+            "name": "Daily housekeeping",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 101,
+            "name": "Espresso maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 262,
+            "name": "Premium bedding",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 31,
+            "name": "Blackout drapes/curtains",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 118,
+            "name": "Free WiFi",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 88,
+            "name": "Down comforter",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 278,
+            "name": "Rainfall showerhead",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 20,
+            "name": "Balcony or patio",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 225,
+            "name": "No rollaway/extra beds",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 121,
+            "name": "Free cribs/infant beds",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 29,
+            "name": "Bedsheets provided",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 326,
+            "name": "Soap",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 93,
+            "name": "Eco-friendly cleaning products",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 23,
+            "name": "Bathroom emergency pull cord",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 219,
+            "name": "Mobile key entry",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 99,
+            "name": "Energy-saving switches",
+            "sort": 0
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_2e202a35_z.jpg",
+            "imageDescription": "Hotel room with a double bed, desk, and large windows overlooking a city.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_2e202a35_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ee5a4dc7_z.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet with purple walls.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ee5a4dc7_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_d3aac2c1_z.jpg",
+            "imageDescription": "Hotel room with a large bed, a desk with a TV, and a balcony with a city view.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_d3aac2c1_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg",
+            "imageDescription": "Ironing board and iron bag on a shelf in a hotel room.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_786ea5aa_z.jpg",
+            "imageDescription": "Bathroom with a shower, sink, and large window overlooking a city.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_786ea5aa_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_78193137_z.jpg",
+            "imageDescription": "Bathroom with white vanity, mirror, and large window with city view.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_78193137_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg",
+            "imageDescription": "A person holds a smartphone with a purple interface in front of a wall-mounted television.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_1a045931_z.jpg",
+            "imageDescription": "Hotel room with a bed, gray sofa, and white side table.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_1a045931_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_e1f2f5d4_z.jpg",
+            "imageDescription": "Balcony with glass railing, small table, and two chairs overlooking a city view.",
+            "imageClass1": "balcony",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 12,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_e1f2f5d4_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_889c1938_z.jpg",
+            "imageDescription": "Modern bathroom with a white sink, mirror, and large window overlooking a city.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_889c1938_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg",
+            "imageDescription": "Hotel room corner with a purple upholstered headboard featuring a built-in charging port and a wooden bedside table.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg"
+          }
+        ],
+        "views": [
+          {
+            "view": "City View",
+            "id": 4
+          }
+        ],
+        "bedRelation": "AND",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": null,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": null,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 1459367699,
+        "roomName": "Premium Queen City View",
+        "roomTitle": "Premium Queen City View",
+        "description": "<p><strong>1 Queen Bed</strong></p><p>205-sq-foot room with city views </p><br/><p><b>Internet</b> - Free WiFi </p><p><b>Entertainment</b> - 108-cm flat-screen TV with premium channels and pay movies</p><p><b>Food & Drink</b> - Electric kettle, room service (limited hours), and free bottled water</p><p><b>Sleep</b> - Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets </p><p><b>Bathroom</b> - Private bathroom, shower, and rainfall showerhead</p><p><b>Practical</b> - Laptop-compatible safe, iron/ironing board, and desk; cribs (free) available on request</p><p><b>Comfort</b> - Climate-controlled air conditioning, daily housekeeping, and heating</p><p><b>Accessibility</b> - Bathroom emergency pull cord</p><p><b>Eco-friendly</b> - Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches</p><p>Non-Smoking</p><p>Connecting/adjoining rooms can be requested, subject to availability </p>",
+        "markdownDescription": "**1 Queen Bed**\n\n205-sq-foot room with city views\n\n**Internet** \\- Free WiFi\n\n**Entertainment** \\- 108-cm flat-screen TV with premium channels and pay movies\n\n**Food & Drink** \\- Electric kettle, room service (limited hours), and free bottled water\n\n**Sleep** \\- Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets\n\n**Bathroom** \\- Private bathroom, shower, and rainfall showerhead\n\n**Practical** \\- Laptop-compatible safe, iron/ironing board, and desk; cribs (free) available on request\n\n**Comfort** \\- Climate-controlled air conditioning, daily housekeeping, and heating\n\n**Accessibility** \\- Bathroom emergency pull cord\n\n**Eco-friendly** \\- Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches\n\nNon-Smoking\n\nConnecting/adjoining rooms can be requested, subject to availability",
+        "normalizedDescription": "",
+        "roomSizeSquare": 19,
+        "roomSizeUnit": "m2",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 1,
+        "maxOccupancy": 3,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen Bed",
+            "bedSize": "150-160 cm wide",
+            "id": 18
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 176,
+            "name": "Interconnected room(s) available",
+            "sort": 63
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 291,
+            "name": "Room service (limited hours)",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 77,
+            "name": "Daily housekeeping",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 262,
+            "name": "Premium bedding",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 31,
+            "name": "Blackout drapes/curtains",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 118,
+            "name": "Free WiFi",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 88,
+            "name": "Down comforter",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 278,
+            "name": "Rainfall showerhead",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 121,
+            "name": "Free cribs/infant beds",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 29,
+            "name": "Bedsheets provided",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 326,
+            "name": "Soap",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 93,
+            "name": "Eco-friendly cleaning products",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 23,
+            "name": "Bathroom emergency pull cord",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 219,
+            "name": "Mobile key entry",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 99,
+            "name": "Energy-saving switches",
+            "sort": 0
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_12f16f85_z.jpg",
+            "imageDescription": "Hotel room with a white bed, large windows, and a city view.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_12f16f85_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg",
+            "imageDescription": "Hotel room corner with a purple upholstered headboard featuring a built-in charging port and a wooden bedside table.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ca2c1ba7_z.jpg",
+            "imageDescription": "Hotel room with a desk, frosted glass partitions, and a built-in safe and mini-fridge.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ca2c1ba7_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg",
+            "imageDescription": "A person holds a smartphone with a purple interface in front of a wall-mounted television.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_0c031e84_z.jpg",
+            "imageDescription": "Modern bathroom with a white vessel sink, black countertop, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_0c031e84_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg",
+            "imageDescription": "A wall-mounted ironing board and a bag labeled pump some iron on a shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_c217a797_z.jpg",
+            "imageDescription": "Hotel room with a white sink, purple walls, and a bed near a large window.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_c217a797_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ee5a4dc7_z.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet with purple walls.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ee5a4dc7_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_6391b4fd_z.jpg",
+            "imageDescription": "A black electric kettle, tea bags, and a water bottle sit on a table by a window.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_6391b4fd_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_94c3c8c4_z.jpg",
+            "imageDescription": "A modern white bathroom featuring a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_94c3c8c4_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b1e46a55_z.jpg",
+            "imageDescription": "Hotel room with a white bed, purple wardrobe, and a wall-mounted TV.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b1e46a55_z.jpg"
+          }
+        ],
+        "views": [
+          {
+            "view": "City View",
+            "id": 4
+          }
+        ],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": null,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": null,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": null,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 1459367700,
+        "roomName": "Premium Queen Plus",
+        "roomTitle": "Premium Queen Plus",
+        "description": "<p><strong>1 Queen Bed and 1 Twin Bed</strong></p><p>183 sq feet </p><br/><p><b>Internet</b> - Free WiFi </p><p><b>Entertainment</b> - 108-cm flat-screen TV with premium channels and pay movies</p><p><b>Food & Drink</b> - Electric kettle, room service (limited hours), and free bottled water</p><p><b>Sleep</b> - Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets </p><p><b>Bathroom</b> - Private bathroom, shower, and rainfall showerhead</p><p><b>Practical</b> - Laptop-compatible safe, iron/ironing board, and desk; cribs (free) available on request</p><p><b>Comfort</b> - Climate-controlled air conditioning, daily housekeeping, and heating</p><p><b>Accessibility</b> - Bathroom emergency pull cord</p><p><b>Eco-friendly</b> - Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches</p><p>Non-Smoking</p><p>Connecting/adjoining rooms can be requested, subject to availability </p>",
+        "markdownDescription": "**1 Queen Bed and 1 Twin Bed**\n\n183 sq feet\n\n**Internet** \\- Free WiFi\n\n**Entertainment** \\- 108-cm flat-screen TV with premium channels and pay movies\n\n**Food & Drink** \\- Electric kettle, room service (limited hours), and free bottled water\n\n**Sleep** \\- Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets\n\n**Bathroom** \\- Private bathroom, shower, and rainfall showerhead\n\n**Practical** \\- Laptop-compatible safe, iron/ironing board, and desk; cribs (free) available on request\n\n**Comfort** \\- Climate-controlled air conditioning, daily housekeeping, and heating\n\n**Accessibility** \\- Bathroom emergency pull cord\n\n**Eco-friendly** \\- Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches\n\nNon-Smoking\n\nConnecting/adjoining rooms can be requested, subject to availability",
+        "normalizedDescription": "",
+        "roomSizeSquare": 17,
+        "roomSizeUnit": "m2",
+        "hotelId": "lp37469a",
+        "maxAdults": 3,
+        "maxChildren": 2,
+        "maxOccupancy": 3,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen Bed",
+            "bedSize": "150-160 cm wide",
+            "id": 18
+          },
+          {
+            "quantity": 1,
+            "bedType": "Twin bed",
+            "bedSize": "90-99 cm wide",
+            "id": 27
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 176,
+            "name": "Interconnected room(s) available",
+            "sort": 63
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 291,
+            "name": "Room service (limited hours)",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 77,
+            "name": "Daily housekeeping",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 262,
+            "name": "Premium bedding",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 31,
+            "name": "Blackout drapes/curtains",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 118,
+            "name": "Free WiFi",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 88,
+            "name": "Down comforter",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 278,
+            "name": "Rainfall showerhead",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 121,
+            "name": "Free cribs/infant beds",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 29,
+            "name": "Bedsheets provided",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 326,
+            "name": "Soap",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 93,
+            "name": "Eco-friendly cleaning products",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 23,
+            "name": "Bathroom emergency pull cord",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 219,
+            "name": "Mobile key entry",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 99,
+            "name": "Energy-saving switches",
+            "sort": 0
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_241257f2_z.jpg",
+            "imageDescription": "Hotel room with a large bed, a daybed, and a wall-mounted TV with purple lighting.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_241257f2_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_6391b4fd_z.jpg",
+            "imageDescription": "A black electric kettle, tea bags, and a water bottle sit on a table near a window.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_6391b4fd_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b1e46a55_z.jpg",
+            "imageDescription": "Hotel room with a white bed, purple wardrobe, and a wall-mounted TV.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b1e46a55_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ed755fbb_z.jpg",
+            "imageDescription": "Hotel room with a white sink, mirror, and a bed visible through an open doorway.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ed755fbb_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ca2c1ba7_z.jpg",
+            "imageDescription": "Hotel room corner with a desk, frosted glass partitions, and a built-in safe and mini-fridge.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ca2c1ba7_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg",
+            "imageDescription": "Hotel room corner with a purple upholstered headboard featuring a built-in charging port and a wooden bedside table.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_94c3c8c4_z.jpg",
+            "imageDescription": "White bathroom with a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_94c3c8c4_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_0c031e84_z.jpg",
+            "imageDescription": "Modern bathroom with a white vessel sink, black floating vanity, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_0c031e84_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg",
+            "imageDescription": "Ironing board and iron bag on a shelf in a hotel room.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_204239fe_z.jpg",
+            "imageDescription": "Modern bathroom with a white sink, mirror, and visible shower area.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_204239fe_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg",
+            "imageDescription": "A person holds a smartphone with a purple interface in front of a wall-mounted television.",
+            "imageClass1": "human",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 83,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg"
+          }
+        ],
+        "views": [],
+        "bedRelation": "AND",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": null,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": null,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": null,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 1459367701,
+        "roomName": "Premium Queen",
+        "roomTitle": "Premium Queen",
+        "description": "<p><strong>1 Queen Bed</strong></p><p>183 sq feet </p><br/><p><b>Internet</b> - Free WiFi </p><p><b>Entertainment</b> - 108-cm flat-screen TV with premium channels and pay movies</p><p><b>Food & Drink</b> - Electric kettle, room service (limited hours), and free bottled water</p><p><b>Sleep</b> - Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets </p><p><b>Bathroom</b> - Private bathroom, shower, and rainfall showerhead</p><p><b>Practical</b> - Laptop-compatible safe, iron/ironing board, and desk; cribs (free) available on request</p><p><b>Comfort</b> - Climate-controlled air conditioning, daily housekeeping, and heating</p><p><b>Accessibility</b> - Bathroom emergency pull cord</p><p><b>Eco-friendly</b> - Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches</p><p>Non-Smoking</p><p>Connecting/adjoining rooms can be requested, subject to availability </p>",
+        "markdownDescription": "**1 Queen Bed**\n\n183 sq feet\n\n**Internet** \\- Free WiFi\n\n**Entertainment** \\- 108-cm flat-screen TV with premium channels and pay movies\n\n**Food & Drink** \\- Electric kettle, room service (limited hours), and free bottled water\n\n**Sleep** \\- Egyptian cotton linens, a down duvet, blackout drapes/curtains, and bed sheets\n\n**Bathroom** \\- Private bathroom, shower, and rainfall showerhead\n\n**Practical** \\- Laptop-compatible safe, iron/ironing board, and desk; cribs (free) available on request\n\n**Comfort** \\- Climate-controlled air conditioning, daily housekeeping, and heating\n\n**Accessibility** \\- Bathroom emergency pull cord\n\n**Eco-friendly** \\- Eco-friendly toiletries, reusable coffee/tea filters, eco-friendly cleaning supplies, and energy-saving switches\n\nNon-Smoking\n\nConnecting/adjoining rooms can be requested, subject to availability",
+        "normalizedDescription": "",
+        "roomSizeSquare": 17,
+        "roomSizeUnit": "m2",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 1,
+        "maxOccupancy": 3,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen Bed",
+            "bedSize": "150-160 cm wide",
+            "id": 18
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 176,
+            "name": "Interconnected room(s) available",
+            "sort": 63
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 291,
+            "name": "Room service (limited hours)",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 77,
+            "name": "Daily housekeeping",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 262,
+            "name": "Premium bedding",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 31,
+            "name": "Blackout drapes/curtains",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 118,
+            "name": "Free WiFi",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 88,
+            "name": "Down comforter",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 278,
+            "name": "Rainfall showerhead",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 121,
+            "name": "Free cribs/infant beds",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 29,
+            "name": "Bedsheets provided",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 326,
+            "name": "Soap",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 93,
+            "name": "Eco-friendly cleaning products",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 23,
+            "name": "Bathroom emergency pull cord",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 219,
+            "name": "Mobile key entry",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 99,
+            "name": "Energy-saving switches",
+            "sort": 0
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_9a49a9f9_z.jpg",
+            "imageDescription": "Hotel room with a white bed, purple headboard, and a window overlooking a city.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_9a49a9f9_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ed755fbb_z.jpg",
+            "imageDescription": "Hotel room with a white sink, mirror, and a bed visible through an open doorway.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ed755fbb_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_ee5a4dc7_z.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet with purple walls.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_ee5a4dc7_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg",
+            "imageDescription": "A person holds a smartphone with a purple interface in front of a wall-mounted television.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b7d37810_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_94c3c8c4_z.jpg",
+            "imageDescription": "Modern bathroom with a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_94c3c8c4_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_0c031e84_z.jpg",
+            "imageDescription": "Modern bathroom with a white vessel sink, black countertop, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_0c031e84_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_6391b4fd_z.jpg",
+            "imageDescription": "Hotel room table with black kettle, tea packets, water bottle, and two glasses.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_6391b4fd_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_204239fe_z.jpg",
+            "imageDescription": "Modern bathroom with a white sink, mirror, and visible shower area.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_204239fe_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_b1e46a55_z.jpg",
+            "imageDescription": "Hotel room with a white bed, purple wardrobe, and a wall-mounted television.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_b1e46a55_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg",
+            "imageDescription": "Ironing board and iron bag on a shelf in a hotel room.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_bbc1b610_z.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg",
+            "imageDescription": "Hotel room corner with a purple upholstered headboard featuring a charging port and a wooden desk.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/ex_w2900h1931x0y0-3759df79_z.jpg"
+          }
+        ],
+        "views": [],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": null,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": null,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": null,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 2056005,
+        "roomName": "Premium Queen Room",
+        "roomTitle": "Premium Queen Room",
+        "description": "<p>Featuring free toiletries, this double room includes a private bathroom with a walk-in shower and a hairdryer. The double room features air conditioning, soundproof walls, Smartphone, a tea and coffee maker, as well as a flat-screen TV with satellite channels. The unit has 1 bed.</p>",
+        "markdownDescription": "Featuring free toiletries, this double room includes a private bathroom with a walk-in shower and a hairdryer. The double room features air conditioning, soundproof walls, Smartphone, a tea and coffee maker, as well as a flat-screen TV with satellite channels. The unit has 1 bed.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 18,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 2,
+        "maxOccupancy": 2,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen bed",
+            "bedSize": "151-180 cm wide",
+            "id": 167
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 176,
+            "name": "Interconnected room(s) available",
+            "sort": 63
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 98,
+            "name": "Emergency cord in bathroom",
+            "sort": 164
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          },
+          {
+            "amenitiesId": 123,
+            "name": "Free gym access",
+            "sort": 194
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361425717.jpg",
+            "imageDescription": "Hotel room with a white bed, a gray armchair, and a large window overlooking a city.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361425717.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "A black digital safe with a keypad is mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "A black electric kettle, tea bags, and a water bottle sit on a wooden tray.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg",
+            "imageDescription": "Modern bathroom vanity with a white sink, black countertop, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg",
+            "imageDescription": "Modern bathroom with a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside area with a purple headboard, charging phone, and wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "A wall-mounted ironing board and iron bag are visible next to a door handle.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet against a purple wall.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          }
+        ],
+        "views": [],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      },
+      {
+        "id": 2057291,
+        "roomName": "Premium Queen View",
+        "roomTitle": "Premium Queen View",
+        "description": "<p>Offering free toiletries, this double room includes a private bathroom with a walk-in shower and a hairdryer. The air-conditioned double room offers a flat-screen TV with satellite channels, soundproof walls, Smartphone, a tea and coffee maker as well as city views. The unit has 1 bed.</p>",
+        "markdownDescription": "Offering free toiletries, this double room includes a private bathroom with a walk-in shower and a hairdryer. The air-conditioned double room offers a flat-screen TV with satellite channels, soundproof walls, Smartphone, a tea and coffee maker as well as city views. The unit has 1 bed.",
+        "normalizedDescription": "",
+        "roomSizeSquare": 19,
+        "roomSizeUnit": "sqm",
+        "hotelId": "lp37469a",
+        "maxAdults": 2,
+        "maxChildren": 2,
+        "maxOccupancy": 2,
+        "ranking": null,
+        "bedTypes": [
+          {
+            "quantity": 1,
+            "bedType": "Queen bed",
+            "bedSize": "151-180 cm wide",
+            "id": 167
+          }
+        ],
+        "roomAmenities": [
+          {
+            "amenitiesId": 64,
+            "name": "Coffee/tea maker",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 312,
+            "name": "Shower",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 293,
+            "name": "Safety deposit box",
+            "sort": 17
+          },
+          {
+            "amenitiesId": 339,
+            "name": "TV",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 342,
+            "name": "Telephone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 11,
+            "name": "Air conditioning",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 148,
+            "name": "Hair dryer",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 277,
+            "name": "Radio",
+            "sort": 115
+          },
+          {
+            "amenitiesId": 215,
+            "name": "Mini-fridge",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 281,
+            "name": "Refrigerator",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 82,
+            "name": "Desk",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 350,
+            "name": "Toilet",
+            "sort": 10
+          },
+          {
+            "amenitiesId": 369,
+            "name": "Video",
+            "sort": 118
+          },
+          {
+            "amenitiesId": 266,
+            "name": "Private bathroom",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 156,
+            "name": "Heating",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 295,
+            "name": "Satellite channels",
+            "sort": 20
+          },
+          {
+            "amenitiesId": 96,
+            "name": "Electric kettle",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 377,
+            "name": "Wardrobe or closet",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 197,
+            "name": "Linen",
+            "sort": 43
+          },
+          {
+            "amenitiesId": 366,
+            "name": "Upper floors accessible by elevator",
+            "sort": 166
+          },
+          {
+            "amenitiesId": 60,
+            "name": "Clothes rack",
+            "sort": 72
+          },
+          {
+            "amenitiesId": 352,
+            "name": "Toilet paper",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 98,
+            "name": "Emergency cord in bathroom",
+            "sort": 164
+          },
+          {
+            "amenitiesId": 37,
+            "name": "Bottle of water",
+            "sort": 152
+          },
+          {
+            "amenitiesId": 361,
+            "name": "Trash cans",
+            "sort": 85
+          },
+          {
+            "amenitiesId": 73,
+            "name": "Cots",
+            "sort": 86
+          },
+          {
+            "amenitiesId": 307,
+            "name": "Shampoo",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 71,
+            "name": "Conditioner",
+            "sort": 108
+          },
+          {
+            "amenitiesId": 35,
+            "name": "Body soap",
+            "sort": 109
+          },
+          {
+            "amenitiesId": 313,
+            "name": "Shower cap",
+            "sort": 110
+          },
+          {
+            "amenitiesId": 327,
+            "name": "Socket near the bed",
+            "sort": 89
+          },
+          {
+            "amenitiesId": 8,
+            "name": "Adapter",
+            "sort": 90
+          },
+          {
+            "amenitiesId": 166,
+            "name": "Hypoallergenic pillow",
+            "sort": 93
+          },
+          {
+            "amenitiesId": 5,
+            "name": "Accessible by lift",
+            "sort": 29
+          },
+          {
+            "amenitiesId": 321,
+            "name": "Smartphone",
+            "sort": 0
+          },
+          {
+            "amenitiesId": 322,
+            "name": "Smoke alarm",
+            "sort": 182
+          },
+          {
+            "amenitiesId": 181,
+            "name": "Key access",
+            "sort": 157
+          },
+          {
+            "amenitiesId": 182,
+            "name": "Key card access",
+            "sort": 158
+          },
+          {
+            "amenitiesId": 123,
+            "name": "Free gym access",
+            "sort": 194
+          }
+        ],
+        "photos": [
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361402135.jpg",
+            "imageDescription": "Hotel room with a white bed, large windows, and a wall-mounted screen.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": true,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361402135.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg",
+            "imageDescription": "A black mini-fridge is built into a white cabinet against a purple wall.",
+            "imageClass1": "minibar",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 121,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816577.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg",
+            "imageDescription": "A wall-mounted ironing board and iron bag are visible next to a door handle.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816580.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg",
+            "imageDescription": "A black electric kettle, tea bags, and a water bottle sit on a wooden tray.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/504924881.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg",
+            "imageDescription": "Modern bathroom vanity with a white sink, black countertop, and illuminated mirror.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445427268.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg",
+            "imageDescription": "Modern bathroom with a glass-enclosed walk-in shower and a wall-mounted toilet.",
+            "imageClass1": "bathroom",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 26,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/445428903.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg",
+            "imageDescription": "Hotel room bedside area with a purple headboard, charging phone, and wooden nightstand.",
+            "imageClass1": "hotel room",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 80,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/408373850.jpg"
+          },
+          {
+            "url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg",
+            "imageDescription": "A black digital safe with a keypad is mounted on a white shelf.",
+            "imageClass1": "amenities",
+            "imageClass2": "",
+            "failoverPhoto": "",
+            "mainPhoto": false,
+            "score": 0,
+            "classId": 4,
+            "classOrder": 0,
+            "hd_url": "https://static.cupid.travel/rooms-large-pictures/361816579.jpg"
+          }
+        ],
+        "views": [
+          {
+            "view": "City View",
+            "id": 4
+          }
+        ],
+        "bedRelation": "NONE",
+        "officialSiteRoomName": null,
+        "attributes": {
+          "television": true,
+          "televisionSize": null,
+          "airConditioner": true,
+          "hairDryer": true,
+          "iron": null,
+          "hangers": null,
+          "coffeeMaker": true,
+          "crib": true,
+          "laptopFriendlyWorkplace": true,
+          "kitchen": null,
+          "smokeDetector": true,
+          "carbonMonoxideDetector": null
+        },
+        "parentRoomId": null
+      }
+    ],
+    "phone": "+351 22 244 0380",
+    "poi": [
+      {
+        "name": "Ponte Luís I (Dom Luís I Bridge)",
+        "category": "landmark",
+        "distanceKm": 3.6,
+        "importance": "iconic"
+      },
+      {
+        "name": "Ribeira (Historic riverside district)",
+        "category": "district",
+        "distanceKm": 3.6,
+        "importance": "iconic"
+      },
+      {
+        "name": "Vila Nova de Gaia — Port wine cellars",
+        "category": "district",
+        "distanceKm": 3.8,
+        "importance": "iconic"
+      },
+      {
+        "name": "Casa da Música",
+        "category": "entertainment",
+        "distanceKm": 0.4,
+        "importance": "major"
+      },
+      {
+        "name": "Serralves Museum (Museu de Serralves)",
+        "category": "museum",
+        "distanceKm": 1.6,
+        "importance": "major"
+      },
+      {
+        "name": "Torre dos Clérigos (Clérigos Tower)",
+        "category": "landmark",
+        "distanceKm": 2.8,
+        "importance": "major"
+      },
+      {
+        "name": "Livraria Lello",
+        "category": "landmark",
+        "distanceKm": 2.9,
+        "importance": "major"
+      },
+      {
+        "name": "Sé do Porto (Porto Cathedral)",
+        "category": "religious",
+        "distanceKm": 3.1,
+        "importance": "major"
+      },
+      {
+        "name": "Estação de São Bento (São Bento Railway Station)",
+        "category": "train_station",
+        "distanceKm": 3,
+        "importance": "notable"
+      },
+      {
+        "name": "Francisco Sá Carneiro Airport (OPO)",
+        "category": "airport",
+        "distanceKm": 12.5,
+        "importance": "notable"
+      }
+    ],
+    "fax": "",
+    "email": "",
+    "hotelType": "Hotels",
+    "hotelTypeId": 204,
+    "airportCode": "",
+    "rating": 8.7,
+    "reviewCount": 9333,
+    "parking": "PAID",
+    "groupRoomMin": 0,
+    "childAllowed": true,
+    "petsAllowed": false,
+    "policies": [],
+    "rohId": 2057294,
+    "sentiment_analysis": {
+      "cons": [
+        "Small room sizes",
+        "Poor / dim room lighting",
+        "Bathroom layout/privacy issues (glass walls)",
+        "Few electrical sockets and inconvenient placement",
+        "Low-quality shower toiletries",
+        "Not ideal for elderly / accessibility concerns"
+      ],
+      "pros": [
+        "Excellent location / close to metro",
+        "Very good and varied breakfast",
+        "Comfortable beds",
+        "Modern, clean hotel",
+        "Friendly and helpful staff",
+        "Gym and underground parking"
+      ],
+      "categories": [
+        {
+          "name": "Cleanliness",
+          "rating": 8.9,
+          "description": "Generally praised as very clean and 'hotel novinho / super limpo' in several reviews, with one mention of 'limpieza regular' — overall slightly above average."
+        },
+        {
+          "name": "Service",
+          "rating": 9,
+          "description": "Staff repeatedly described as friendly and helpful (reception and restaurant praised); some comments about understaffing at very busy times but overall strong service sentiment."
+        },
+        {
+          "name": "Location",
+          "rating": 9.5,
+          "description": "Consistently highlighted as excellent/strategic and very close to metro/attractions ('Localização excelente', 'proche du métro', 'muy cerca de la estación de metro')."
+        },
+        {
+          "name": "Room Quality",
+          "rating": 7.5,
+          "description": "Mixed feedback: comfortable beds and modern rooms noted, but multiple complaints about small room size, awkward bathroom configuration/privacy (glass walls), poor lighting and few sockets — lowers the score."
+        },
+        {
+          "name": "Amenities",
+          "rating": 8.2,
+          "description": "Gym and underground parking are positives and minibar/restaurant noted; some negatives about minibar not cooling, limited sockets and low-quality shower toiletries."
+        },
+        {
+          "name": "Value for Money",
+          "rating": 8.6,
+          "description": "Several guests called it good value ('Bom custo beneficio', 'Preco honesto'), though some noted breakfast price is high for the city — overall slightly above target."
+        },
+        {
+          "name": "Food and Beverage",
+          "rating": 9.3,
+          "description": "Breakfast is repeatedly praised as very good and varied across many reviews, though one mention of occasional fruit shortage and one comment on price."
+        },
+        {
+          "name": "Overall Experience",
+          "rating": 8.6,
+          "description": "Overall positive guest experience: many strong recommendations and return intent, tempered by specific issues for some (lighting, room layout, accessibility for elderly)."
+        }
+      ]
+    },
+    "sentiment_updated_at": "2026-11-05T14:17:27Z",
+    "deletedAt": null,
+    "state": null,
+    "website": null,
+    "contact": {
+      "legalEntity": null,
+      "registrationNumber": null,
+      "licenceNumbers": null
+    },
+    "policyAttributes": {
+      "checkIn": {
+        "from": "15:00",
+        "until": "00:00"
+      },
+      "checkOut": {
+        "until": "12:00"
+      },
+      "minimumCheckInAge": null,
+      "saleCutoff": {
+        "time": null,
+        "daysBefore": null
+      },
+      "children": {
+        "allowed": true,
+        "infantsAllowed": null,
+        "cribAvailable": true,
+        "cribFee": null,
+        "cribAgeMax": null
+      },
+      "pets": {
+        "allowed": null,
+        "fee": null,
+        "feeAmount": null,
+        "feeCurrency": null,
+        "feeBasis": null,
+        "weightLimitLb": null,
+        "feeRefundable": null,
+        "terms": null
+      },
+      "deposit": {
+        "required": null,
+        "amount": null,
+        "currency": null,
+        "basis": null,
+        "collectedAt": null,
+        "refundedAt": null,
+        "method": null
+      },
+      "payment": {
+        "cardsAccepted": true,
+        "cashAccepted": null
+      },
+      "wifi": {
+        "inRoom": true,
+        "free": true,
+        "feeAmount": null,
+        "feePeriod": null,
+        "freeInPublicAreas": null
+      },
+      "parking": {
+        "selfParking": true,
+        "free": false,
+        "chargeMode": "charges_apply",
+        "feeAmount": null,
+        "feePeriod": null,
+        "location": null,
+        "reservationRequired": null,
+        "valet": false,
+        "evCharger": true
+      },
+      "facilities": {
+        "nonSmokingProperty": true,
+        "elevator": true,
+        "fitnessCenter": true,
+        "fitnessOpen24h": null,
+        "pool": false,
+        "poolType": null,
+        "poolCurrentlyClosed": null,
+        "hotTub": false,
+        "spaServices": true,
+        "sauna": false,
+        "saunaCurrentlyClosed": null
+      },
+      "foodAndDrink": {
+        "bar": true,
+        "restaurant": true,
+        "restaurantNames": null,
+        "roomService": true,
+        "breakfastAvailable": true,
+        "breakfastIncluded": null,
+        "breakfastPrice": {
+          "amount": null,
+          "currency": null,
+          "period": null
+        },
+        "breakfastType": null
+      },
+      "renovation": {
+        "underway": null,
+        "notes": null
+      },
+      "resortFee": {
+        "amount": null,
+        "currency": null,
+        "period": null
+      },
+      "cancellationTerms": null,
+      "houseRules": null,
+      "facilityClosures": null,
+      "roomAmenitiesAllRooms": {
+        "television": true,
+        "televisionSize": null,
+        "airConditioner": null,
+        "hairDryer": true,
+        "iron": null,
+        "hangers": null,
+        "coffeeMaker": null,
+        "crib": true,
+        "laptopFriendlyWorkplace": true,
+        "kitchen": null,
+        "smokeDetector": null,
+        "carbonMonoxideDetector": null
+      }
+    },
+    "operatingStatus": {
+      "status": null,
+      "checkedAt": null
+    },
+    "connectivityType": "Pull&Push"
+  }
+}
