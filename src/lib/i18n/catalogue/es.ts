@@ -202,6 +202,7 @@ export const es: Messages = {
     /** The app picked the place from the words: say so, and invite the correction (2026-11-13). */
     searchingPicked: (place: string) => `Buscando en ${place}. ¿No es donde querías? Dime dónde quieres alojarte y busco allí.`,
     signedInMemberPrices: 'Sesión iniciada. Ahora ves precios de socio.',
+    signedInPricesLater: 'Sesión iniciada. Los precios de socio no se han cargado: el servicio de hoteles no respondió. Cambia cualquier cosa de la búsqueda para volver a intentarlo.',
     setAside: 'Apartado.',
     thoseSetAside: 'Esos quedan apartados.',
     everythingBack: 'Todo vuelve a estar incluido.',

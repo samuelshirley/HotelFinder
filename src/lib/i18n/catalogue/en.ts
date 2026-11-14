@@ -207,6 +207,7 @@ export const en = {
     /** The app picked the place from the words: say so, and invite the correction (2026-11-13). */
     searchingPicked: (place: string) => `Searching ${place}. Not where you meant? Tell me where you want to stay and I will search there instead.`,
     signedInMemberPrices: 'Signed in. These are member prices now.',
+    signedInPricesLater: 'Signed in. The member prices did not load: the hotel service did not answer. Change anything in the search to try again.',
     setAside: 'Set aside.',
     thoseSetAside: 'Those are set aside.',
     everythingBack: 'Everything is back in.',

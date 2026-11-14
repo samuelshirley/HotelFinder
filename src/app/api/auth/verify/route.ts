@@ -52,8 +52,14 @@ export const POST = handled(async (req: Request) => {
   const today = parsed.data.today ? resolveToday(parsed.data.today, now) : null;
   if (stay && today && session.status !== 'onboarding') {
     // Member offers are held apart from public ones, so the finder fetches them (lib/pricing.ts).
-    await dispatchActions({ session, stay, actions: [], supplier: getSupplier({ sessionId: session.id, userId: user.id }), now, today, alwaysRun: true });
-    await appendMessage({ sessionId: session.id, role: 'assistant', kind: 'line', content: copy(requestLocale()).replies.signedInMemberPrices });
+    // One more try when the supplier does not answer (it is free); the line says only what happened:
+    // CI, 2026-11-14, "member prices now" was said over the public rows of a search that had failed.
+    const rank = () => dispatchActions({ session, stay, actions: [], supplier: getSupplier({ sessionId: session.id, userId: user.id }), now, today, alwaysRun: true });
+    let ranked = await rank();
+    if (ranked.finder?.kind !== 'ok') ranked = await rank();
+    const replies = copy(requestLocale()).replies;
+    const line = ranked.finder?.kind === 'ok' ? replies.signedInMemberPrices : replies.signedInPricesLater;
+    await appendMessage({ sessionId: session.id, role: 'assistant', kind: 'line', content: line });
   }
   return NextResponse.json({ signedIn: true, view: await buildSessionView((await getSession(session.id))!) });
 });
