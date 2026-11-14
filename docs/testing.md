@@ -223,8 +223,9 @@ sentence, or says why none were needed.
 
 - Needs the `ANTHROPIC_API_KEY` repository secret (`scripts/github-secrets.sh`
   copies it from `.env`); without it the job skips with a notice.
-- Off for one PR: the label `no-e2e-author`. Off for one push: `[skip e2e-author]`
-  in the head commit's message.
+- Off for one PR: the label `no-e2e-author`. Off for one push: a line that is exactly
+  `[skip e2e-author]` in the head commit's message (a mention inside a sentence
+  does not count: 2026-11-14 the commit adding the job skipped itself that way).
 - **Not yet run on a real PR** (written 2026-11-14).
 
 ## Isolation and the sandbox's rate limit

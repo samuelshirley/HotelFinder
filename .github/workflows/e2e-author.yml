@@ -60,8 +60,9 @@ jobs:
 
       - name: Skip a push that says so
         if: env.SKIP != '1'
+        # Only a line that is exactly the marker: a message that merely mentions it does not count.
         run: |
-          if git log -1 --format=%B | grep -q '\[skip e2e-author\]'; then echo "SKIP=1" >> "$GITHUB_ENV"; fi
+          if git log -1 --format=%B | grep -qx '\[skip e2e-author\]'; then echo "SKIP=1" >> "$GITHUB_ENV"; fi
 
       - uses: actions/setup-node@v4
         if: env.SKIP != '1'
