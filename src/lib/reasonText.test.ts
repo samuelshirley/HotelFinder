@@ -49,6 +49,10 @@ describe('near-miss words', () => {
       'Misses: its rate is a member price, not shown before you sign in; €5 a night over your cap',
     );
   });
+  it('out of town: both distances, as the finder gave them; without them, nothing', () => {
+    expect(say([{ kind: 'out_of_town', km: 10.7, max_km: 8 }])).toBe('Misses: out of town, 10.7 km from the middle of the results (a city search keeps to 8.0 km)');
+    expect(say([{ kind: 'out_of_town' }])).toBe('');
+  });
   it('a member-price miss never says a number', () => {
     expect(say([{ kind: 'member_price' }])).not.toMatch(/\d/);
   });

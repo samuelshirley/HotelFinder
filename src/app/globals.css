@@ -42,6 +42,22 @@
 html, body { height: 100%; margin: 0; }
 body { background: var(--tp-bg); color: var(--tp-text); font-family: var(--font); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
+/*
+ * Every dropdown draws the same chevron, 10px in from its right edge, with
+ * room kept for it: the browser's own arrow sat against the edge (Sam,
+ * 2026-11-14). (0,2,1) beats a module's `.x select` padding; modules set
+ * background-color, never the `background` shorthand, which would wipe it.
+ */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b2b6ca' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
+  padding-right: 28px;
+  color-scheme: dark;
+}
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: 0.5; }
 :focus-visible { outline: 2px solid var(--tp-primary-hover); outline-offset: 2px; }

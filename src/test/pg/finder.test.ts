@@ -49,7 +49,7 @@ describe('the stay finder', () => {
       shortlisted: 5,
       nearMisses: 0,
       eligible: 20,
-      rejected: { over_price_cap: 0, missing_must_have: 0, filtered_out: 0, below_public_price: 0, excluded_by_user: 0 },
+      rejected: { over_price_cap: 0, missing_must_have: 0, filtered_out: 0, below_public_price: 0, excluded_by_user: 0, out_of_town: 0 },
       uncheckable: 0,
       filterUnknown: 0,
       distanceFrom: 'search_centre',
@@ -658,5 +658,74 @@ describe('dispatch looks places up; no producer can give a point', () => {
     await dispatchActions({ session, stay, actions: [{ type: 'set_nationality', code: 'US' }], supplier, now: NOW, today: '2026-11-11' });
     expect(await getSession(ids.sessionId)).toMatchObject({ guestNationality: 'US', nationalitySource: 'user' });
     expect(searches.at(-1)!.guestNationality).toBe('US');
+  });
+});
+
+describe('a city keeps to the city (docs/finder.md, "In the city")', () => {
+  async function city(which: 'madrid' | 'lisbon', owner: 'member' | 'anonymous', priorities: Array<'cheapest' | 'nicest' | 'closest'>) {
+    const session = owner === 'member' ? await createSession({ userId: (await seedUser()).id }) : await createSession({ anonId: `anon-${which}` });
+    await updateSession(session.id, { guestNationality: 'ES', priorities });
+    const stay = await addStay(session.id, {
+      destinationText: which === 'madrid' ? 'Madrid, Spain' : 'Lisbon, Portugal',
+      placeId: PLACE_IDS[which],
+      destKind: 'area',
+      checkIn: '2026-12-11',
+      checkOut: '2026-12-13',
+    });
+    return { sessionId: session.id, stayId: stay.id };
+  }
+  const listed = async (ids: { sessionId: string; stayId: string }, audience: 'public' | 'member') => [
+    ...(await listShortlist(ids.sessionId, ids.stayId, audience)),
+    ...(await listFullList(ids.sessionId, ids.stayId, audience, 1, 500)),
+  ];
+  const km = (row: { entry: { reason: unknown } }) => (row.entry.reason as { distance_km: number }).distance_km;
+
+  for (const owner of ['member', 'anonymous'] as const) {
+    it(`Madrid, cheap and well rated (${owner}): searched by place id for 200, nothing listed past 8 km, no Valdebebas or Alcobendas`, async () => {
+      const ids = await city('madrid', owner, ['cheapest', 'nicest']);
+      const { supplier, searches } = recordedSupplier();
+      const outcome = await runFinder({ ...ids, supplier, now: NOW });
+      expect(searches[0]).toMatchObject({ where: { placeId: PLACE_IDS.madrid }, maxHotels: 200 });
+      expect(outcome).toMatchObject({ kind: 'ok', distanceFrom: 'search_centre' });
+      if (outcome.kind !== 'ok') return;
+      expect(outcome.rejected.out_of_town).toBeGreaterThan(10);
+      const audience = owner === 'member' ? 'member' : 'public';
+      const rows = await listed(ids, audience);
+      expect(rows).toHaveLength(outcome.eligible);
+      for (const row of rows) expect(km(row), row.property.name).toBeLessThanOrEqual(8);
+      expect((await names(ids, audience)).join(' ')).not.toMatch(/Valdebebas|Alcobendas/);
+      // The far hotels were fetched and stored; they are just not listed.
+      const stored = await rawQuery<{ name: string }>("select name from properties where name like '%Alcobendas%'");
+      expect(stored.length).toBeGreaterThan(0);
+    });
+  }
+
+  it('Lisbon, cheap and well rated: Crowne Plaza Caparica, across the river, is not listed', async () => {
+    const ids = await city('lisbon', 'member', ['cheapest', 'nicest']);
+    const outcome = await runFinder({ ...ids, supplier: recordedSupplier().supplier, now: NOW });
+    expect(outcome).toMatchObject({ kind: 'ok' });
+    const rows = await listed(ids, 'member');
+    expect(rows.map((r) => r.property.name)).not.toContain('Crowne Plaza Caparica Lisbon by IHG');
+    for (const row of rows) expect(km(row), row.property.name).toBeLessThanOrEqual(8);
+  });
+
+  it('a cap only three city hotels meet: out-of-town hotels under it fill the list as near misses, stored with how far out they are', async () => {
+    const ids = await city('madrid', 'member', ['cheapest']);
+    const { supplier, searches } = recordedSupplier();
+    await runFinder({ ...ids, supplier, now: NOW });
+    const third = (await listShortlist(ids.sessionId, ids.stayId, 'member'))[2];
+    const cap = (third.entry.reason as unknown as { per_night_minor: number }).per_night_minor;
+    await updateStay(ids.stayId, ids.sessionId, { priceCapMinor: cap });
+    const outcome = await runFinder({ ...ids, supplier, now: LATER(1) });
+    expect(searches).toHaveLength(1); // a re-rank of what is held
+    expect(outcome).toMatchObject({ kind: 'ok', shortlisted: 3, nearMisses: 2, eligible: 3 });
+    const misses = (await listShortlist(ids.sessionId, ids.stayId, 'member')).filter((r) => r.entry.reason?.kind === 'near_miss');
+    expect(misses).toHaveLength(2);
+    for (const row of misses) {
+      const reason = row.entry.reason as unknown as { misses: Array<{ kind: string; km: number; max_km: number }>; distance_km: number; per_night_minor: number };
+      expect(reason.misses).toEqual([{ kind: 'out_of_town', km: reason.distance_km, max_km: 8 }]);
+      expect(reason.distance_km).toBeGreaterThan(8);
+      expect(reason.per_night_minor).toBeLessThanOrEqual(cap);
+    }
   });
 });

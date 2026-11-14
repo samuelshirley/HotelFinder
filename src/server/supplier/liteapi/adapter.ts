@@ -51,6 +51,16 @@ const NO_AVAILABILITY = 2001;
 /** Search is documented under 3 s; prebook and book at 5–10 s each. */
 const TIMEOUTS = { places: 10_000, search: 20_000, content: 15_000, prebook: 30_000, book: 45_000, booking: 20_000 };
 
+/**
+ * A place lookup refused with 429 is asked again after these waits. Measured on
+ * the sandbox (2026-11-14): about 5 place searches a second per key, shared by
+ * every visitor, and the trip box looks places up as the words are typed, so
+ * the first message's own lookup was refused ("La búsqueda de lugares no ha
+ * respondido", docs/supplier.md "Rate limits"). Lookups only: they change
+ * nothing at the supplier. Never the book call.
+ */
+export const PLACE_RETRY_WAITS_MS = [500, 1_000] as const;
+
 export type LiteApiDeps = {
   apiKey: string;
   fetchImpl?: FetchLike;
@@ -65,6 +75,8 @@ export type LiteApiDeps = {
    * Absent or "en": no parameter, the supplier's default.
    */
   language?: string;
+  /** Waits between retries of a rate-limited lookup. Tests pass one that does not wait. */
+  sleep?: (ms: number) => Promise<void>;
 };
 
 /** LiteAPI sandbox keys start `sand_`; nothing booked with one is real. */
@@ -75,6 +87,16 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
   const lang = deps.language && deps.language !== 'en' ? `language=${encodeURIComponent(deps.language)}` : null;
   const withLang = (url: string) => (lang ? `${url}${url.includes('?') ? '&' : '?'}${lang}` : url);
   const onMeterError = deps.onMeterError ?? ((err) => console.error('[liteapi] usage meter failed', err));
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
+  /** A read-only lookup, asked again while the supplier answers 429. Every attempt is metered: each is a request. */
+  async function lookup<T>(attempt: () => Promise<SupplierResult<T>>): Promise<SupplierResult<T>> {
+    for (let i = 0; ; i++) {
+      const result = await attempt();
+      if (result.ok || result.error.status !== 429 || i >= PLACE_RETRY_WAITS_MS.length) return result;
+      await sleep(PLACE_RETRY_WAITS_MS[i]);
+    }
+  }
 
   async function record(event: SupplierMeterEvent) {
     try {
@@ -178,27 +200,31 @@ export function createLiteApiAdapter(deps: LiteApiDeps): SupplierAdapter {
     name: SUPPLIER,
 
     searchPlaces(query: string): Promise<SupplierResult<Place[]>> {
-      return run({
-        op: 'places',
-        method: 'GET',
-        url: withLang(`${DATA}/data/places?textQuery=${encodeURIComponent(query)}`),
-        timeoutMs: TIMEOUTS.places,
-        schema: placesResponse,
-        normalize: normalizePlaces,
-        meta: (v) => ({ count: v.length }),
-      });
+      return lookup(() =>
+        run({
+          op: 'places',
+          method: 'GET',
+          url: withLang(`${DATA}/data/places?textQuery=${encodeURIComponent(query)}`),
+          timeoutMs: TIMEOUTS.places,
+          schema: placesResponse,
+          normalize: normalizePlaces,
+          meta: (v) => ({ count: v.length }),
+        }),
+      );
     },
 
     getPlace(placeId: string): Promise<SupplierResult<PlaceDetails>> {
-      return run({
-        op: 'place',
-        method: 'GET',
-        url: withLang(`${DATA}/data/places/${encodeURIComponent(placeId)}`),
-        timeoutMs: TIMEOUTS.places,
-        schema: placeDetailsResponse,
-        normalize: (body) => normalizePlaceDetails(placeId, body),
-        meta: (v) => ({ types: v.types.slice(0, 3) }),
-      });
+      return lookup(() =>
+        run({
+          op: 'place',
+          method: 'GET',
+          url: withLang(`${DATA}/data/places/${encodeURIComponent(placeId)}`),
+          timeoutMs: TIMEOUTS.places,
+          schema: placeDetailsResponse,
+          normalize: (body) => normalizePlaceDetails(placeId, body),
+          meta: (v) => ({ types: v.types.slice(0, 3) }),
+        }),
+      );
     },
 
     searchAvailability(request: SearchRequest): Promise<SupplierResult<SearchResult>> {

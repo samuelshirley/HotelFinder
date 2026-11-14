@@ -1,0 +1,55 @@
+{
+  "data": [
+    {
+      "placeId": "ChIJgTwKgJcpQg0RaSKMYcHeNsQ",
+      "displayName": "Madrid",
+      "formattedAddress": "Spain",
+      "types": [
+        "geocode",
+        "locality",
+        "political"
+      ]
+    },
+    {
+      "placeId": "ChIJh_d9VzV4P44RSB2vpGoH5A8",
+      "displayName": "Madrid",
+      "formattedAddress": "Cundinamarca, Colombia",
+      "types": [
+        "political",
+        "geocode",
+        "locality"
+      ]
+    },
+    {
+      "placeId": "ChIJXWxa-_yQaQ0RUqq2a2HbNbA",
+      "displayName": "Madridejos",
+      "formattedAddress": "Spain",
+      "types": [
+        "geocode",
+        "locality",
+        "political"
+      ]
+    },
+    {
+      "placeId": "ChIJ2Uh9h5_U7YcR-zVqrqbVWU0",
+      "displayName": "Madrid",
+      "formattedAddress": "IA, USA",
+      "types": [
+        "political",
+        "locality",
+        "geocode"
+      ]
+    },
+    {
+      "placeId": "ChIJV3TpIcuMGIcRl6B3Yy35Hf8",
+      "displayName": "Madrid",
+      "formattedAddress": "NM, USA",
+      "types": [
+        "political",
+        "geocode",
+        "locality"
+      ]
+    }
+  ],
+  "fromCache": true
+}

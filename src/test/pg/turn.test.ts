@@ -10,10 +10,12 @@ import type { Readings } from '@/lib/router/route';
 import type { CallModel } from '@/server/agent';
 import type { JevOutcome } from '@/server/jev';
 import { answerForm, askQuestion, type FormAnswer } from '@/server/onboarding';
+import { briefSchema, startFromBrief } from '@/server/brief';
+import { copy } from '@/lib/i18n';
 import { FIXED_LINES } from '@/lib/replies';
 import { listMessages } from '@/server/repos/chat';
 import { createSession, getSession, listStays, updateSession } from '@/server/repos/sessions';
-import { listShortlist } from '@/server/repos/shortlist';
+import { listFullListNames, listShortlist } from '@/server/repos/shortlist';
 import { listTurns } from '@/server/repos/turns';
 import { dispatchActions } from '@/server/dispatch';
 import { runTurn, type TurnDeps, type TurnEvent } from '@/server/turn';
@@ -217,6 +219,65 @@ describe('onboarding: a form in the chat, no model', () => {
   });
 });
 
+describe('"Madrid, España, del 8 al 10 de enero…" in Spanish (2026-11-14)', () => {
+  // Live: the first message's place lookup was refused (the sandbox allows ~5 a second per key and the
+  // trip box had just looked places up as it was typed), and the retyped "Madrid" was asked "¿Cuál?"
+  // as if España had never been said. The dates survived.
+  const MESSAGE = 'Madrid, España, del 8 al 10 de enero, 2 adultos, barato y bien valorado';
+  const MADRID = 'ChIJgTwKgJcpQg0RaSKMYcHeNsQ';
+  const es = copy('es');
+  const scanned = (input: Record<string, unknown>): CallModel => async (call) => ({
+    ok: true,
+    model: call.model,
+    stopReason: 'tool_use',
+    latencyMs: 300,
+    usage: { input: 250, cacheWrite: 0, cacheRead: 0, output: 30 },
+    content: [{ type: 'tool_use', id: 'tu_scan', name: 'record_trip', input: { destination: null, check_in: null, check_out: null, nights: null, month: null, adults: null, children_ages: null, rooms: null, max_per_night: null, must_haves: [], priorities: [], ...input } }],
+  });
+  const FIRST_SCAN = scanned({ destination: 'Madrid, España', check_in: '2027-01-08', check_out: '2027-01-10', adults: 2, priorities: ['cheapest', 'nicest'] });
+  const placesIn = (query: string) => (query === 'Madrid, España' ? 'places-madrid-espana-es' : 'places-madrid-es');
+  const brief = (supplier: ReturnType<typeof recordedSupplier>) =>
+    createSession({ anonId: 'a' }).then(async (session) => {
+      const r = await startFromBrief({ session, brief: briefSchema.parse({ text: MESSAGE }), supplier: supplier.supplier, callModel: FIRST_SCAN, model: 'claude-haiku-4-5-20251001', now: RECORDED_AT, today: TODAY, locale: 'es' });
+      expect(r).toEqual({ ok: true });
+      return session.id;
+    });
+  const askedWhichOne = async (sessionId: string) => (await listMessages(sessionId)).some((m) => (m.meta as { prompt?: string } | null)?.prompt === es.onboarding.whichOne);
+
+  it('the first message: Madrid in España is searched at once, never "¿Cuál?" against Plaza de España', async () => {
+    const s = recordedSupplier({}, placesIn);
+    const id = await brief(s);
+    expect(s.placeQueries).toEqual(['Madrid, España']);
+    expect(await askedWhichOne(id)).toBe(false);
+    expect((await getSession(id))!.draft.destination).toMatchObject({ placeId: MADRID, label: 'Madrid, España' });
+    expect((await listStays(id))[0]).toMatchObject({ checkIn: '2027-01-08', checkOut: '2027-01-10', adults: 2 });
+    expect((await listMessages(id)).map((m) => m.content)).toContain(es.replies.searchingPicked('Madrid, España'));
+  });
+
+  it('the lookup fails, "Madrid" is typed again: España from the first message settles it, and the dates are kept', async () => {
+    const id = await brief(recordedSupplier({ places: 'fail' }));
+    const before = await listMessages(id);
+    expect(before.map((m) => m.content)).toContain(es.onboarding.placeSearchFailed);
+    expect(before.at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination' } });
+
+    const s = recordedSupplier({}, placesIn);
+    await say((await getSession(id))!, 'Madrid', { ...deps(s.supplier, JEV_DOWN, scanned({ destination: 'Madrid' })), locale: 'es' });
+    expect(s.placeQueries).toEqual(['Madrid, España']);
+    expect(await askedWhichOne(id)).toBe(false);
+    expect((await getSession(id))!.draft.destination).toMatchObject({ placeId: MADRID, label: 'Madrid, España' });
+    expect((await listStays(id))[0]).toMatchObject({ checkIn: '2027-01-08', checkOut: '2027-01-10', adults: 2 });
+    expect((await listMessages(id)).map((m) => m.content)).toContain(es.replies.searchingPicked('Madrid, España'));
+  });
+
+  it('a different place typed at "¿Adónde vas?" is not given the first message\'s country, and is asked as before', async () => {
+    const id = await brief(recordedSupplier({ places: 'fail' }));
+    const s = recordedSupplier({}, () => 'places-lisbon');
+    await say((await getSession(id))!, 'Lisboa', { ...deps(s.supplier, JEV_DOWN, scanned({ destination: 'Lisboa' })), locale: 'es' });
+    expect(s.placeQueries).toEqual(['Lisboa']);
+    expect((await listMessages(id)).at(-1)).toMatchObject({ kind: 'form_question', meta: { field: 'destination', prompt: es.onboarding.whichOne } });
+  });
+});
+
 describe('a chat turn on a running search', () => {
   it('a price cap is settled by the router: no model call, no supplier call, one ledger row', async () => {
     const { session, supplier } = await onboarded();
@@ -315,6 +376,41 @@ describe('a chat turn on a running search', () => {
     // "Show me others" still sets these aside and shows the next five.
     await say(session, 'show me some other options', deps(supplier.supplier, jevSays('more')));
     expect(await shortlistNames(session.id)).not.toContain(names[0]);
+  });
+
+  it('a hotel further down the full list is found by its card number or its name, opened with its card, and never set aside with the top picks', async () => {
+    // Sam, 2026-11-14: hotels only in the full list were invisible to Penny.
+    const { session, supplier } = await onboarded();
+    const stay = (await listStays(session.id))[0];
+    const names = await shortlistNames(session.id);
+    const full = await listFullListNames(session.id, stay.id, 'public');
+    const twelve = full.find((r) => r.rank === 12)!;
+    expect(twelve).toBeDefined();
+    const searches = supplier.searches.length;
+
+    const open = await say(session, 'open number 12', deps(supplier.supplier, jevSays('open')));
+    expect(open.turn.finalText).toBe(`${twelve.name} is open.`);
+    expect(open.turn.resultMeta).toMatchObject({ by: 'router', decision: 'ui', model_calls: 0 });
+    // The card number rides with the hint: the app pages the full list to it before opening it.
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { open: { propertyId: expect.any(String), listedAs: 12 } } });
+
+    // By a word of its name no other hotel here shares.
+    const words = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 5);
+    const others = [...names, ...full.filter((r) => r.rank !== twelve.rank).map((r) => r.name)].flatMap(words);
+    const word = words(twelve.name).find((w) => !others.includes(w) && w !== 'porto' && w !== 'hotel');
+    expect(word, `a word only ${twelve.name} has`).toBeDefined();
+    const book = await say(session, `book the ${word}`, deps(supplier.supplier, jevSays('book')));
+    expect(book.turn.finalText).toBe(`${twelve.name} is open: press Book there to check the price and pay.`);
+    expect((await lastLine(session.id)).meta).toMatchObject({ ui: { open: { listedAs: 12 } } });
+
+    // A top pick is opened as before, with no card number to page to.
+    const first = await say(session, 'open the first one', deps(supplier.supplier, jevSays('open')));
+    expect(first.turn.finalText).toBe(`${names[0]} is open.`);
+    expect(((await lastLine(session.id)).meta as { ui: { open: Record<string, unknown> } }).ui.open).not.toHaveProperty('listedAs');
+
+    expect(supplier.searches).toHaveLength(searches);
+    expect(await shortlistNames(session.id)).toEqual(names);
+    expect(await rawQuery("select 1 from usage_events where provider = 'anthropic'")).toHaveLength(0);
   });
 
   it('"show me all of them" with nothing after the picks says so and opens nothing', async () => {
@@ -543,6 +639,67 @@ describe('questions about what is on screen are answered from the rows, with no 
     expect((await ask('which has the best reviews?', { superlative: sure('best_rated') }, session)).finalText).toBe(
       'Best rated of the 5 listed: NEYA Porto Hotel, rated 9 from 2,856 reviews. 1 has no guest rating listed.',
     );
+  });
+
+  describe('two facts about one hotel in one message, on a search with a pet (2026-11-14)', () => {
+    // As the real Jev read "Does Hotel Universal allow dogs, and can I cancel for free?":
+    // `fact` split between the two facts asked. Before this, the turn went to the agent, whose
+    // only source for pets was a live listing fetch; when that failed it said it "could not read
+    // its full listing to confirm the terms", while the property row held the answer.
+    const LIVE: Partial<Readings> = {
+      intent: { choice: 'ask_hotels', top: 0.97, margin: 0.94 },
+      multiIntent: 0.26,
+      fact: { choice: 'cancellation', top: 0.51, margin: 0.02, runnerUp: 'facility' },
+      amenity: { choice: 'pets_allowed', top: 0.88, margin: 0.76 },
+    };
+    async function withPet() {
+      const over: Parameters<typeof recordedSupplier>[0] = {};
+      const supplier = recordedSupplier(over);
+      const session = await createSession({ anonId: 'anon-pet' });
+      await askQuestion(session.id, 'destination');
+      let guestsAnswered = false;
+      for (const answer of ANSWERS.map((a) => (a.field === 'guests' ? { ...a, pets: true } : a))) {
+        expect(await answerForm({ sessionId: session.id, answer, guestsAnswered, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY })).toMatchObject({ ok: true });
+        if (answer.field === 'guests') guestsAnswered = true;
+      }
+      // From here the hotel's own listing cannot be read: the answer must not need it.
+      over.content = 'fail';
+      return { session: (await getSession(session.id))!, supplier };
+    }
+
+    it('the pet policy and the cancellation terms come from the property and offer rows, with no model and no listing fetch', async () => {
+      const { session, supplier } = await withPet();
+      const fetched = supplier.contentCalls.length;
+      const { turn } = await say(session, 'Does the Mercure allow dogs, and can I cancel for free?', deps(supplier.supplier, jevSays('ask_hotels', LIVE), COUNTING_MODEL));
+      expect(modelCalls).toEqual([]);
+      expect(supplier.contentCalls).toHaveLength(fetched);
+      expect(turn.finalText).toBe('Mercure Porto Centro Aliados: non-refundable at this price. Mercure Porto Centro Aliados lists pets allowed.');
+      expect(turn.resultMeta).toMatchObject({
+        by: 'router',
+        decision: 'answer',
+        plan: { about: 'hotel_facts', asks: [{ fact: 'cancellation' }, { fact: 'facility', amenity: 'pets_allowed' }] },
+        answered: 'cancellation+facility',
+        model_calls: 0,
+      });
+    });
+
+    it('a deadline is the offer row\'s; a value the rows do not hold is "does not say", never a guess', async () => {
+      const { session, supplier } = await withPet();
+      const mercure = "(select id from properties where name = 'Mercure Porto Centro Aliados')";
+      await rawQuery(`update offers set refundable_tag = 'RFN', cancellation = '{"freeCancellationUntil":"2026-12-04T10:00:00.000Z"}'::jsonb where property_id = ${mercure}`);
+      const refundable = await say(session, 'Does the Mercure allow dogs, and can I cancel for free?', deps(supplier.supplier, jevSays('ask_hotels', LIVE), COUNTING_MODEL));
+      expect(refundable.turn.finalText).toBe('Mercure Porto Centro Aliados: free cancellation until 4 Dec, 10:00 UTC. Mercure Porto Centro Aliados lists pets allowed.');
+
+      // The supplier sent no facility list and no cancellation tag.
+      await rawQuery(`update properties set content = '{}'::jsonb where id = ${mercure}`);
+      await rawQuery(`update offers set refundable_tag = null where property_id = ${mercure}`);
+      const silent = await say(session, 'Does the Mercure allow dogs, and can I cancel for free?', deps(supplier.supplier, jevSays('ask_hotels', LIVE), COUNTING_MODEL));
+      expect(silent.turn.finalText).toBe(
+        'The listing for Mercure Porto Centro Aliados does not say whether it can be cancelled. The listing for Mercure Porto Centro Aliados does not say whether it has pets allowed.',
+      );
+      expect(silent.turn.resultMeta).toMatchObject({ answered: 'not_held+not_held', model_calls: 0 });
+      expect(modelCalls).toEqual([]);
+    });
   });
 
   it('asking about a facility does not make it a must-have', async () => {

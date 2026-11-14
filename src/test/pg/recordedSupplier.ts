@@ -18,7 +18,22 @@ export const PLACE_IDS = {
   vieilleVille: 'ChIJiwiZIvuPi0cRxR3T-_CdlvY',
   opo: 'ChIJrStKYWRvJA0R0TlgbYpXGhU',
   bcn: 'ChIJpY58hGSepBIR15tv-0LpK_M',
+  madrid: 'ChIJgTwKgJcpQg0RaSKMYcHeNsQ',
+  lisbon: 'ChIJO_PkYRozGQ0R0DaQ5L3rAAQ',
 } as const;
+
+/**
+ * City searches recorded by place id, as the app makes them (scripts/capture-liteapi-fixtures.mjs
+ * --add-far-cities): place id → fixture and the margin it was recorded at. Porto's older
+ * recording was made by city name, so a Porto place id is answered as before.
+ */
+export const RECORDED_CITIES = new Map<string, { name: string; margin: number }>();
+for (const [file, entry] of Object.entries(manifest.files)) {
+  const request = entry.request as { placeId?: string; margin?: number; occupancies?: unknown[] } | null;
+  if (entry.url.endsWith('/hotels/rates') && request?.placeId && request.occupancies?.length === 1) {
+    RECORDED_CITIES.set(request.placeId, { name: file.replace(/\.json$/, ''), margin: request.margin ?? 0 });
+  }
+}
 
 /**
  * Rate searches recorded for a party other than two adults in one room, by the
@@ -79,6 +94,13 @@ export function recordedSupplier(over: Partial<Record<'search' | 'facts' | 'plac
       // with the recording at 15%, the nearest one above it. Nothing here invents a price.
       // A party with its own recording is answered with it (recorded in EUR at 15%).
       // Only EUR and member-margin USD are recorded; anything else is a test asking for a payload nobody captured.
+      const city = 'placeId' in request.where ? RECORDED_CITIES.get(request.where.placeId) : undefined;
+      if (city) {
+        if (request.currency !== 'EUR' || request.marginPct !== city.margin || key(request.occupancies) !== COUPLE) {
+          throw new Error(`no recording of ${city.name} for ${request.currency} at a ${request.marginPct}% margin for this party`);
+        }
+        return { ok: true, value: normalizeRates(ratesResponse.parse(fixture(city.name)), request.marginPct, RECORDED_AT) };
+      }
       const party = 'radiusM' in request.where ? undefined : RECORDED_PARTIES.get(key(request.occupancies));
       if (party ? request.currency !== 'EUR' : request.currency !== 'EUR' && !(request.currency === 'USD' && request.marginPct <= searchMarginPct() && !('radiusM' in request.where))) {
         throw new Error(`no recording for ${request.currency} at a ${request.marginPct}% margin`);

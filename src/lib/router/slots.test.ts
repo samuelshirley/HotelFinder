@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget } from './slots';
+import { addDays, extractGuests, extractNightsShift, extractPriceCap, extractTarget, fullListMentions } from './slots';
 
 describe('price cap', () => {
   it.each([
@@ -54,6 +54,68 @@ describe('which hotel', () => {
 
   it('has nothing to point at with an empty shortlist', () => {
     expect(extractTarget('the first one', [])).toBeNull();
+  });
+
+  it('a full-list row named this turn is found by the number on its card', () => {
+    const withMore = [...names, 'Pestana Vintage Porto', 'Moov Hotel Porto Centro'];
+    const listed = [1, 2, 3, 4, 5, 7, 12];
+    expect(extractTarget('open number 12', withMore, listed)).toBe(7);
+    expect(extractTarget('is #7 refundable?', withMore, listed)).toBe(6);
+    expect(extractTarget('the seventh hotel', withMore, listed)).toBe(6);
+    expect(extractTarget('book the pestana', withMore, listed)).toBe(6);
+    expect(extractTarget('¿el número 12 tiene parking?', withMore, listed)).toBe(7);
+    expect(extractTarget('the last one', withMore, listed)).toBe(5);
+    expect(extractTarget('option 6', withMore, listed)).toBeNull();
+  });
+});
+
+describe('full-list hotels a message names', () => {
+  const top = ['YOTEL Porto', 'Porto Palácio Hotel by The Editory', 'Mercure Porto Centro Santa Catarina', 'Hotel Carris Porto Ribeira', 'NEYA Porto Hotel'];
+  const full = [
+    { name: 'Pestana Vintage Porto', rank: 6 },
+    { name: 'Moov Hotel Porto Centro', rank: 7 },
+    { name: 'Hotel Ibis Porto Centro Mercado Bolhão', rank: 12 },
+    { name: 'Austin Marriott Downtown', rank: 13 },
+  ];
+  it.each([
+    ['tell me about the pestana', [6]],
+    ['is number 12 refundable?', [12]],
+    ['open #7', [7]],
+    ['the 12th one, does it have parking?', [12]],
+    ['the seventh hotel please', [7]],
+    ['¿el número 12 tiene parking?', [12]],
+    ['la opción 7', [7]],
+    ['el 12º', [12]],
+    ['compare the pestana and the ibis', [6, 12]],
+  ])('%s → %j', (message, ranks) => {
+    expect(fullListMentions(message, top, full, 'Porto, Portugal')).toEqual(ranks);
+  });
+
+  it.each([
+    'is the second one refundable?',
+    'the carris please',
+    '12 nights instead',
+    'under 120 a night',
+    'no 12 euro city tax please',
+    'check in on the 15th',
+    'a hotel 7 minutes from the station',
+    'number 30',
+    'el 12 de diciembre',
+  ])('names none: %s', (message) => {
+    expect(fullListMentions(message, top, full, 'Porto, Portugal')).toEqual([]);
+  });
+
+  it('a word of the destination names no hotel', () => {
+    expect(fullListMentions('cheaper ones in austin', top, full, 'Austin, TX, USA')).toEqual([]);
+    expect(fullListMentions('the austin marriott', top, full, 'Porto, Portugal')).toEqual([13]);
+  });
+
+  it('more than three named is too vague to be about particular hotels', () => {
+    expect(fullListMentions('pestana, moov, ibis or the austin', top, full, 'Porto, Portugal')).toEqual([]);
+  });
+
+  it('nothing in the full list, nothing named', () => {
+    expect(fullListMentions('number 12', top, [], 'Porto')).toEqual([]);
   });
 });
 
