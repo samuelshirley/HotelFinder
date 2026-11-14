@@ -322,7 +322,12 @@ function FullListSection({ full, card }: { full: FullList; card: (row: Row) => R
 }
 
 /** A header chip that opens an editor in place and applies with one button. */
-function Editable({ label, name, busy, children, onApply, onOpen }: { label: string; name: string; busy: boolean; children: React.ReactNode; onApply: (() => void) | null; onOpen?: () => void }) {
+/**
+ * A chip that opens an editor. With onApply, Cancel and Apply close it. With
+ * none, the editor applies on a pick (Where): its children get `close`, and a
+ * pick closes it, so the list never sits over the new results.
+ */
+function Editable({ label, name, busy, children, onApply, onOpen }: { label: string; name: string; busy: boolean; children: React.ReactNode | ((close: () => void) => React.ReactNode); onApply: (() => void) | null; onOpen?: () => void }) {
   const [open, setOpen] = useState(false);
   const { t } = useLocale();
   const chip = useRef<HTMLButtonElement>(null);
@@ -342,7 +347,12 @@ function Editable({ label, name, busy, children, onApply, onOpen }: { label: str
       </button>
       {open && (
         <div className={styles.editor} role="dialog" aria-label={t.ui.change(name)}>
-          {children}
+          {typeof children === 'function'
+            ? children(() => {
+                setOpen(false);
+                chip.current?.focus();
+              })
+            : children}
           {onApply && (
             <div className={styles.editorActions}>
               <button className={styles.secondary} onClick={() => setOpen(false)}>
@@ -479,17 +489,30 @@ function WhereChip({ label, busy, onEdit }: { label: string; busy: boolean; onEd
   }, [q]);
   return (
     <Editable label={label} name={t.ui.chipName.where} busy={busy} onApply={null}>
-      <input className={styles.editorInput} autoFocus aria-label={t.ui.newPlace} placeholder={t.ui.placePlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
-      {failed && <p className={styles.errorText}>{t.ui.placeSearchFailed}</p>}
-      {places.map((p) => (
-        <button key={p.placeId} className={styles.placeRow} onClick={() => onEdit({ type: 'set_destination', placeId: p.placeId, destinationText: p.label })}>
-          <span>{p.name}</span>
-          <span className={styles.muted}>
-            {p.where ? `${p.where} · ` : ''}
-            {p.kind}
-          </span>
-        </button>
-      ))}
+      {(close) => (
+        <>
+          <input className={styles.editorInput} autoFocus aria-label={t.ui.newPlace} placeholder={t.ui.placePlaceholder} value={q} onChange={(e) => setQ(e.target.value)} />
+          {failed && <p className={styles.errorText}>{t.ui.placeSearchFailed}</p>}
+          {places.map((p) => (
+            <button
+              key={p.placeId}
+              className={styles.placeRow}
+              onClick={() => {
+                // A pick is the change: the list goes, and the next open starts empty.
+                close();
+                setQ('');
+                onEdit({ type: 'set_destination', placeId: p.placeId, destinationText: p.label });
+              }}
+            >
+              <span>{p.name}</span>
+              <span className={styles.muted}>
+                {p.where ? `${p.where} · ` : ''}
+                {p.kind}
+              </span>
+            </button>
+          ))}
+        </>
+      )}
     </Editable>
   );
 }
