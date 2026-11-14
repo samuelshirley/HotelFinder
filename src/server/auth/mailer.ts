@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { copy } from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n/locale';
 import { RESEND_PRICING } from '@/lib/supplierPrices';
 import { logUsage } from '@/server/repos/usage';
 
@@ -47,13 +49,11 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
   }
 }
 
-export async function deliverCode(email: string, code: string): Promise<Delivery | null> {
+/** The code, by email in the visitor's language (docs/i18n.md); English when none is given (admin sign-in). */
+export async function deliverCode(email: string, code: string, locale: Locale = 'en'): Promise<Delivery | null> {
   if (!mailConfigured()) return process.env.NODE_ENV === 'production' ? null : { via: 'dev_mailbox', code };
   // One ledger row per send, failures included (docs/usage.md). No session: a code is asked for by an email address.
-  const sent = await sendEmail(
-    email,
-    `${code} is your Hotel finder code`,
-    `Your sign-in code is ${code}. It works once, for 10 minutes.\n\nIf you did not ask for it, ignore this email.`,
-  );
+  const words = copy(locale).site;
+  const sent = await sendEmail(email, words.codeSubject(code), words.codeText(code));
   return sent ? { via: 'email' } : null;
 }

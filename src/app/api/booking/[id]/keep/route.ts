@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { bookingView } from '@/server/checkout';
 import { keepFrozen, type KeepError } from '@/server/freeze';
-import { currentUser, errorResponse, handled, ownedBooking, rateLimit } from '@/server/http';
+import { currentUser, errorResponse, handled, ownedBooking, rateLimit, requestLocale } from '@/server/http';
 import { WALLETS } from '@/server/payments';
 
 export const runtime = 'nodejs';
@@ -30,7 +30,7 @@ export const POST = handled(async (req: Request, ctx: { params: { id: string } }
   if (!user) return errorResponse('signed_out', 401);
   const limited = await rateLimit('keep', 10);
   if (limited) return limited;
-  const result = await keepFrozen({ bookingId: owned.id, userId: user.id, ...parsed.data, now });
+  const result = await keepFrozen({ bookingId: owned.id, userId: user.id, ...parsed.data, now, locale: requestLocale() });
   if (!result.ok) return errorResponse(result.error, STATUS[result.error]);
   return NextResponse.json({ booking: bookingView(result.booking, now) });
 });

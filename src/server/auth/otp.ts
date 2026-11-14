@@ -3,6 +3,7 @@ import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 
 import { authSecret } from '@/server/auth/anon';
+import type { Locale } from '@/lib/i18n/locale';
 import { deliverCode, type Delivery } from '@/server/auth/mailer';
 import { db } from '@/server/db/client';
 import { emailOtpCodes } from '@/server/db/schema';
@@ -25,7 +26,7 @@ const codeHash = (email: string, code: string) => createHmac('sha256', authSecre
 
 export type SendResult = { ok: true; delivery: Delivery } | { ok: false; error: 'too_many_codes' | 'email_unavailable' };
 
-export async function sendCode(email: string, now: Date): Promise<SendResult> {
+export async function sendCode(email: string, now: Date, locale?: Locale): Promise<SendResult> {
   const hourAgo = new Date(now.getTime() - 3_600_000);
   const [{ n }] = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -35,7 +36,7 @@ export async function sendCode(email: string, now: Date): Promise<SendResult> {
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   await db.insert(emailOtpCodes).values({ email, codeHash: codeHash(email, code), expiresAt: new Date(now.getTime() + CODE_TTL_MS), createdAt: now });
-  const delivery = await deliverCode(email, code);
+  const delivery = await deliverCode(email, code, locale);
   return delivery ? { ok: true, delivery } : { ok: false, error: 'email_unavailable' };
 }
 

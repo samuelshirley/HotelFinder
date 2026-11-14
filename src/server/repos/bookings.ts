@@ -61,6 +61,7 @@ export async function transitionBooking(
       | 'frozenUntil'
       | 'freezeReminderDueAt'
       | 'releasedBy'
+      | 'locale'
     >
   > = {},
   only?: BookingStatus,

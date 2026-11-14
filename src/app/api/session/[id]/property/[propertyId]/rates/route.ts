@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { errorResponse, handled, noQuery, ownedSession, rateLimit } from '@/server/http';
+import { errorResponse, handled, noQuery, ownedSession, rateLimit, requestLocale } from '@/server/http';
 import { hotelRates } from '@/server/hotelRates';
 import { audienceFor, listStays } from '@/server/repos/sessions';
 import { listedRow } from '@/server/repos/shortlist';
@@ -33,7 +33,7 @@ export const GET = handled(async (req: Request, ctx: { params: { id: string; pro
       refundable: o.refundableTag === 'RFN',
       freeCancellationUntil: (o.cancellation as { freeCancellationUntil?: string | null } | null)?.freeCancellationUntil ?? null,
       penalties: offerPenalties(o.cancellation),
-      fees: offerFees(o.taxesAndFees),
+      fees: offerFees(o.taxesAndFees, requestLocale()),
       currency: o.currency,
       totalMinor: o.totalMinor,
       payAtPropertyMinor: o.payAtPropertyMinor,

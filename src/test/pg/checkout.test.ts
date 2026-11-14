@@ -162,6 +162,12 @@ describe('checkout', () => {
     expect((await listMessages(t.session.id)).at(-1)!.content).toBe(`Booked: ${t.hotel}, 11–13 Dec, 2 nights. Reference yzAvfyYq5.`);
   });
 
+  it('pressed in Spanish, the chat says it in Spanish (docs/i18n.md)', async () => {
+    const t = await started();
+    expect(await confirmWith(t, { code: await codeFor(), locale: 'es' })).toMatchObject({ ok: true });
+    expect((await listMessages(t.session.id)).at(-1)!.content).toBe(`Reservado: ${t.hotel}, 11–13 dic, 2 noches. Referencia yzAvfyYq5.`);
+  });
+
   it('a wrong code stops before any payment; the code is single-use; five wrong tries end it', async () => {
     const t = await started();
     const code = await codeFor();

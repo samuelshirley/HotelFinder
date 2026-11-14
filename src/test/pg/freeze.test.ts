@@ -25,7 +25,7 @@ import { fixture } from '@/server/supplier/liteapi/fixtures';
 import { normalizeBooking, normalizeCancel, normalizePrebook } from '@/server/supplier/liteapi/normalize';
 import { bookingResponse, cancelResponse, prebookResponse } from '@/server/supplier/liteapi/schemas';
 import type { BookRequest, SupplierAdapter, SupplierError } from '@/server/supplier/types';
-import { buildSessionView } from '@/server/view';
+import { buildSessionView, offerFees } from '@/server/view';
 
 /**
  * Deal Freeze on real Postgres, against recorded sandbox answers. The price
@@ -117,7 +117,7 @@ async function codeFor(email = EMAIL, now = RECORDED_AT) {
 }
 
 /** A search, its first card, and a fresh price check of a refundable rate. */
-async function checkedOut(b: Behaviour = {}, anonId = 'anon-freeze') {
+async function checkedOut(b: Behaviour = {}, anonId = 'anon-freeze', locale?: 'en' | 'es') {
   const recorded = recordedSupplier();
   const session = await createSession({ anonId });
   await askQuestion(session.id, 'destination');
@@ -129,7 +129,7 @@ async function checkedOut(b: Behaviour = {}, anonId = 'anon-freeze') {
   const current = (await getSession(session.id))!;
   const card = (await buildSessionView(current)).shortlist[0];
   const sup = freezeSupplier(b);
-  const started = await startCheckout({ session: current, offerId: card.offer!.id, supplier: sup.supplier });
+  const started = await startCheckout({ session: current, offerId: card.offer!.id, supplier: sup.supplier, locale });
   if (!started.ok) throw new Error(started.error);
   return { ...sup, session: current, hotel: card.property.name, booking: started.booking };
 }
@@ -419,5 +419,83 @@ describe('Deal Freeze: the hold ending, and the reminder', () => {
     expect(sweepAllowed('Bearer a-long-enough-secret!', 'a-long-enough-secret')).toBe(false);
     expect(sweepAllowed('a-long-enough-secret', 'a-long-enough-secret')).toBe(false);
     expect(sweepAllowed('Bearer a-long-enough-secret', 'a-long-enough-secret')).toBe(true);
+  });
+});
+
+/**
+ * In Spanish (docs/i18n.md): each line is written in the language of the
+ * press that caused it, and what the sweep writes with nobody's request to go
+ * by (a hold ending, the reminder) in the language the room was frozen in.
+ */
+describe('Deal Freeze in Spanish', () => {
+  async function frozenEs() {
+    const t = await checkedOut({}, 'anon-freeze-es', 'es');
+    const r = await freezeWith(t, { code: await codeFor(), locale: 'es' });
+    if (!r.ok) throw new Error(r.error);
+    return { ...t, userId: r.signedInAs!, booking: r.booking };
+  }
+
+  it('the booking keeps the language it was frozen in, and the chat says it was frozen in Spanish', async () => {
+    const t = await frozenEs();
+    expect(t.booking.locale).toBe('es');
+    expect((await listMessages(t.session.id)).at(-1)!.content).toBe(
+      `Congelado: ${t.hotel}, 11–13 dic, 2 noches, retenido hasta el 23 nov, 09:59 UTC. Referencia yzAvfyYq5. Confirma y paga antes, o se libera.`,
+    );
+  });
+
+  it('kept and then cancelled, each line in Spanish', async () => {
+    const t = await frozenEs();
+    expect(await keepFrozen({ bookingId: t.booking.id, userId: t.userId, wallet: 'apple_pay', acceptedTotalMinor: t.booking.totalMinor, now: SOON, locale: 'es' })).toMatchObject({ ok: true });
+    expect((await listMessages(t.session.id)).at(-1)!.content).toBe(`Reservado: ${t.hotel}, 11–13 dic, 2 noches. Referencia yzAvfyYq5.`);
+    expect(await cancelBooking({ bookingId: t.booking.id, supplier: t.supplier, locale: 'es' })).toMatchObject({ ok: true });
+    expect((await listMessages(t.session.id)).at(-1)!.content).toBe(`Cancelado: ${t.hotel}. Referencia yzAvfyYq5.`);
+  });
+
+  it('released by the guest in Spanish', async () => {
+    const t = await frozenEs();
+    expect(await releaseFrozen({ bookingId: t.booking.id, supplier: t.supplier, by: 'guest', now: SOON, locale: 'es' })).toMatchObject({ ok: true });
+    expect((await listMessages(t.session.id)).at(-1)!.content).toBe(`Liberado: ${t.hotel}. Referencia yzAvfyYq5. No se pagó nada.`);
+  });
+
+  it('a hold the sweep ends is said in the language it was frozen in, with no request to go by', async () => {
+    const t = await frozenEs();
+    expect(await sweepFreezes({ now: FROZEN_UNTIL, supplierFor: () => t.supplier })).toMatchObject({ released: 1 });
+    expect((await listMessages(t.session.id)).at(-1)!.content).toBe(`Liberado: ${t.hotel}. Referencia yzAvfyYq5. No se pagó nada.`);
+  });
+
+  it('the reminder email is in Spanish, with Spanish money and dates', async () => {
+    const t = await frozenEs();
+    process.env.RESEND_API_KEY = 're_test';
+    const sent: Array<{ subject: string; text: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent.push(JSON.parse(String(init.body)));
+        return new Response('{}', { status: 200 });
+      }),
+    );
+    expect(await sweepFreezes({ now: t.booking.freezeReminderDueAt!, supplierFor: () => t.supplier })).toMatchObject({ remindersSent: 1 });
+    const row = (await getBooking(t.booking.id))!;
+    expect(sent[0].subject).toBe(`Tu habitación congelada en ${t.hotel} se libera el 23 nov, 09:59 UTC`);
+    expect(sent[0].text.split('\n\n')).toEqual([
+      `Congelaste ${t.hotel}, 11–13 dic, 2 noches, por ${formatMoney(row.totalMinor, row.currency, 'es')}.`,
+      'Sigue reservada para ti hasta el 23 nov, 09:59 UTC. Para quedártela, abre Buscador de hoteles con la sesión iniciada con este correo, búscala en Tus reservas y confirma y paga antes.',
+      'Si no haces nada, la cancelamos con el hotel en ese momento, antes de que termine su cancelación gratuita, y no se paga nada.',
+      'Referencia yzAvfyYq5.',
+    ]);
+  });
+
+  it('a booking from before the language was kept (null) is said in English', async () => {
+    const t = await frozen();
+    expect(reminderEmail({ ...t.booking, locale: null }).subject).toBe(`Your frozen room at ${t.hotel} is released 23 Nov, 09:59 UTC`);
+  });
+
+  it('a fee the supplier does not name is named in the page\'s language', () => {
+    const fees = [
+      { amount: { amountMinor: 300, currency: 'EUR' }, included: false },
+      { amount: { amountMinor: 120, currency: 'EUR' }, included: true },
+    ];
+    expect(offerFees(fees, 'es').map((f) => f.description)).toEqual(['A pagar en el hotel', 'Impuestos y tasas']);
+    expect(offerFees(fees).map((f) => f.description)).toEqual(['Paid at the hotel', 'Taxes and fees']);
   });
 });

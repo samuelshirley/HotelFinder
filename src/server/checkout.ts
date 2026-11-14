@@ -4,6 +4,8 @@ import type { CancellationPolicy, SupplierAdapter, SupplierOffer } from '@/serve
 import { isCountryCode } from '@/lib/countries';
 import { cleanSpecialRequest, mergeFees, payAtHotelCharges, type HotelCharge } from '@/lib/checkout';
 import { freezeTerms } from '@/lib/freeze';
+import { copy } from '@/lib/i18n';
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 import { formatDates } from '@/lib/replies';
 import { normalizeEmail, verifyCode } from '@/server/auth/otp';
 import { userForVerifiedEmail } from '@/server/auth/user';
@@ -59,6 +61,8 @@ export async function startCheckout(args: {
   /** Fetch the room again even if the offer could be prebooked as it is (the nationality changed). */
   refetch?: boolean;
   now?: Date;
+  /** The visitor's language: kept on the booking (bookingLocale). English when left out. */
+  locale?: Locale;
 }): Promise<{ ok: true; booking: Booking } | { ok: false; error: StartError }> {
   const { session, supplier } = args;
   const now = args.now ?? new Date();
@@ -120,7 +124,8 @@ export async function startCheckout(args: {
     rooms: rooms?.length ?? stay.rooms ?? 1,
     payAtPropertyMinor: offer.payAtPropertyMinor,
     // Named and in their own currency: the page says what the hotel will ask for, not only a sum.
-    payAtPropertyFees: payAtHotelCharges(offerFees(offer.taxesAndFees)),
+    payAtPropertyFees: payAtHotelCharges(offerFees(offer.taxesAndFees, args.locale)),
+    locale: args.locale ?? DEFAULT_LOCALE,
     cancellation: (check.value.cancellation ?? offer.cancellation) as Record<string, unknown> | null,
   });
   return { ok: true, booking };
@@ -237,11 +242,12 @@ export async function repriceCheckout(args: {
   booking: Booking;
   supplier: SupplierAdapter;
   now: Date;
+  locale?: Locale;
 }): Promise<{ ok: true; booking: Booking } | { ok: false; error: RepriceError }> {
   const { booking, supplier, now } = args;
   if (booking.status !== 'prebooked' || !booking.offerId) return { ok: false, error: 'booking_not_payable' };
   const viewer = await viewerNationality(args.session, supplier, now);
-  return startCheckout({ session: viewer.session, offerId: booking.offerId, supplier, quotedTotalMinor: booking.totalMinor, refetch: viewer.changed, now });
+  return startCheckout({ session: viewer.session, offerId: booking.offerId, supplier, quotedTotalMinor: booking.totalMinor, refetch: viewer.changed, now, locale: args.locale ?? bookingLocale(booking) });
 }
 
 /**
@@ -275,7 +281,14 @@ export type ConfirmInput = {
   acceptedTotalMinor: number;
   supplier: SupplierAdapter;
   now: Date;
+  /** The language of the request: the chat line is written in it. The booking's own when left out. */
+  locale?: Locale;
 };
+
+/** The language a booking was checked out (or frozen) in; English for rows from before it was kept. */
+export function bookingLocale(b: Pick<Booking, 'locale'>): Locale {
+  return isLocale(b.locale) ? b.locale : DEFAULT_LOCALE;
+}
 
 export type ConfirmError =
   | 'booking_not_found'
@@ -358,11 +371,12 @@ export async function confirmCheckout(input: ConfirmInput): Promise<ConfirmResul
   if (!booked.ok) return { ok: false, error: booked.error, signedInAs };
   const confirmed = booked.booking;
   if (booking.sessionId && booking.checkIn && booking.checkOut) {
+    const locale = input.locale ?? bookingLocale(booking);
     await appendMessage({
       sessionId: booking.sessionId,
       role: 'assistant',
       kind: 'line',
-      content: `Booked: ${booking.hotelName}, ${formatDates(booking.checkIn, booking.checkOut)}. Reference ${confirmed.supplierBookingId}.`,
+      content: copy(locale).booking.bookedLine(booking.hotelName ?? '', formatDates(booking.checkIn, booking.checkOut, locale), confirmed.supplierBookingId ?? ''),
       meta: { booking: booking.id },
     });
   }
@@ -409,7 +423,7 @@ export async function bookPaid(args: {
 
 export type CancelError = 'booking_not_found' | 'not_cancellable' | 'cancel_failed';
 
-export async function cancelBooking(args: { bookingId: string; supplier: SupplierAdapter }): Promise<{ ok: true; booking: Booking } | { ok: false; error: CancelError }> {
+export async function cancelBooking(args: { bookingId: string; supplier: SupplierAdapter; locale?: Locale }): Promise<{ ok: true; booking: Booking } | { ok: false; error: CancelError }> {
   const booking = await getBooking(args.bookingId);
   if (!booking) return { ok: false, error: 'booking_not_found' };
   if (booking.status !== 'confirmed' || !booking.supplierBookingId) return { ok: false, error: 'not_cancellable' };
@@ -417,7 +431,7 @@ export async function cancelBooking(args: { bookingId: string; supplier: Supplie
   if (!result.ok || result.value.status !== 'cancelled') return { ok: false, error: 'cancel_failed' };
   const cancelled = await transitionBooking(booking.id, 'cancelled', { refundMinor: result.value.refund.amountMinor, cancelFeeMinor: result.value.fee.amountMinor });
   if (booking.sessionId) {
-    await appendMessage({ sessionId: booking.sessionId, role: 'assistant', kind: 'line', content: `Cancelled: ${booking.hotelName}. Reference ${booking.supplierBookingId}.`, meta: { booking: booking.id } });
+    await appendMessage({ sessionId: booking.sessionId, role: 'assistant', kind: 'line', content: copy(args.locale ?? bookingLocale(booking)).booking.cancelledLine(booking.hotelName ?? '', booking.supplierBookingId), meta: { booking: booking.id } });
   }
   return { ok: true, booking: cancelled ?? booking };
 }

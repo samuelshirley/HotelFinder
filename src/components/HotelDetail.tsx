@@ -6,11 +6,13 @@ import { errorCopy } from '@/lib/errors';
 import { curateFacilities, goodToKnow, ratingWord } from '@/lib/facilities';
 import { hotelFaq, type FaqEntry } from '@/lib/hotelFaq';
 import { formatKm } from '@/lib/reasonText';
-import { formatMoney } from '@/lib/replies';
+import { formatInstant, formatMoney } from '@/lib/replies';
+import { formatCount, INTL } from '@/lib/i18n';
 import type { SessionView } from '@/server/view';
 import { ApiError, loadProperty, loadRates, type HotelRate, type PropertyDetails } from './api';
 import styles from './HotelDetail.module.css';
 import { Heart, type SaveLink } from './Heart';
+import { useLocale } from './i18n';
 import { Spinner } from './Spinner';
 
 /**
@@ -33,8 +35,6 @@ type Props = {
 };
 
 const nightsOf = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000));
-const when = (iso: string) =>
-  new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso)) + ' UTC';
 
 function fromRow(row: Row): HotelRate | null {
   const o = row.offer;
@@ -60,6 +60,8 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
   const [ratesError, setRatesError] = useState(false);
   const [selected, setSelected] = useState<HotelRate | null>(fromRow(row));
   const top = useRef<HTMLDivElement>(null);
+  const { locale, t } = useLocale();
+  const d = t.detail;
   const sessionId = view.session.id;
   const propertyId = row.property.id;
 
@@ -84,7 +86,7 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
   const stay = view.stay!;
   const nights = nightsOf(stay.checkIn, stay.checkOut);
   const km = (row.reason as { distance_km?: number } | null)?.distance_km;
-  const word = ratingWord(row.property.rating);
+  const word = ratingWord(row.property.rating, locale);
   const name = details?.name ?? row.property.name;
 
   const choose = (r: HotelRate) => {
@@ -107,26 +109,26 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
         <p className={styles.meta}>
           {row.property.rating !== null && (
             <span className={styles.score}>
-              {row.property.rating}
+              {row.property.rating.toLocaleString(INTL[locale].number)}
               {word ? ` ${word}` : ''}
             </span>
           )}
-          {row.property.reviewCount !== null && <span>{row.property.reviewCount.toLocaleString('en')} reviews</span>}
-          {row.property.stars ? <span aria-label={`${row.property.stars} stars`}>{'★'.repeat(Math.round(row.property.stars))}</span> : null}
-          {typeof km === 'number' && <span>{formatKm(km)} from {stay.nearLabel}</span>}
+          {row.property.reviewCount !== null && <span>{t.words.reviews(formatCount(row.property.reviewCount, locale))}</span>}
+          {row.property.stars ? <span aria-label={t.words.stars(row.property.stars)}>{'★'.repeat(Math.round(row.property.stars))}</span> : null}
+          {typeof km === 'number' && <span>{t.answers.kmFrom(formatKm(km, locale), stay.nearLabel)}</span>}
         </p>
       </header>
 
       {selected ? (
         <PriceBlock rate={selected} nights={nights} booking={booking} onBook={onBook} sticky={false} />
       ) : (
-        <p className={styles.muted}>No price for these dates yet.</p>
+        <p className={styles.muted}>{d.noPriceYet}</p>
       )}
 
       <KeyFacts rate={selected} details={details} />
 
-      {detailsError && <p className={styles.muted}>{errorCopy(detailsError)}</p>}
-      {!details && !detailsError && <Spinner label="Loading the hotel…" />}
+      {detailsError && <p className={styles.muted}>{errorCopy(detailsError, locale)}</p>}
+      {!details && !detailsError && <Spinner label={d.loading} />}
 
       {details?.reviews && (details.reviews.categories.length > 0 || details.reviews.pros.length > 0) && <Reviews reviews={details.reviews} rating={row.property.rating} count={row.property.reviewCount} />}
 
@@ -145,6 +147,7 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
             checkOutUntil: details.checkOutUntil,
             nights,
             currency: view.session.currency,
+            locale,
           })}
         />
       )}
@@ -152,11 +155,11 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
       {details?.description && <About text={details.description} />}
       {details?.address && (
         <section className={styles.section}>
-          <h3>Location</h3>
+          <h3>{d.location}</h3>
           <p>{details.address}</p>
           {details.latitude !== null && details.longitude !== null && (
             <a className={styles.link} href={`https://www.google.com/maps/search/?api=1&query=${details.latitude},${details.longitude}`} target="_blank" rel="noopener noreferrer">
-              Open in Maps
+              {d.openInMaps}
             </a>
           )}
         </section>
@@ -165,15 +168,15 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
       {mode === 'slideout' && selected && (
         <div className={styles.bookBar}>
           <div>
-            <strong>{formatMoney(selected.totalMinor, selected.currency)}</strong>
-            <span className={styles.muted}> total · {[selected.roomName, selected.boardName].filter(Boolean).join(' · ')}</span>
+            <strong>{formatMoney(selected.totalMinor, selected.currency, locale)}</strong>
+            <span className={styles.muted}>{d.barTotal([selected.roomName, selected.boardName].filter(Boolean).join(' · '))}</span>
           </div>
           <BookButton rate={selected} booking={booking} onBook={onBook} />
         </div>
       )}
       {mode === 'expand' && (
         <button type="button" className={styles.collapse} onClick={onClose}>
-          Collapse ▲
+          {t.ui.collapse}
         </button>
       )}
     </div>
@@ -181,14 +184,15 @@ export function HotelDetail({ view, row, mode, booking, onBook, onClose, save }:
 }
 
 function BookButton({ rate, booking, onBook }: { rate: HotelRate; booking: string | null; onBook: (id: string) => void }) {
+  const { locale, t } = useLocale();
   return (
     <button type="button" className={styles.book} disabled={booking !== null} onClick={() => onBook(rate.offerId)}>
       {booking === rate.offerId ? (
         <>
-          <Spinner size={14} /> Checking price…
+          <Spinner size={14} /> {t.ui.checkingPrice}
         </>
       ) : (
-        `Book · ${formatMoney(rate.totalMinor, rate.currency)}`
+        t.detail.bookFor(formatMoney(rate.totalMinor, rate.currency, locale))
       )}
     </button>
   );
@@ -197,6 +201,7 @@ function BookButton({ rate, booking, onBook }: { rate: HotelRate; booking: strin
 function Gallery({ mode, urls, name }: { mode: 'expand' | 'slideout'; urls: string[]; name: string }) {
   const [small, setSmall] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<number | null>(null);
+  const { t } = useLocale();
   const shown = urls.filter((u) => !small.has(u)).slice(0, 12);
   // Photos under 600px wide look broken at this size: dropped once loaded.
   const check = (u: string) => (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -205,7 +210,7 @@ function Gallery({ mode, urls, name }: { mode: 'expand' | 'slideout'; urls: stri
   if (shown.length === 0) return null;
   const img = (u: string, i: number, cls: string) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <button key={u} type="button" className={cls} onClick={() => setOpen(i)} aria-label={`Photo ${i + 1} of ${shown.length}`}>
+    <button key={u} type="button" className={cls} onClick={() => setOpen(i)} aria-label={t.detail.photoOf(i + 1, shown.length)}>
       <img src={u} alt="" loading={i < 3 ? 'eager' : 'lazy'} onLoad={check(u)} />
     </button>
   );
@@ -216,7 +221,7 @@ function Gallery({ mode, urls, name }: { mode: 'expand' | 'slideout'; urls: stri
           {img(shown[0], 0, styles.hero)}
           {shown.length > 2 && <div className={styles.quad}>{shown.slice(1, 5).map((u, i) => img(u, i + 1, styles.quadCell))}</div>}
           <button type="button" className={styles.counter} onClick={() => setOpen(0)}>
-            1/{shown.length} photos
+            {t.detail.photoCount(shown.length)}
           </button>
         </div>
       ) : (
@@ -230,6 +235,7 @@ function Gallery({ mode, urls, name }: { mode: 'expand' | 'slideout'; urls: stri
 function Lightbox({ urls, start, name, onClose }: { urls: string[]; start: number; name: string; onClose: () => void }) {
   const [i, setI] = useState(start);
   const close = useRef<HTMLButtonElement>(null);
+  const d = useLocale().t.detail;
   useEffect(() => {
     close.current?.focus();
     const key = (e: KeyboardEvent) => {
@@ -244,16 +250,16 @@ function Lightbox({ urls, start, name, onClose }: { urls: string[]; start: numbe
     return () => window.removeEventListener('keydown', key, true);
   }, [onClose, urls.length]);
   return (
-    <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label={`Photos of ${name}`}>
-      <button ref={close} type="button" className={styles.lbClose} onClick={onClose} aria-label="Close photos">
+    <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label={d.photosOf(name)}>
+      <button ref={close} type="button" className={styles.lbClose} onClick={onClose} aria-label={d.closePhotos}>
         ✕
       </button>
-      <button type="button" className={styles.lbPrev} onClick={() => setI((n) => (n - 1 + urls.length) % urls.length)} aria-label="Previous photo">
+      <button type="button" className={styles.lbPrev} onClick={() => setI((n) => (n - 1 + urls.length) % urls.length)} aria-label={d.previousPhoto}>
         ‹
       </button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={urls[i]} alt={`${name}, photo ${i + 1} of ${urls.length}`} />
-      <button type="button" className={styles.lbNext} onClick={() => setI((n) => (n + 1) % urls.length)} aria-label="Next photo">
+      <img src={urls[i]} alt={d.photoAlt(name, i + 1, urls.length)} />
+      <button type="button" className={styles.lbNext} onClick={() => setI((n) => (n + 1) % urls.length)} aria-label={d.nextPhoto}>
         ›
       </button>
       <span className={styles.lbCount}>
@@ -267,22 +273,26 @@ function PriceBlock({ rate, nights, booking, onBook }: { rate: HotelRate; nights
   const included = rate.fees.filter((f) => f.included);
   const atHotel = rate.fees.filter((f) => !f.included);
   const firstPenalty = rate.penalties[0];
+  const { locale, t } = useLocale();
+  const d = t.detail;
+  const money = (minor: number, currency: string) => formatMoney(minor, currency, locale);
+  const when = (iso: string) => formatInstant(iso, locale);
   return (
-    <section className={styles.price} aria-label="Price">
+    <section className={styles.price} aria-label={d.price}>
       <div className={styles.priceTop}>
         <div>
           <p className={styles.total}>
-            {formatMoney(rate.totalMinor, rate.currency)} <span>total</span>
+            {money(rate.totalMinor, rate.currency)} <span>{d.total}</span>
           </p>
           <div className={styles.small}>
-            {nights} night{nights === 1 ? '' : 's'} × {formatMoney(Math.ceil(rate.totalMinor / nights), rate.currency)} · taxes &amp; fees included
+            {d.perNight(t.words.nights(nights), money(Math.ceil(rate.totalMinor / nights), rate.currency))}
             {included.length > 0 && (
               <details className={styles.info}>
-                <summary aria-label="What is included">ⓘ</summary>
+                <summary aria-label={d.whatIsIncluded}>ⓘ</summary>
                 <ul>
                   {included.map((f, i) => (
                     <li key={i}>
-                      {f.description}: {formatMoney(f.amountMinor, f.currency)}
+                      {f.description}: {money(f.amountMinor, f.currency)}
                     </li>
                   ))}
                 </ul>
@@ -291,7 +301,7 @@ function PriceBlock({ rate, nights, booking, onBook }: { rate: HotelRate; nights
           </div>
           {rate.payAtPropertyMinor > 0 && (
             <p className={styles.small}>
-              + {formatMoney(rate.payAtPropertyMinor, rate.currency)} paid at the hotel{atHotel.length > 0 ? ` (${atHotel.map((f) => f.description).join(', ')})` : ''}
+              {d.paidAtHotel(money(rate.payAtPropertyMinor, rate.currency), atHotel.map((f) => f.description).join(', '))}
             </p>
           )}
         </div>
@@ -299,57 +309,58 @@ function PriceBlock({ rate, nights, booking, onBook }: { rate: HotelRate; nights
       </div>
       <div className={styles.cancel}>
         {!rate.refundable ? (
-          <p className={styles.no}>✕ Non-refundable</p>
+          <p className={styles.no}>✕ {d.nonRefundable}</p>
         ) : (
           <>
-            <ol className={styles.timeline} aria-label="Cancellation">
+            <ol className={styles.timeline} aria-label={d.cancellation}>
               <li>
-                <span>Today</span>
-                <strong>Booked</strong>
+                <span>{d.today}</span>
+                <strong>{d.booked}</strong>
               </li>
               <li>
-                <span>{rate.freeCancellationUntil ? `Until ${when(rate.freeCancellationUntil)}` : 'Deadline not given'}</span>
-                <strong>Free to cancel</strong>
+                <span>{rate.freeCancellationUntil ? d.until(when(rate.freeCancellationUntil)) : d.deadlineNotGiven}</span>
+                <strong>{d.freeToCancel}</strong>
               </li>
               {firstPenalty && (
                 <li>
-                  <span>{firstPenalty.from ? `From ${when(firstPenalty.from)}` : 'After that'}</span>
-                  <strong>{formatMoney(firstPenalty.amountMinor, firstPenalty.currency)} to cancel</strong>
+                  <span>{firstPenalty.from ? d.from(when(firstPenalty.from)) : d.afterThat}</span>
+                  <strong>{d.toCancel(money(firstPenalty.amountMinor, firstPenalty.currency))}</strong>
                 </li>
               )}
             </ol>
             <p className={styles.cancelText}>
-              <span className={styles.yes}>✓ Free cancellation{rate.freeCancellationUntil ? ` until ${when(rate.freeCancellationUntil)}` : ''}</span>
+              <span className={styles.yes}>✓ {rate.freeCancellationUntil ? d.freeCancellationUntil(when(rate.freeCancellationUntil)) : d.freeCancellation}</span>
               {firstPenalty && (
                 <span className={styles.small}>
                   {' '}
-                  then {formatMoney(firstPenalty.amountMinor, firstPenalty.currency)}
+                  {d.then(money(firstPenalty.amountMinor, firstPenalty.currency))}
                 </span>
               )}
             </p>
           </>
         )}
-        <p className={styles.small}>{[rate.roomName, rate.boardName ?? 'Room only'].filter(Boolean).join(' · ')}</p>
+        <p className={styles.small}>{[rate.roomName, rate.boardName ?? d.roomOnly].filter(Boolean).join(' · ')}</p>
       </div>
     </section>
   );
 }
 
 function KeyFacts({ rate, details }: { rate: HotelRate | null; details: PropertyDetails | null }) {
+  const d = useLocale().t.detail;
   const facts: string[] = [];
   if (rate?.boardName) facts.push(rate.boardName);
-  if (rate) facts.push(rate.refundable ? 'Free cancellation' : 'Non-refundable');
+  if (rate) facts.push(rate.refundable ? d.freeCancellation : d.nonRefundable);
   const parking = details?.parking?.toUpperCase();
-  if (parking === 'FREE') facts.push('Free parking');
-  else if (parking === 'PAID') facts.push('Paid parking');
-  else if (parking === 'NOT_AVAILABLE') facts.push('No parking');
-  if (details?.petsAllowed === true) facts.push('Pets allowed');
-  else if (details?.petsAllowed === false) facts.push('No pets');
-  if (details?.checkInFrom || details?.checkOutUntil) facts.push([details.checkInFrom && `Check-in from ${details.checkInFrom}`, details.checkOutUntil && `out by ${details.checkOutUntil}`].filter(Boolean).join(', '));
-  if (details?.childrenAllowed === false) facts.push('No children');
+  if (parking === 'FREE') facts.push(d.freeParking);
+  else if (parking === 'PAID') facts.push(d.paidParking);
+  else if (parking === 'NOT_AVAILABLE') facts.push(d.noParking);
+  if (details?.petsAllowed === true) facts.push(d.petsAllowed);
+  else if (details?.petsAllowed === false) facts.push(d.noPets);
+  if (details?.checkInFrom || details?.checkOutUntil) facts.push(d.checkTimes(details.checkInFrom ?? '', details.checkOutUntil ?? ''));
+  if (details?.childrenAllowed === false) facts.push(d.noChildren);
   if (facts.length === 0) return null;
   return (
-    <ul className={styles.facts} aria-label="Key facts">
+    <ul className={styles.facts} aria-label={d.keyFacts}>
       {facts.slice(0, 6).map((f) => (
         <li key={f}>{f}</li>
       ))}
@@ -359,16 +370,18 @@ function KeyFacts({ rate, details }: { rate: HotelRate | null; details: Property
 
 function Reviews({ reviews, rating, count }: { reviews: NonNullable<PropertyDetails['reviews']>; rating: number | null; count: number | null }) {
   const [more, setMore] = useState(false);
-  const word = ratingWord(rating);
+  const { locale, t } = useLocale();
+  const d = t.detail;
+  const word = ratingWord(rating, locale);
   const n = more ? 99 : 4;
   return (
     <section className={styles.section}>
-      <h3>What guests say</h3>
+      <h3>{d.whatGuestsSay}</h3>
       {rating !== null && (
         <p className={styles.small}>
-          {rating}
+          {rating.toLocaleString(INTL[locale].number)}
           {word ? ` ${word}` : ''}
-          {count !== null ? ` · ${count.toLocaleString('en')} reviews` : ''} · summary from the supplier
+          {count !== null ? ` · ${t.words.reviews(formatCount(count, locale))}` : ''} · {d.fromSupplier}
         </p>
       )}
       {reviews.categories.length > 0 && (
@@ -387,7 +400,7 @@ function Reviews({ reviews, rating, count }: { reviews: NonNullable<PropertyDeta
       <div className={styles.proscons}>
         {reviews.pros.length > 0 && (
           <div>
-            <h4>Guests liked</h4>
+            <h4>{d.guestsLiked}</h4>
             <ul>
               {reviews.pros.slice(0, n).map((p) => (
                 <li key={p}>
@@ -399,7 +412,7 @@ function Reviews({ reviews, rating, count }: { reviews: NonNullable<PropertyDeta
         )}
         {reviews.cons.length > 0 && (
           <div>
-            <h4>Watch out for</h4>
+            <h4>{d.watchOutFor}</h4>
             <ul>
               {reviews.cons.slice(0, n).map((p) => (
                 <li key={p}>
@@ -412,7 +425,7 @@ function Reviews({ reviews, rating, count }: { reviews: NonNullable<PropertyDeta
       </div>
       {(reviews.pros.length > 4 || reviews.cons.length > 4) && (
         <button type="button" className={styles.link} onClick={() => setMore((m) => !m)}>
-          {more ? 'Show less' : `+${Math.max(reviews.pros.length, reviews.cons.length) - 4} more`}
+          {more ? d.showLess : d.more(Math.max(reviews.pros.length, reviews.cons.length) - 4)}
         </button>
       )}
     </section>
@@ -436,19 +449,22 @@ function Rates({
 }) {
   const [all, setAll] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const { locale, t } = useLocale();
+  const d = t.detail;
+  const money = (minor: number, currency: string) => formatMoney(minor, currency, locale);
   const groups = useMemo(() => {
     const byRoom = new Map<string, HotelRate[]>();
-    for (const r of rates ?? []) byRoom.set(r.roomName ?? 'Room', [...(byRoom.get(r.roomName ?? 'Room') ?? []), r]);
+    for (const r of rates ?? []) byRoom.set(r.roomName ?? d.room, [...(byRoom.get(r.roomName ?? d.room) ?? []), r]);
     return [...byRoom.entries()].map(([room, list]) => ({ room, list, from: Math.min(...list.map((r) => r.totalMinor)) })).sort((a, b) => a.from - b.from);
-  }, [rates]);
+  }, [rates, d.room]);
   if (error)
     return (
       <section className={styles.section}>
-        <h3>Rooms &amp; rates</h3>
+        <h3>{d.roomsAndRates}</h3>
         <p className={styles.small}>
-          Other rates are unavailable right now ·{' '}
+          {d.otherRatesUnavailable} ·{' '}
           <button type="button" className={styles.link} onClick={onRetry}>
-            Retry
+            {d.retry}
           </button>
         </p>
       </section>
@@ -457,7 +473,7 @@ function Rates({
   const staticRoom = (name: string) => rooms.find((r) => r.name.trim().toLowerCase() === name.trim().toLowerCase());
   return (
     <section className={styles.section}>
-      <h3>Rooms &amp; rates</h3>
+      <h3>{d.roomsAndRates}</h3>
       {rates === null ? (
         <ul className={styles.rooms} aria-busy="true">
           {[0, 1, 2].map((i) => (
@@ -470,7 +486,7 @@ function Rates({
             {(all ? groups : groups.slice(0, 3)).map((g) => {
               const s = staticRoom(g.room);
               const isOpen = open === g.room;
-              const facts = [s?.sizeSqm ? `${s.sizeSqm} m²` : null, s?.beds.length ? s.beds.join(', ') : null, s?.maxOccupancy ? `sleeps ${s.maxOccupancy}` : null].filter(Boolean).join(' · ');
+              const facts = [s?.sizeSqm ? `${s.sizeSqm} m²` : null, s?.beds.length ? s.beds.join(', ') : null, s?.maxOccupancy ? d.sleeps(s.maxOccupancy) : null].filter(Boolean).join(' · ');
               const currency = g.list[0].currency;
               return (
                 <li key={g.room}>
@@ -484,26 +500,26 @@ function Rates({
                     <span className={styles.roomText}>
                       <span className={styles.roomName}>
                         {g.room}
-                        {g.list.some((r) => r.offerId === selected?.offerId) && <span className={styles.tag}>Selected</span>}
+                        {g.list.some((r) => r.offerId === selected?.offerId) && <span className={styles.tag}>{d.selected}</span>}
                       </span>
                       {facts && <span className={styles.small}>{facts}</span>}
                     </span>
                     <span className={styles.from}>
-                      From {formatMoney(g.from, currency)} <span className={styles.chev}>{isOpen ? '▴' : '▾'}</span>
+                      {d.fromPrice(money(g.from, currency))} <span className={styles.chev}>{isOpen ? '▴' : '▾'}</span>
                     </span>
                   </button>
                   {isOpen && (
                     <ul className={styles.rateRows}>
                       {g.list.map((r) => (
                         <li key={r.offerId}>
-                          <span>{r.boardName ?? 'Room only'}</span>
-                          <span className={r.refundable ? styles.yes : styles.no}>{r.refundable ? '✓ Free cancellation' : '✕ Non-refundable'}</span>
-                          <strong>{formatMoney(r.totalMinor, r.currency)}</strong>
+                          <span>{r.boardName ?? d.roomOnly}</span>
+                          <span className={r.refundable ? styles.yes : styles.no}>{r.refundable ? `✓ ${d.freeCancellation}` : `✕ ${d.nonRefundable}`}</span>
+                          <strong>{money(r.totalMinor, r.currency)}</strong>
                           {r.offerId === selected?.offerId ? (
-                            <span className={styles.tag}>Selected</span>
+                            <span className={styles.tag}>{d.selected}</span>
                           ) : (
                             <button type="button" className={styles.select} onClick={() => onChoose(r)}>
-                              Select
+                              {d.select}
                             </button>
                           )}
                         </li>
@@ -516,7 +532,7 @@ function Rates({
           </ul>
           {groups.length > 3 && (
             <button type="button" className={styles.link} onClick={() => setAll((a) => !a)}>
-              {all ? 'Show fewer rooms' : `Show all ${groups.length} rooms`}
+              {all ? d.showFewerRooms : d.showAllRooms(groups.length)}
             </button>
           )}
         </>
@@ -527,10 +543,11 @@ function Rates({
 
 function GoodToKnow({ text }: { text: string | null }) {
   const picked = goodToKnow(text);
+  const d = useLocale().t.detail;
   if (!text) return null;
   return (
     <section className={styles.section}>
-      <h3>Good to know</h3>
+      <h3>{d.goodToKnow}</h3>
       {picked.length > 0 && (
         <ul className={styles.bullets}>
           {picked.map((s) => (
@@ -539,8 +556,8 @@ function GoodToKnow({ text }: { text: string | null }) {
         </ul>
       )}
       <details className={styles.disclosure}>
-        <summary>Full hotel policy</summary>
-        <p className={styles.small}>From the hotel:</p>
+        <summary>{d.fullPolicy}</summary>
+        <p className={styles.small}>{d.fromTheHotel}</p>
         {text.split('\n').map((p, i) => (
           <p key={i}>{p}</p>
         ))}
@@ -553,9 +570,10 @@ function GoodToKnow({ text }: { text: string | null }) {
 function Faq({ entries }: { entries: FaqEntry[] }) {
   const [all, setAll] = useState(false);
   const FIRST = 8;
+  const d = useLocale().t.detail;
   return (
-    <section className={styles.section} aria-label="Questions about this hotel">
-      <h3>Questions about this hotel</h3>
+    <section className={styles.section} aria-label={d.questions}>
+      <h3>{d.questions}</h3>
       <dl className={styles.faq}>
         {(all ? entries : entries.slice(0, FIRST)).map((e) => (
           <div key={e.id} data-held={e.held}>
@@ -566,20 +584,22 @@ function Faq({ entries }: { entries: FaqEntry[] }) {
       </dl>
       {entries.length > FIRST && (
         <button type="button" className={styles.link} onClick={() => setAll((a) => !a)}>
-          {all ? 'Show fewer questions' : `Show all ${entries.length} questions`}
+          {all ? d.showFewerQuestions : d.showAllQuestions(entries.length)}
         </button>
       )}
-      <p className={styles.small}>Answered from the hotel&apos;s listing and this rate. Ask in the chat for anything else.</p>
+      <p className={styles.small}>{d.questionsNote}</p>
     </section>
   );
 }
 
 function Amenities({ details }: { details: PropertyDetails }) {
   const [all, setAll] = useState(false);
-  const c = useMemo(() => curateFacilities(details.allFacilities, { parking: details.parking, petsAllowed: details.petsAllowed }), [details]);
+  const { locale, t } = useLocale();
+  const d = t.detail;
+  const c = useMemo(() => curateFacilities(details.allFacilities, { parking: details.parking, petsAllowed: details.petsAllowed }, locale), [details, locale]);
   return (
     <section className={styles.section}>
-      <h3>Amenities</h3>
+      <h3>{d.amenities}</h3>
       {c.top.length > 0 && (
         <ul className={styles.amenityGrid}>
           {c.top.map((f) => (
@@ -606,7 +626,7 @@ function Amenities({ details }: { details: PropertyDetails }) {
             </div>
           )}
           <button type="button" className={styles.link} onClick={() => setAll((a) => !a)}>
-            {all ? 'Show fewer' : `Show all ${c.count} amenities`}
+            {all ? d.showFewer : d.showAllAmenities(c.count)}
           </button>
         </>
       )}
@@ -616,16 +636,17 @@ function Amenities({ details }: { details: PropertyDetails }) {
 
 function About({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
+  const d = useLocale().t.detail;
   return (
     <section className={styles.section}>
-      <h3>About</h3>
+      <h3>{d.about}</h3>
       <div className={open ? styles.aboutOpen : styles.about}>
         {text.split('\n').map((p, i) => (
           <p key={i}>{p}</p>
         ))}
       </div>
       <button type="button" className={styles.link} onClick={() => setOpen((o) => !o)}>
-        {open ? 'Show less' : 'Read more'}
+        {open ? d.showLess : d.readMore}
       </button>
     </section>
   );

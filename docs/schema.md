@@ -60,6 +60,11 @@ Inventory: `properties`, `offers`, `shortlist_entries`. Accounts:
   the finder; user-named rows count 1, 2, 3 in the order asked. The list is
   ordered by source (finder first, relying on the enum's declaration order),
   then rank.
+- **`bookings.locale` is the only language the database keeps** (2026-11-14,
+  `0010_booking_locale`). A search is not given one (docs/i18n.md): each
+  request says its own. A booking is, because the sweep releases holds and
+  emails reminders with no request to go by. Written at the price check,
+  rewritten by whoever freezes it; null on older rows, read as English.
 
 ## What went wrong while building it
 
