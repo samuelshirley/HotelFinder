@@ -42,7 +42,13 @@ of the app imports `index.ts` and `types.ts` and nothing else
    whether to retry is the finder's decision.
 3. **An offer covering two rooms is one `roomType` with two `rates`.**
    `offerRetailRate` is the whole stay; pay-at-property charges are per room
-   and are summed.
+   and are summed. Each room also lists its own fees and its own cancellation
+   charges. Shown, fees with the same text, currency and included flag are one
+   line with the rooms' sum (`mergeFees`, `lib/checkout.ts`; before 2026-11-14
+   a split read "City tax, City tax"), and the offer's cancellation charge at
+   each moment is the sum of every room's charge then (`combinePenalties`,
+   `normalize.ts`; before, the detail showed one room's charge as the cost of
+   cancelling both).
 4. **Fee descriptions are free text, not an enum**: `CITY_TAX`, `City Tax`,
    `city fee`, `€12 eur per room per stay`. They are shown as supplier text
    and never matched on.

@@ -81,9 +81,37 @@ function combineCancellations(policies: CancellationPolicy[]): CancellationPolic
     refundable,
     freeCancellationUntil:
       refundable && deadlines.every((d) => d !== null) ? (deadlines as string[]).sort()[0] : null,
-    penalties: policies.flatMap((p) => p.penalties),
+    penalties: combinePenalties(policies.map((p) => p.penalties)),
     remarks: [...new Set(policies.flatMap((p) => p.remarks))],
   };
+}
+
+type Penalty = CancellationPolicy['penalties'][number];
+
+/**
+ * Each room lists its own charges ("from 25 Nov, 183.77"), and each is for
+ * that room only. Listed one after another, a two-room offer read as two
+ * charges of one room each and the first was shown as the cost of cancelling
+ * both (bug 2026-11-14). The offer's charge at each moment any room starts
+ * charging is the sum of what every room charges then: per room, its latest
+ * charge at or before that moment. Charges that cannot be put on one clock or
+ * in one currency are left as listed rather than added up wrongly.
+ */
+function combinePenalties(rooms: Penalty[][]): Penalty[] {
+  const all = rooms.flat();
+  if (all.length === 0) return [];
+  const converted = all.every((p) => p.from !== null);
+  const oneZone = all.every((p) => p.timezone === all[0].timezone);
+  if (!converted && !oneZone) return all;
+  if (all.some((p) => p.amount.currency !== all[0].amount.currency)) return all;
+  const at = (p: Penalty) => (converted ? (p.from as string) : p.fromRaw);
+  const sorted = rooms.map((list) => [...list].sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0)));
+  const moments = [...new Set(all.map(at))].sort();
+  return moments.map((m) => {
+    const first = all.find((p) => at(p) === m) as Penalty;
+    const amountMinor = sorted.reduce((sum, list) => sum + (list.filter((p) => at(p) <= m).at(-1)?.amount.amountMinor ?? 0), 0);
+    return { ...first, amount: { amountMinor, currency: first.amount.currency } };
+  });
 }
 
 export function normalizeRates(body: RatesResponse, marginPct: number, fetchedAt: Date): SearchResult {

@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { Locale } from '@/lib/i18n/locale';
 import { filterOptions, readChain, readPropertyType, stayFilters } from '@/lib/filters';
+import { mergeFees } from '@/lib/checkout';
 import { roomsOf } from '@/lib/finder/rooms';
 import { nightsBetween } from '@/lib/finder/geo';
 import { nearLabel } from '@/lib/replies';
@@ -169,12 +170,12 @@ export function offerPenalties(cancellation: unknown): Array<{ from: string | nu
   );
 }
 
-/** Taxes and fees, included in the total or paid at the hotel, as the supplier names them. */
+/** Taxes and fees, included in the total or paid at the hotel, as the supplier names them: one line each, summed over a split's rooms (`mergeFees`). */
 export function offerFees(fees: unknown): Array<{ description: string; amountMinor: number; currency: string; included: boolean }> {
   const list = (fees as Array<{ description?: string; amount?: { amountMinor?: number; currency?: string }; included?: boolean }> | null) ?? [];
-  return list.flatMap((f) =>
+  return mergeFees(list.flatMap((f) =>
     typeof f.amount?.amountMinor === 'number' && f.amount.currency
       ? [{ description: f.description || (f.included ? 'Taxes and fees' : 'Paid at the hotel'), amountMinor: f.amount.amountMinor, currency: f.amount.currency, included: Boolean(f.included) }]
       : [],
-  );
+  ));
 }

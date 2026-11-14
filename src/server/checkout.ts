@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { CancellationPolicy, SupplierAdapter, SupplierOffer } from '@/server/supplier';
 import { isCountryCode } from '@/lib/countries';
-import { cleanSpecialRequest, payAtHotelCharges, type HotelCharge } from '@/lib/checkout';
+import { cleanSpecialRequest, mergeFees, payAtHotelCharges, type HotelCharge } from '@/lib/checkout';
 import { freezeTerms } from '@/lib/freeze';
 import { formatDates } from '@/lib/replies';
 import { normalizeEmail, verifyCode } from '@/server/auth/otp';
@@ -443,8 +443,12 @@ export function bookingView(b: Booking, now: Date) {
     quotedTotalMinor: b.quotedTotalMinor >= 0 ? b.quotedTotalMinor : null,
     priceChanged: b.quotedTotalMinor !== b.totalMinor,
     payAtPropertyMinor: b.payAtPropertyMinor ?? 0,
-    /** Each charge the hotel collects, as the supplier names it. null on bookings made before they were kept. */
-    payAtPropertyFees: (b.payAtPropertyFees ?? null) as HotelCharge[] | null,
+    /**
+     * Each charge the hotel collects, as the supplier names it, once across rooms
+     * (a split booked before 2026-11-14 kept "City tax" once per room). null on
+     * bookings made before they were kept.
+     */
+    payAtPropertyFees: b.payAtPropertyFees ? mergeFees(b.payAtPropertyFees as HotelCharge[]) : null,
     /** What the guest asked the hotel for. Not guaranteed. */
     specialRequest: b.specialRequest,
     refundable: cancellation?.refundable ?? null,
