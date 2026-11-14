@@ -209,7 +209,7 @@ in first).
 ## Tests written by CI
 
 `.github/workflows/e2e-author.yml` (Sam, 2026-11-14). On every push to a PR
-from this repository (not drafts, not forks), Claude (Sonnet 5.5, 80 turns at
+from this repository (not drafts, not forks), Claude (Sonnet 5.5, 150 turns at
 most) reads the change against the base branch, decides whether the new or
 changed behaviour already has an e2e test, and writes the missing ones under
 `e2e/` only, by the rules above. It runs `npm run typecheck` and each spec it
@@ -226,7 +226,10 @@ sentence, or says why none were needed.
 - Off for one PR: the label `no-e2e-author`. Off for one push: a line that is exactly
   `[skip e2e-author]` in the head commit's message (a mention inside a sentence
   does not count: 2026-11-14 the commit adding the job skipped itself that way).
-- **Not yet run on a real PR** (written 2026-11-14).
+- First real run, #5 on 2026-11-14: 5 turns, 15 s, $0.09, "no new tests needed",
+  naming only the last three commits. It had not read a 132k-line change, so
+  the prompt now has it go commit by commit, find the covering test for every
+  behaviour, and list those ("Already covered") in the comment as evidence.
 
 ## Isolation and the sandbox's rate limit
 

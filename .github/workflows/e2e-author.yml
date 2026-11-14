@@ -86,7 +86,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: >-
             --model claude-sonnet-5-5
-            --max-turns 80
+            --max-turns 150
             --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(npm run typecheck),Bash(npx tsc:*),Bash(npx playwright test:*),Bash(ls:*),Bash(cat:*)"
           prompt: |
             You are adding end-to-end tests to pull request #${{ env.PR }} of this repository
@@ -98,12 +98,16 @@ jobs:
                assert intended behaviour, never today's output; every API route and
                method has a describe in the spec e2e/api/catalog.ts names; every control
                is claimed in e2e/guards/registry.ts.
-            2. Read the change: `git diff origin/${{ env.BASE }}...HEAD` and
-               `git log origin/${{ env.BASE }}..HEAD`. Work out what a user or an API
-               caller can now see or do differently.
-            3. Decide whether that behaviour is already covered by an e2e test (on this
-               branch, including tests the PR itself adds). Only add tests for behaviour
-               that is new or changed and not covered. Do not rewrite or delete existing
+            2. Read the change one commit at a time, not as one diff (a large PR's
+               whole diff will not fit): `git log --reverse --format='%h %s' origin/${{ env.BASE }}..HEAD`,
+               then `git show --stat <sha>` and `git show <sha> -- src/` for each commit
+               that changes code under src/. List every behaviour a user or an API caller
+               can now see or do differently: a screen, a control, a line of copy, a route,
+               a status code, a refusal.
+            3. For each behaviour on that list, find the e2e test that covers it on this
+               branch (Grep e2e/ for the route, the copy or the control; read the test to
+               be sure it asserts the behaviour, not just that a page loads). Only add
+               tests for behaviour that no test covers. Do not rewrite or delete existing
                tests, and do not add tests for code the PR did not change.
             4. If tests are needed, write them in e2e/ only, in the style of the specs
                around them (fixtures/test, page objects in e2e/pages, schemas in
@@ -125,6 +129,11 @@ jobs:
 
                If none were needed:
                  **No new end-to-end tests needed.** <one sentence saying why>
+
+               Either way, end with what you checked was already covered, one line each,
+               at most 15 lines, the most important first:
+                 **Already covered**
+                 - <the behaviour, in plain words>: "<test title>" (`<file>`)
 
             Do not commit, push or comment: the workflow does that.
 
