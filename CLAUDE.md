@@ -57,7 +57,7 @@ npm run typecheck        # tsc --noEmit
 npx playwright test      # real browser, own dev server, live LiteAPI sandbox
 npm run db:generate      # after editing schema.ts; a test fails if you forget
 npm run db:migrate       # apply drizzle/ to DATABASE_URL (production builds do it: docs/deploy.md)
-scripts/jev-live.sh      # ask the real Jev 87 messages (87 of 87 on 2026-11-13)
+scripts/jev-live.sh      # ask the real Jev 89 messages (89 of 89 on 2026-11-14)
 ```
 
 ## Layout

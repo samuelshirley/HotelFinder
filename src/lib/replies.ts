@@ -350,6 +350,8 @@ export function answerLine(a: Answer, currency: string, locale: Locale = 'en'): 
       return a.listed ? t.facilityListed(a.name, mustHaveLabel(a.amenity, locale)) : t.facilityNotListed(a.name, mustHaveLabel(a.amenity, locale));
     case 'not_held':
       return notHeldLine(a.name, a.ask, locale);
+    case 'facts':
+      return a.answers.map((x) => answerLine(x, currency, locale)).join(' ');
     case 'across': {
       const [yes, no] =
         a.ask.fact === 'facility'

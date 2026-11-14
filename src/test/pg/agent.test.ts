@@ -397,6 +397,31 @@ describe('the agent: what the router did not settle', () => {
     expect(turn.resultMeta).toMatchObject({ model_calls: 2, guards: [] });
   });
 
+  it('the agent reads pets and cancellation off the rows, so a listing it cannot fetch costs it nothing it needs (2026-11-14)', async () => {
+    const over: Parameters<typeof recordedSupplier>[0] = {};
+    const supplier = recordedSupplier(over);
+    const session = await createSession({ anonId: 'pet' });
+    let guestsAnswered = false;
+    for (const answer of ANSWERS.map((a) => (a.field === 'guests' ? { ...a, pets: true } : a))) {
+      await answerForm({ sessionId: session.id, answer, guestsAnswered, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY });
+      if (answer.field === 'guests') guestsAnswered = true;
+    }
+    over.content = 'fail';
+    // The second hotel's rate carries no cancellation tag: silent, not non-refundable.
+    await rawQuery("update offers set refundable_tag = null where property_id = (select id from properties where name = 'ICON Duplo Ribeira')");
+    const m = scripted([{ tool: 'hotel_details', input: { position: 1 } }], [{ text: 'It lists pets as allowed, and the rate is non-refundable.' }]);
+    const turn = await say((await getSession(session.id))!, 'does the first one take my dog, and is it refundable? also is it quiet', deps(supplier.supplier, m.callModel));
+    const first = JSON.stringify(m.calls[0].messages[0].content);
+    const line = (name: string) => first.split('\\n').find((l) => l.includes(name))!;
+    expect(line('Mercure Porto Centro Aliados')).toContain('non-refundable');
+    expect(line('Mercure Porto Centro Aliados')).toMatch(/facilities its listing names \(anything else is not listed, which is not a no\): [^;]*pets allowed/);
+    expect(line('ICON Duplo Ribeira')).toContain('cancellation: the listing does not say');
+    expect(line('ICON Duplo Ribeira')).not.toContain('non-refundable');
+    // The failed fetch points the model back at those rows.
+    expect(JSON.stringify(m.calls[1].messages.at(-1)!.content)).toContain('Answer from its line in <hotels_on_screen>');
+    expect(turn.finalText).toBe('It lists pets as allowed, and the rate is non-refundable.');
+  });
+
   it('a reply stating a number the server never gave is not shown', async () => {
     const { session, supplier } = await onboarded();
     const m = scripted([{ text: 'The first one is a bargain at €41 a night and only 300 m from the river.' }]);

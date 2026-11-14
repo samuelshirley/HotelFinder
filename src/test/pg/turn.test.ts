@@ -545,6 +545,67 @@ describe('questions about what is on screen are answered from the rows, with no 
     );
   });
 
+  describe('two facts about one hotel in one message, on a search with a pet (2026-11-14)', () => {
+    // As the real Jev read "Does Hotel Universal allow dogs, and can I cancel for free?":
+    // `fact` split between the two facts asked. Before this, the turn went to the agent, whose
+    // only source for pets was a live listing fetch; when that failed it said it "could not read
+    // its full listing to confirm the terms", while the property row held the answer.
+    const LIVE: Partial<Readings> = {
+      intent: { choice: 'ask_hotels', top: 0.97, margin: 0.94 },
+      multiIntent: 0.26,
+      fact: { choice: 'cancellation', top: 0.51, margin: 0.02, runnerUp: 'facility' },
+      amenity: { choice: 'pets_allowed', top: 0.88, margin: 0.76 },
+    };
+    async function withPet() {
+      const over: Parameters<typeof recordedSupplier>[0] = {};
+      const supplier = recordedSupplier(over);
+      const session = await createSession({ anonId: 'anon-pet' });
+      await askQuestion(session.id, 'destination');
+      let guestsAnswered = false;
+      for (const answer of ANSWERS.map((a) => (a.field === 'guests' ? { ...a, pets: true } : a))) {
+        expect(await answerForm({ sessionId: session.id, answer, guestsAnswered, supplier: supplier.supplier, now: RECORDED_AT, today: TODAY })).toMatchObject({ ok: true });
+        if (answer.field === 'guests') guestsAnswered = true;
+      }
+      // From here the hotel's own listing cannot be read: the answer must not need it.
+      over.content = 'fail';
+      return { session: (await getSession(session.id))!, supplier };
+    }
+
+    it('the pet policy and the cancellation terms come from the property and offer rows, with no model and no listing fetch', async () => {
+      const { session, supplier } = await withPet();
+      const fetched = supplier.contentCalls.length;
+      const { turn } = await say(session, 'Does the Mercure allow dogs, and can I cancel for free?', deps(supplier.supplier, jevSays('ask_hotels', LIVE), COUNTING_MODEL));
+      expect(modelCalls).toEqual([]);
+      expect(supplier.contentCalls).toHaveLength(fetched);
+      expect(turn.finalText).toBe('Mercure Porto Centro Aliados: non-refundable at this price. Mercure Porto Centro Aliados lists pets allowed.');
+      expect(turn.resultMeta).toMatchObject({
+        by: 'router',
+        decision: 'answer',
+        plan: { about: 'hotel_facts', asks: [{ fact: 'cancellation' }, { fact: 'facility', amenity: 'pets_allowed' }] },
+        answered: 'cancellation+facility',
+        model_calls: 0,
+      });
+    });
+
+    it('a deadline is the offer row\'s; a value the rows do not hold is "does not say", never a guess', async () => {
+      const { session, supplier } = await withPet();
+      const mercure = "(select id from properties where name = 'Mercure Porto Centro Aliados')";
+      await rawQuery(`update offers set refundable_tag = 'RFN', cancellation = '{"freeCancellationUntil":"2026-12-04T10:00:00.000Z"}'::jsonb where property_id = ${mercure}`);
+      const refundable = await say(session, 'Does the Mercure allow dogs, and can I cancel for free?', deps(supplier.supplier, jevSays('ask_hotels', LIVE), COUNTING_MODEL));
+      expect(refundable.turn.finalText).toBe('Mercure Porto Centro Aliados: free cancellation until 4 Dec, 10:00 UTC. Mercure Porto Centro Aliados lists pets allowed.');
+
+      // The supplier sent no facility list and no cancellation tag.
+      await rawQuery(`update properties set content = '{}'::jsonb where id = ${mercure}`);
+      await rawQuery(`update offers set refundable_tag = null where property_id = ${mercure}`);
+      const silent = await say(session, 'Does the Mercure allow dogs, and can I cancel for free?', deps(supplier.supplier, jevSays('ask_hotels', LIVE), COUNTING_MODEL));
+      expect(silent.turn.finalText).toBe(
+        'The listing for Mercure Porto Centro Aliados does not say whether it can be cancelled. The listing for Mercure Porto Centro Aliados does not say whether it has pets allowed.',
+      );
+      expect(silent.turn.resultMeta).toMatchObject({ answered: 'not_held+not_held', model_calls: 0 });
+      expect(modelCalls).toEqual([]);
+    });
+  });
+
   it('asking about a facility does not make it a must-have', async () => {
     const { session } = await onboarded();
     await ask('does the second one have parking?', { fact: sure('facility'), amenity: sure('parking') }, session);

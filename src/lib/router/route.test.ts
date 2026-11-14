@@ -314,6 +314,72 @@ describe('questions about what is on screen become answer plans, never actions',
     expect(routeMessage({ message: 'which is the cheapest?', readings: readings('ask_hotels', { superlative: sure('cheapest') }), state, currency: 'EUR', shortlist: [] })).toEqual({ kind: 'defer', reason: 'slot_missing' });
   });
 
+  describe('two facts about one hotel in one message (live, 2026-11-14)', () => {
+    // "Does Hotel Universal allow dogs, and can I cancel for free?", as the real Jev read it:
+    // the intent sure, `fact` split between the two facts asked, the amenity sure.
+    const LIVE: Partial<Readings> = {
+      intent: { choice: 'ask_hotels', top: 0.97, margin: 0.94 },
+      multiIntent: 0.26,
+      fact: { choice: 'cancellation', top: 0.51, margin: 0.02, runnerUp: 'facility' },
+      amenity: { choice: 'pets_allowed', top: 0.88, margin: 0.76 },
+    };
+    const split = (top: number, second: number, runnerUp: string | null = 'facility', choice = 'cancellation') => ({ fact: { choice, top, margin: top - second, runnerUp } });
+
+    it('answers both from the rows instead of handing the agent a question it has no rows for', () => {
+      expect(ask('does the yotel allow dogs, and can I cancel for free?', LIVE)).toEqual({
+        kind: 'answer',
+        intent: 'ask_hotels',
+        plan: { about: 'hotel_facts', propertyId: P(1), asks: [{ fact: 'cancellation' }, { fact: 'facility', amenity: 'pets_allowed' }] },
+      });
+      // Read again with the YOTEL list on screen, the same question reads multi_intent 0.45 (live,
+      // 2026-11-14): it is two requests, and the plan answers both.
+      expect(ask('does the yotel take dogs, and can I cancel for free?', { ...LIVE, multiIntent: 0.45, intent: { choice: 'ask_hotels', top: 0.93, margin: 0.86 }, fact: { choice: 'cancellation', top: 0.54, margin: 0.08, runnerUp: 'facility' } })).toMatchObject({
+        plan: { about: 'hotel_facts', propertyId: P(1) },
+      });
+      // The order is the catalogue's, whichever of the two Jev put first.
+      expect(ask('is the second one ok with my dog and what are the cancellation terms?', { ...LIVE, ...split(0.55, 0.45, 'cancellation', 'facility') })).toMatchObject({
+        plan: { about: 'hotel_facts', propertyId: P(2), asks: [{ fact: 'cancellation' }, { fact: 'facility', amenity: 'pets_allowed' }] },
+      });
+      expect(ask('how much is the carris and is breakfast included?', { ...LIVE, ...split(0.5, 0.48, 'price', 'breakfast') })).toMatchObject({
+        plan: { about: 'hotel_facts', propertyId: P(3), asks: [{ fact: 'price' }, { fact: 'breakfast' }] },
+      });
+    });
+
+    it('two readings of the same fact are one answer', () => {
+      expect(ask('can I cancel the yotel for free?', { ...LIVE, amenity: sure('free_cancellation') })).toEqual({
+        kind: 'answer',
+        intent: 'ask_hotels',
+        plan: { about: 'hotel', propertyId: P(1), fact: 'cancellation' },
+      });
+    });
+
+    it('anything short of two real facts about one named hotel still defers', () => {
+      const msg = 'does the yotel allow dogs, and can I cancel for free?';
+      // The two together under the bar, or the second too small to be a second question.
+      expect(ask(msg, { ...LIVE, ...split(0.45, 0.35) })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      expect(ask(msg, { ...LIVE, ...split(0.7, 0.2) })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      // `none` is not a fact; no runner-up (a reading from before it was read) is not a split.
+      expect(ask(msg, { ...LIVE, ...split(0.5, 0.45, 'none') })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      expect(ask(msg, { ...LIVE, ...split(0.5, 0.45, null) })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      expect(ask(msg, { ...LIVE, fact: { choice: 'cancellation', top: 0.51, margin: 0.02 } })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      // Which facility is unsure, or not one the rows hold.
+      expect(ask(msg, { ...LIVE, amenity: { choice: 'pets_allowed', top: 0.6, margin: 0.3 } })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      expect(ask(msg, { ...LIVE, amenity: sure('none') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+      // A label outside the catalogue is never acted on.
+      expect(ask(msg, { ...LIVE, ...split(0.5, 0.45, 'smell') })).toEqual({ kind: 'defer', reason: 'slot_missing' });
+      // No hotel named, or one singled out by rank: not answered for a guessed hotel.
+      expect(ask('do they allow dogs, and can I cancel for free?', LIVE)).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      expect(ask('does the cheapest allow dogs, and can I cancel?', { ...LIVE, superlative: sure('cheapest') })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      expect(ask('is the yotel the cheapest that allows dogs, and can I cancel it?', { ...LIVE, superlative: sure('cheapest') })).toEqual({ kind: 'defer', reason: 'slot_ambiguous' });
+      // Read as two requests beyond what two facts explain, or with the question itself not sure: the agent's.
+      expect(ask(msg, { ...LIVE, multiIntent: 0.7 })).toEqual({ kind: 'defer', reason: 'multi_intent' });
+      expect(ask(msg, { ...LIVE, multiIntent: 0.5, intent: { choice: 'ask_hotels', top: 0.8, margin: 0.6 } })).toEqual({ kind: 'defer', reason: 'multi_intent' });
+      expect(ask(msg, { ...LIVE, multiIntent: 0.5, superlative: sure('cheapest') })).toEqual({ kind: 'defer', reason: 'multi_intent' });
+      expect(ask(msg, { ...LIVE, multiIntent: 0.5, ...split(0.7, 0.2) })).toEqual({ kind: 'defer', reason: 'multi_intent' });
+      expect(ask(msg, { ...LIVE, multiIntent: null })).toEqual({ kind: 'defer', reason: 'multi_intent' });
+    });
+  });
+
   it('a question about more than one thing still goes to the agent', () => {
     expect(ask('how much is the second one and does it have parking?', { fact: sure('price'), multiIntent: 0.7 })).toEqual({ kind: 'defer', reason: 'multi_intent' });
   });

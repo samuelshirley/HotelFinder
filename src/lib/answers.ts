@@ -76,6 +76,8 @@ export type Answer =
   | { kind: 'distance'; name: string; km: number; from: DistanceFrom; label: string | null }
   | { kind: 'facility'; name: string; amenity: Amenity; listed: boolean }
   | { kind: 'not_held'; name: string; ask: FactAsk }
+  /** Two facts about one hotel asked in one message: each answered (or `not_held`) on its own. */
+  | { kind: 'facts'; answers: Answer[] }
   | { kind: 'across'; ask: FactAsk; yes: string[]; no: string[]; unknown: string[] }
   | { kind: 'ranking'; superlative: Superlative; winners: string[]; value: RankValue; of: number; missing: number }
   | { kind: 'ranking_not_held'; superlative: Superlative; of: number }
@@ -187,6 +189,10 @@ export function buildAnswer(plan: AnswerPlan, listed: readonly HotelFacts[], ctx
     case 'hotel': {
       const h = listed.find((x) => x.propertyId === plan.propertyId);
       return h ? hotelAnswer(h, plan, ctx) : null;
+    }
+    case 'hotel_facts': {
+      const h = listed.find((x) => x.propertyId === plan.propertyId);
+      return h ? { kind: 'facts', answers: plan.asks.map((ask) => hotelAnswer(h, ask, ctx)) } : null;
     }
     case 'hotel_by_rank': {
       const { winners } = rankHotels(hotels, plan.superlative);
